@@ -1,0 +1,440 @@
+{
+  "model": "gpt-6.1-terra",
+  "instructions": "# Read the episode as a finished telling\n\nDecide whether you would send this script to the assigned speakers to record. Read only its spoken words, genre, format and audience. Report `reading_mode=script_only`. Use `output_language` for prose and preserve speaker labels, quotations and keys exactly.\n\n## Judge the complete telling\n\nRead the whole script before commissioning repairs. Decide how the voice works across the episode and what the complete telling leaves the listener with. Put these judgments in `listener_answer`, supported by concrete words from the relevant passages. When considering a required repair, compare the passage as written with the proposed alternative and identify the defect the change resolves. A plot summary or a general description of the tone does not establish either readiness or a defect. Track what this listener can understand as the speech unfolds. When a sentence relies on a reference or inference, check whether the needed connection is available at that point. Do not silently supply knowledge from later in the script. A deliberate question or delayed reveal can leave its answer open while making clear what the listener is following.\n\nEvaluate commentary after a scene by what it contributes to the complete episode. Establish what listeners already understand at its last substantive action, result or reply, then compare hearing the passage and its next join with and without the commentary. A remark may close a conversation or bring the listener back to the stated subject without adding facts or explaining the scene again. Judge that function in the actual speech and its place in this telling. Require an exact cut or shortening when a passage re-explains an already clear connection and impairs the telling without a useful contribution to retain. If wording or a transition weakens an otherwise useful contribution, commission repair of that execution while preserving its function. A joke, aside or reflection may contribute through timing, attitude, relationship or pleasure without adding information.\n\nThe ending may complete the action, follow a consequence, express the narrator's response or reflection, return to an earlier moment, leave open a question central to the story, or briefly draw the whole account together. Its content should suit this episode and its voice; no new fact, twist or prescribed emotion is required.\n\nA brief overall conclusion gives a view of the episode's broad subject, outcome or takeaway, relying on details the audience has just heard. Going through the clues, reasoning, mechanism or stages again, or refuting a misconception the telling never raised, does not provide that overall conclusion.\n\nRead the entire ending with its setup, the understanding or change achieved and what remains open. Judge its actual words, rhythm and transition into the stopping point against what listeners have just heard. Ground a required revision in a concrete failure of the present words or transition, rather than a preference to end on an action. A scene having already resolved its action does not make a subsequent conclusion redundant in its function for the episode. For a proposed cut, read the surviving ending: does it still complete the telling, or does removing the repeated explanation leave an abrupt stop, an unsupported conclusion or an unprepared correction? Use the actual stopping words and joins to establish the defect and the effect of the repair. Commission a complete ending with its transition when that is the coherent repair, without fixing the current last sentence as its destination. If the telling stops before a prepared answer, request completion within the available material or a change to what the story promises. Keep the current ending when it works.\n\n## Commission the needed work\n\nLet the comparisons determine the findings. In `observation`, explain the current defect and its effect on this listener. In `requested_change`, commission a concrete change to the addressed telling: what the writer should develop, connect, reveal, select or replace, and what the resulting passage should achieve. Choose the smallest coherent repair that resolves the demonstrated defect. A word or sentence may restore an intelligible reference or transition; rebuild a connected passage when its development or dependencies need to change together. Keep your evidential and editorial analysis in the diagnosis; it is not itself speech to put on air. For a recurring manner or extended ending that needs connected revision, give one coherent passage assignment before independent line repairs. In `preserve`, state the supported meaning and useful effect to retain; a factual boundary constrains the repaired account without automatically becoming a spoken qualification. Use `important` or `blocking` and recommend `revise` for a demonstrated defect. An alternative with a comparable listening effect is `optional`. Use `keep` when no required repair remains.\n\nRead the entire surviving sequence after each proposed operation. Keep the necessary connection between observation, explanation and conclusion, and keep clear the subject, units and population of retained claims. If a comparison or explanation lacks a basis, decide whether it is needed for the commissioned question. An unclear branch may be removed when that question is already understandable without it. If the branch is needed, ask the writer to establish the missing basis from the sources or change the retained account or claim. Repairing the scope of the account does not automatically require a spoken explanation of methodology. Ask for methodological detail when this audience needs it to understand what remains. A statement of caution alone does not supply a missing basis. Judge a qualification with its whole paragraph and the words that will remain: retain it when those words still invite a specific mistaken understanding, naming both. Hear the actual grammar, idiom and cadence, and require repair of an objective language error. An intended mystery can leave an answer open while supplying the basis the listener needs to follow it. Do not invent a replacement account.\n\n## Authorize and return the review\n\nSet `revision_scope` from required work, using `none` when there is none. When a connected passage needs rebuilding, use `sequence` and authorize its complete inclusive range in `sequence_ranges`: two short exact quotes identify its first and last utterances, which may be the same utterance. Include the setup, support for dependent conclusions and handoff that need to change together. For an ending rewrite, check that the authorized range includes its entire needed development through the intended stopping point and any dependent setup. A self-contained wording correction within an ending may remain local. A move needs a connected range covering its original and intended positions and the intervening speech. Use `whole_episode` when the repair requires recomposing the complete telling. Local repairs change quoted wording only; quote an entire local deletion. Quotes of surviving join lines identify the join without authorizing deletion between them.\n\nAnchor each finding to exact nonempty quotations and supplied zero-based utterance indices. Address dependent passages with the underlying repair. Record useful contributions in strengths without treating them as approval of the whole voice or ending. Keep comparisons to the speech needed to explain the decision and operation. Use `duration_context` as an estimate, leave `research_requests` empty and return the requested structured review. External verification belongs to evidence reading; report no measured audio or human listening.\n",
+  "input": [
+    {
+      "role": "user",
+      "content": [
+        {
+          "type": "input_text",
+          "text": "{\"output_language\":\"ru\",\"audience\":\"Взрослый слушатель без специальных знаний, впервые слышит эту историю\",\"format\":\"solo\",\"genre\":\"Детектив\"}",
+          "prompt_cache_breakpoint": {
+            "mode": "explicit"
+          }
+        },
+        {
+          "type": "input_text",
+          "text": "{\"script\":{\"utterances\":[{\"index\":0,\"speaker\":\"РАССКАЗЧИК\",\"text\":\"Лондон, конец лета 1854 года. Квартал вокруг Брод-стрит, рядом с площадью Голден-сквер. В ночь с 31 августа на 1 сентября здесь начинается то, что потом назовут вспышкой холеры. Холера бывала в этих местах и раньше, но теперь люди заболевают десятками. Многие умирают за несколько часов. На небольшом пятачке, примерно в двухстах тридцати метрах от одного перекрёстка, за десять дней наберётся больше пятисот смертельных случаев. Первыми съезжают жильцы меблированных комнат. За ними уходят остальные квартиранты, а мебель оставляют, чтобы забрать потом. Некоторые дома запирают, потому что умерли хозяева. Меньше чем за шесть дней самые пострадавшие улицы покидают больше трёх четвертей жителей.\"},{\"index\":1,\"speaker\":\"РАССКАЗЧИК\",\"text\":\"На Брод-стрит, у поворота на Кембридж-стрит, стоит уличная колонка. Это не памятник и не украшение, а насос над колодцем. Жители качают из него воду и несут домой в вёдрах и кувшинах. Этой водой разбавляют спиртное в окрестных пабах, её подают в кофейнях и столовых. В лавочках добавляют ложку шипучего порошка и продают как шербет. Хозяйка одной кофейни, где обедали рабочие и где на стол ставили эту воду, шестого сентября скажет, что уже знает о девяти умерших посетителях.\"},{\"index\":2,\"speaker\":\"РАССКАЗЧИК\",\"text\":\"В этот квартал приходит наш сыщик, врач Джон Сноу. Рассуждать о холере он начал задолго до этих дней: первая версия его работы вышла ещё в 1849 году. Сноу считал так. Болезнь начинается в кишечнике, значит, то, что её вызывает, человек случайно проглатывает. Самое опасное — когда выделения больных попадают в питьевую воду, например просачиваются через землю в колодец. Увидеть это вещество под микроскопом Сноу не мог. Судить о нём приходилось по тому, что оно делает с людьми.\"},{\"index\":3,\"speaker\":\"РАССКАЗЧИК\",\"text\":\"Узнав, где именно бушует болезнь и насколько далеко она расходится, Сноу сразу подозревает колонку. Вечером третьего сентября он смотрит на её воду и находит в ней так мало органической примеси, что не решается сделать вывод. В следующие два дня он замечает мелкие белые хлопья, и их то больше, то меньше. Но хлопья в стакане не говорят, кто убийца. Подозреваемая выглядит почти невинно. Значит, улики надо искать не в воде, а в людях: кто эту воду пил, а кто нет.\"},{\"index\":4,\"speaker\":\"РАССКАЗЧИК\",\"text\":\"Сноу просит разрешения переписать в Главном регистрационном управлении смерти от холеры за неделю, которая кончилась второго сентября. Подробно он разбирает восемьдесят три смерти последних трёх дней этой недели. Это ещё далеко не все жертвы, а только первая пачка дел. Потом он установит почти двести смертей за одни лишь первое и второе сентября, а многие заболевшие в те же дни умерли позже. Но начинать надо с того, что есть, и Сноу идёт по адресам.\"},{\"index\":5,\"speaker\":\"РАССКАЗЧИК\",\"text\":\"Первое наблюдение ожидаемое: почти все смерти случились недалеко от колонки. Только это ещё не доказательство. Рядом с колонкой люди живут, работают, дышат одним воздухом. Поэтому Сноу присматривается к исключениям. Десять умерших жили явно ближе к другой колонке. В пяти таких семьях ему сказали, что за водой всегда посылали на Брод-стрит: она им больше нравилась. Ещё трое умерших — дети, которые учились в школе возле этой колонки. Про двоих известно, что они пили её воду, про третьего родители думают, что, вероятно, тоже. На карте адрес — точка, а в жизни человек ходит. Бывает, что мимо одной колонки к другой, потому что вода там вкуснее. Ещё одну колонку многие обходили стороной: вода в ней была грязная. Те, кто умер рядом с ней, пили воду с Брод-стрит.\"},{\"index\":6,\"speaker\":\"РАССКАЗЧИК\",\"text\":\"А теперь неудобный факт. На Поланд-стрит стоит работный дом — приют, где жили сотни бедняков. Больше чем с трёх сторон из четырёх его окружают дома, где умирали от холеры. Внутри пятьсот тридцать пять человек. Умерли от холеры пятеро. Пятеро — посреди квартала, где вымирали целые семьи. По расчёту Сноу, если бы здесь умирали так же, как на соседних улицах, погибло бы больше ста человек.\"},{\"index\":7,\"speaker\":\"РАССКАЗЧИК\",\"text\":\"Что их защитило? Сноу выясняет: у работного дома есть свой колодец и подвод воды от водопроводной компании. За водой на Брод-стрит отсюда не ходили. Улица та же, воздух тот же, вода другая.\"},{\"index\":8,\"speaker\":\"РАССКАЗЧИК\",\"text\":\"Гладкой картина при этом не стала. Среди умерших в той части квартала, откуда обычно ходили к этой колонке, в шестидесяти одном случае Сноу сказали, что человек пил её воду, постоянно или иногда. В шести случаях спросить было уже некого. Ещё в шести ему ответили, что до болезни умерший эту воду не пил. Но версия теперь объясняет не только скопление смертей у колонки. Она объясняет и тех, кто жил в стороне, но всё равно умер, и тех, кто жил в самой гуще, но выжил.\"},{\"index\":9,\"speaker\":\"РАССКАЗЧИК\",\"text\":\"Вечером в четверг, седьмого сентября, Сноу приходит на заседание попечителей прихода Святого Иакова и излагает им эти обстоятельства. На следующий день по их решению с колонки снимают ручку. Здесь знаменитая легенда обычно и заканчивается: доктор снял ручку, и эпидемия прекратилась. Но хороший сыщик проверяет и собственную победу.\"},{\"index\":10,\"speaker\":\"РАССКАЗЧИК\",\"text\":\"Важно различать два события: когда человек заболел и когда умер. Если смотреть только на смерти, можно запутаться — ведь люди, заболевшие накануне, продолжают умирать и после любого вмешательства. Сноу составил таблицу по дням начала болезни у тех, кто потом умер. Первого сентября таких случаев сто сорок три. Третьего — пятьдесят четыре. Восьмого, в день, когда сняли ручку, — двенадцать. Пик уже прошёл, кривая давно шла вниз. Сноу сам пишет, что приступов стало гораздо меньше ещё до того, как воду перестали пить. Поэтому нельзя сказать, оставалась ли вода опасной к этому дню или уже очистилась. Да и людей в квартале оставалось немного: большинство разъехалось. Снятая ручка защитила тех, кто ещё мог прийти к колонке. Но она не доказала, что вспышку остановила именно она. Решение принято, а дело не закрыто.\"},{\"index\":11,\"speaker\":\"РАССКАЗЧИК\",\"text\":\"Следующая улика приходит издалека. В еженедельной сводке рождений и смертей за девятое сентября есть короткая запись: в Хэмпстеде, на окраине, называемой Уэст-Энд, второго сентября умерла от холеры вдова мастера, делавшего капсюли. Ей было пятьдесят девять лет. На эту смерть Сноу обратил внимание доктор Фрейзер. Хэмпстед далеко от Брод-стрит, а сын умершей говорит, что она не бывала там много месяцев. Как будто случай не из этого дела.\"},{\"index\":12,\"speaker\":\"РАССКАЗЧИК\",\"text\":\"Тогда Сноу восстанавливает её последние дни. Каждый день с Брод-стрит в Уэст-Энд ходила повозка. И была привычка: отправлять с ней большую бутыль воды из колонки, потому что эта женщина любила именно её. Воду набрали в четверг, тридцать первого августа. Вечером она её пила, пила и в пятницу. В пятницу вечером заболела, в субботу умерла. У неё гостила племянница, она тоже пила эту воду. Потом вернулась к себе домой, в Ислингтон, заболела холерой и умерла. По сведениям Сноу, ни в Уэст-Энде, ни там, где жила племянница, холеры тогда не было. Пила воду и служанка, но она не заболела или, по крайней мере, не заболела тяжело. Значит, выпить воду ещё не значило обязательно заболеть. Но эта вода, похоже, умела путешествовать и уносить опасность за много километров от своего квартала.\"},{\"index\":13,\"speaker\":\"РАССКАЗЧИК\",\"text\":\"Отдельные яркие случаи убеждают, но могут и обмануть. Нужен тот, кто станет проверять всё подряд, и лучше, если он сам не верит в версию. Такой человек нашёлся: Генри Уайтхед, молодой священник церкви Святого Луки на Бервик-стрит. Он знал эту улицу и её жителей задолго до эпидемии, а во время вспышки ходил по больным семьям. Услышав, что во всём винят колонку, Уайтхед сказал знакомому врачу, что тщательное расследование эту теорию опровергнет. У него были основания. Он каждый день навещал служанку, которая впала в тяжелейший коллапс и всё-таки выкарабкалась. Всё время болезни она пила воду из колонки, много и постоянно. И такие случаи были не единичны.\"},{\"index\":14,\"speaker\":\"РАССКАЗЧИК\",\"text\":\"В ноябре 1854 года приход создаёт комиссию по расследованию вспышки, и Сноу с Уайтхедом входят в неё. Уайтхед разыскивает уехавших, иногда очень далеко. В одни и те же семьи он возвращается по четыре-пять раз с вопросами, о которых сначала не догадался. Первое, что он научился различать: пил ли человек воду до того, как заболел, или уже больным, когда его мучила жажда. Его служанка пила много воды и до болезни, вплоть до того дня, когда слегла.\"},{\"index\":15,\"speaker\":\"РАССКАЗЧИК\",\"text\":\"Вот одна сцена. Верхний этаж дома, семья: отец, мать, младенец и девочка лет десяти. Уайтхед спрашивает, болел ли кто-нибудь холерой или поносом. Нет. Пьют ли они воду из колонки? Да. Кто её носит? Девочка. Тогда он обращается к ней самой: не страшно было ходить по улицам, где все ставни закрыты и кругом катафалки? А она по улицам не ходила. Почему? Лежала в постели с простудой. Мать вспоминает: да, так и было. А кто же носил воду? Тогда брали из цистерны в доме. Семья, которая «обычно пила воду из колонки», в те самые дни её не пила. Привычка и то, что происходило в нужные дни, — разные вещи.\"},{\"index\":16,\"speaker\":\"РАССКАЗЧИК\",\"text\":\"Уайтхед расспрашивает не только родственников умерших, но и выздоровевших, и тех, кто вообще не болел. Он специально ищет людей, которые пили воду и остались здоровы, и честно вносит их в отчёт. Итог по его подсчётам такой. Среди тех, кто пил воду колонки, заболели холерой или поносом восемьдесят человек, а здоровыми остались пятьдесят семь. Среди тех, кто её не пил, заболели двадцать, а здоровыми остались двести семьдесят девять. Восемьдесят из ста тридцати семи против двадцати из двухсот девяноста девяти. Это не перепись всего квартала, а позднее обследование одной улицы. Но разница видна сразу. Уайтхед пишет, что пришёл к убеждению медленно и, добавляет он, неохотно. Исключения никуда не делись. Просто вопросы стали точнее.\"},{\"index\":17,\"speaker\":\"РАССКАЗЧИК\",\"text\":\"Остаётся последний вопрос. Как зараза могла попасть в колодец? Когда колодец вскрыли, смотритель работ сообщил Сноу, что в кладке нет ни дыр, ни трещин, через которые проникала бы грязь. До весны 1855 года никто не доказал, что сточные воды попадали в колодец. Все данные говорили скорее об обратном.\"},{\"index\":18,\"speaker\":\"РАССКАЗЧИК\",\"text\":\"И тут Уайтхед возвращается к записи, мимо которой прошёл. В доме номер сорок по Брод-стрит, совсем рядом с колонкой, второго сентября умерла пятимесячная девочка, после поноса, начавшегося за четыре дня до смерти. О смерти он знал, а вот когда ребёнок заболел, не спросил: признаётся, что не придал значения, ведь это был младенец. Он идёт к матери. Девочка заболела в понедельник, двадцать восьмого августа, — за несколько дней до общей вспышки. Пелёнки замачивали в вёдрах, а воду выливали частью в раковину во дворе, частью в выгребную яму перед домом. Третьего апреля Уайтхед докладывает об этом комиссии, и та сразу назначает обследование.\"},{\"index\":19,\"speaker\":\"РАССКАЗЧИК\",\"text\":\"В конце апреля инженер Йорк вскрывает землю. Швы старого стока раскрошились, кирпичная кладка, по его словам, превратилась в решето. Выгребная яма переполнена. От стенки стока до наружной кладки колодца по горизонтали меньше метра. Землю между ямой и колодцем раскапывают. Она чёрная, пропитанная влагой, болотистая. А изнутри колодца видно, что из гравия вымыт мелкий песок, как бывает там, где долго сочится вода. Йорк не сомневается: жидкость из стоков долгое время просачивалась в колодец.\"},{\"index\":20,\"speaker\":\"РАССКАЗЧИК\",\"text\":\"Кажется, вот и первая жертва, и путь найден. Но честный детектив здесь притормаживает. Врач, лечивший девочку, записей не вёл и уточнял воспоминания у матери. Он помнил понос и рвоту, но не видел ничего, что принял бы за холерные испражнения: ни посинения, ни судорог, ни коллапса. Понос у ребёнка бывал и раньше. Комиссия признала, что природа болезни сомнительна, хотя у маленьких детей холера часто проявляется неясно. А сам Уайтхед писал, что точное место и способ, каким заразное начало попало в колодец, установить уже нельзя: сток к тому времени переделали.\"},{\"index\":21,\"speaker\":\"РАССКАЗЧИК\",\"text\":\"Так что же раскрыто? Подземный путь, по которому грязь могла попасть в колодец, найден. Связь вспышки с водой колонки проверена много раз и выдержала проверки: адреса умерших, пятеро погибших среди пятисот с лишним в работном доме, бутыль, увезённая в Хэмпстед, девочка с простудой, подсчёты Уайтхеда. А вот первый больной так и не установлен наверняка. И неизвестно, остановила ли вспышку снятая ручка.\"},{\"index\":22,\"speaker\":\"РАССКАЗЧИК\",\"text\":\"Главная находка Сноу — не эффектная карта и даже не снятая ручка. Он связал болезнь с тем, какую воду люди на самом деле пили, и потребовал защитить людей раньше, чем кто-либо смог объяснить, что происходит под землёй. Последующие проверки не отменили его решение. Они просто позволили точнее сказать, что именно было доказано. А вода, которая в начале истории почти ничего не показала в стакане, выдала себя другим: привычками людей, записями в книгах и раскрошившимся кирпичом в метре от колодца.\"}]},\"duration_context\":{\"current_text\":{\"word_count\":1922},\"audio_measured\":false,\"requested\":{\"target_seconds\":900,\"min_seconds\":780,\"max_seconds\":1080},\"estimated_word_target\":1650,\"estimated_word_range\":{\"min\":1430,\"max\":1980},\"estimate_basis\":\"Russian solo reference reading at 110 words/minute\",\"estimated_current_seconds\":1049}}"
+        }
+      ]
+    }
+  ],
+  "max_output_tokens": 24576,
+  "text": {
+    "verbosity": "high",
+    "format": {
+      "type": "json_schema",
+      "name": "reader_review",
+      "schema": {
+        "$defs": {
+          "DependentPassage": {
+            "additionalProperties": false,
+            "properties": {
+              "reason": {
+                "description": "Why this passage must change with the addressed repair.",
+                "minLength": 1,
+                "title": "Reason",
+                "type": "string"
+              },
+              "anchors": {
+                "items": {
+                  "$ref": "#/$defs/UtteranceAnchor"
+                },
+                "minItems": 1,
+                "title": "Anchors",
+                "type": "array"
+              }
+            },
+            "required": [
+              "reason",
+              "anchors"
+            ],
+            "title": "DependentPassage",
+            "type": "object"
+          },
+          "EditorialFinding": {
+            "additionalProperties": false,
+            "properties": {
+              "dimension": {
+                "enum": [
+                  "promise",
+                  "mechanism",
+                  "structure",
+                  "transition",
+                  "repetition",
+                  "oral_style",
+                  "speaker_contribution",
+                  "factuality",
+                  "attribution",
+                  "duration",
+                  "ending"
+                ],
+                "title": "Dimension",
+                "type": "string"
+              },
+              "priority": {
+                "enum": [
+                  "blocking",
+                  "important",
+                  "optional"
+                ],
+                "title": "Priority",
+                "type": "string"
+              },
+              "anchors": {
+                "items": {
+                  "$ref": "#/$defs/UtteranceAnchor"
+                },
+                "minItems": 1,
+                "title": "Anchors",
+                "type": "array"
+              },
+              "observation": {
+                "description": "Specific defect in the anchored words and its effect in listening order. For grammar, identify the faulty form or construction.",
+                "minLength": 1,
+                "title": "Observation",
+                "type": "string"
+              },
+              "requested_change": {
+                "description": "Concrete operation on the addressed words or passage, its intended listening effect and any dependent joins. Editorial diagnosis is not proposed spoken wording.",
+                "minLength": 1,
+                "title": "Requested Change",
+                "type": "string"
+              },
+              "preserve": {
+                "description": "Supported meaning, necessary factual conditions and useful listening effects to retain. May be empty.",
+                "items": {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "title": "Preserve",
+                "type": "array"
+              }
+            },
+            "required": [
+              "dimension",
+              "priority",
+              "anchors",
+              "observation",
+              "requested_change",
+              "preserve"
+            ],
+            "title": "EditorialFinding",
+            "type": "object"
+          },
+          "EditorialStrength": {
+            "additionalProperties": false,
+            "properties": {
+              "anchors": {
+                "items": {
+                  "$ref": "#/$defs/UtteranceAnchor"
+                },
+                "minItems": 1,
+                "title": "Anchors",
+                "type": "array"
+              },
+              "reason": {
+                "description": "What works for the listener and should survive revision.",
+                "minLength": 1,
+                "title": "Reason",
+                "type": "string"
+              }
+            },
+            "required": [
+              "anchors",
+              "reason"
+            ],
+            "title": "EditorialStrength",
+            "type": "object"
+          },
+          "PinpointAssessment": {
+            "additionalProperties": false,
+            "properties": {
+              "scale": {
+                "description": "Local includes multiple independent pinpoint repairs at any distance; whole_episode explicitly authorizes recomposing the complete telling.",
+                "enum": [
+                  "none",
+                  "local",
+                  "whole_episode"
+                ],
+                "title": "Scale",
+                "type": "string"
+              },
+              "reason": {
+                "description": "Concrete editorial reason for this scale and its intended effect on the listening experience; do not infer quality from counts.",
+                "minLength": 1,
+                "title": "Reason",
+                "type": "string"
+              },
+              "anchors": {
+                "description": "Exact passages supporting this choice. Required repair needs at least one; none may use an empty list.",
+                "items": {
+                  "$ref": "#/$defs/UtteranceAnchor"
+                },
+                "title": "Anchors",
+                "type": "array"
+              },
+              "dependent_passages": {
+                "description": "Explicitly addressed dependent passages; no automatic neighboring-text permission. Empty when none are needed.",
+                "items": {
+                  "$ref": "#/$defs/DependentPassage"
+                },
+                "title": "Dependent Passages",
+                "type": "array"
+              }
+            },
+            "required": [
+              "scale",
+              "reason",
+              "anchors",
+              "dependent_passages"
+            ],
+            "title": "PinpointAssessment",
+            "type": "object"
+          },
+          "ResearchNeed": {
+            "additionalProperties": false,
+            "properties": {
+              "anchors": {
+                "items": {
+                  "$ref": "#/$defs/UtteranceAnchor"
+                },
+                "minItems": 1,
+                "title": "Anchors",
+                "type": "array"
+              },
+              "question": {
+                "minLength": 1,
+                "title": "Question",
+                "type": "string"
+              },
+              "why_needed": {
+                "minLength": 1,
+                "title": "Why Needed",
+                "type": "string"
+              }
+            },
+            "required": [
+              "anchors",
+              "question",
+              "why_needed"
+            ],
+            "title": "ResearchNeed",
+            "type": "object"
+          },
+          "SequenceAssessment": {
+            "additionalProperties": false,
+            "properties": {
+              "scale": {
+                "const": "sequence",
+                "title": "Scale",
+                "type": "string"
+              },
+              "reason": {
+                "description": "Concrete editorial reason for this scale and its intended effect on the listening experience; do not infer quality from counts.",
+                "minLength": 1,
+                "title": "Reason",
+                "type": "string"
+              },
+              "anchors": {
+                "description": "Exact passages supporting this choice. Required repair needs at least one; none may use an empty list.",
+                "items": {
+                  "$ref": "#/$defs/UtteranceAnchor"
+                },
+                "title": "Anchors",
+                "type": "array"
+              },
+              "dependent_passages": {
+                "description": "Explicitly addressed dependent passages; no automatic neighboring-text permission. Empty when none are needed.",
+                "items": {
+                  "$ref": "#/$defs/DependentPassage"
+                },
+                "title": "Dependent Passages",
+                "type": "array"
+              },
+              "sequence_ranges": {
+                "description": "Explicit editable sequences; do not infer their boundaries from scattered findings. Text outside them remains protected except separately addressed local repairs.",
+                "items": {
+                  "$ref": "#/$defs/SequenceRange"
+                },
+                "minItems": 1,
+                "title": "Sequence Ranges",
+                "type": "array"
+              }
+            },
+            "required": [
+              "scale",
+              "reason",
+              "anchors",
+              "dependent_passages",
+              "sequence_ranges"
+            ],
+            "title": "SequenceAssessment",
+            "type": "object"
+          },
+          "SequenceRange": {
+            "additionalProperties": false,
+            "properties": {
+              "anchors": {
+                "description": "First and last editable utterances, in that order. Quotes identify the boundaries; the complete inclusive range is authorized.",
+                "items": {
+                  "$ref": "#/$defs/UtteranceAnchor"
+                },
+                "maxItems": 2,
+                "minItems": 2,
+                "title": "Anchors",
+                "type": "array"
+              },
+              "reason": {
+                "minLength": 1,
+                "title": "Reason",
+                "type": "string"
+              }
+            },
+            "required": [
+              "anchors",
+              "reason"
+            ],
+            "title": "SequenceRange",
+            "type": "object"
+          },
+          "UtteranceAnchor": {
+            "additionalProperties": false,
+            "properties": {
+              "utterance_index": {
+                "description": "Zero-based position in the exact supplied WriteOutput.utterances list.",
+                "minimum": 0,
+                "title": "Utterance Index",
+                "type": "integer"
+              },
+              "quote": {
+                "description": "Exact nonempty substring of that utterance's spoken text.",
+                "minLength": 1,
+                "title": "Quote",
+                "type": "string"
+              }
+            },
+            "required": [
+              "utterance_index",
+              "quote"
+            ],
+            "title": "UtteranceAnchor",
+            "type": "object"
+          }
+        },
+        "additionalProperties": false,
+        "properties": {
+          "reading_mode": {
+            "description": "script_only only if plan, dossier, author notes and prior reviews were not visible.",
+            "enum": [
+              "script_only",
+              "informed"
+            ],
+            "title": "Reading Mode",
+            "type": "string"
+          },
+          "findings": {
+            "items": {
+              "$ref": "#/$defs/EditorialFinding"
+            },
+            "title": "Findings",
+            "type": "array",
+            "description": "Anchored defects and optional improvements in the actual spoken text, at the required repair scale. May be empty."
+          },
+          "revision_scope": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/PinpointAssessment"
+              },
+              {
+                "$ref": "#/$defs/SequenceAssessment"
+              }
+            ],
+            "title": "Revision Scope",
+            "description": "Editable scale and ranges needed for the required changes, including dependent passages. Use none when no required repair remains."
+          },
+          "listener_answer": {
+            "description": "The complete listening experience in speech order: understanding, interest, cumulative voice and ending.",
+            "minLength": 1,
+            "title": "Listener Answer",
+            "type": "string"
+          },
+          "important_limits": {
+            "items": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "title": "Important Limits",
+            "type": "array",
+            "description": "Only limits in the supplied text that materially affect this listening experience. May be empty; do not invent problems or require a list of caveats in the script."
+          },
+          "research_requests": {
+            "items": {
+              "$ref": "#/$defs/ResearchNeed"
+            },
+            "title": "Research Requests",
+            "type": "array"
+          },
+          "strengths": {
+            "items": {
+              "$ref": "#/$defs/EditorialStrength"
+            },
+            "title": "Strengths",
+            "type": "array",
+            "description": "Anchored wording or narrative contributions and useful listening effects to retain."
+          },
+          "duration_note": {
+            "description": "Evidence and uncertainty about duration; never invented timing.",
+            "minLength": 1,
+            "title": "Duration Note",
+            "type": "string"
+          },
+          "recommendation": {
+            "enum": [
+              "keep",
+              "revise",
+              "needs_material"
+            ],
+            "title": "Recommendation",
+            "type": "string",
+            "description": "Recording readiness based on required repairs; keep when none remain."
+          }
+        },
+        "required": [
+          "reading_mode",
+          "findings",
+          "revision_scope",
+          "listener_answer",
+          "important_limits",
+          "research_requests",
+          "strengths",
+          "duration_note",
+          "recommendation"
+        ],
+        "title": "ReaderAssessmentV4",
+        "type": "object"
+      },
+      "strict": true
+    }
+  },
+  "tools": [],
+  "tool_choice": "none",
+  "parallel_tool_calls": false,
+  "truncation": "disabled",
+  "stream": false,
+  "metadata": {
+    "podgen_run_id": "abcf0270-4edf-5c65-b153-6462e28f7fa4",
+    "podgen_invocation_id": "41682383-6cbd-5e6d-9a62-d33fb70f72fa",
+    "podgen_stage": "reader-review",
+    "compiler_version": "whole-episode-baseline-a/1",
+    "podgen_prompt_cache_layout": "stable-role-prefix/1"
+  },
+  "store": false,
+  "background": false,
+  "reasoning": {
+    "effort": "medium"
+  },
+  "prompt_cache_options": {
+    "mode": "explicit"
+  }
+}

@@ -1,0 +1,440 @@
+{
+  "model": "gpt-6.1-terra",
+  "instructions": "# Read the episode as a finished telling\n\nDecide whether you would send this script to the assigned speakers to record. Read only its spoken words, genre, format and audience. Report `reading_mode=script_only`. Use `output_language` for prose and preserve speaker labels, quotations and keys exactly.\n\n## Judge the complete telling\n\nRead the whole script before commissioning repairs. Decide how the voice works across the episode and what the complete telling leaves the listener with. Put these judgments in `listener_answer`, supported by concrete words from the relevant passages. When considering a required repair, compare the passage as written with the proposed alternative and identify the defect the change resolves. A plot summary or a general description of the tone does not establish either readiness or a defect. Track what this listener can understand as the speech unfolds. When a sentence relies on a reference or inference, check whether the needed connection is available at that point. Do not silently supply knowledge from later in the script. A deliberate question or delayed reveal can leave its answer open while making clear what the listener is following.\n\nEvaluate commentary after a scene by what it contributes to the complete episode. Establish what listeners already understand at its last substantive action, result or reply, then compare hearing the passage and its next join with and without the commentary. A remark may close a conversation or bring the listener back to the stated subject without adding facts or explaining the scene again. Judge that function in the actual speech and its place in this telling. Require an exact cut or shortening when a passage re-explains an already clear connection and impairs the telling without a useful contribution to retain. If wording or a transition weakens an otherwise useful contribution, commission repair of that execution while preserving its function. A joke, aside or reflection may contribute through timing, attitude, relationship or pleasure without adding information.\n\nThe ending may complete the action, follow a consequence, express the narrator's response or reflection, return to an earlier moment, leave open a question central to the story, or briefly draw the whole account together. Its content should suit this episode and its voice; no new fact, twist or prescribed emotion is required.\n\nA brief overall conclusion gives a view of the episode's broad subject, outcome or takeaway, relying on details the audience has just heard. Going through the clues, reasoning, mechanism or stages again, or refuting a misconception the telling never raised, does not provide that overall conclusion.\n\nRead the entire ending with its setup, the understanding or change achieved and what remains open. Judge its actual words, rhythm and transition into the stopping point against what listeners have just heard. Ground a required revision in a concrete failure of the present words or transition, rather than a preference to end on an action. A scene having already resolved its action does not make a subsequent conclusion redundant in its function for the episode. For a proposed cut, read the surviving ending: does it still complete the telling, or does removing the repeated explanation leave an abrupt stop, an unsupported conclusion or an unprepared correction? Use the actual stopping words and joins to establish the defect and the effect of the repair. Commission a complete ending with its transition when that is the coherent repair, without fixing the current last sentence as its destination. If the telling stops before a prepared answer, request completion within the available material or a change to what the story promises. Keep the current ending when it works.\n\n## Commission the needed work\n\nLet the comparisons determine the findings. In `observation`, explain the current defect and its effect on this listener. In `requested_change`, commission a concrete change to the addressed telling: what the writer should develop, connect, reveal, select or replace, and what the resulting passage should achieve. Choose the smallest coherent repair that resolves the demonstrated defect. A word or sentence may restore an intelligible reference or transition; rebuild a connected passage when its development or dependencies need to change together. Keep your evidential and editorial analysis in the diagnosis; it is not itself speech to put on air. For a recurring manner or extended ending that needs connected revision, give one coherent passage assignment before independent line repairs. In `preserve`, state the supported meaning and useful effect to retain; a factual boundary constrains the repaired account without automatically becoming a spoken qualification. Use `important` or `blocking` and recommend `revise` for a demonstrated defect. An alternative with a comparable listening effect is `optional`. Use `keep` when no required repair remains.\n\nRead the entire surviving sequence after each proposed operation. Keep the necessary connection between observation, explanation and conclusion, and keep clear the subject, units and population of retained claims. If a comparison or explanation lacks a basis, decide whether it is needed for the commissioned question. An unclear branch may be removed when that question is already understandable without it. If the branch is needed, ask the writer to establish the missing basis from the sources or change the retained account or claim. Repairing the scope of the account does not automatically require a spoken explanation of methodology. Ask for methodological detail when this audience needs it to understand what remains. A statement of caution alone does not supply a missing basis. Judge a qualification with its whole paragraph and the words that will remain: retain it when those words still invite a specific mistaken understanding, naming both. Hear the actual grammar, idiom and cadence, and require repair of an objective language error. An intended mystery can leave an answer open while supplying the basis the listener needs to follow it. Do not invent a replacement account.\n\n## Authorize and return the review\n\nSet `revision_scope` from required work, using `none` when there is none. When a connected passage needs rebuilding, use `sequence` and authorize its complete inclusive range in `sequence_ranges`: two short exact quotes identify its first and last utterances, which may be the same utterance. Include the setup, support for dependent conclusions and handoff that need to change together. For an ending rewrite, check that the authorized range includes its entire needed development through the intended stopping point and any dependent setup. A self-contained wording correction within an ending may remain local. A move needs a connected range covering its original and intended positions and the intervening speech. Use `whole_episode` when the repair requires recomposing the complete telling. Local repairs change quoted wording only; quote an entire local deletion. Quotes of surviving join lines identify the join without authorizing deletion between them.\n\nAnchor each finding to exact nonempty quotations and supplied zero-based utterance indices. Address dependent passages with the underlying repair. Record useful contributions in strengths without treating them as approval of the whole voice or ending. Keep comparisons to the speech needed to explain the decision and operation. Use `duration_context` as an estimate, leave `research_requests` empty and return the requested structured review. External verification belongs to evidence reading; report no measured audio or human listening.\n",
+  "input": [
+    {
+      "role": "user",
+      "content": [
+        {
+          "type": "input_text",
+          "text": "{\"output_language\":\"ru\",\"audience\":\"General listeners; no prior topic knowledge is assumed.\",\"format\":\"solo\",\"genre\":\"Документальный подкаст\"}",
+          "prompt_cache_breakpoint": {
+            "mode": "explicit"
+          }
+        },
+        {
+          "type": "input_text",
+          "text": "{\"script\":{\"utterances\":[{\"index\":0,\"speaker\":\"РАССКАЗЧИК\",\"text\":\"Апрель 1970 года. «Аполлон-13» летит к Луне. Джим Ловелл и Фред Хейз должны сесть в районе Фра Мауро, а Джек Суайгерт — ждать их на орбите в командном модуле. Примерно через пятьдесят шесть часов после старта в служебном модуле происходит авария: в одном из двух кислородных баков пожар, кислород быстро уходит. О посадке больше никто не говорит. Задача теперь одна — вернуться домой.\"},{\"index\":1,\"speaker\":\"РАССКАЗЧИК\",\"text\":\"Возвращаться придётся на лунном модуле. Маленький корабль, который строили для посадки на Луну, становится для троих спасательной шлюпкой. Он даёт им электричество и жизнеобеспечение. Но у воздуха есть ещё одна проблема, о которой легко забыть, пока все думают о кислороде. С каждым выдохом в кабину попадает углекислый газ. Если его не убирать, люди в закрытой кабине постепенно отравятся собственным дыханием.\"},{\"index\":2,\"speaker\":\"РАССКАЗЧИК\",\"text\":\"Углекислый газ убирают патроны с гидроксидом лития. Воздух проходит сквозь патрон, а вещество внутри поглощает углекислый газ. Со временем патрон вырабатывает свой ресурс, и его меняют. Хейз прикинул запас и решил, что патронов хватит. Но, как потом вспоминал Ловелл, Фред не учёл, что в лунном модуле их будет трое, а не двое. Модуль рассчитывали на двух человек примерно на два дня. Теперь он должен был поддерживать троих почти четверо суток.\"},{\"index\":3,\"speaker\":\"РАССКАЗЧИК\",\"text\":\"Запас при этом есть. В командном модуле, который остался без питания, лежат двадцать четыре патрона с тем же гидроксидом лития. Только у них квадратная форма, а гнёзда в системе лунного модуля круглые. Поглотитель есть, но вставить его некуда. Значит, новый очиститель не нужен. Нужно заставить воздух лунного модуля проходить через квадратный патрон, который ни к чему не подходит.\"},{\"index\":4,\"speaker\":\"РАССКАЗЧИК\",\"text\":\"В Хьюстоне инженеры отдела бортовых систем сформулировали задачу в три пункта. Конструкция должна работать. Её нужно собрать из того, что есть у экипажа на борту. И она должна быть настолько простой, чтобы её можно было передать по радио без риска, что её поймут неправильно. Было и ещё одно условие: проверить всё нужно заранее, чтобы при неудаче успеть придумать что-то другое.\"},{\"index\":5,\"speaker\":\"РАССКАЗЧИК\",\"text\":\"Проверяли в камере диаметром чуть больше трёх метров, которая изображала кабину лунного модуля. Переделанные патроны подключили к двум шлангам системы — к тем, что обычно идут к скафандрам командира и пилота. Патроны разместили чуть выше пола, открытыми к воздуху камеры. Людей внутри не было: туда подавали углекислый газ, чтобы изобразить дыхание экипажа. Первые замеры показали небольшой перепад давления на патронах. Тогда закрыли обходные отверстия — куском носка от костюма охлаждения, а сверху обложкой бортовой инструкции. Перепад давления вырос примерно до ноль восьми дюйма водяного столба. По отчёту, именно такой перепад был нужен, чтобы через гидроксид лития проходило достаточно воздуха.\"},{\"index\":6,\"speaker\":\"РАССКАЗЧИК\",\"text\":\"Тем временем на корабле, как вспоминал Ловелл, через полтора суток в лунном модуле загорелась сигнальная лампа: углекислого газа стало опасно много. Но на Земле решение уже было готово.\"},{\"index\":7,\"speaker\":\"РАССКАЗЧИК\",\"text\":\"Девяностый час полёта. С экипажем по радио говорит астронавт Джо Кервин. Ловелл предлагает передать Джеку гарнитуру, чтобы тот записал инструкцию, а собирать уже потом. Кервин советует иначе: соберите вещи, а мы проведём вас по шагам прямо во время работы. Так будет проще, чем сначала всё переписывать, а потом выполнять.\"},{\"index\":8,\"speaker\":\"РАССКАЗЧИК\",\"text\":\"Понадобится немного: два патрона из командного модуля, рулон серой клейкой ленты, пакеты, в которых хранились два костюма жидкостного охлаждения, и одна картонная карточка из бортовых памяток.\"},{\"index\":9,\"speaker\":\"РАССКАЗЧИК\",\"text\":\"Дальше около часа Кервин шаг за шагом ведёт Суайгерта по сборке. Один эпизод стоит рассказать подробно. Кервин просит взять карточку и согнуть её дугой над верхом патрона. Один край нужно подсунуть под выступ с одной стороны, другой упереть в выступ с другой. Сначала просьба звучит странно: зачем патрону картонный мостик? Кервин объясняет: на всю конструкцию наденут пакет, а карточка не даст ему присосаться к сетке.\"},{\"index\":10,\"speaker\":\"РАССКАЗЧИК\",\"text\":\"Суайгерт повторяет вслух: карточка, дуга сверху, края под выступы, потом полоска ленты поперёк, чтобы держалось. Кервин подтверждает: верно. Карточка оказывается великовата. Джек берёт ножницы, подрезает край и объясняет Ловеллу, что эта штука нужна только для того, чтобы пакет не втянуло внутрь. Ещё немного ленты, и вот доклад: «Джо, дуга готова, всё надёжно закреплено лентой».\"},{\"index\":11,\"speaker\":\"РАССКАЗЧИК\",\"text\":\"Теперь можно представить всю конструкцию. Патрон вообще не вставляют в гнездо. Он стоит отдельно, и одна его сторона открыта воздуху кабины. Другую сторону герметично закрывает пакет, приклеенный лентой. К углу пакета присоединён шланг системы, который обычно подключают к скафандру. Система затягивает воздух из кабины, прогоняет через гидроксид лития, а потом через пакет и шланг возвращает его в систему. Картон оставляет под пакетом место для воздуха. Лента не даёт ему пройти мимо. А углекислый газ поглощает вещество, которое было в патроне с самого начала.\"},{\"index\":12,\"speaker\":\"РАССКАЗЧИК\",\"text\":\"Но собрать установку — ещё не всё. Около девяноста четырёх часов Суайгерт докладывает: патроны стоят, как просили, дном к свободному воздуху. Один лежит на панели электропитания, второй — в переходном туннеле. Хьюстон просит отвести синие шланги подальше от патронов и закрепить лентой, чтобы поток не замыкался накоротко. Иначе воздух ходил бы по кругу возле самой установки. Лучше всего вывести шланги в туннель, чтобы часть потока шла и в командный модуль. Джек уточняет: оба? С Земли отвечают: хотя бы один, а дальше решай сам.\"},{\"index\":13,\"speaker\":\"РАССКАЗЧИК\",\"text\":\"Через полчаса с небольшим на связь выходит Хейз. Эфир шумит, но он всё-таки задаёт свой вопрос: как, по данным Земли, работает установка с патронами? Хьюстон отвечает: приборы показывают ноль целых две десятых, мы все в восторге, похоже, всё работает отлично. Хейз в ответ говорит, что это просто здорово.\"},{\"index\":14,\"speaker\":\"РАССКАЗЧИК\",\"text\":\"Ноль целых две десятых — это миллиметры ртутного столба, парциальное давление углекислого газа. Проще говоря, это показатель того, сколько газа в воздухе: чем меньше, тем лучше. По техническому отчёту, до установки он поднимался примерно до пятнадцати. После установки упал до ноль двух.\"},{\"index\":15,\"speaker\":\"РАССКАЗЧИК\",\"text\":\"Но ресурс патронов ограничен, поэтому испытания в Хьюстоне продолжили. По телеметрии с корабля определили, сколько углекислого газа на самом деле выдыхает экипаж, и стали подавать в камеру столько же. Второе испытание началось шестнадцатого апреля. Оно показало, когда экипажу менять патроны. Значит, не нужно было тратить электричество лунного модуля на передачу показаний, чтобы это выяснить.\"},{\"index\":16,\"speaker\":\"РАССКАЗЧИК\",\"text\":\"Примерно через двадцать часов работы к каждому из двух патронов добавили ещё по одному, свежему, поставив сверху. Собранные соединения переделывать не пришлось. И углекислого газа в кабине по-прежнему было мало.\"},{\"index\":17,\"speaker\":\"РАССКАЗЧИК\",\"text\":\"Корабль обогнул Луну и пошёл к Земле. Лунный модуль давал троим электричество и жизнеобеспечение до тех пор, пока перед входом в атмосферу экипаж не перешёл обратно в командный модуль.\"},{\"index\":18,\"speaker\":\"РАССКАЗЧИК\",\"text\":\"Пакет, картон и лента сами воздух не очищали. Они позволили запасу, который всё это время был на борту, работать в другой системе. Решение придумали и проверили на Земле и передали по радио так, чтобы его нельзя было понять неправильно. А собрал его экипаж, своими руками, в тесной кабине, шаг за шагом.\"}]},\"duration_context\":{\"current_text\":{\"word_count\":1052},\"audio_measured\":false,\"requested\":{\"target_seconds\":420,\"min_seconds\":360,\"max_seconds\":480},\"estimated_word_target\":770,\"estimated_word_range\":{\"min\":660,\"max\":880},\"estimate_basis\":\"Russian solo reference reading at 110 words/minute\",\"estimated_current_seconds\":574}}"
+        }
+      ]
+    }
+  ],
+  "max_output_tokens": 24576,
+  "text": {
+    "verbosity": "high",
+    "format": {
+      "type": "json_schema",
+      "name": "reader_review",
+      "schema": {
+        "$defs": {
+          "DependentPassage": {
+            "additionalProperties": false,
+            "properties": {
+              "reason": {
+                "description": "Why this passage must change with the addressed repair.",
+                "minLength": 1,
+                "title": "Reason",
+                "type": "string"
+              },
+              "anchors": {
+                "items": {
+                  "$ref": "#/$defs/UtteranceAnchor"
+                },
+                "minItems": 1,
+                "title": "Anchors",
+                "type": "array"
+              }
+            },
+            "required": [
+              "reason",
+              "anchors"
+            ],
+            "title": "DependentPassage",
+            "type": "object"
+          },
+          "EditorialFinding": {
+            "additionalProperties": false,
+            "properties": {
+              "dimension": {
+                "enum": [
+                  "promise",
+                  "mechanism",
+                  "structure",
+                  "transition",
+                  "repetition",
+                  "oral_style",
+                  "speaker_contribution",
+                  "factuality",
+                  "attribution",
+                  "duration",
+                  "ending"
+                ],
+                "title": "Dimension",
+                "type": "string"
+              },
+              "priority": {
+                "enum": [
+                  "blocking",
+                  "important",
+                  "optional"
+                ],
+                "title": "Priority",
+                "type": "string"
+              },
+              "anchors": {
+                "items": {
+                  "$ref": "#/$defs/UtteranceAnchor"
+                },
+                "minItems": 1,
+                "title": "Anchors",
+                "type": "array"
+              },
+              "observation": {
+                "description": "Specific defect in the anchored words and its effect in listening order. For grammar, identify the faulty form or construction.",
+                "minLength": 1,
+                "title": "Observation",
+                "type": "string"
+              },
+              "requested_change": {
+                "description": "Concrete operation on the addressed words or passage, its intended listening effect and any dependent joins. Editorial diagnosis is not proposed spoken wording.",
+                "minLength": 1,
+                "title": "Requested Change",
+                "type": "string"
+              },
+              "preserve": {
+                "description": "Supported meaning, necessary factual conditions and useful listening effects to retain. May be empty.",
+                "items": {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "title": "Preserve",
+                "type": "array"
+              }
+            },
+            "required": [
+              "dimension",
+              "priority",
+              "anchors",
+              "observation",
+              "requested_change",
+              "preserve"
+            ],
+            "title": "EditorialFinding",
+            "type": "object"
+          },
+          "EditorialStrength": {
+            "additionalProperties": false,
+            "properties": {
+              "anchors": {
+                "items": {
+                  "$ref": "#/$defs/UtteranceAnchor"
+                },
+                "minItems": 1,
+                "title": "Anchors",
+                "type": "array"
+              },
+              "reason": {
+                "description": "What works for the listener and should survive revision.",
+                "minLength": 1,
+                "title": "Reason",
+                "type": "string"
+              }
+            },
+            "required": [
+              "anchors",
+              "reason"
+            ],
+            "title": "EditorialStrength",
+            "type": "object"
+          },
+          "PinpointAssessment": {
+            "additionalProperties": false,
+            "properties": {
+              "scale": {
+                "description": "Local includes multiple independent pinpoint repairs at any distance; whole_episode explicitly authorizes recomposing the complete telling.",
+                "enum": [
+                  "none",
+                  "local",
+                  "whole_episode"
+                ],
+                "title": "Scale",
+                "type": "string"
+              },
+              "reason": {
+                "description": "Concrete editorial reason for this scale and its intended effect on the listening experience; do not infer quality from counts.",
+                "minLength": 1,
+                "title": "Reason",
+                "type": "string"
+              },
+              "anchors": {
+                "description": "Exact passages supporting this choice. Required repair needs at least one; none may use an empty list.",
+                "items": {
+                  "$ref": "#/$defs/UtteranceAnchor"
+                },
+                "title": "Anchors",
+                "type": "array"
+              },
+              "dependent_passages": {
+                "description": "Explicitly addressed dependent passages; no automatic neighboring-text permission. Empty when none are needed.",
+                "items": {
+                  "$ref": "#/$defs/DependentPassage"
+                },
+                "title": "Dependent Passages",
+                "type": "array"
+              }
+            },
+            "required": [
+              "scale",
+              "reason",
+              "anchors",
+              "dependent_passages"
+            ],
+            "title": "PinpointAssessment",
+            "type": "object"
+          },
+          "ResearchNeed": {
+            "additionalProperties": false,
+            "properties": {
+              "anchors": {
+                "items": {
+                  "$ref": "#/$defs/UtteranceAnchor"
+                },
+                "minItems": 1,
+                "title": "Anchors",
+                "type": "array"
+              },
+              "question": {
+                "minLength": 1,
+                "title": "Question",
+                "type": "string"
+              },
+              "why_needed": {
+                "minLength": 1,
+                "title": "Why Needed",
+                "type": "string"
+              }
+            },
+            "required": [
+              "anchors",
+              "question",
+              "why_needed"
+            ],
+            "title": "ResearchNeed",
+            "type": "object"
+          },
+          "SequenceAssessment": {
+            "additionalProperties": false,
+            "properties": {
+              "scale": {
+                "const": "sequence",
+                "title": "Scale",
+                "type": "string"
+              },
+              "reason": {
+                "description": "Concrete editorial reason for this scale and its intended effect on the listening experience; do not infer quality from counts.",
+                "minLength": 1,
+                "title": "Reason",
+                "type": "string"
+              },
+              "anchors": {
+                "description": "Exact passages supporting this choice. Required repair needs at least one; none may use an empty list.",
+                "items": {
+                  "$ref": "#/$defs/UtteranceAnchor"
+                },
+                "title": "Anchors",
+                "type": "array"
+              },
+              "dependent_passages": {
+                "description": "Explicitly addressed dependent passages; no automatic neighboring-text permission. Empty when none are needed.",
+                "items": {
+                  "$ref": "#/$defs/DependentPassage"
+                },
+                "title": "Dependent Passages",
+                "type": "array"
+              },
+              "sequence_ranges": {
+                "description": "Explicit editable sequences; do not infer their boundaries from scattered findings. Text outside them remains protected except separately addressed local repairs.",
+                "items": {
+                  "$ref": "#/$defs/SequenceRange"
+                },
+                "minItems": 1,
+                "title": "Sequence Ranges",
+                "type": "array"
+              }
+            },
+            "required": [
+              "scale",
+              "reason",
+              "anchors",
+              "dependent_passages",
+              "sequence_ranges"
+            ],
+            "title": "SequenceAssessment",
+            "type": "object"
+          },
+          "SequenceRange": {
+            "additionalProperties": false,
+            "properties": {
+              "anchors": {
+                "description": "First and last editable utterances, in that order. Quotes identify the boundaries; the complete inclusive range is authorized.",
+                "items": {
+                  "$ref": "#/$defs/UtteranceAnchor"
+                },
+                "maxItems": 2,
+                "minItems": 2,
+                "title": "Anchors",
+                "type": "array"
+              },
+              "reason": {
+                "minLength": 1,
+                "title": "Reason",
+                "type": "string"
+              }
+            },
+            "required": [
+              "anchors",
+              "reason"
+            ],
+            "title": "SequenceRange",
+            "type": "object"
+          },
+          "UtteranceAnchor": {
+            "additionalProperties": false,
+            "properties": {
+              "utterance_index": {
+                "description": "Zero-based position in the exact supplied WriteOutput.utterances list.",
+                "minimum": 0,
+                "title": "Utterance Index",
+                "type": "integer"
+              },
+              "quote": {
+                "description": "Exact nonempty substring of that utterance's spoken text.",
+                "minLength": 1,
+                "title": "Quote",
+                "type": "string"
+              }
+            },
+            "required": [
+              "utterance_index",
+              "quote"
+            ],
+            "title": "UtteranceAnchor",
+            "type": "object"
+          }
+        },
+        "additionalProperties": false,
+        "properties": {
+          "reading_mode": {
+            "description": "script_only only if plan, dossier, author notes and prior reviews were not visible.",
+            "enum": [
+              "script_only",
+              "informed"
+            ],
+            "title": "Reading Mode",
+            "type": "string"
+          },
+          "findings": {
+            "items": {
+              "$ref": "#/$defs/EditorialFinding"
+            },
+            "title": "Findings",
+            "type": "array",
+            "description": "Anchored defects and optional improvements in the actual spoken text, at the required repair scale. May be empty."
+          },
+          "revision_scope": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/PinpointAssessment"
+              },
+              {
+                "$ref": "#/$defs/SequenceAssessment"
+              }
+            ],
+            "title": "Revision Scope",
+            "description": "Editable scale and ranges needed for the required changes, including dependent passages. Use none when no required repair remains."
+          },
+          "listener_answer": {
+            "description": "The complete listening experience in speech order: understanding, interest, cumulative voice and ending.",
+            "minLength": 1,
+            "title": "Listener Answer",
+            "type": "string"
+          },
+          "important_limits": {
+            "items": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "title": "Important Limits",
+            "type": "array",
+            "description": "Only limits in the supplied text that materially affect this listening experience. May be empty; do not invent problems or require a list of caveats in the script."
+          },
+          "research_requests": {
+            "items": {
+              "$ref": "#/$defs/ResearchNeed"
+            },
+            "title": "Research Requests",
+            "type": "array"
+          },
+          "strengths": {
+            "items": {
+              "$ref": "#/$defs/EditorialStrength"
+            },
+            "title": "Strengths",
+            "type": "array",
+            "description": "Anchored wording or narrative contributions and useful listening effects to retain."
+          },
+          "duration_note": {
+            "description": "Evidence and uncertainty about duration; never invented timing.",
+            "minLength": 1,
+            "title": "Duration Note",
+            "type": "string"
+          },
+          "recommendation": {
+            "enum": [
+              "keep",
+              "revise",
+              "needs_material"
+            ],
+            "title": "Recommendation",
+            "type": "string",
+            "description": "Recording readiness based on required repairs; keep when none remain."
+          }
+        },
+        "required": [
+          "reading_mode",
+          "findings",
+          "revision_scope",
+          "listener_answer",
+          "important_limits",
+          "research_requests",
+          "strengths",
+          "duration_note",
+          "recommendation"
+        ],
+        "title": "ReaderAssessmentV4",
+        "type": "object"
+      },
+      "strict": true
+    }
+  },
+  "tools": [],
+  "tool_choice": "none",
+  "parallel_tool_calls": false,
+  "truncation": "disabled",
+  "stream": false,
+  "metadata": {
+    "podgen_run_id": "2597bd08-6d22-53f2-9f64-4ae0877c4dce",
+    "podgen_invocation_id": "fd7b40e2-edd1-5e37-ba4f-472df3941f7c",
+    "podgen_stage": "reader-review",
+    "compiler_version": "whole-episode-baseline-a/1",
+    "podgen_prompt_cache_layout": "stable-role-prefix/1"
+  },
+  "store": false,
+  "background": false,
+  "reasoning": {
+    "effort": "medium"
+  },
+  "prompt_cache_options": {
+    "mode": "explicit"
+  }
+}
