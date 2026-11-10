@@ -1,0 +1,438 @@
+[
+  {
+    "case": "apollo13-air",
+    "query": "Как на Земле имитировали дыхание трёх астронавтов?",
+    "first_relevant_default_read": null,
+    "first_preview_with_marker": null,
+    "hits": []
+  },
+  {
+    "case": "apollo13-air",
+    "query": "how did the empty chamber reproduce human breathing",
+    "first_relevant_default_read": 1,
+    "first_preview_with_marker": null,
+    "hits": [
+      {
+        "rank": 1,
+        "source": "S2",
+        "read_start": 1143,
+        "read_end": 3543,
+        "preview": "EDURE COVER, AND VARIOUS ON-BOARD ADHESIVE TAPES, THE CREW SYSTEMS DIVISION DEVISED A WORKABLE ADAPTATION WHICH MET ALL OF THE ABOVE REQUIREMENTS (FIGURES 1 TO 5).\n\nAFTER CHAMBER TESTS HAD INDICATED",
+        "contains_gold": true
+      },
+      {
+        "rank": 2,
+        "source": "S2",
+        "read_start": 1216,
+        "read_end": 3616,
+        "preview": "ON DEVISED A WORKABLE ADAPTATION WHICH MET ALL OF THE ABOVE REQUIREMENTS (FIGURES 1 TO 5).\n\nAFTER CHAMBER TESTS HAD INDICATED THAT THE SYSTEM WOULD PERFORM SATISFACTORILY, DETAILS OF THE MODIFICATIO",
+        "contains_gold": true
+      },
+      {
+        "rank": 3,
+        "source": "S2",
+        "read_start": 1676,
+        "read_end": 4076,
+        "preview": "\n[pp. 3-4, Discussion of Results, next paragraph]\nTHE MODIFIED CANISTER SYSTEM WAS TESTED IN THE CREW SYSTEMS DIVISION 11-FOOT-DIAMETER CHAMBER (SIMULATED LUNAR MODULE CABIN), WITH ONE OF THE RECONF",
+        "contains_gold": true
+      },
+      {
+        "rank": 4,
+        "source": "S2",
+        "read_start": 1990,
+        "read_end": 4390,
+        "preview": "OT'S HOSE. BOTH CANISTERS WERE SUPPORTED JUST OFF THE CABIN FLOOR EXPOSED TO THE CABIN ATMOSPHERE, AND BOTH HOSES WERE CONNECTED TO INLETS OF THE FLIGHT-CONFIGURED ENVIRONMENTAL CONTROL SYSTEM. WITH",
+        "contains_gold": true
+      },
+      {
+        "rank": 5,
+        "source": "S2",
+        "read_start": 2139,
+        "read_end": 4539,
+        "preview": "GHT-CONFIGURED ENVIRONMENTAL CONTROL SYSTEM. WITH THE CHAMBER AT 27000 FEET, THE DIFFERENTIAL PRESSURE WAS 0.3 INCH H2O ACROSS THE COMMANDER'S CANISTER AND 0.4 INCH ACROSS THE LUNAR MODULE PILOT'S C",
+        "contains_gold": true
+      },
+      {
+        "rank": 6,
+        "source": "S2",
+        "read_start": 2323,
+        "read_end": 4723,
+        "preview": "DULE PILOT'S CANISTER (SHORTER HOSE CONNECTIONS). THE SUIT FAN DIFFERENTIAL PRESSURE WAS 9.0 INCHES H2O. THE CHAMBER WAS RETURNED TO SITE PRESSURE, AND THE BYPASS OF EACH CANISTER WAS PLUGGED, USING",
+        "contains_gold": true
+      }
+    ]
+  },
+  {
+    "case": "rain-soil",
+    "query": "sand",
+    "first_relevant_default_read": null,
+    "first_preview_with_marker": null,
+    "hits": [
+      {
+        "rank": 1,
+        "source": "S1",
+        "read_start": 6955,
+        "read_end": 9355,
+        "preview": "soil: two\ndifferent types of clay, sandy-clay and sand (Table 1). In addition,\ntwo different thin layer chromatography plates (TLC) were used\nas reference porous surfaces (ideal soil-like surfaces). ",
+        "contains_gold": false
+      },
+      {
+        "rank": 2,
+        "source": "S1",
+        "read_start": 8650,
+        "read_end": 11050,
+        "preview": "clay soils but no bioaerosol is observed\nfrom the sand soils. This result can be explained by our previous\nwork showing that sandy-clay soils have the optimal wetting\nproperties for aerosolization, b",
+        "contains_gold": false
+      },
+      {
+        "rank": 3,
+        "source": "S1",
+        "read_start": 8802,
+        "read_end": 11202,
+        "preview": "ptimal wetting\nproperties for aerosolization, but sand soils absorb raindrops too\nfast to generate aerosols30. The bacteria transferred to the aerosols\nexhibit different viability depending on their ",
+        "contains_gold": false
+      },
+      {
+        "rank": 4,
+        "source": "S1",
+        "read_start": 37010,
+        "read_end": 39410,
+        "preview": "x different soils were used; clay, sandy clay and sand\nwere purchased from Sigma-Aldrich (Clean clay #5, PH–Sandy clay, and Clean\nsand #4,), another clay and sand from World’s Science (Nasco soil sam",
+        "contains_gold": false
+      },
+      {
+        "rank": 5,
+        "source": "S1",
+        "read_start": 42138,
+        "read_end": 44538,
+        "preview": "rent soils and a reference surface\n(T able 1). On Sand-A and Sand-B, no bioaerosol was observed. The error bars represent±1 s.d. resulting from nine drop impingements.\nARTICLE NATURE COMMUNICA TIONS ",
+        "contains_gold": false
+      }
+    ]
+  },
+  {
+    "case": "rain-soil",
+    "query": "bubble",
+    "first_relevant_default_read": null,
+    "first_preview_with_marker": null,
+    "hits": [
+      {
+        "rank": 1,
+        "source": "S1",
+        "read_start": 10589,
+        "read_end": 12989,
+        "preview": "by bacteria\nculturability.\nParticle dispersion by bubble bursting. The number of bubbles\nformed inside a raindrop is the key factor inﬂuencing bacterial\ntransfer (Fig. 3a and Supplementary Movie 2). Wi",
+        "contains_gold": false
+      },
+      {
+        "rank": 2,
+        "source": "S1",
+        "read_start": 10826,
+        "read_end": 13226,
+        "preview": "a raindrop, more bacteria can be trans-\nferred by bubble bursting. The proposed mechanism is most\nrelevant when the soil is not fully wet. After a couple of raindrops\nimpact the same location, the soil",
+        "contains_gold": false
+      },
+      {
+        "rank": 3,
+        "source": "S1",
+        "read_start": 11312,
+        "read_end": 13712,
+        "preview": "nto ﬁne spray it could act just like the proposed bubble\nmechanism39. If we consider this mechanism, it is possible that\neven more bacteria can be dispersed by raindrop impact.\nHowever, in the present ",
+        "contains_gold": false
+      },
+      {
+        "rank": 4,
+        "source": "S1",
+        "read_start": 11567,
+        "read_end": 13967,
+        "preview": "y aerosolization39. We investigated the\neffect of bubble bursting on the dispersion of particles for two\ndifferent initial conditions (Fig. 3b); ﬁrst, with different particle\nconcentrations in raindrop",
+        "contains_gold": false
+      },
+      {
+        "rank": 5,
+        "source": "S1",
+        "read_start": 13822,
+        "read_end": 16222,
+        "preview": " aerosols exponentially decreases with decreasing bubble\nradius40–43; therefore, the number of aerosols can be expressed\nas Naerosols ¼ Aexp( /C0 3 /C0 1 dbubble), where Naerosols is the number\nof aero",
+        "contains_gold": false
+      },
+      {
+        "rank": 6,
+        "source": "S1",
+        "read_start": 14028,
+        "read_end": 16428,
+        "preview": " A is a constant value (AB7.5) and dbubble is the\nbubble diameter40,41. The bubble diameter is ten times greater\nthan the mean diameter of the aerosols44,45; thus, the number of\naerosols can be express",
+        "contains_gold": false
+      }
+    ]
+  },
+  {
+    "case": "rain-soil",
+    "query": "absorb",
+    "first_relevant_default_read": null,
+    "first_preview_with_marker": null,
+    "hits": [
+      {
+        "rank": 1,
+        "source": "S1",
+        "read_start": 8813,
+        "read_end": 11213,
+        "preview": "ing\nproperties for aerosolization, but sand soils absorb raindrops too\nfast to generate aerosols30. The bacteria transferred to the aerosols\nexhibit different viability depending on their residence tim",
+        "contains_gold": false
+      }
+    ]
+  },
+  {
+    "case": "rain-soil",
+    "query": "Почему после дождя с песка почти ничего не поднимается?",
+    "first_relevant_default_read": null,
+    "first_preview_with_marker": null,
+    "hits": []
+  },
+  {
+    "case": "rain-soil",
+    "query": "failure to launch tiny droplets from fast draining ground",
+    "first_relevant_default_read": null,
+    "first_preview_with_marker": null,
+    "hits": [
+      {
+        "rank": 1,
+        "source": "S1",
+        "read_start": 7642,
+        "read_end": 10042,
+        "preview": "the surfaces. In Fig. 1g, the aerosol sizes\nrange from a few microns to hundreds of microns; but with the\nhigher magniﬁcation microscope-lens, we can observe submicron\ndroplets on the plates. The num",
+        "contains_gold": false
+      },
+      {
+        "rank": 2,
+        "source": "S1",
+        "read_start": 7760,
+        "read_end": 10160,
+        "preview": "ﬁcation microscope-lens, we can observe submicron\ndroplets on the plates. The number of bacteria varies from zero to\nseveral thousand in a single aerosol, mainly depending on the soil\ntypes, the bacteria",
+        "contains_gold": false
+      },
+      {
+        "rank": 3,
+        "source": "S1",
+        "read_start": 1464,
+        "read_end": 3864,
+        "preview": "hough their fraction is\nrelatively small compared to all the atmospheric aerosols6–10.O n\nthe ground, bioaerosols can change micro-biogeography faster\nthan many other transport mechanisms11,12. Bec",
+        "contains_gold": false
+      },
+      {
+        "rank": 4,
+        "source": "S1",
+        "read_start": 1508,
+        "read_end": 3908,
+        "preview": "pared to all the atmospheric aerosols6–10.O n\nthe ground, bioaerosols can change micro-biogeography faster\nthan many other transport mechanisms11,12. Because bioaerosols\ncan lead to dispersion of biolo",
+        "contains_gold": false
+      },
+      {
+        "rank": 5,
+        "source": "S1",
+        "read_start": 2276,
+        "read_end": 4676,
+        "preview": "ermediate home for pathogens before\nthey transfer to their hosts, it is not clear where and how the\nmicrobes in the soil transfer from their original habitats to the\natmosphere21–25. Considering th",
+        "contains_gold": false
+      },
+      {
+        "rank": 6,
+        "source": "S1",
+        "read_start": 2827,
+        "read_end": 5227,
+        "preview": "ad of\nmicrobes with the transfer modes discovered to date9,28,29.\nIn this work, aerosols represent small water droplets suspended\nin the air; in particular, bioaerosols are deﬁned as aerosols\nconta",
+        "contains_gold": false
+      }
+    ]
+  },
+  {
+    "case": "rain-soil",
+    "query": "Как узнали, что микробы пережили удар?",
+    "first_relevant_default_read": null,
+    "first_preview_with_marker": null,
+    "hits": []
+  },
+  {
+    "case": "rain-soil",
+    "query": "were the carried organisms still alive afterwards",
+    "first_relevant_default_read": 6,
+    "first_preview_with_marker": null,
+    "hits": [
+      {
+        "rank": 1,
+        "source": "S1",
+        "read_start": 1821,
+        "read_end": 4221,
+        "preview": "ct changes in biodiversity and ecology as well\nas the propagation of biological pollutants 10,15. Furthermore,\nbioaerosols can be effective carriers of pathogenic organisms to\nplants, animals and hu",
+        "contains_gold": false
+      },
+      {
+        "rank": 2,
+        "source": "S1",
+        "read_start": 2338,
+        "read_end": 4738,
+        "preview": "ts, it is not clear where and how the\nmicrobes in the soil transfer from their original habitats to the\natmosphere21–25. Considering that most microbes prefer aqueous\nenvironments to survive, it is ",
+        "contains_gold": false
+      },
+      {
+        "rank": 3,
+        "source": "S1",
+        "read_start": 2486,
+        "read_end": 4886,
+        "preview": "bes prefer aqueous\nenvironments to survive, it is still a mystery to explain how viable\nsoil-based microbes spread much further and faster than would\nbe expected through the air1,26,27. Futhermore, ev",
+        "contains_gold": false
+      },
+      {
+        "rank": 4,
+        "source": "S1",
+        "read_start": 4008,
+        "read_end": 6408,
+        "preview": "rated by\nraindrops31. Our previous work explained the physics of aerosol\ngeneration (aerosolization) from soil; however, we still need to\nunderstand if and how bacteria in soil are transferred throu",
+        "contains_gold": false
+      },
+      {
+        "rank": 5,
+        "source": "S1",
+        "read_start": 4082,
+        "read_end": 6482,
+        "preview": "eneration (aerosolization) from soil; however, we still need to\nunderstand if and how bacteria in soil are transferred through the\naerosolization process.\nHere, we illuminate a previously unexplored m",
+        "contains_gold": false
+      },
+      {
+        "rank": 6,
+        "source": "S1",
+        "read_start": 6584,
+        "read_end": 8984,
+        "preview": " green-\nﬂuorescence (SYTO BC) bacteria (Fig. 1f). The soils were fully\ndried under common laboratory environment after pre-treatment\nwith red ﬂuorescent dye. In this work, we used three species of\ns",
+        "contains_gold": true
+      }
+    ]
+  },
+  {
+    "case": "rain-soil",
+    "query": "Photron",
+    "first_relevant_default_read": 1,
+    "first_preview_with_marker": 1,
+    "hits": [
+      {
+        "rank": 1,
+        "source": "S1",
+        "read_start": 39905,
+        "read_end": 42305,
+        "preview": " high-speed\nimaging. We used a high-speed camera (Photron, San Diego, CA, USA) to record\nthe process of drop impingement, bubble formation and bubble bursting inside the\n1,000 TLC-A, 1 µm microsphere\nTL",
+        "contains_gold": true
+      }
+    ]
+  },
+  {
+    "case": "rain-soil",
+    "query": "Каким прибором наблюдали сам момент удара?",
+    "first_relevant_default_read": null,
+    "first_preview_with_marker": null,
+    "hits": []
+  },
+  {
+    "case": "snow-pump",
+    "query": "What did the men who brewed beer drink during work?",
+    "first_relevant_default_read": null,
+    "first_preview_with_marker": null,
+    "hits": [
+      {
+        "rank": 1,
+        "source": "S1",
+        "read_start": 40973,
+        "read_end": 43373,
+        "preview": "t on\nCholera to the College of Physicians”, makes the objection\nto what I have said about the colliers, that the women\nand children who do not work in the mines, were attacked\nin as large numbers as",
+        "contains_gold": false
+      },
+      {
+        "rank": 2,
+        "source": "S1",
+        "read_start": 40990,
+        "read_end": 43390,
+        "preview": "he College of Physicians”, makes the objection\nto what I have said about the colliers, that the women\nand children who do not work in the mines, were attacked\nin as large numbers as the men. I believ",
+        "contains_gold": false
+      },
+      {
+        "rank": 3,
+        "source": "S1",
+        "read_start": 213575,
+        "read_end": 215975,
+        "preview": "evails, owing, probably, to females being\nless in the habit of drinking beer than men, and being\ntherefore more likely to drink water. Of the 334 deaths\ndetailed in the Appendix to this work (286 of",
+        "contains_gold": false
+      },
+      {
+        "rank": 4,
+        "source": "S2",
+        "read_start": 151505,
+        "read_end": 153905,
+        "preview": "t on the premises always supplied with water\nfrom the pump in the street for those to drink\nwho wished, and 18 of those work people died of\nCholera at their own houses—sixteen women and\ntwo men. Mr.",
+        "contains_gold": false
+      },
+      {
+        "rank": 5,
+        "source": "S1",
+        "read_start": 57432,
+        "read_end": 59832,
+        "preview": "three persons attacked with cholera amongst\nthose who came to nurse the patients after the water was\ncondemned, and who, consequently, did not drink it; but\nthese persons were liable, in waiting on ",
+        "contains_gold": false
+      },
+      {
+        "rank": 6,
+        "source": "S1",
+        "read_start": 57498,
+        "read_end": 59898,
+        "preview": "e the patients after the water was\ncondemned, and who, consequently, did not drink it; but\nthese persons were liable, in waiting on the patient, to get\na small portion of the evacuations into the st",
+        "contains_gold": false
+      }
+    ]
+  },
+  {
+    "case": "snow-pump",
+    "query": "Huggins",
+    "first_relevant_default_read": 1,
+    "first_preview_with_marker": 1,
+    "hits": [
+      {
+        "rank": 1,
+        "source": "S1",
+        "read_start": 81964,
+        "read_end": 84364,
+        "preview": "stered\nas having died of cholera, I called on Mr. Huggins, the\nproprietor. He informed me that there were above seventy\nworkmen employed in the brewery, and that none of them\nhad suffered from cholera,—",
+        "contains_gold": true
+      },
+      {
+        "rank": 2,
+        "source": "S1",
+        "read_start": 82298,
+        "read_end": 84698,
+        "preview": "llowed a\ncertain quantity of malt liquor, and Mr. Huggins believes\nthey do not drink water at all; and he is quite certain\nthat the workmen never obtained water from the pump in\nthe street. There is a d",
+        "contains_gold": true
+      },
+      {
+        "rank": 3,
+        "source": "S2",
+        "read_start": 95817,
+        "read_end": 98217,
+        "preview": "abitants escape'? why\ndid not the men employed in Huggins' Brewery\nsuffer, when out of 35 of those engaged, close\nto that establishment, in the construction of the\nthen unfinished lodging houses called ",
+        "contains_gold": false
+      },
+      {
+        "rank": 4,
+        "source": "S2",
+        "read_start": 150749,
+        "read_end": 153149,
+        "preview": "istered as being dead of Cholera, I called\non Mr. Huggins the proprietor. He informed me\nthat there were above 70 workmen employed in\nthe brewery, and that none of them had suffered\nfrom Cholera, at lea",
+        "contains_gold": false
+      },
+      {
+        "rank": 5,
+        "source": "S2",
+        "read_start": 151104,
+        "read_end": 153504,
+        "preview": "llowed a certain quantity of malt liquor, and Mr.\nHuggins believes they do not drink water at all,\nand he is quite certain that they never obtained\nwater from the pump in the street. There is a\ndeep wel",
+        "contains_gold": false
+      }
+    ]
+  }
+]

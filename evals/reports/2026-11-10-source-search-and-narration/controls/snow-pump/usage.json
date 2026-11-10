@@ -1,0 +1,26 @@
+{
+  "estimated_usd": "0.024129",
+  "responses": 1,
+  "calls": {
+    "resp_0ec1a8007582e65f016af34039844887d290766c6bdfdaffbe": {
+      "model": "gpt-6.1-terra",
+      "usd": "0.024129",
+      "usage": {
+        "input_tokens": 7166,
+        "input_tokens_details": {
+          "cache_write_tokens": 3172,
+          "cache_write_tokens_details": {
+            "ttl_12h_tokens": 0,
+            "ttl_30m_tokens": 3172
+          },
+          "cached_tokens": 0
+        },
+        "output_tokens": 3234,
+        "output_tokens_details": {
+          "reasoning_tokens": 1432
+        },
+        "total_tokens": 10400
+      }
+    }
+  }
+}
