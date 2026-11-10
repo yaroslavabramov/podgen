@@ -4,7 +4,7 @@ from typing import Literal
 
 from pydantic import Field, model_validator
 
-from ..fact_review import FactFeedback
+from ..fact_review import FactFeedback, SourcedFactFinding
 from ..reader_feedback import ReaderFeedback, RevisionScope, check_scope
 from ..roles import FullText, RoleOutput, UtteranceAnchor
 
@@ -89,6 +89,10 @@ class FactAssessmentV2(FactAssessment):
             **super().anchored_groups(),
             "sequence_ranges": getattr(self.revision_scope, "sequence_ranges", []),
         }
+
+
+class SourcedFactAssessment(FactAssessmentV2):
+    findings: list[SourcedFactFinding]
 
 
 def select_mode(readings):

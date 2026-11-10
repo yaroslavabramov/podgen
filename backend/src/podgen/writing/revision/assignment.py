@@ -36,6 +36,8 @@ def tasks(readings, support):
             if finding["preserve"]:
                 task["preserve"] = deepcopy(finding["preserve"])
             if origin == "fact":
+                if finding.get("source_read_ids"):
+                    task["source_read_ids"] = list(finding["source_read_ids"])
                 evidence, context = [], []
                 for identity in dict.fromkeys(finding["support_labels"]):
                     if identity not in cards:

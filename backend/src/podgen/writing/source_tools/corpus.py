@@ -1,0 +1,93 @@
+from dataclasses import dataclass
+from hashlib import sha256
+
+from pydantic import ValidationError
+
+from podgen.domain.errors import ContractError
+
+from .contracts import METHODS, Read
+from .search import search
+
+PAGE_CHARS = 2400
+
+
+@dataclass(frozen=True)
+class Source:
+    title: str
+    text: str
+    digest: str
+
+
+class SourceCorpus:
+    """The invocation's admitted, immutable primary documents. Local paths never cross the boundary."""
+
+    def __init__(self, materials):
+        loaded = {doc.path: doc for doc in materials.documents}
+        self.documents = {}
+        self.cards = {}
+        source_ids = {}
+        for source in materials.packet.documents:
+            if source.purpose != "primary":
+                continue
+            doc = loaded.get(source.source_path)
+            if (
+                doc is None
+                or doc.sha256 != source.sha256
+                or sha256(doc.text.encode()).hexdigest() != source.sha256
+            ):
+                raise ContractError("source_tool_frozen_document_mismatch")
+            key = f"S{len(self.documents) + 1}"
+            source_ids[source.key] = key
+            self.documents[key] = Source(source.title, doc.text, doc.sha256)
+        for index, card in enumerate(materials.packet.dossier.knowledge_cards, 1):
+            self.cards[f"M{index}"] = list(
+                dict.fromkeys(
+                    (source_ids[e.document], e.start, e.end)
+                    for e in card.excerpts
+                    if e.document in source_ids
+                )
+            )
+
+    def execute(self, name, arguments, *, read_id):
+        if name not in METHODS:
+            return {"error": "unknown_source_tool"}
+        try:
+            args = METHODS[name][0].model_validate(arguments)
+        except ValidationError as error:
+            return {
+                "error": "invalid_source_tool_arguments",
+                "details": error.errors(include_input=False, include_url=False),
+            }
+        if isinstance(args, Read):
+            doc = self.documents.get(args.source_id)
+            if doc is None:
+                return {"error": "unknown_source_id"}
+            stop = len(doc.text) if args.end is None else args.end
+            if not 0 <= args.start < stop <= len(doc.text):
+                return {"error": "invalid_source_range", "source_length": len(doc.text)}
+            end = min(stop, args.start + PAGE_CHARS)
+            return dict(
+                passage=dict(
+                    read_id=read_id,
+                    source_id=args.source_id,
+                    source=doc.title,
+                    start=args.start,
+                    end=end,
+                    text=doc.text[args.start : end],
+                ),
+                source_length=len(doc.text),
+                next_start=end if end < stop else None,
+            )
+        return search(self.documents, self.cards, args)
+
+    def locate(self, locator):
+        """Open a persisted read in this packet; reject a locator that belongs to another source."""
+        try:
+            key, fingerprint, start, end = locator.split(":")
+            doc = self.documents[key]
+            start, end = int(start), int(end)
+        except (KeyError, ValueError) as error:
+            raise ContractError("unknown_source_read_locator") from error
+        if doc.digest != fingerprint or not 0 <= start < end <= len(doc.text) or end - start > PAGE_CHARS:
+            raise ContractError("invalid_source_read_locator")
+        return dict(source=doc.title, source_id=key, start=start, end=end, text=doc.text[start:end])

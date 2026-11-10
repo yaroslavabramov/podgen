@@ -10,6 +10,7 @@ KEY = "fact_review_context"
 VERSION = "contextual-evidence/1"
 SIGNATURE_VERSION = "contextual-evidence/2"
 SCHEMA_VERSION = "fact-revision/3"
+READ_SCHEMA_VERSION = "fact-revision/4"
 
 
 def validate(value, projection):
@@ -22,7 +23,7 @@ def from_manifest(manifest):
     value = validate(manifest.get(KEY), manifest_version(manifest))
     if value is not None and (
         manifest.get("behavior_profile") != "production/1"
-        or manifest.get("fact_review_schema_version") != SCHEMA_VERSION
+        or manifest.get("fact_review_schema_version") not in (SCHEMA_VERSION, READ_SCHEMA_VERSION)
     ):
         raise ContractError("unsupported_fact_review_context")
     return value

@@ -13,6 +13,12 @@ class FactFinding(EditorialFinding):
     )
 
 
+class SourcedFactFinding(FactFinding):
+    source_read_ids: list[FullText] = Field(
+        description="Exact E identifiers returned by read_source in this review that support this specific finding. Empty when existing evidence suffices."
+    )
+
+
 class FactFeedback(EditorialFeedback):
     findings: list[FactFinding]
 
@@ -20,9 +26,13 @@ class FactFeedback(EditorialFeedback):
 def feedback_model(version=None):
     if version is None:
         return FactFeedback
-    from .fact_context import SCHEMA_VERSION
+    from .fact_context import READ_SCHEMA_VERSION, SCHEMA_VERSION
     from .revision.contracts import FACT_V1, FACT_VERSION
 
+    if version == READ_SCHEMA_VERSION:
+        from .revision.scopes import SourcedFactAssessment
+
+        return SourcedFactAssessment
     if version not in (FACT_V1, FACT_VERSION, SCHEMA_VERSION):
         raise ContractError("unknown_fact_review_schema_version")
     from .revision.scopes import FactAssessment, FactAssessmentV2
@@ -35,6 +45,10 @@ def snapshot_model(value):
 
     if "revision_scope" not in value:
         return FactFeedback
+    if any("source_read_ids" in row for row in value["findings"]):
+        from .fact_context import READ_SCHEMA_VERSION
+
+        return feedback_model(READ_SCHEMA_VERSION)
     scope = value["revision_scope"]
     return feedback_model(
         FACT_V1 if scope["scale"] == "sequence" and "sequence_ranges" not in scope else FACT_VERSION
@@ -42,15 +56,17 @@ def snapshot_model(value):
 
 
 def describe_schema(schema, stage, version):
-    from .fact_context import SCHEMA_VERSION
+    from .fact_context import READ_SCHEMA_VERSION, SCHEMA_VERSION
     from .revision.contracts import FACT_VERSION
 
-    if stage == "fact-review" and version in (FACT_VERSION, SCHEMA_VERSION):
+    if stage == "fact-review" and version in (FACT_VERSION, SCHEMA_VERSION, READ_SCHEMA_VERSION):
         from .fact_review_descriptions import describe_fact_review
 
-        describe_fact_review(schema)
-        if version == SCHEMA_VERSION:
+        sourced = version == READ_SCHEMA_VERSION
+        finding = "SourcedFactFinding" if sourced else "FactFinding"
+        describe_fact_review(schema, finding=finding)
+        if version in (SCHEMA_VERSION, READ_SCHEMA_VERSION):
             from .fact_claim_descriptions import describe_fact_claims
 
-            describe_fact_claims(schema)
+            describe_fact_claims(schema, finding_name=finding)
     return schema

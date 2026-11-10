@@ -171,7 +171,10 @@ def reading_payload(
                 packet, labels=packet.contract != "editorial-input/2", selected=selected
             )
         if compact:
+            from .source_tools import attach_task_passages
+
             payload["revision_tasks"] = edit_assignment.tasks(readings, payload["support"])
+            attach_task_passages(payload, materials)
         else:
             legacy_feedback.attach_evidence(payload, packet, needed_labels)
         if historical(projection_version):

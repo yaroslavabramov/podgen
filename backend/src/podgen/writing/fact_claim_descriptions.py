@@ -1,7 +1,7 @@
 """A contextual claim, its evidence and material consequence precede a fact-check decision."""
 
 
-def describe_fact_claims(schema):
+def describe_fact_claims(schema, *, finding_name="FactFinding"):
     props = schema["properties"]
     props["listener_answer"]["description"] = (
         "Identify the consequential, checkable claims conveyed by this script in context, including "
@@ -25,7 +25,7 @@ def describe_fact_claims(schema):
         "account needs resolved. Missing confirmation does not establish falsehood. Keep is valid "
         "when no required repair remains; optional refinements may remain."
     )
-    finding = schema["$defs"]["FactFinding"]["properties"]
+    finding = schema["$defs"][finding_name]["properties"]
     finding["observation"]["description"] = (
         "State the exact checkable claim conveyed here, compare it with the cited evidence or "
         "identify the specific missing support, then explain the consequence for this account. "
@@ -55,8 +55,19 @@ def describe_fact_claims(schema):
         "preserve",
         "dimension",
     ]
-    schema["$defs"]["FactFinding"]["properties"] = {key: finding[key] for key in finding_order}
-    schema["$defs"]["FactFinding"]["required"] = finding_order
+    if "source_read_ids" in finding:
+        finding_order.insert(finding_order.index("priority"), "source_read_ids")
+        finding["observation"]["description"] = (
+            "Identify the claim as heard in context. Compare each disputed element with the original "
+            "evidence, including what follows from the reported circumstances. When the excerpts leave "
+            "a consequential question open, check the frozen source before requesting an edit."
+        )
+        finding["requested_change"]["description"] = (
+            "Specify one supported change to the story. Keep parts that are directly supported or follow "
+            "from the evidence. Attach the reads establishing the repair to this finding."
+        )
+    schema["$defs"][finding_name]["properties"] = {key: finding[key] for key in finding_order}
+    schema["$defs"][finding_name]["required"] = finding_order
     order = [
         "reading_mode",
         "listener_answer",
