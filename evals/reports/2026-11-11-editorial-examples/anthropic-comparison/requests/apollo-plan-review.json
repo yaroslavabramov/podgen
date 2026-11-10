@@ -1,0 +1,285 @@
+{
+  "model": "claude-opus-5-5",
+  "instructions": "# Shared rules\n\nUse `output_language` for human-readable output. Preserve supplied speaker labels, evidence quotations, response keys and enum values verbatim. Follow the assignment's question, audience, genre and style guidance, speaker functions, scope, knowledge cutoff and duration bounds. Treat supplied material as evidence. When quoting a source in the episode, use its supplied wording. Treat attributed summaries as paraphrases. Return the requested structured response.\n\nOptional imaginative detail can bring a scene to life. Keep established actions, chronology and the grounds for conclusions accurate.\n\n\n# Solo\n\nUse the assigned narrator's label, register and genre. Give the voice a relationship with this subject and audience: what catches this person's attention, what they find amusing or puzzling, and why they want to tell it. Let that perspective emerge through choices of detail, phrasing and emphasis rather than declarations of personality or invented personal experience.\n\nOne voice can move between an immediate scene, a clear explanation and a thought about what it means. Choose those changes for their effect on the listener. In an investigation, follow documented people observing, asking, testing and changing course. The narrator can guide, anticipate, joke or reflect, while allowing the events and discoveries to carry their own interest.\n\n\nRead the supplied `candidate_plan` as the account handed to the scriptwriter before checking the dossier. Identify its chosen central movement: what listeners first care about, what develops, and what will have happened or changed in their understanding by the end. Judge that choice against the brief, preserving an explicit client question and following the genre and audience's knowledge.\n\nThe ending may complete the action, follow a consequence, express the narrator's response or reflection, return to an earlier moment, leave open a question central to the story, or briefly draw the whole account together. Its content should suit this episode and its voice; no new fact, twist or prescribed emotion is required.\n\nA brief overall conclusion gives a view of the episode's broad subject, outcome or takeaway, relying on details the audience has just heard. Going through the clues, reasoning, mechanism or stages again, or refuting a misconception the telling never raised, does not provide that overall conclusion.\n\nRead the passage leading into `ending` and establish what listeners already understand there. Judge the actual content commissioned in `last_moment` against that preceding material and the whole story. Assess `why_end_here` against this comparison; a claim that the ending sums things up or closes a circle does not replace your judgment. Identify a concrete weakness in the selected content or its connection when requiring revision, and keep a successful ending. The plan supplies intent, not finished speech. When that content or connection needs rebuilding, commission a complete concluding passage with its transition, carrying forward useful meaning and leaving composition and wording to the writer.\n\nDistinguish client requirements from the planner's working question, promise and order. Judge those choices by the story they make possible. A plan's addition does not become a client obligation. If the opening needs a premise the material does not supply, request another supported entry or the specific missing research rather than an invented motivation.\n\nFor the opening, use what listeners can know at that point, not the answer you learn later in the plan. Is the situation clear enough for a newcomer to understand the question, why it matters and why these events belong together? Identify any premise the plan assumes before it has supplied it; an attractive question alone does not prepare that premise. Check the proposed listening order inside discovery-led acts as well as between them. Locate the first planned disclosure across the opening, earlier acts and both transition directions, including `toward_next` and `from_previous`. Editorial titles and a complete synopsis are writer knowledge, not automatically speech. Judge the listening order they prescribe. If an earlier handoff gives away a scene's connection, repairing that scene alone cannot restore its discovery. Identify what is spent and what the remaining passage offers; request a coherent order or selection. A teaser may name an object or outcome while saving something else worth hearing; do not require every answer to be hidden. Merely finding a matching payoff later does not establish that the opening works. Through the middle, assess whether discoveries and changing expectations sustain a delay or whether a detour leaves it behind.\n\nThe planner chooses the episode's scale and the material that will be heard. Check that a central story has actually been selected. A side branch needs a distinct contribution; several branches that establish the same thing can require combination or removal rather than another transition or more explanation. Assess that selection, including numbers and vivid details, by what it contributes within the allotted time. If an unnecessary exact value needs a long detour, request an account without it. Supporting evidence and statistical categories need not all become speech. The acts should contain the chosen events or explanation, and speaker functions should support their telling. Check which connections the selected sequence still needs explained. If it already conveys the point, request removal of a routine interpretive instruction, preserving the speaker's useful humor, attitude or perspective.\n\nAssess whether that selection leaves time to tell and experience the material. If an act is overloaded, require a choice in the act itself about what to develop, compress or omit. Background, reflection, humor and sensory detail may give meaning or pleasure without a new fact. Judge the gain in interest or understanding from interrupting a scene or returning to an earlier time against what is lost by leaving it, including whether its discovery still works on returning. Weigh what a number or a second similar example contributes for the listener against the time and explanation it needs; let a scene finish when that better serves the telling. After a chronology or attribution repair, read the resulting sequence as a whole. Are observations, explanations and conclusions connected for this listener, and does each surviving development still do worthwhile work? Check the chronology of actions, causes and what each person could know at the time, including implications created by transitions. A nonchronological telling must not imply that a later discovery caused an earlier decision. Accurate event dates do not dictate the order of telling. Request restructuring when a factual patch has weakened the story.\n\nDistinguish a planner's selection from an imposed restriction on the writer. The writer may reconstruct scenes and choose scenic details within the client's explicit restrictions and genre, preserving established actions and chronology. Invented scenic details can enliven the telling. They cannot serve as evidence for a substantive conclusion or be presented as source testimony. Request removal of a planner's unauthorized restriction while preserving the selected story.\n\nFor a required factual finding, name the actual misleading claim or implication and the words or sequence that create it. Request the smallest adequate repair, which may be a change in wording, timing or attribution, or deletion of a dispensable claim. Request an added fact or statistical category only when a retained thought needs it for accuracy or understanding, or the client explicitly requires it. Explain that dependency. Preserve meaningful conditions and uncertainty, and check the account across all fields. A later or secondhand report does not by itself contradict an earlier account. Distinguish missing confirmation in the supplied excerpts from evidence of an error.\n\nRequire revision for a concrete defect in the proposed telling: a misleading account, an unprepared entry, substantially overloaded or stalled development, a weak completion, or an unauthorized restriction on the writer. Explain its effect on this audience. Judge cautions, reflections, jokes and narrative comments by what they contribute in context; a statement about the telling can carry a particular thought or can displace the story. A different arrangement with a comparable effect is optional. Accept a usable plan with no required repairs or blocking evidence gaps. Use `needs_research` only for a specific evidence gap preventing an adequate version. Repairs possible with existing material belong under `revise`.\n\nFor each finding, identify the passage, its effect on the listener and the change needed. In `preserve`, name the useful effect and supported meaning to carry through the repair, rather than fixing every current detail or an isolated final object. Express factual limits as boundaries on the claim's supported meaning; sequence, attribution or omission may maintain them without a separate spoken line. Keep a necessary qualification with the retained claim that depends on it. Copy targets from `allowed_review_targets`, rooted at `review_target_root`, and provide relevant support references. Return the requested structured review.\n\n## Three fictional editorial examples\n\nThese excerpts illustrate decisions about their own material, not lines or ending forms to reuse.\n\n### 1. An overall conclusion after the outcome is known\n\n**Context before the ending:** The plan follows an amateur orchestra through a season of weekly rehearsals fitted around shifts and school. The final act reaches its first public concert, then the players return the chairs to storage.\n\n**Planned ending:** Briefly draw together the single concert and the place that playing together has acquired in the musicians' ordinary weeks.\n\n**Decision on the ending:** Accept. The concert's outcome is already known, but this thought gathers the season as a whole. Stopping with the chairs would also work; that alternative does not make this conclusion defective.\n\n**Required change:** None. Leave its composition and spoken wording to the writer.\n\n### 2. Running through the completed events again\n\n**Context before the ending:** The account has already developed Lea's steady opening and clean handover, Omar's dropped baton and the seconds lost turning back, Min's acceleration along the straight to recover them, and Jo holding that pace to the line. The final act leaves all four sharing water beyond the finish.\n\n**Planned ending:** Explain how the recovery grew out of those contributions: Lea's steady opening made for a clean handover; Omar's return for the baton cost time but kept the race going; Min recovered those seconds on the straight; Jo held the recovered pace to the line. From that account, conclude that four runners got past one mistake together.\n\n**Decision on the ending:** Revise the explanatory passage. The overall thought about the team is supported, but the proposed route to it develops each stage and its causal connection after those have already been heard. The names are not the defect.\n\n**Required change:** Rework `ending` and the final act's exit transition into one completion from the shared finish. Carry forward the setback and recovery as the basis of the result without commissioning their second narration; leave the closing passage's arrangement to the writer.\n\n### 3. Removing a caution while retaining a living conclusion\n\n**Context before the ending:** Neighbours have spent an afternoon exchanging seeds. The account concerns the exchange, makes no claim about a future harvest and ends with the last trades.\n\n**Planned ending:** Warn that not every seed is certain to sprout, then finish with envelopes, pencils and biscuit crumbs covering the table while Marta tries to trade her last packet of beans.\n\n**Decision on the ending:** Revise the caution. It answers an unraised guarantee of germination. The objects and unfinished trade belong to the occasion; their enumeration does not explain the exchange a second time.\n\n**Required change:** Remove the germination warning from `last_moment`. Retain the table and Marta's last trade as closing material, connected to the preceding exchanges. The account need make no prediction about the seeds.\n",
+  "input": [
+    {
+      "role": "user",
+      "content": [
+        {
+          "type": "input_text",
+          "text": "{\"output_language\":\"ru\",\"assignment\":{\"title\":\"Как на «Аполлоне-13» очищали воздух\",\"question\":\"Расскажи, как на «Аполлоне-13» после аварии справились с углекислым газом. Хочу выпуск на 6–8 минут, с одним рассказчиком.\",\"audience\":\"Слушатели, которым интересны истории космических полётов.\",\"listener_outcome\":\"Узнать, как экипаж и люди на Земле справились с углекислым газом после аварии.\",\"format\":\"solo\",\"output_language\":\"ru\",\"speakers\":[{\"label\":\"РАССКАЗЧИК\",\"function\":\"Рассказывает историю полёта.\",\"speech_register\":\"Разговорный русский.\"}],\"duration\":{\"target_seconds\":420,\"min_seconds\":360,\"max_seconds\":480},\"knowledge_cutoff\":\"2026-11-10T00:00:00Z\",\"required_topics\":[],\"genre\":\"Документальный подкаст\"}}",
+          "prompt_cache_breakpoint": {
+            "mode": "explicit"
+          }
+        },
+        {
+          "type": "input_text",
+          "text": "{\"dossier\":{\"knowledge_cards\":[{\"sources\":[\"NASA, Apollo 13 Mission Report (1970)\",\"NASA, Apollo 13 Technical Air-to-Ground Voice Transcription (1970)\"],\"claim\":\"Командир Джим Ловелл, пилот лунного модуля Фред Хейз и пилот командного модуля Джек Суайгерт обогнули Луну. До возвращения в командный модуль перед входом в атмосферу электричество и системы жизнеобеспечения им давал лунный модуль.\",\"source_excerpts\":[{\"source\":\"NASA, Apollo 13 Mission Report (1970)\",\"text\":\"The Apollo 13 mission, planned as a lunar landing in the Fra Mauro area, was aborted because of an abrupt loss of service module cryogenic oxygen associated with a fire in one of the two tanks at approximately 56 hours. The lunar module provided the necessary support to sustain a minimum operational condition for a safe return to earth. A circumlunar profile was executed as the most efficient means of earth return, with the lunar module providing power and life support until transfer to the command module just prior to entry. Although the mission was unsuccessful as planned, a lunar flyby and several scientific experiments were completed.\"}],\"card_id\":\"M1\"},{\"sources\":[\"James A. Lovell, Apollo Expeditions to the Moon, chapter 13 (1975)\",\"J. C. LeBlanc, Apollo 13 LiOH Canister Breakthrough Test (1970)\"],\"claim\":\"Пока люди дышат, в кабине накапливается углекислый газ. Его поглощают сменные патроны с гидроксидом лития. Ловелл вспоминал, что лунный модуль рассчитывали на двоих примерно на два дня, а в аварийном полёте троим предстояло провести там почти четверо суток. Отдел бортовых систем NASA насчитал 24 патрона в командном модуле.\",\"source_excerpts\":[{\"source\":\"James A. Lovell, Apollo Expeditions to the Moon, chapter 13 (1975)\",\"text\":\"Fred had figured that we had enough lithium hydroxide canisters, which remove carbon dioxide from the spacecraft. There were four cartridge from the LM, and four from the backpacks, counting backups. But he forgot that there would be three of us in the LM instead of the normal two. The LM was designed to support two men for two days. Now it was being asked to care for three men nearly four days.\"},{\"source\":\"James A. Lovell, Apollo Expeditions to the Moon, chapter 13 (1975)\",\"text\":\"We would have died of the exhaust from our own lungs if Mission Control hadn't come up with a marvelous fix. The trouble was the square lithium hydroxide canisters from the CM would not fit the round openings of those in the LM environmental system. After a day and a half in the LM a warning light showed us that the carbon dioxide had built up to a dangerous level, but the ground was ready.\"}],\"card_id\":\"M2\"},{\"sources\":[\"J. C. LeBlanc, Apollo 13 LiOH Canister Breakthrough Test (1970)\",\"NASA, Apollo 13 Mission Report (1970)\",\"NASA, Apollo 13 Technical Air-to-Ground Voice Transcription (1970)\"],\"claim\":\"Сам патрон остался снаружи системы, открытой стороной к воздуху кабины. На другую сторону надели герметично приклеенный пакет. Угол пакета соединили со шлангом. Воздух из кабины проходил сквозь поглотитель и по шлангу возвращался в систему циркуляции.\",\"source_excerpts\":[{\"source\":\"NASA, Apollo 13 Mission Report (1970)\",\"text\":\"One side of each of two command module cartridges was covered and sealed with a plastic bag normally used to store a liquid-cooling garment. As shown in figure 6.7-1, one corner of the bag was sealed to the inlet of the suit circuit hose. The cabin atmosphere then returned to the lunar module suit circuit through these supplemental cartridges by way of the two outlet hoses.\"}],\"card_id\":\"M3\"},{\"sources\":[\"J. C. LeBlanc, Apollo 13 LiOH Canister Breakthrough Test (1970)\"],\"claim\":\"Оборудование требовалось испытать достаточно рано, чтобы осталось время на другой вариант. В камере диаметром чуть больше трёх метров к двум шлангам подключили по патрону. Когда закрыли обходные отверстия, перепад давления увеличился: через поглотитель пошёл нужный поток воздуха. Людей в камере не было.\",\"source_excerpts\":[{\"source\":\"J. C. LeBlanc, Apollo 13 LiOH Canister Breakthrough Test (1970)\",\"text\":\"OF NECESSITY, THIS ADAPTATION MUST (1) PROVIDE A WORKABLE SYSTEM, (2) EMPLOY MATERIALS AVAILABLE TO THE FLIGHTCREW, AND (3) BE RELATIVELY SIMPLE SO THAT DETAILS COULD BE TRANSMITTED TO THE CREW WITHOUT DANGER OF MISINTERPRETATION. IT WAS ALSO ESSENTIAL THAT AN EVALUATION OF THE MODIFIED SYSTEM BE COMPLETED IN AMPLE TIME TO PERMIT THE DEVELOPMENT OF ALTERNATE MEASURES IF THESE PROVED TO BE REQUIRED.\"}],\"card_id\":\"M4\"},{\"sources\":[\"NASA, Apollo 13 Technical Air-to-Ground Voice Transcription (1970)\",\"James A. Lovell, Apollo Expeditions to the Moon, chapter 13 (1975)\"],\"claim\":\"Через 90 часов после старта Ловелл собирался дать Джеку Суайгерту записать инструкцию, а потом приступить к работе. Кервин предложил другой порядок: собрать вещи и говорить с Джеком по мере сборки. Он перечислил два патрона, серую клейкую ленту, упаковочные пакеты от двух костюмов охлаждения и картонную карточку из бортовой памятки.\",\"source_excerpts\":[{\"source\":\"NASA, Apollo 13 Technical Air-to-Ground Voice Transcription (1970)\",\"text\":\"03 18 08 38  CDR  I'll give Jack the headset and let him copy the instructions.\\n03 18 08 43  CC   Okay, Jim. The way I thought it might be best to do it would be to have you gather the equipment and let us talk you through your procedure while you do it. Now, maybe you could give Jack the headset and - and - get the equipment together, and we'll talk you through the procedure. I think it'll be a little easier to do that way than if you tried to copy it all down - and then go do it.\\n03 18 09 11  CDR  Okay. Do you have any equipment listed? I'll just get it and give it to him and I can just sit here where I am.\\n03 18 09 17  CC   Okay. I think the equipment you'll need will be two command module lithium hydroxide canisters, a roll of the gray tape, the two LCGs, because we're going to use the bags from the LCGs, and one - one LM cue card - one of those cardboard cue cards which you will cut off about an inch and a half out from the ring. Now, I think that's all we'll need. Over.\"}],\"card_id\":\"M5\"},{\"sources\":[\"NASA, Apollo 13 Technical Air-to-Ground Voice Transcription (1970)\"],\"claim\":\"Кервин предложил вставить края карточки под выступы по бокам патрона. Услышав назначение дуги, Суайгерт повторил указания, предложил подрезать край ножницами и доложил, что дуга закреплена лентой.\",\"source_excerpts\":[{\"source\":\"NASA, Apollo 13 Technical Air-to-Ground Voice Transcription (1970)\",\"text\":\"03 18 37 32  CC   Okay, Jack. The next step is to get the EVA cue card and use it to form an arch over the top of the canister; just tuck one short end under one ridge on the top the other one against the ridge on the other side so that it forms a rounded arch over the top of the canister. You see, Jack, what we're going to do is slip the bag over this whole assembly and the cue card will serve to keep the bag from being sucked down against the screen. Over.\"},{\"source\":\"NASA, Apollo 13 Technical Air-to-Ground Voice Transcription (1970)\",\"text\":\"03 18 38 31  CMP  Okay. I got the idea. Okay. Let me just repeat it here. Take a cue card, form an arch over the top, bringing it under the side here. When we're through, run a piece of tape from the sides across the top of that to anchor to the other side.\\n03 18 38 51  CC   That's correct.\\n03 18 38 56  CMP  Okay. It worked.\\n03 18 39 00  CMP  The top. ... Across the top.\\n03 18 39 18  CMP  Looks like you're going to have to cut the cue card slightly.\\n03 18 39 32  CMP  Doesn't have to be really ... over that the only thing we're ... we can just take the scissors and cut off the edge here. The only thing this does, Jim, is prevent this from being sucked down into the container.\\n03 18 40 28  CMP  Still going to need some more tape. Cut off the end. Okay. Whack off the bottom. ...\\n03 18 43 34  CMP  Okay, Joe. We've got that arch built, and it's all taped in securely.\"}],\"card_id\":\"M6\"},{\"sources\":[\"NASA, Apollo 13 Technical Air-to-Ground Voice Transcription (1970)\"],\"claim\":\"Суайгерт сообщил, что один патрон у панели электропитания, второй в переходном туннеле. В Хьюстоне хотели направить часть потока в командный модуль. Джек переспросил, увести ли туда оба шланга. Решение о том, где именно их закрепить, оставили ему.\",\"source_excerpts\":[{\"source\":\"NASA, Apollo 13 Technical Air-to-Ground Voice Transcription (1970)\",\"text\":\"03 21 56 18  CMP  The position of the LMP's canister - The LMP's canister is sitting on the EPS panel now, and the CDR's canister is positioned up in the tunnel.\\n03 21 56 31  CC   Okay. Real fine, Jack. The next step is to physically separate both blue hoses a good distance away from the canister so that we don't short circuit the flow, and tape them in place; and the ideal location for them would be up in the tunnel so as to get some flow into the command module. Over.\\n03 21 56 57  CMP  Both hoses in the - up into the command module?\\n03 21 57 03  CC   Oh, you can use your judgment on that, Jack. We'd like at least one, and the recommendation that I got was to put them both up in the tunnel.\"}],\"card_id\":\"M7\"},{\"sources\":[\"NASA, Apollo 13 Technical Air-to-Ground Voice Transcription (1970)\",\"J. C. LeBlanc, Apollo 13 LiOH Canister Breakthrough Test (1970)\"],\"claim\":\"Примерно через 94 с половиной часа после старта Хейз спросил, что видно на Земле. Хьюстон передал показание по углекислому газу. Единица измерения — миллиметры ртутного столба, это парциальное давление газа. В техническом отчёте сопоставлены прежнее повышение примерно до 15 мм и снижение до 0,2 мм после установки.\",\"source_excerpts\":[{\"source\":\"NASA, Apollo 13 Technical Air-to-Ground Voice Transcription (1970)\",\"text\":\"03 22 32 43  LMP  Okay. How did our ... configurations appear to be working down there?\\n03 22 32 54  CC   I'm sorry, Fred, but we got noisy again there.\\n03 22 33 02  LMP  Okay. Let me know when you want me to try it.\\n03 22 33 05  CC   Okay. That sounds better already. Go ahead.\\n03 22 33 11  LMP  Okay. I'd just like to ... how's - how's our lith-o cartridge setup ... appear to be working down there.\\n03 22 33 21  CC   We are reading 0.2 on our CO2 sets here, and we're all delighted. It seems to be working fine.\\n03 22 33 31  LMP  Boy, that is great.\"}],\"card_id\":\"M8\"},{\"sources\":[\"NASA, Apollo 13 Mission Report (1970)\",\"J. C. LeBlanc, Apollo 13 LiOH Canister Breakthrough Test (1970)\"],\"claim\":\"В камере продолжили опыты. Для второго испытания по бортовой телеметрии рассчитали, сколько газа выдыхает экипаж, и настроили подачу в камере. Второе испытание позволило рассчитать, когда пора менять патроны, и экономить электричество на передаче показаний. Свежий патрон можно было пристроить к отработанному, сохранив уже собранное соединение со шлангом.\",\"source_excerpts\":[{\"source\":\"NASA, Apollo 13 Mission Report (1970)\",\"text\":\"After approximately 20 hours of operation with two command module cartridges, an additional unit was stacked on each original cartridge to improve the carbon dioxide removal capability. With this supplemental configuration, when only command module cartridges were being used, the indicated carbon dioxide level was maintained between 0.1 and 1.8 mm Hg.\"}],\"card_id\":\"M9\"}]},\"material_catalog\":[\"M1\",\"M2\",\"M3\",\"M4\",\"M5\",\"M6\",\"M7\",\"M8\",\"M9\"],\"review_target_root\":\"The proposal itself, without a surrounding request wrapper.\"}",
+          "prompt_cache_breakpoint": {
+            "mode": "explicit"
+          }
+        },
+        {
+          "type": "input_text",
+          "text": "{\"candidate_plan\":{\"status\":\"ready\",\"plan\":{\"main_question\":\"Как на «Аполлоне-13» после аварии справились с углекислым газом, когда троим астронавтам пришлось жить в лунном модуле, а запасные поглотители из командного модуля не подходили к его системе очистки воздуха?\",\"listener_promise\":\"Проследить решение от несовместимых патронов до работающей системы: понять, что проверили на Земле, как экипаж собрал устройство по радио и по чему стало ясно, что оно действительно очищает воздух.\",\"working_answer\":\"Проблему решили, подключив к системе циркуляции лунного модуля патроны с гидроксидом лития из командного модуля. Их не стали вставлять в неподходящие гнёзда: воздух кабины направили через стоящие снаружи патроны, а герметичные пакеты и шланги связали их с системой. Земная проверка, понятная пошаговая передача процедуры и работа экипажа превратили доступные на борту материалы в действующую конструкцию. После установки парциальное давление CO₂ снизилось примерно с 15 до 0,2 мм ртутного столба; дальнейшие испытания и добавление свежих патронов позволили поддерживать очистку. Это решило одну из жизненно важных задач возвращения, но не отменило остальных последствий аварии.\",\"route_summary\":\"Начать с положения экипажа после аварии: лунный модуль стал источником электричества и жизнеобеспечения для троих, хотя рассчитывался на двоих и более короткое пребывание. Объяснить накопление CO₂ и назначение поглощающих патронов, затем обнаружить препятствие: запас из командного модуля есть, но квадратные патроны не входят в круглые гнёзда. Перейти на Землю, где требуется не просто придумать переходник, а проверить конструкцию, которую можно собрать из бортовых вещей и объяснить по радио. Показать обход несовместимых гнёзд через внешний патрон, пакет и шланг, затем перенести рассказ на борт примерно на 90-м часу полёта. Кервин предлагает собирать устройство одновременно с получением указаний; Суайгерт выясняет назначение картонной дуги и закрепляет её. После сборки остаётся обеспечить циркуляцию по кабине, а не только возле патрона. Около 94,5 часа полёта Хейз спрашивает о результате: Земля сообщает 0,2. Завершить не мгновенным торжеством, а продолжением работы — испытаниями ресурса, добавлением свежих патронов и кратким выводом о том, как это решение позволило лунному модулю дальше поддерживать экипаж на пути домой.\",\"opening\":{\"approach\":\"Ввести слушателя в аварийную ситуацию без предварительной технической загадки: после потери кислорода в служебном модуле высадку отменили, а Ловелл, Хейз и Суайгерт стали зависеть от лунного модуля. У него теперь трое жильцов вместо двух и почти четверо суток работы вместо примерно двух. Следующий шаг — простая физиологическая предпосылка: каждый выдох добавляет в замкнутую кабину CO₂, который нужно удалять. На этом поставить вопрос о том, как продлить возможности очистки воздуха. Несовместимость патронов раскрыть уже в развитии первого акта.\",\"material_refs\":[\"M1\",\"M2\"],\"question_to_open\":\"Как обеспечить очистку воздуха для троих, если аварийное убежище рассчитано на меньший экипаж и более короткое время?\"},\"acts\":[{\"act_id\":\"A1\",\"title\":\"Убежище с ограниченным запасом\",\"listener_question\":\"Почему в работающем лунном модуле возникла новая угроза и можно ли воспользоваться запасами соседнего отсека?\",\"intended_change_in_understanding\":\"Включая вступление, установить положение после аварии примерно на 56-м часу полёта: высадка отменена, лунный модуль поддерживает троих на пути вокруг Луны к Земле. Кратко представить Ловелла как командира, Хейза как пилота лунного модуля и Суайгерта как пилота командного. Объяснить, что выдыхаемый CO₂ накапливается, а сменные патроны с гидроксидом лития его поглощают. Сопоставить штатные два человека примерно на двое суток с тремя почти на четверо. Затем показать доступный резерв — патроны командного модуля — и только после этого препятствие: они квадратные, а посадочные места лунного модуля круглые. Нужный поглотитель находится рядом, но штатно подключить его нельзя.\",\"prerequisite_concepts\":[\"Командный и лунный модули — разные части корабля со своими системами; экипаж может пользоваться доступными вещами из командного модуля.\",\"Удаление углекислого газа — отдельная необходимая задача жизнеобеспечения: присутствия кислорода самого по себе недостаточно.\"],\"material_refs\":[\"M1\",\"M2\"],\"transitions\":{\"from_previous\":\"Это первый акт; его начальные 20–25 секунд выполняют функцию вступления.\",\"toward_next\":\"Поглотитель есть, но его форма не подходит. Следующий шаг — выяснить, как заставить воздух проходить через него без штатного крепления.\"},\"promises_opened\":[\"Как использовать несовместимые патроны?\",\"Как проверить, что самодельная конструкция действительно очищает воздух?\"],\"promises_addressed\":[\"Почему после аварии экипажу понадобилась дополнительная очистка воздуха?\"],\"estimated_seconds_range\":{\"min_seconds\":65,\"max_seconds\":75},\"priority\":\"essential\"},{\"act_id\":\"A2\",\"title\":\"Не вставлять, а подключить\",\"listener_question\":\"Как обойти несовместимые гнёзда и убедиться в работоспособности решения до его передачи экипажу?\",\"intended_change_in_understanding\":\"Перенести действие к наземной проверке до применения конструкции на борту. Сначала обозначить практические условия: использовать только имеющееся у экипажа, сделать понятную для передачи по радио сборку и проверить её достаточно рано, чтобы осталось время на другой вариант. Затем объяснить выбранный путь воздуха: одна сторона внешнего патрона открыта в кабину, на другой герметично закреплён пакет, угол пакета соединён со шлангом системы циркуляции. Воздух проходит через поглотитель и возвращается в систему. Дать один содержательный момент испытания в камере без людей: после закрытия обходных отверстий перепад давления увеличился, подтвердив нужный поток через поглотитель. Слушатель понимает не только идею переходника, но и условие его работы — воздух должен идти через патрон, а не обходить его.\",\"prerequisite_concepts\":[\"Патрон очищает проходящий через него воздух; одного присутствия поглотителя в кабине недостаточно.\",\"Шланги позволяют связать внешний патрон с существующей системой циркуляции.\"],\"material_refs\":[\"M3\",\"M4\"],\"transitions\":{\"from_previous\":\"Геометрическая несовместимость заставляет изменить способ подключения, а не сам поглотитель.\",\"toward_next\":\"Работоспособную схему теперь нужно превратить в предмет, который люди на борту смогут собрать по голосовым указаниям.\"},\"promises_opened\":[\"Как передать и выполнить сборку на борту?\"],\"promises_addressed\":[\"Как использовать несовместимые патроны?\",\"Как проверить, что самодельная конструкция действительно очищает воздух?\"],\"estimated_seconds_range\":{\"min_seconds\":70,\"max_seconds\":80},\"priority\":\"essential\"},{\"act_id\":\"A3\",\"title\":\"Собирать, пока Земля объясняет\",\"listener_question\":\"Как инструкция по радио становится работающим устройством в руках экипажа?\",\"intended_change_in_understanding\":\"Оказаться на борту примерно через 90 часов после старта. Ловелл предлагает дать Суайгерту записать инструкцию, но Джо Кервин, ведущий разговор с Земли, предлагает сначала собрать вещи и выполнять шаги по мере объяснения. Прозвучит короткий, предметный набор: два патрона, серая клейкая лента, пакеты от костюмов охлаждения и картонная карточка из бортовой памятки. Центральный эпизод — карточка: Кервин просит согнуть её дугой над патроном и завести края под выступы. После появления этой несколько неожиданной детали объяснить её назначение: поток может притянуть пакет к сетке, а дуга оставляет проход для воздуха. Суайгерт повторяет смысл задания, предлагает подрезать край и сообщает, что дуга закреплена лентой. Так показать передачу не только последовательности действий, но и понимания устройства; остальную сборку пакета со шлангом изложить компактно, опираясь на уже знакомую схему.\",\"prerequisite_concepts\":[\"Слушатель уже знает путь воздуха через патрон, пакет и шланг.\",\"Гибкий пакет может прижаться к поверхности под действием потока воздуха.\"],\"material_refs\":[\"M3\",\"M5\",\"M6\"],\"transitions\":{\"from_previous\":\"После наземной проверки рассказ переходит к передаче процедуры экипажу; теперь важен каждый понятный и выполнимый шаг.\",\"toward_next\":\"Собранные патроны ещё нужно расположить так, чтобы очищался воздух кабины, а затем дождаться показаний.\"},\"promises_opened\":[\"Покажут ли измерения на борту, что решение сработало?\"],\"promises_addressed\":[\"Как передать и выполнить сборку на борту?\"],\"estimated_seconds_range\":{\"min_seconds\":110,\"max_seconds\":120},\"priority\":\"essential\"},{\"act_id\":\"A4\",\"title\":\"Что показывают приборы\",\"listener_question\":\"Работает ли собранная система в настоящей кабине?\",\"intended_change_in_understanding\":\"Сначала дать последний практический шаг: один патрон расположен у панели электропитания, другой — в переходном туннеле. Земля просит отнести подающие воздух шланги подальше от патронов, чтобы поток не замыкался поблизости; желательно направить его также в сторону командного модуля. Суайгерт уточняет, нужны ли там оба шланга, а точное расположение оставляют на его усмотрение. Затем перейти примерно к 94,5 часа полёта: Хейз спрашивает, как установка выглядит по данным на Земле. Дождаться в рассказе ответа Хьюстона — 0,2. После ответа пояснить величину: это парциальное давление CO₂ в миллиметрах ртутного столба; оно показывает, насколько много этого газа в смеси. Сопоставить с зафиксированным ранее ростом примерно до 15 мм. Короткая реакция Хейза завершает сцену: получено измеримое подтверждение, а не только уверенность в удачной сборке.\",\"prerequisite_concepts\":[\"Расположение шлангов влияет на то, какой воздух проходит через очистку.\",\"Для понимания результата достаточно знать, что меньшее парциальное давление CO₂ означает меньшее содержание этого газа; подробный разбор единиц не нужен.\"],\"material_refs\":[\"M7\",\"M8\"],\"transitions\":{\"from_previous\":\"После сборки внимание переходит с отдельных деталей на движение воздуха по обитаемому пространству и показания приборов.\",\"toward_next\":\"Уровень CO₂ снизился, но возвращение ещё продолжается: теперь важно поддерживать очистку по мере расходования патронов.\"},\"promises_opened\":[\"Как сохранить очистку воздуха после первого успешного включения?\"],\"promises_addressed\":[\"Покажут ли измерения на борту, что решение сработало?\"],\"estimated_seconds_range\":{\"min_seconds\":85,\"max_seconds\":95},\"priority\":\"essential\"},{\"act_id\":\"A5\",\"title\":\"Решение на оставшийся путь\",\"listener_question\":\"Как разовую удачную сборку превратили в систему, которой можно пользоваться дальше?\",\"intended_change_in_understanding\":\"Показать продолжение наземной работы после первого успеха: в камере воспроизводят выделение CO₂ экипажем, рассчитанное по телеметрии, чтобы оценить ресурс патронов и сроки замены. Это также помогает экономить электричество на передаче показаний. Примерно через 20 часов работы к каждому исходному патрону добавляют свежий, сохраняя уже собранное соединение со шлангом. Устройство становится обслуживаемой системой, а не одноразовым трюком. Расширить рамку до возвращения: экипаж обогнул Луну, и лунный модуль продолжал давать электричество и жизнеобеспечение до перехода в командный модуль перед входом в атмосферу. Последние 15–20 секунд отвести общему завершению, указанному в ending, без повторного разбора конструкции.\",\"prerequisite_concepts\":[\"Поглотитель имеет ограниченный ресурс, поэтому первое снижение CO₂ не отменяет необходимости дальнейшей замены патронов.\"],\"material_refs\":[\"M9\",\"M1\"],\"transitions\":{\"from_previous\":\"Измерения подтвердили успех; дальнейшие испытания отвечают уже на вопрос о длительной работе.\",\"toward_next\":\"Финальный момент входит в этот акт и завершает историю значением решения для пути домой.\"},\"promises_opened\":[],\"promises_addressed\":[\"Как сохранить очистку воздуха после первого успешного включения?\",\"Как экипаж и люди на Земле справились с углекислым газом после аварии?\"],\"estimated_seconds_range\":{\"min_seconds\":65,\"max_seconds\":75},\"priority\":\"essential\"}],\"ending\":{\"last_moment\":\"Кратко завершить историю значением результата: лунный модуль смог продолжать поддерживать троих на пути домой, потому что его возможности расширили за счёт запасов другого модуля и совместной работы Земли с экипажем. Очистка воздуха стала одной из решённых задач возвращения — не отменой аварии, а способом продолжить путь после неё.\",\"why_end_here\":\"К этому моменту слушатель уже понимает причину угрозы, принцип обхода несовместимости, ход бортовой сборки, показания после включения и способ дальнейшей замены поглотителей. Поэтому завершению достаточно вернуть масштаб всей ситуации: что эта работа дала людям на корабле. Повторять детали переходника или снова доказывать его эффективность не требуется.\",\"promises_to_close\":[\"Почему после аварии понадобилась дополнительная очистка воздуха?\",\"Как использовали патроны, не подходившие к системе лунного модуля?\",\"Что сделали на Земле и что сделал экипаж?\",\"Как установили, что решение работает, и поддерживали его работу дальше?\"]},\"host_functions\":[{\"speaker_id\":\"РАССКАЗЧИК\",\"contribution\":\"Ведёт историю от аварийного переселения к работающей очистке воздуха; даёт необходимую физическую логику, связывает наземные испытания с действиями экипажа и объясняет результат измерений. В сцене сборки опирается на конкретные действия и обмен уточнениями, а в финале возвращает масштаб полёта.\",\"interaction_guidance\":\"Все события рассказывает один голос. Реплики участников радиосвязи можно передавать краткой прямой или косвенной речью с ясной атрибуцией; основная драматургия строится на смене задач, действиях и полученном результате. Перед техническим объяснением сначала обозначать практическую проблему, которую оно разрешает.\",\"speech_register\":\"Разговорный русский документального подкаста: ясный, предметный, с живыми бытовыми деталями сборки и без перегрузки терминологией. Технические понятия объясняются рядом с их первым необходимым использованием.\"}],\"duration_strategy\":{\"estimated_seconds_range\":{\"min_seconds\":395,\"max_seconds\":445},\"assumptions\":[\"Целевая длительность — 420 секунд, то есть 7 минут; середины диапазонов пяти актов в сумме дают 420 секунд.\",\"Вступление входит в A1, заключение — в A5; переходы включены во время соответствующих актов и отдельно не прибавляются.\",\"Ориентир для текста — около 850–950 русских слов при спокойной разговорной подаче с короткими паузами на технических объяснениях и ответе Хьюстона.\",\"Радиообмен передаётся выборочно, а не целиком; наибольшее время отдано сборке и пониманию назначения картонной дуги.\",\"Точные количества запасных патронов и полный диапазон последующих показаний не требуются для выбранного объяснения и в хронометраж не заложены.\"],\"optional_material\":[\"При необходимости сократить выпуск: убрать точные места размещения двух патронов в A4, сохранив смысл разнесения потоков.\",\"Для более короткой версии сократить в A5 объяснение экономии электричества на передаче показаний; оставить испытание ресурса и добавление свежих патронов.\",\"При наличии времени немного расширить обмен Ловелла с Кервином о записи инструкции и сборке по шагам, не добавляя отдельной сюжетной ветви.\"]}},\"research_requests\":[]},\"allowed_review_targets\":[\"/status\",\"/plan\",\"/plan/main_question\",\"/plan/listener_promise\",\"/plan/working_answer\",\"/plan/route_summary\",\"/plan/opening\",\"/plan/opening/approach\",\"/plan/opening/material_refs\",\"/plan/opening/material_refs/0\",\"/plan/opening/material_refs/1\",\"/plan/opening/question_to_open\",\"/plan/acts\",\"/plan/acts/0\",\"/plan/acts/0/act_id\",\"/plan/acts/0/title\",\"/plan/acts/0/listener_question\",\"/plan/acts/0/intended_change_in_understanding\",\"/plan/acts/0/prerequisite_concepts\",\"/plan/acts/0/prerequisite_concepts/0\",\"/plan/acts/0/prerequisite_concepts/1\",\"/plan/acts/0/material_refs\",\"/plan/acts/0/material_refs/0\",\"/plan/acts/0/material_refs/1\",\"/plan/acts/0/transitions\",\"/plan/acts/0/transitions/from_previous\",\"/plan/acts/0/transitions/toward_next\",\"/plan/acts/0/promises_opened\",\"/plan/acts/0/promises_opened/0\",\"/plan/acts/0/promises_opened/1\",\"/plan/acts/0/promises_addressed\",\"/plan/acts/0/promises_addressed/0\",\"/plan/acts/0/estimated_seconds_range\",\"/plan/acts/0/estimated_seconds_range/min_seconds\",\"/plan/acts/0/estimated_seconds_range/max_seconds\",\"/plan/acts/0/priority\",\"/plan/acts/1\",\"/plan/acts/1/act_id\",\"/plan/acts/1/title\",\"/plan/acts/1/listener_question\",\"/plan/acts/1/intended_change_in_understanding\",\"/plan/acts/1/prerequisite_concepts\",\"/plan/acts/1/prerequisite_concepts/0\",\"/plan/acts/1/prerequisite_concepts/1\",\"/plan/acts/1/material_refs\",\"/plan/acts/1/material_refs/0\",\"/plan/acts/1/material_refs/1\",\"/plan/acts/1/transitions\",\"/plan/acts/1/transitions/from_previous\",\"/plan/acts/1/transitions/toward_next\",\"/plan/acts/1/promises_opened\",\"/plan/acts/1/promises_opened/0\",\"/plan/acts/1/promises_addressed\",\"/plan/acts/1/promises_addressed/0\",\"/plan/acts/1/promises_addressed/1\",\"/plan/acts/1/estimated_seconds_range\",\"/plan/acts/1/estimated_seconds_range/min_seconds\",\"/plan/acts/1/estimated_seconds_range/max_seconds\",\"/plan/acts/1/priority\",\"/plan/acts/2\",\"/plan/acts/2/act_id\",\"/plan/acts/2/title\",\"/plan/acts/2/listener_question\",\"/plan/acts/2/intended_change_in_understanding\",\"/plan/acts/2/prerequisite_concepts\",\"/plan/acts/2/prerequisite_concepts/0\",\"/plan/acts/2/prerequisite_concepts/1\",\"/plan/acts/2/material_refs\",\"/plan/acts/2/material_refs/0\",\"/plan/acts/2/material_refs/1\",\"/plan/acts/2/material_refs/2\",\"/plan/acts/2/transitions\",\"/plan/acts/2/transitions/from_previous\",\"/plan/acts/2/transitions/toward_next\",\"/plan/acts/2/promises_opened\",\"/plan/acts/2/promises_opened/0\",\"/plan/acts/2/promises_addressed\",\"/plan/acts/2/promises_addressed/0\",\"/plan/acts/2/estimated_seconds_range\",\"/plan/acts/2/estimated_seconds_range/min_seconds\",\"/plan/acts/2/estimated_seconds_range/max_seconds\",\"/plan/acts/2/priority\",\"/plan/acts/3\",\"/plan/acts/3/act_id\",\"/plan/acts/3/title\",\"/plan/acts/3/listener_question\",\"/plan/acts/3/intended_change_in_understanding\",\"/plan/acts/3/prerequisite_concepts\",\"/plan/acts/3/prerequisite_concepts/0\",\"/plan/acts/3/prerequisite_concepts/1\",\"/plan/acts/3/material_refs\",\"/plan/acts/3/material_refs/0\",\"/plan/acts/3/material_refs/1\",\"/plan/acts/3/transitions\",\"/plan/acts/3/transitions/from_previous\",\"/plan/acts/3/transitions/toward_next\",\"/plan/acts/3/promises_opened\",\"/plan/acts/3/promises_opened/0\",\"/plan/acts/3/promises_addressed\",\"/plan/acts/3/promises_addressed/0\",\"/plan/acts/3/estimated_seconds_range\",\"/plan/acts/3/estimated_seconds_range/min_seconds\",\"/plan/acts/3/estimated_seconds_range/max_seconds\",\"/plan/acts/3/priority\",\"/plan/acts/4\",\"/plan/acts/4/act_id\",\"/plan/acts/4/title\",\"/plan/acts/4/listener_question\",\"/plan/acts/4/intended_change_in_understanding\",\"/plan/acts/4/prerequisite_concepts\",\"/plan/acts/4/prerequisite_concepts/0\",\"/plan/acts/4/material_refs\",\"/plan/acts/4/material_refs/0\",\"/plan/acts/4/material_refs/1\",\"/plan/acts/4/transitions\",\"/plan/acts/4/transitions/from_previous\",\"/plan/acts/4/transitions/toward_next\",\"/plan/acts/4/promises_opened\",\"/plan/acts/4/promises_addressed\",\"/plan/acts/4/promises_addressed/0\",\"/plan/acts/4/promises_addressed/1\",\"/plan/acts/4/estimated_seconds_range\",\"/plan/acts/4/estimated_seconds_range/min_seconds\",\"/plan/acts/4/estimated_seconds_range/max_seconds\",\"/plan/acts/4/priority\",\"/plan/ending\",\"/plan/ending/last_moment\",\"/plan/ending/why_end_here\",\"/plan/ending/promises_to_close\",\"/plan/ending/promises_to_close/0\",\"/plan/ending/promises_to_close/1\",\"/plan/ending/promises_to_close/2\",\"/plan/ending/promises_to_close/3\",\"/plan/host_functions\",\"/plan/host_functions/0\",\"/plan/host_functions/0/speaker_id\",\"/plan/host_functions/0/contribution\",\"/plan/host_functions/0/interaction_guidance\",\"/plan/host_functions/0/speech_register\",\"/plan/duration_strategy\",\"/plan/duration_strategy/estimated_seconds_range\",\"/plan/duration_strategy/estimated_seconds_range/min_seconds\",\"/plan/duration_strategy/estimated_seconds_range/max_seconds\",\"/plan/duration_strategy/assumptions\",\"/plan/duration_strategy/assumptions/0\",\"/plan/duration_strategy/assumptions/1\",\"/plan/duration_strategy/assumptions/2\",\"/plan/duration_strategy/assumptions/3\",\"/plan/duration_strategy/assumptions/4\",\"/plan/duration_strategy/optional_material\",\"/plan/duration_strategy/optional_material/0\",\"/plan/duration_strategy/optional_material/1\",\"/plan/duration_strategy/optional_material/2\",\"/research_requests\"]}"
+        }
+      ]
+    }
+  ],
+  "max_output_tokens": 24576,
+  "text": {
+    "verbosity": "high",
+    "format": {
+      "type": "json_schema",
+      "name": "plan_review",
+      "schema": {
+        "$defs": {
+          "PlanReviewFinding": {
+            "additionalProperties": false,
+            "properties": {
+              "targets": {
+                "description": "JSON Pointers into the exact supplied plan.",
+                "items": {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "minItems": 1,
+                "title": "Targets",
+                "type": "array"
+              },
+              "priority": {
+                "enum": [
+                  "blocking",
+                  "important",
+                  "optional"
+                ],
+                "title": "Priority",
+                "type": "string"
+              },
+              "observation": {
+                "minLength": 1,
+                "title": "Observation",
+                "type": "string",
+                "description": "Specific effect of this choice on the story the listener would receive, whether or not its facts are correct."
+              },
+              "requested_change": {
+                "minLength": 1,
+                "title": "Requested Change",
+                "type": "string",
+                "description": "Concrete change to the addressed plan passage, its intended listening effect and any dependent passages to change together."
+              },
+              "preserve": {
+                "items": {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "title": "Preserve",
+                "type": "array",
+                "description": "Preserve a useful story choice or the supported meaning of a claim. A factual boundary limits what the revision can imply; it calls for an explicit explanation only when the listener needs it to understand the retained claim. May be empty."
+              },
+              "material_refs": {
+                "items": {
+                  "minLength": 1,
+                  "type": "string",
+                  "enum": [
+                    "M1",
+                    "M2",
+                    "M3",
+                    "M4",
+                    "M5",
+                    "M6",
+                    "M7",
+                    "M8",
+                    "M9"
+                  ]
+                },
+                "title": "Material Refs",
+                "type": "array"
+              }
+            },
+            "required": [
+              "targets",
+              "priority",
+              "observation",
+              "requested_change",
+              "preserve",
+              "material_refs"
+            ],
+            "title": "PlanReviewFinding",
+            "type": "object"
+          },
+          "PlanReviewStrength": {
+            "additionalProperties": false,
+            "properties": {
+              "targets": {
+                "description": "JSON Pointers into the exact supplied plan.",
+                "items": {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "minItems": 1,
+                "title": "Targets",
+                "type": "array"
+              },
+              "reason": {
+                "minLength": 1,
+                "title": "Reason",
+                "type": "string",
+                "description": "What this addressed choice contributes to the story and listening experience; wording and position remain revisable."
+              }
+            },
+            "required": [
+              "targets",
+              "reason"
+            ],
+            "title": "PlanReviewStrength",
+            "type": "object"
+          },
+          "PlanningResearchRequest": {
+            "additionalProperties": false,
+            "properties": {
+              "question": {
+                "minLength": 1,
+                "title": "Question",
+                "type": "string"
+              },
+              "why_needed": {
+                "minLength": 1,
+                "title": "Why Needed",
+                "type": "string"
+              },
+              "affected_act_ids": {
+                "description": "Local act labels; empty for an episode-wide question.",
+                "items": {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "title": "Affected Act Ids",
+                "type": "array"
+              },
+              "material_refs": {
+                "description": "Relevant supplied locators; may be empty for missing evidence.",
+                "items": {
+                  "minLength": 1,
+                  "type": "string",
+                  "enum": [
+                    "M1",
+                    "M2",
+                    "M3",
+                    "M4",
+                    "M5",
+                    "M6",
+                    "M7",
+                    "M8",
+                    "M9"
+                  ]
+                },
+                "title": "Material Refs",
+                "type": "array"
+              },
+              "blocking": {
+                "description": "Whether the promised answer requires this unresolved material.",
+                "title": "Blocking",
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "question",
+              "why_needed",
+              "affected_act_ids",
+              "material_refs",
+              "blocking"
+            ],
+            "title": "PlanningResearchRequest",
+            "type": "object"
+          }
+        },
+        "additionalProperties": false,
+        "properties": {
+          "listener_answer": {
+            "minLength": 1,
+            "title": "Listener Answer",
+            "type": "string",
+            "description": "The listening experience enabled by the selected plan: opening premises, developments, disclosures, chronology and ending."
+          },
+          "strengths": {
+            "items": {
+              "$ref": "#/$defs/PlanReviewStrength"
+            },
+            "title": "Strengths",
+            "type": "array",
+            "description": "Addressed properties that help this particular story and genre work. Explain their contribution; praise does not freeze the current selection or sequence."
+          },
+          "findings": {
+            "items": {
+              "$ref": "#/$defs/PlanReviewFinding"
+            },
+            "title": "Findings",
+            "type": "array",
+            "description": "Addressed defects and optional improvements in the proposed telling, with the changes they need. May be empty."
+          },
+          "research_requests": {
+            "items": {
+              "$ref": "#/$defs/PlanningResearchRequest"
+            },
+            "title": "Research Requests",
+            "type": "array"
+          },
+          "duration_note": {
+            "minLength": 1,
+            "title": "Duration Note",
+            "type": "string"
+          },
+          "decision_reason": {
+            "minLength": 1,
+            "title": "Decision Reason",
+            "type": "string",
+            "description": "Concrete reason for the decision following from the preceding story assessment and addressed findings, including their consequence for this audience and request."
+          },
+          "decision": {
+            "enum": [
+              "accept",
+              "revise",
+              "needs_research"
+            ],
+            "title": "Decision",
+            "type": "string",
+            "description": "Decision reached after assessing the story enabled by this plan. Factual accuracy alone does not establish that its chosen telling works; a good plan need not be changed."
+          }
+        },
+        "required": [
+          "decision",
+          "decision_reason",
+          "listener_answer",
+          "strengths",
+          "findings",
+          "research_requests",
+          "duration_note"
+        ],
+        "title": "PlanReviewOutput",
+        "type": "object"
+      },
+      "strict": true
+    }
+  },
+  "tools": [],
+  "tool_choice": "none",
+  "parallel_tool_calls": false,
+  "truncation": "disabled",
+  "stream": false,
+  "metadata": {
+    "podgen_run_id": "777cb9be-60e6-4db1-9709-d032c28eb544",
+    "podgen_invocation_id": "830a65cd-5676-5b58-a09f-adea962bf2c5",
+    "podgen_stage": "plan-review",
+    "compiler_version": "whole-episode-baseline-a/1",
+    "podgen_prompt_cache_layout": "stable-role-prefix/1"
+  },
+  "reasoning": {
+    "effort": "medium"
+  },
+  "store": false,
+  "background": false,
+  "prompt_cache_options": {
+    "mode": "explicit"
+  }
+}
