@@ -56,11 +56,10 @@ def test_ending_tasks_change_only_planning_descriptions_and_leave_other_roles_ex
         assert without_descriptions(current) == without_descriptions(old)
         if name in ("plan", "plan-revise"):
             ending = current["$defs"]["PlanningFinalMoment"]["properties"]
-            assert "concluding speech about the whole selected story" in ending["last_moment"]["description"]
             assert (
-                "within the final scene or in a separate closing passage"
-                in ending["why_end_here"]["description"]
+                "Leave composition and spoken wording to the writer" in ending["last_moment"]["description"]
             )
+            assert ending["why_end_here"]["description"] == "Why this ending suits the selected story."
             assert (
                 "not a recap"
                 in old["$defs"]["PlanningFinalMoment"]["properties"]["last_moment"]["description"]
@@ -72,7 +71,9 @@ def test_ending_tasks_change_only_planning_descriptions_and_leave_other_roles_ex
             assert current == old
 
 
-@pytest.mark.parametrize("pin", [None, ending_guidance.LEGACY_VERSION, ending_guidance.VERSION])
+@pytest.mark.parametrize(
+    "pin", [None, ending_guidance.LEGACY_VERSION, ending_guidance.SPEECH_VERSION, ending_guidance.VERSION]
+)
 def test_actual_planner_release_preview_and_live_use_the_same_pinned_descriptions(monkeypatch, pin):
     materials, _, _, _, _, _, _, _, profile = data_and_profile()
     store, journal, command, manifest = release(monkeypatch, materials, profile)

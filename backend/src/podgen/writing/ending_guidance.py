@@ -6,11 +6,12 @@ from .projection_versions import V9, manifest_version
 
 KEY = "planning_ending_guidance"
 LEGACY_VERSION = "story-resolution/1"
-VERSION = "story-resolution/2"
+SPEECH_VERSION = "story-resolution/2"
+VERSION = "story-resolution/3"
 
 
 def validate(version, projection):
-    if version is not None and (version not in (LEGACY_VERSION, VERSION) or projection != V9):
+    if version is not None and (version not in (LEGACY_VERSION, SPEECH_VERSION, VERSION) or projection != V9):
         raise ContractError("unsupported_planning_ending_guidance")
     return version
 
@@ -25,10 +26,14 @@ def from_manifest(manifest):
 def describe(schema, stage, version):
     if version is None:
         return
-    if version == VERSION:
+    if version in (SPEECH_VERSION, VERSION):
         from .closing_speech import describe as describe_closing_speech
 
         describe_closing_speech(schema, stage)
+        if version == VERSION and stage in ("plan", "plan-revise"):
+            from .planner_ending_descriptions import describe as describe_planner_ending
+
+            describe_planner_ending(schema)
         return
     if stage in ("plan", "plan-revise"):
         ending = schema["$defs"]["PlanningFinalMoment"]["properties"]
