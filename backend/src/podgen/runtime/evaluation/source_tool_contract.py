@@ -9,18 +9,21 @@ from .reading_workflow import base_stage
 KEY = "source_tool_contract"
 LEGACY_VERSION = "frozen-corpus-tools/1"
 FINAL_TURN_VERSION = "frozen-corpus-tools/2"
-VERSION = "frozen-corpus-tools/3"
+READ_BUDGET_VERSION = "frozen-corpus-tools/3"
+VERSION = "frozen-corpus-tools/4"
 ROLES = ("draft", "revise", "fact-review")
 
 
 def create(behavior):
     if behavior.name != "production/1":
         return None
+    from podgen.retrieval.config import profile
     from podgen.writing.source_tools import definitions
 
     return dict(
         version=VERSION,
-        definitions=definitions(),
+        definitions=definitions(retrieval=True),
+        retrieval=profile(),
         max_model_turns=12,
         max_tool_calls=24,
         final_turn="structured_without_tools",
@@ -35,17 +38,22 @@ def from_manifest(manifest):
     if not isinstance(value, dict):
         raise ContractError("unsupported_source_tool_contract")
     fields = {"version", "definitions", "max_model_turns", "max_tool_calls"}
-    if value.get("version") in (FINAL_TURN_VERSION, VERSION):
+    if value.get("version") in (FINAL_TURN_VERSION, READ_BUDGET_VERSION, VERSION):
         fields.add("final_turn")
         if value.get("final_turn") != "structured_without_tools":
             raise ContractError("invalid_source_tool_contract")
     if value.get("version") == VERSION:
+        from podgen.retrieval.config import validate
+
+        fields.add("retrieval")
+        validate(value.get("retrieval"))
+    if value.get("version") in (READ_BUDGET_VERSION, VERSION):
         fields.add("max_read_chars")
         if type(value.get("max_read_chars")) is not int or value["max_read_chars"] != 9600:
             raise ContractError("invalid_source_tool_contract")
     if (
         manifest.get("behavior_profile") != "production/1"
-        or value.get("version") not in (VERSION, FINAL_TURN_VERSION, LEGACY_VERSION)
+        or value.get("version") not in (VERSION, READ_BUDGET_VERSION, FINAL_TURN_VERSION, LEGACY_VERSION)
         or set(value) != fields
     ):
         raise ContractError("unsupported_source_tool_contract")

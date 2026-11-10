@@ -263,9 +263,24 @@ class WritingEvaluation:
 
             corpus = None
             if source_contract(manifest) is not None:
+                from podgen.retrieval import RetrievalUnavailable
                 from podgen.writing.source_tools import SourceCorpus
 
-                corpus = SourceCorpus(materials)
+                try:
+                    retrieval = source_contract(manifest).get("retrieval")
+                    index = None
+                    if retrieval is not None:
+                        from .source_search_index import PostgresSearchIndex
+
+                        index = PostgresSearchIndex(journal, materials.shared_ref, retrieval)
+                    corpus = SourceCorpus(materials, retrieval=retrieval, index=index)
+                except ImportError:
+                    journal.status(command.run_id, "needs_attention", "source_search_dependencies_missing")
+                    raise RunFailure("source_search_dependencies_missing", run_id=command.run_id) from None
+                except RetrievalUnavailable as error:
+                    code = str(error)
+                    journal.status(command.run_id, "needs_attention", code)
+                    raise RunFailure(code, run_id=command.run_id) from None
             gateway = ModelGateway(journal, factory, source_corpus=corpus, **self.gateway_options)
             outputs = {}
             records = {}

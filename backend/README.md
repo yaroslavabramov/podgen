@@ -78,3 +78,7 @@ Inline limit — 16 MiB; `create_from_stream` принимает полный JS
 ## Запуск автора
 
 Работающий OpenAI evaluation CLI, явные profiles, draft → review → revise, полный архив и UTF-8 export: [WRITING-EVALUATION.md](WRITING-EVALUATION.md). Это отдельный ограниченный evaluation этап без production acceptance.
+
+## Поиск по источникам
+
+Новые production-выпуски используют локальные multilingual encoder/reranker и project-scoped PostgreSQL FTS/pgvector. После установки зависимостей и миграций подготовьте общие модели: `uv run --directory backend python -m podgen.retrieval prepare` из корня репозитория. [Установка, pins, обычный run/preview/resume и адресные проверки](../docs/podcast-production/source-search.md).

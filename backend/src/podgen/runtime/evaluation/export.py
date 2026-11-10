@@ -84,6 +84,9 @@ def _export_attempt(journal, invocation, base, write_json, directory):
     ]
     if source_events:
         write_json(base / "source-tools.json", source_events)
+    search_events = [record for record in events if record["event_kind"] == "source_search_diagnostics"]
+    if search_events:
+        write_json(base / "source-search.json", search_events)
     from .source_tool_contract import applies, from_manifest
 
     if invocation["operation_kind"] == "role" and applies(

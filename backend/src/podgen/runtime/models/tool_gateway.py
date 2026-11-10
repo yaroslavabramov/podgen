@@ -97,12 +97,22 @@ def _execute(journal, root, corpus, contract, call, index, turn, guard, history)
             result = dict(error="invalid_source_tool_arguments")
         else:
             guard()
-            result = corpus.execute(
-                call["name"],
-                arguments,
-                read_id=data["read_id"],
-                max_read_chars=contract.get("max_read_chars", 2400),
-            )
+            from podgen.retrieval import RetrievalUnavailable
+
+            try:
+                result = corpus.execute(
+                    call["name"],
+                    arguments,
+                    read_id=data["read_id"],
+                    max_read_chars=contract.get("max_read_chars", 2400),
+                )
+            except RetrievalUnavailable as error:
+                # Keep the physical response and unfinished tool intent resumable; never re-submit it.
+                journal.event(root, "source_search_unavailable", data=dict(call_index=index, code=str(error)))
+                raise RunFailure(
+                    str(error), run_id=root["run_id"], invocation_id=root["invocation_id"]
+                ) from None
+
     if not isinstance(result, dict):
         raise ContractError("invalid_source_tool_result")
     if "passage" in result and (
@@ -111,6 +121,9 @@ def _execute(journal, root, corpus, contract, call, index, turn, guard, history)
         or result["passage"].get("read_id") != data["read_id"]
     ):
         raise ContractError("source_tool_read_binding_mismatch")
+    diagnostics = getattr(corpus, "last_search_diagnostics", None)
+    if call["name"] == "search_sources" and diagnostics is not None:
+        journal.event(root, "source_search_diagnostics", data=dict(call_index=index, **diagnostics))
     json.dumps(result, ensure_ascii=False, allow_nan=False)
     ref = journal.event(root, "source_tool_result", data=dict(data, result=result))
     history.appended(ref, "source_tool_result")

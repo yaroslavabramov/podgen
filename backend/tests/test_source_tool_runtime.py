@@ -226,9 +226,16 @@ def test_unknown_submission_never_retries_and_reserves_output(monkeypatch):
 
 def test_tool_pin_versions_keep_old_read_and_final_turn_policy():
     current = create(SimpleNamespace(name="production/1"))
-    for version in ("frozen-corpus-tools/1", "frozen-corpus-tools/2", "frozen-corpus-tools/3"):
+    for version in (
+        "frozen-corpus-tools/1",
+        "frozen-corpus-tools/2",
+        "frozen-corpus-tools/3",
+        "frozen-corpus-tools/4",
+    ):
         value = deepcopy(current)
         value["version"] = version
+        if not version.endswith("/4"):
+            value.pop("retrieval")
         if version.endswith(("/1", "/2")):
             value.pop("max_read_chars")
         if version.endswith("/1"):
@@ -372,3 +379,61 @@ def test_invalid_final_response_fails_root(monkeypatch, output, code):
                 guard=lambda: None,
             )
     assert journal.root["status"] in ("failed", "validation_failed")
+
+
+def test_source_search_failure_resumes_unfinished_tool_without_repaying_provider(monkeypatch):
+    from podgen.retrieval import RetrievalUnavailable
+
+    journal, profile, limits, corpus = setup(monkeypatch, turns=2)
+    requests = []
+    attempts = []
+
+    def execute(name, arguments, **options):
+        attempts.append(options["read_id"])
+        if len(attempts) == 1:
+            raise RetrievalUnavailable("source_search_index_unavailable")
+        return {"passage": {"read_id": options["read_id"], "text": "Exact original"}}
+
+    corpus.execute = execute
+
+    def handler(request):
+        body = json.loads(request.content)
+        if request.url.path.endswith("/input_tokens"):
+            return httpx.Response(200, json={"input_tokens": 100})
+        requests.append(body)
+        return httpx.Response(
+            200,
+            json=dict(
+                id=f"resp_{len(requests)}",
+                model=body["model"],
+                metadata=body["metadata"],
+                status="completed",
+                output=[call(1)] if len(requests) == 1 else [final()],
+                usage=dict(input_tokens=100, output_tokens=10),
+            ),
+        )
+
+    with httpx.Client(transport=httpx.MockTransport(handler)) as client:
+        gateway = ModelGateway(
+            journal, lambda _: OpenAIProvider("test-secret", http_client=client), source_corpus=corpus
+        )
+        with pytest.raises(RunFailure, match="source_search_index_unavailable"):
+            gateway.invoke(
+                journal.root.copy(),
+                profile,
+                limits=limits,
+                totals=dict(input=0, output=0),
+                guard=lambda: None,
+            )
+        assert journal.root["status"] == "tool_running" and len(requests) == 1
+        assert (
+            gateway.invoke(
+                journal.root.copy(),
+                profile,
+                limits=limits,
+                totals=dict(input=0, output=0),
+                guard=lambda: None,
+            )
+            == '{"answer":"done"}'
+        )
+    assert len(requests) == 2 and attempts == ["E1", "E1"]

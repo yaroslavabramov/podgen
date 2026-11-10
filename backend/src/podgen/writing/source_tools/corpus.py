@@ -22,7 +22,7 @@ class Source:
 class SourceCorpus:
     """The invocation's admitted, immutable primary documents. Local paths never cross the boundary."""
 
-    def __init__(self, materials):
+    def __init__(self, materials, *, retrieval=None, index=None):
         loaded = {doc.path: doc for doc in materials.documents}
         self.documents = {}
         self.cards = {}
@@ -40,8 +40,8 @@ class SourceCorpus:
             key = f"S{len(self.documents) + 1}"
             source_ids[source.key] = key
             self.documents[key] = Source(source.title, doc.text, doc.sha256)
-        for index, card in enumerate(materials.packet.dossier.knowledge_cards, 1):
-            self.cards[f"M{index}"] = list(
+        for card_number, card in enumerate(materials.packet.dossier.knowledge_cards, 1):
+            self.cards[f"M{card_number}"] = list(
                 dict.fromkeys(
                     (source_ids[e.document], e.start, e.end)
                     for e in card.excerpts
@@ -49,7 +49,19 @@ class SourceCorpus:
                 )
             )
 
+        self.last_search_diagnostics = None
+        self.retrieval = None
+        if retrieval is not None:
+            from podgen.retrieval.hybrid import HybridSearch
+
+            if index is None:
+                raise ContractError("source_search_index_required")
+            self.retrieval = HybridSearch(self.documents, self.cards, retrieval, index=index)
+
     def execute(self, name, arguments, *, read_id, max_read_chars=PAGE_CHARS):
+        if self.retrieval is not None and name == "read_source":
+            self.retrieval.index.check_access()
+        self.last_search_diagnostics = None
         if name not in METHODS:
             return {"error": "unknown_source_tool"}
         try:
@@ -82,6 +94,15 @@ class SourceCorpus:
                 source_length=len(doc.text),
                 next_start=end if end < stop else None,
             )
+        if self.retrieval is not None:
+            from podgen.retrieval import QueryRejected
+
+            try:
+                result = self.retrieval.search(args)
+                self.last_search_diagnostics = self.retrieval.diagnostics(args)
+                return result
+            except QueryRejected as error:
+                return dict(error=str(error))
         return search(self.documents, self.cards, args)
 
     def locate(self, locator):

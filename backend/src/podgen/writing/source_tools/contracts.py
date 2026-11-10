@@ -44,8 +44,8 @@ METHODS = {
 }
 
 
-def definitions():
-    return [
+def definitions(*, retrieval=False):
+    tools = [
         dict(
             type="function",
             name=name,
@@ -55,3 +55,20 @@ def definitions():
         )
         for name, (model, description) in METHODS.items()
     ]
+
+    if retrieval:
+        search = tools[0]
+        search["description"] = (
+            "Find ranked original passages by words and meaning, including questions in the script's "
+            "language against sources in another language. Lexical, exact names/numbers, multilingual "
+            "embeddings and a multilingual reranker search only the allowed frozen primary sources. "
+            "S restricts to one source; M restricts to the sources attached to that material card, "
+            "including passages beyond its excerpts. Empty query lists sources or card locations. "
+            "Reuse the same query and scope with next_offset for more hits. The compact preview "
+            "is a locator, not read evidence. Only read_source produces source read IDs for citation."
+        )
+        search["parameters"]["properties"]["query"]["description"] = (
+            "A search question, words, name or identifier in any supported language, including "
+            "output_language. At most 1000 characters and 128 model tokens. Empty lists locations."
+        )
+    return tools

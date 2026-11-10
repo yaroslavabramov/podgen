@@ -148,6 +148,11 @@ def authorize_credit_retry(journal, run_id, target_id, *, guard, allow_create=Tr
 
 
 def recovery_hint(code):
+    from podgen.retrieval.recovery import hint
+
+    message = hint(code)
+    if message is not None:
+        return message
     return {
         "run_token_budget_exceeded": "Общий токенный лимит исчерпан до отправки. Для доказанного превышения общего input доступен resume --retry-total-input-budget UUID --max-total-input-tokens N. Остальные лимиты сохраняются.",
         "legacy_outbound_disabled_start_compact_run": "Старый полный запрос сохранён для просмотра. Сетевое продолжение отключено: создайте новый запуск с editorial-role-packets/1 и новым run-id.",
