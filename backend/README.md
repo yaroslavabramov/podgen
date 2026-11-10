@@ -8,7 +8,7 @@ Python/Pydantic — единственный владелец 44 artifact kinds.
 
 ```sh
 uv sync --directory backend --locked
-docker compose -p podgen-wp01 -f backend/compose.yaml up -d
+docker compose -p podgen-wp01 -f backend/compose.yaml up -d --build
 export PODGEN_DATABASE_URL='postgresql+psycopg://podgen:podgen-test-only-password@127.0.0.1:55440/podgen_wp01'
 export PODGEN_TEST_DATABASE_URL="$PODGEN_DATABASE_URL"
 export PODGEN_TEST_S3_ENDPOINT='http://127.0.0.1:59091'
@@ -19,7 +19,7 @@ uv run --directory backend ruff check src tests migrations
 node --experimental-strip-types contracts/check-golden.ts
 ```
 
-Images закреплены digest в compose. Нужны Node 22+, Docker и право создавать отдельную PostgreSQL test database. Миграционные испытания удаляют только собственную новую БД `podgen_migration_<uuid>`. Отсутствующие PostgreSQL/S3/migration параметры приводят к явным skips; такой запуск не доказывает соответствующую интеграцию.
+Compose собирает PostgreSQL 17 с pgvector 0.8.2. Базовый образ закреплён по digest, архив расширения проверяется по SHA-256. При обновлении Compose использует существующий том PostgreSQL. Нужны Node 22+, Docker и право создавать отдельную PostgreSQL test database. Миграционные испытания удаляют только собственную новую БД `podgen_migration_<uuid>`. Отсутствующие PostgreSQL/S3/migration параметры приводят к явным skips; такой запуск не доказывает соответствующую интеграцию.
 
 Фактически использованные при разработке адреса: PostgreSQL `127.0.0.1:55439/podgen_wp01` (локальный кластер `/tmp/podgen-wp01/pgdata`, user `podgen`, test-only trust), MinIO `http://127.0.0.1:59090`. В этих командах достаточно заменить exports; compose использует другие порты.
 
