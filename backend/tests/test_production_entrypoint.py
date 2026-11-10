@@ -6,7 +6,6 @@ from types import SimpleNamespace
 from uuid import uuid4
 
 import pytest
-
 from podgen.domain.contracts.common import ArtifactRef, RuntimeRef
 from podgen.runtime.evaluation.contracts import RunFailure, RunLimits, WritingRunCommand, command_payload
 from podgen.runtime.evaluation.input_budget_recovery import effective_limits
@@ -75,7 +74,7 @@ def test_released_production_is_one_catalog_and_old_missing_command_fields_keep_
     assert production.author_plan_handoff == "approved-story/1"
     assert production.planning_contract is None
     assert production.planning_ending_guidance == "story-resolution/1"
-    assert production.reader_schema == "listener-experience/8" and production.verification is None
+    assert production.reader_schema == "listener-experience/9" and production.verification is None
     base = resolve_behavior("narrative-rebuild/1")
     for fmt in ("solo", "dialogue"):
         draft = production.instructions("draft", fmt)
@@ -369,6 +368,7 @@ def test_production_reader_changes_only_descriptions_from_the_verified_archive_f
 
     from podgen.runtime.evaluation.preview import preview_request
     from podgen.runtime.evaluation.role_schema import response_schema
+
     from tests.schema_cases import without_descriptions
     from tests.test_v5_role_wire import fixture
 
@@ -390,7 +390,7 @@ def test_production_reader_changes_only_descriptions_from_the_verified_archive_f
         reasoning=dict(effort="medium"), text=dict(verbosity="high"), store=False, background=False
     )
     current = preview_request(uuid4(), "reader-review", profile, materials, draft=script)
-    assert resolve_behavior().reader_schema == "listener-experience/8"
+    assert resolve_behavior().reader_schema == "listener-experience/9"
     historical = response_schema(
         "reader-review", "editorial-role-packets/1", reader_schema_version="listener-experience/5"
     )

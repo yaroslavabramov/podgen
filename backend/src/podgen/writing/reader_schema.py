@@ -10,6 +10,7 @@ V5 = "listener-experience/5"
 VERSION = "listener-experience/6"
 PRODUCTION_VERSION = "listener-experience/7"
 COMMISSION_VERSION = "listener-experience/8"
+RECORDING_VERSION = "listener-experience/9"
 
 FIELDS = {
     "listener_answer": (
@@ -47,14 +48,24 @@ FINDING_FIELDS = {
 def describe_reader(schema, version):
     if version is None:
         return
-    if version not in (V1, V2, V3, V4, V5, VERSION, PRODUCTION_VERSION, COMMISSION_VERSION):
+    if version not in (
+        V1,
+        V2,
+        V3,
+        V4,
+        V5,
+        VERSION,
+        PRODUCTION_VERSION,
+        COMMISSION_VERSION,
+        RECORDING_VERSION,
+    ):
         raise ContractError("unknown_reader_review_schema_version")
     for field, description in FIELDS.items():
         schema["properties"][field]["description"] = description
     for field, description in FINDING_FIELDS.items():
         schema["$defs"]["EditorialFinding"]["properties"][field]["description"] = description
 
-    if version in (V5, PRODUCTION_VERSION, COMMISSION_VERSION):
+    if version in (V5, PRODUCTION_VERSION, COMMISSION_VERSION, RECORDING_VERSION):
         from .reader_wording import describe_wording_first
 
         describe_wording_first(schema)
@@ -66,6 +77,10 @@ def describe_reader(schema, version):
             from .reader_commission import describe_commission
 
             describe_commission(schema)
+        if version == RECORDING_VERSION:
+            from .reader_recording import describe_recording
+
+            describe_recording(schema)
     elif version == VERSION:
         from .reader_story import describe_story_edit
 
@@ -85,7 +100,7 @@ def feedback_model(version):
         from .revision.scopes import ReaderAssessment
 
         return ReaderAssessment
-    if version in (V4, V5, VERSION, PRODUCTION_VERSION, COMMISSION_VERSION):
+    if version in (V4, V5, VERSION, PRODUCTION_VERSION, COMMISSION_VERSION, RECORDING_VERSION):
         from .revision.scopes import ReaderAssessmentV4
 
         return ReaderAssessmentV4
