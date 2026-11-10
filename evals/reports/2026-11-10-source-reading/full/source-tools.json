@@ -1,0 +1,1136 @@
+{
+  "fact-review": [
+    {
+      "turn": 0,
+      "receipt": "E1",
+      "name": "search_sources",
+      "arguments": {
+        "query": "Workhouse in Poland Street",
+        "within": null,
+        "offset": 0
+      },
+      "result": {
+        "hits": [
+          {
+            "source_id": "S1",
+            "source": "John Snow. On the Mode of Communication of Cholera, 2-е издание, 1855",
+            "start": 81654,
+            "end": 81663,
+            "read_start": 81204,
+            "preview": "eak of cholera which require to be mentioned.\nThe Workhouse in Poland Street is more than three-fourths\nsurrounded by houses in which deaths from cholera\noccurred, yet out of five hundred and thirty-five "
+          },
+          {
+            "source_id": "S2",
+            "source": "Приход Сент-Джеймс, Вестминстер. Report on the cholera outbreak; доклады комиссии, Уайтхеда, Йорка и письмо Роджерса, 1855",
+            "start": 150477,
+            "end": 150486,
+            "read_start": 150027,
+            "preview": "n the\nquestion which deserve to be mentioned. The\nworkhouse in Poland Street is more than three-\nfourths surrounded by houses in whicli deaths from\nCholera occurred; yet, out of 535 inmates, only\nfive die"
+          },
+          {
+            "source_id": "S2",
+            "source": "Приход Сент-Джеймс, Вестминстер. Report on the cholera outbreak; доклады комиссии, Уайтхеда, Йорка и письмо Роджерса, 1855",
+            "start": 13894,
+            "end": 13896,
+            "read_start": 13444,
+            "preview": "se occurred in Great Windmill\nStreet, and another in Bentinck Street. The next\ndeath, on October 2nd, was in Poland Street. After\na short interval, five cases followed in one week,\nviz. three in th"
+          },
+          {
+            "source_id": "S2",
+            "source": "Приход Сент-Джеймс, Вестминстер. Report on the cholera outbreak; доклады комиссии, Уайтхеда, Йорка и письмо Роджерса, 1855",
+            "start": 13950,
+            "end": 13952,
+            "read_start": 13500,
+            "preview": "tinck Street. The next\ndeath, on October 2nd, was in Poland Street. After\na short interval, five cases followed in one week,\nviz. three in the Workhouse on October 26th and\n30th, and November 1st; "
+          },
+          {
+            "source_id": "S2",
+            "source": "Приход Сент-Джеймс, Вестминстер. Report on the cholera outbreak; доклады комиссии, Уайтхеда, Йорка и письмо Роджерса, 1855",
+            "start": 150357,
+            "end": 150359,
+            "read_start": 149907,
+            "preview": "d\nmuch more than is usual, even for a London pump\nin a populous neighbourhood.\nThere are certain circumstances bearing on the\nquestion which deserve to be mentioned. The\nworkhouse in Poland Street "
+          },
+          {
+            "source_id": "S1",
+            "source": "John Snow. On the Mode of Communication of Cholera, 2-е издание, 1855",
+            "start": 81939,
+            "end": 81948,
+            "read_start": 81489,
+            "preview": "of persons admitted after they were\nattacked. The workhouse has a pump-well on the premises,\nin addition to the supply from the Grand Junction\nWater Works, and the inmates never sent to Broad Street\nfor w"
+          }
+        ],
+        "next_offset": 6
+      }
+    },
+    {
+      "turn": 1,
+      "receipt": "E2",
+      "name": "read_source",
+      "arguments": {
+        "source_id": "S1",
+        "start": 78100,
+        "end": 83500
+      },
+      "result": {
+        "passage": {
+          "read_id": "E2",
+          "source_id": "S1",
+          "source": "John Snow. On the Mode of Communication of Cholera, 2-е издание, 1855",
+          "start": 78100,
+          "end": 83500,
+          "text": "to the deaths occurring in the locality belonging\nto the pump, there were sixty-one instances in\nwhich I was informed that the deceased persons used to\ndrink the pump-water from Broad Street, either constantly\nor occasionally. In six instances I could get no information,\nowing to the death or departure of every one connected\nwith the deceased individuals; and in six cases I\nwas informed that the deceased persons did not drink the\npump-water before their illness.\nThe result of the inquiry then was, that there had been\nno particular outbreak or increase of cholera, in this\npart of London, except among the persons who were in\nthe habit of drinking the water of the above-mentioned\npump-well.\nI had an interview with the Board of Guardians of St.\nJames’s parish, on the evening of Thursday, 7th September,\nand represented the above circumstances to them. In\nconsequence of what I said, the handle of the pump was\nremoved on the following day.\nBesides the eighty-three deaths mentioned above as\noccurring on the three last days of the week ending September\n2nd, and being registered during that week in\nthe sub-districts in which the attacks occurred, a number\nof persons died in Middlesex and other hospitals,\nand a great number of deaths which took place in the\n41\nlocality during the last two days of the week, were not\nregistered till the week following. The deaths altogether,\non the 1st and 2nd of September, which have been ascertained\nto belong to this outbreak of cholera, were one\nhundred and ninety-seven; and many persons who were\nattacked about the same time as these, died afterwards.\nI should have been glad to inquire respecting the use of\nthe water from Broad Street pump in all these instances,\nbut was engaged at the time in an inquiry in the south\ndistricts of London, which will be alluded to afterwards;\nand when I began to make fresh inquiries in the neighbourhood\nof Golden Square, after two or three weeks had\nelapsed, I found that there had been such a distribution\nof the remaining population that it would be impossible\nto arrive at a complete account of the circumstances.\nThere is no reason to suppose, however, that a more extended\ninquiry would have yielded a different result from\nthat which was obtained respecting the eighty-three deaths\nwhich happened to be registered within the district of\nthe outbreak before the end of the week in which it\noccurred.\nThe additional facts that I have been able to ascertain\nare in accordance with those above related; and as regards\nthe small number of those attacked, who were believed\nnot to have drank the water from Broad Street pump, it\nmust be obvious that there are various ways in which the\ndeceased persons may have taken it without the knowledge\nof their friends. The water was used for mixing\nwith spirits in all the public houses around. It was used\nlikewise at dining-rooms and coffee-shops. The keeper\nof a coffee-shop in the neighbourhood, which was frequented\nby mechanics, and where the pump-water was\nsupplied at dinner time, informed me (on 6th September)\nthat she was already aware of nine of her customers who\n42\nwere dead. The pump-water was also sold in various\nlittle shops, with a teaspoonful of effervescing powder in\nit, under the name of sherbet; and it may have been distributed\nin various other ways with which I am unacquainted.\nThe pump was frequented much more than is\nusual, even for a London pump in a populous neighbourhood.\nThere are certain circumstances bearing on the subject\nof this outbreak of cholera which require to be mentioned.\nThe Workhouse in Poland Street is more than three-fourths\nsurrounded by houses in which deaths from cholera\noccurred, yet out of five hundred and thirty-five inmates\nonly five died of cholera, the other deaths which took\nplace being those of persons admitted after they were\nattacked. The workhouse has a pump-well on the premises,\nin addition to the supply from the Grand Junction\nWater Works, and the inmates never sent to Broad Street\nfor water. If the mortality in the workhouse had been\nequal to that in the streets immediately surrounding it on\nthree sides, upwards of one hundred persons would have\ndied.\nThere is a Brewery in Broad Street, near to the pump,\nand on perceiving that no brewer’s men were registered\nas having died of cholera, I called on Mr. Huggins, the\nproprietor. He informed me that there were above seventy\nworkmen employed in the brewery, and that none of them\nhad suffered from cholera,—at least in a severe form,—only\ntwo having been indisposed, and that not seriously,\nat the time the disease prevailed. The men are allowed a\ncertain quantity of malt liquor, and Mr. Huggins believes\nthey do not drink water at all; and he is quite certain\nthat the workmen never obtained water from the pump in\nthe street. There is a deep well in the brewery, in addition\nto the New River water.\n43\nAt the percussion-cap manufactory, 37 Broad Street,\nwhere, I understand, about two hundred workpeople were\nemployed, two tubs were kept on the premises always\nsupplied with water from the pump in the street, for those\nto drink who wished; and eighteen of these workpeople\ndied of cholera at their own homes, sixteen men and two\nwomen.\nMr. Marshall, surgeon, of Greek Street, was kind\nenough to inquire respecting seven workmen who had\nbeen employed in the manufactory of dentists’ materials,\nat Nos. 8 and 9 Broad Street, and who died a"
+        },
+        "source_length": 368536,
+        "next_start": null
+      }
+    },
+    {
+      "turn": 2,
+      "receipt": "E3",
+      "name": "search_sources",
+      "arguments": {
+        "query": "Huggins",
+        "within": null,
+        "offset": 0
+      },
+      "result": {
+        "hits": [
+          {
+            "source_id": "S1",
+            "source": "John Snow. On the Mode of Communication of Cholera, 2-е издание, 1855",
+            "start": 82414,
+            "end": 82421,
+            "read_start": 81964,
+            "preview": "stered\nas having died of cholera, I called on Mr. Huggins, the\nproprietor. He informed me that there were above seventy\nworkmen employed in the brewery, and that none of them\nhad suffered from cholera,—"
+          },
+          {
+            "source_id": "S1",
+            "source": "John Snow. On the Mode of Communication of Cholera, 2-е издание, 1855",
+            "start": 82748,
+            "end": 82755,
+            "read_start": 82298,
+            "preview": "llowed a\ncertain quantity of malt liquor, and Mr. Huggins believes\nthey do not drink water at all; and he is quite certain\nthat the workmen never obtained water from the pump in\nthe street. There is a d"
+          },
+          {
+            "source_id": "S2",
+            "source": "Приход Сент-Джеймс, Вестминстер. Report on the cholera outbreak; доклады комиссии, Уайтхеда, Йорка и письмо Роджерса, 1855",
+            "start": 96267,
+            "end": 96274,
+            "read_start": 95817,
+            "preview": "abitants escape'? why\ndid not the men employed in Huggins' Brewery\nsuffer, when out of 35 of those engaged, close\nto that establishment, in the construction of the\nthen unfinished lodging houses called "
+          },
+          {
+            "source_id": "S2",
+            "source": "Приход Сент-Джеймс, Вестминстер. Report on the cholera outbreak; доклады комиссии, Уайтхеда, Йорка и письмо Роджерса, 1855",
+            "start": 151199,
+            "end": 151206,
+            "read_start": 150749,
+            "preview": "istered as being dead of Cholera, I called\non Mr. Huggins the proprietor. He informed me\nthat there were above 70 workmen employed in\nthe brewery, and that none of them had suffered\nfrom Cholera, at lea"
+          },
+          {
+            "source_id": "S2",
+            "source": "Приход Сент-Джеймс, Вестминстер. Report on the cholera outbreak; доклады комиссии, Уайтхеда, Йорка и письмо Роджерса, 1855",
+            "start": 151554,
+            "end": 151561,
+            "read_start": 151104,
+            "preview": "llowed a certain quantity of malt liquor, and Mr.\nHuggins believes they do not drink water at all,\nand he is quite certain that they never obtained\nwater from the pump in the street. There is a\ndeep wel"
+          }
+        ],
+        "next_offset": null
+      }
+    },
+    {
+      "turn": 3,
+      "receipt": "E4",
+      "name": "search_sources",
+      "arguments": {
+        "query": "guardians",
+        "within": "S2",
+        "offset": 0
+      },
+      "result": {
+        "hits": [
+          {
+            "source_id": "S2",
+            "source": "Приход Сент-Джеймс, Вестминстер. Report on the cholera outbreak; доклады комиссии, Уайтхеда, Йорка и письмо Роджерса, 1855",
+            "start": 147680,
+            "end": 147689,
+            "read_start": 147230,
+            "preview": "d pump well.\nI had an interview with the Board of Guardians\nof St. James's parish on the evening of Thursday,\n7th September, and represented the above circum-\nstances to them. In consequence of what I sai"
+          }
+        ],
+        "next_offset": null
+      }
+    },
+    {
+      "turn": 4,
+      "receipt": "E5",
+      "name": "search_sources",
+      "arguments": {
+        "query": "never looked bluish",
+        "within": "S2",
+        "offset": 0
+      },
+      "result": {
+        "hits": [
+          {
+            "source_id": "S2",
+            "source": "Приход Сент-Джеймс, Вестминстер. Report on the cholera outbreak; доклады комиссии, Уайтхеда, Йорка и письмо Роджерса, 1855",
+            "start": 232484,
+            "end": 232489,
+            "read_start": 232034,
+            "preview": "er, what might be taken for Cholera stools,\n—\nshe never looked bluish, had no cramps, there was no cold\nstage or collapse, nor subsequent fever, and she always passed\nher urine which stained.the napki"
+          },
+          {
+            "source_id": "S2",
+            "source": "Приход Сент-Джеймс, Вестминстер. Report on the cholera outbreak; доклады комиссии, Уайтхеда, Йорка и письмо Роджерса, 1855",
+            "start": 232406,
+            "end": 232411,
+            "read_start": 231956,
+            "preview": "g\nand sickness continued till Wednesday (30th). I never saw,\nthat I can remember, what might be taken for Cholera stools,\n—\nshe never looked bluish, had no cramps, there was no cold\nstage or collapse,"
+          },
+          {
+            "source_id": "S2",
+            "source": "Приход Сент-Джеймс, Вестминстер. Report on the cholera outbreak; доклады комиссии, Уайтхеда, Йорка и письмо Роджерса, 1855",
+            "start": 109607,
+            "end": 109612,
+            "read_start": 109157,
+            "preview": "\n70 men, employed at the Brewery in Broad Street,\nnever drank the water, and escaped Cholera. 7th.\nThat in anumber of individual instances whichwere\nparticularly investigated, the drinking of the wate"
+          },
+          {
+            "source_id": "S2",
+            "source": "Приход Сент-Джеймс, Вестминстер. Report on the cholera outbreak; доклады комиссии, Уайтхеда, Йорка и письмо Роджерса, 1855",
+            "start": 110465,
+            "end": 110470,
+            "read_start": 110015,
+            "preview": "th were those in\nwhich the Broad Street water was never drunk.\n10th. That this water was employed for drinking\npurposes only, and was used cold ;—a statement\nwhich we may so far anticipate as to say i"
+          },
+          {
+            "source_id": "S2",
+            "source": "Приход Сент-Джеймс, Вестминстер. Report on the cholera outbreak; доклады комиссии, Уайтхеда, Йорка и письмо Роджерса, 1855",
+            "start": 112657,
+            "end": 112662,
+            "read_start": 112207,
+            "preview": " for drinking purposes, whilst those of the\nother never drank it, and entirely escaped,—the\nformer fact being strengthened by the circumstance\nthat the family of the proprietor never used the\nwater an"
+          },
+          {
+            "source_id": "S2",
+            "source": "Приход Сент-Джеймс, Вестминстер. Report on the cholera outbreak; доклады комиссии, Уайтхеда, Йорка и письмо Роджерса, 1855",
+            "start": 150856,
+            "end": 150861,
+            "read_start": 150406,
+            "preview": "m the\nGrand Junction Water Works, and the inmates\nnever sent to Broad Street for water. If the\nmortality in the workhouse had been equal to that\nin the streets immediately surrounding it on three\nside"
+          }
+        ],
+        "next_offset": 6
+      }
+    },
+    {
+      "turn": 5,
+      "receipt": "E6",
+      "name": "read_source",
+      "arguments": {
+        "source_id": "S2",
+        "start": 230700,
+        "end": 233500
+      },
+      "result": {
+        "passage": {
+          "read_id": "E6",
+          "source_id": "S2",
+          "source": "Приход Сент-Джеймс, Вестминстер. Report on the cholera outbreak; доклады комиссии, Уайтхеда, Йорка и письмо Роджерса, 1855",
+          "start": 230700,
+          "end": 233500,
+          "text": "ave called\non Dr. Eogers of Berners Street, who attended the\ninfant in 40, Broad Street, during its illness.\nHe has very kindly furnished me with the follow-\ning particulars respecting the case.\n56, Beenees Steeet,\ngjjj^\nMay SOth, 1855.\nBeing anxious to comply with your request, to give aU\nthe particulars I could remember of the illness of which\n^^\"^ale infant died last September, and nothaymg kept any notes of the case, I deemed it advisable, before\ndomg so, to see the mother, and clear up some points of whichmy memory retained but an uncertain recollection.\nThe infant, the subject of your inquiry, was brought upby hand, or bottle, its mother, from ill health and want of milk,«ot being able to suckle it; it appeared to thrive better on\nIts food (principally boiled ground rice and milk) than its\nbrother who died two or three years ago, and whose historyI wm subsequently briefly refer to. It was born, I believe, inApnl 54, and was attacked with a DiarrhcBa in the Junefollowmg; .ts evacuations were pale and slimy, sour andoffensive; xt was under treatment for about five days; itcontinued pretty weU till the 14th of August, when it had asimilar attack, which however gave way to treatment in twoor three days, but on the morning of Monday the 28th ofAugust I was sent for to see the infant, and found it again\n\n\n=== PDF PAGE 168 ===\n164\nsuffering from another attack of Diarrhoea, but now accompanied\n•with siclmess, so that but little medicine or food could be\nretained; its dejections were pale, slimy, and watery, smelt\nvery offensive ; the mother tells me they were now and then\nof a mixed greenish and cream colour; this state of purging\nand sickness continued till Wednesday (30th). I never saw,\nthat I can remember, what might be taken for Cholera stools,\n—\nshe never looked bluish, had no cramps, there was no cold\nstage or collapse, nor subsequent fever, and she always passed\nher urine which stained.the napkins. From Wednesday (30th)\ntill Saturday (9nd) there was no purging or sickness, she could\ntake but little food, and appeared quite exhausted, and died\nvery quietly on Saturday at 11 a.m., aged 5 months. The\nmother now tells me that the sickness was the only difference\nshe observed between the last and former illnesses.\nMrs. , whose health was so bad while pregnant with\nthis child, had equally bad health previpus to the birth of a male\ninfant, born about three years ago ; it was likewise brought up\nby bottle ; it lived only ten months ; its lungs and mesentery\nwere diseased ; it had cough, and recurring attacks of Diarrhoea\nfinally carried it off, I might really say, likewise, for I cannot\nseparate these two children's cases,—they exhibit a close\nrelationship to my mind, for we well know that many children\nare continually carried off, when brought up by h"
+        },
+        "source_length": 256384,
+        "next_start": null
+      }
+    },
+    {
+      "turn": 6,
+      "receipt": "E7",
+      "name": "read_source",
+      "arguments": {
+        "source_id": "S2",
+        "start": 146300,
+        "end": 148600
+      },
+      "result": {
+        "passage": {
+          "read_id": "E7",
+          "source_id": "S2",
+          "source": "Приход Сент-Джеймс, Вестминстер. Report on the cholera outbreak; доклады комиссии, Уайтхеда, Йорка и письмо Роджерса, 1855",
+          "start": 146300,
+          "end": 148600,
+          "text": "r street-pump. In five of these\ncases, the families of the deceased persons told me\nthat they always sent to the pump in Broad Street,\nas they preferred the water to that of the pump\nwhich was nearer. In three other cases, the\ndeceased were children who went to school near\nthe pump in Broad Street. Two of them were\nknown to have drunk the water, and the parents\nof the third think it probable that it did so. The\nother two deaths, beyond the district which this\npump supplies, represent only the amount of mor-\ntality from Cholera that was occurring before the\neruption took place.\nWith regard to the 73 deaths occurring in the\nlocality belonging as it were to the pump, there\nwere 61 instances in which I was informed that\nthe deceased persons used to drink the water from\nthe pump in Broad Street, either constantly or\n\n\n=== PDF PAGE 104 ===\n102\noccasionally. In six instances 1 could get no\ninformation, owing to the death or departure of\nevery one connected with the deceased individuals\n;\nand in six cases I was informed that the deceased\npersons did not drink the pump water before their\nillness.\nThe result of the inquiry consequently was, that\nthere had been no particular outbreak or increase\nof Cholera, in this part of London, except among\nthe persons who were in the habit of drinking the\nwater of the above-mentioned pump well.\nI had an interview with the Board of Guardians\nof St. James's parish on the evening of Thursday,\n7th September, and represented the above circum-\nstances to them. In consequence of what I said,\nthe handle of the pump was removed on the fol-\nlowing day.\nBesides the 83 deaths mentioned above, as oc-\ncurring on the three last days of the week ending\nSeptember 2nd, and being registered during that\nweek in the sub-districts in which the attacks\noccurred, there was a number of persons who died\nin the Middlesex and other hospitals, and a great\nnumber of deaths which took place in the locality\nduring the two last days of the week, were not\nregistered till the week following. The deaths\naltogether on the 1st and 2nd of September, which\nhave been ascertained to belong to this out-\nbreak of Cholera, were 197, and many persons\nwho were attacked about the same time as these,\n\n\n=== PDF PAGE 105 ===\n103\ndied afterwards. I should have been glad to in-\nquire r"
+        },
+        "source_length": 256384,
+        "next_start": null
+      }
+    }
+  ],
+  "fact-review-1": [
+    {
+      "turn": 0,
+      "receipt": "E1",
+      "name": "search_sources",
+      "arguments": {
+        "query": "hundred",
+        "within": "M5",
+        "offset": 0
+      },
+      "result": {
+        "hits": [
+          {
+            "source_id": "S1",
+            "source": "John Snow. On the Mode of Communication of Cholera, 2-е издание, 1855",
+            "start": 37070,
+            "end": 37077,
+            "read_start": 36620,
+            "preview": " disease.\nMr. Baker, of Staines, who attended two hundred and\nsixty cases of cholera and diarrhœa in 1849, chiefly among\nthe poor, informed me, in a letter with which he favoured\nme in December of that "
+          },
+          {
+            "source_id": "S1",
+            "source": "John Snow. On the Mode of Communication of Cholera, 2-е издание, 1855",
+            "start": 38492,
+            "end": 38499,
+            "read_start": 38042,
+            "preview": "In\nthe asylum for pauper children at Tooting, one hundred\nand forty deaths from cholera occurred amongst a thousand\ninmates, and the disease did not cease till the remaining\nchildren had been removed. T"
+          },
+          {
+            "source_id": "S1",
+            "source": "John Snow. On the Mode of Communication of Cholera, 2-е издание, 1855",
+            "start": 58762,
+            "end": 58769,
+            "read_start": 58312,
+            "preview": " an open sewer in\nBattersea Fields, which is four hundred feet to the north\nof the terrace, and from which the inhabitants perceived\na disagreeable odour when the wind was in certain directions;\nsecondl"
+          },
+          {
+            "source_id": "S1",
+            "source": "John Snow. On the Mode of Communication of Cholera, 2-е издание, 1855",
+            "start": 64997,
+            "end": 65004,
+            "read_start": 64547,
+            "preview": "tion\ndied. The number of the inhabitants was five hundred\nand fifty; of these, three hundred and twenty suffered\nfrom the epidemic, either in the form of diarrhœa or the\nmore confirmed disease, and the "
+          },
+          {
+            "source_id": "S1",
+            "source": "John Snow. On the Mode of Communication of Cholera, 2-е издание, 1855",
+            "start": 67264,
+            "end": 67271,
+            "read_start": 66814,
+            "preview": " the brook to\nthe well,—a distance of about three hundred yards. Mr.\nDavison said that it was disputed whether there was any\ncommunication between the drain and the brook, but that\nit was highly probabl"
+          },
+          {
+            "source_id": "S1",
+            "source": "John Snow. On the Mode of Communication of Cholera, 2-е издание, 1855",
+            "start": 67814,
+            "end": 67821,
+            "read_start": 67364,
+            "preview": "of a\nyoung man living close to the brook, about a hundred\nyards above the place at which it passes the well. He\nwas taken ill on the 29th December, 1831, and died, in\nthe stage of consecutive fever, on "
+          }
+        ],
+        "next_offset": 6
+      }
+    },
+    {
+      "turn": 1,
+      "receipt": "E2",
+      "name": "search_sources",
+      "arguments": {
+        "query": "Workhouse in Poland Street",
+        "within": "S1",
+        "offset": 0
+      },
+      "result": {
+        "hits": [
+          {
+            "source_id": "S1",
+            "source": "John Snow. On the Mode of Communication of Cholera, 2-е издание, 1855",
+            "start": 81654,
+            "end": 81663,
+            "read_start": 81204,
+            "preview": "eak of cholera which require to be mentioned.\nThe Workhouse in Poland Street is more than three-fourths\nsurrounded by houses in which deaths from cholera\noccurred, yet out of five hundred and thirty-five "
+          },
+          {
+            "source_id": "S1",
+            "source": "John Snow. On the Mode of Communication of Cholera, 2-е издание, 1855",
+            "start": 81939,
+            "end": 81948,
+            "read_start": 81489,
+            "preview": "of persons admitted after they were\nattacked. The workhouse has a pump-well on the premises,\nin addition to the supply from the Grand Junction\nWater Works, and the inmates never sent to Broad Street\nfor w"
+          },
+          {
+            "source_id": "S1",
+            "source": "John Snow. On the Mode of Communication of Cholera, 2-е издание, 1855",
+            "start": 82081,
+            "end": 82087,
+            "read_start": 81631,
+            "preview": "\nWater Works, and the inmates never sent to Broad Street\nfor water. If the mortality in the workhouse had been\nequal to that in the streets immediately surrounding it on\nthree sides, upwards of one hun"
+          },
+          {
+            "source_id": "S1",
+            "source": "John Snow. On the Mode of Communication of Cholera, 2-е издание, 1855",
+            "start": 84810,
+            "end": 84812,
+            "read_start": 84360,
+            "preview": "med me of\nthe following circumstance. A gentleman in delicate\nhealth was sent for from Brighton to see his brother at\n6 Poland Street, who was attacked with cholera and died\nin twelve hours, on 1st"
+          },
+          {
+            "source_id": "S1",
+            "source": "John Snow. On the Mode of Communication of Cholera, 2-е издание, 1855",
+            "start": 90704,
+            "end": 90710,
+            "read_start": 90254,
+            "preview": "ly those parts of them which are nearest to\nBroad Street. If there have been fewer deaths in the\nsouth half of Poland Street than in some other streets\nleading from Broad Street, it is no doubt because"
+          },
+          {
+            "source_id": "S1",
+            "source": "John Snow. On the Mode of Communication of Cholera, 2-е издание, 1855",
+            "start": 90744,
+            "end": 90746,
+            "read_start": 90294,
+            "preview": " to\nBroad Street. If there have been fewer deaths in the\nsouth half of Poland Street than in some other streets\nleading from Broad Street, it is no doubt because this\nstreet is less densely inhabit"
+          }
+        ],
+        "next_offset": 6
+      }
+    },
+    {
+      "turn": 2,
+      "receipt": "E3",
+      "name": "read_source",
+      "arguments": {
+        "source_id": "S1",
+        "start": 80100,
+        "end": 82400
+      },
+      "result": {
+        "passage": {
+          "read_id": "E3",
+          "source_id": "S1",
+          "source": "John Snow. On the Mode of Communication of Cholera, 2-е издание, 1855",
+          "start": 80100,
+          "end": 82400,
+          "text": "e remaining population that it would be impossible\nto arrive at a complete account of the circumstances.\nThere is no reason to suppose, however, that a more extended\ninquiry would have yielded a different result from\nthat which was obtained respecting the eighty-three deaths\nwhich happened to be registered within the district of\nthe outbreak before the end of the week in which it\noccurred.\nThe additional facts that I have been able to ascertain\nare in accordance with those above related; and as regards\nthe small number of those attacked, who were believed\nnot to have drank the water from Broad Street pump, it\nmust be obvious that there are various ways in which the\ndeceased persons may have taken it without the knowledge\nof their friends. The water was used for mixing\nwith spirits in all the public houses around. It was used\nlikewise at dining-rooms and coffee-shops. The keeper\nof a coffee-shop in the neighbourhood, which was frequented\nby mechanics, and where the pump-water was\nsupplied at dinner time, informed me (on 6th September)\nthat she was already aware of nine of her customers who\n42\nwere dead. The pump-water was also sold in various\nlittle shops, with a teaspoonful of effervescing powder in\nit, under the name of sherbet; and it may have been distributed\nin various other ways with which I am unacquainted.\nThe pump was frequented much more than is\nusual, even for a London pump in a populous neighbourhood.\nThere are certain circumstances bearing on the subject\nof this outbreak of cholera which require to be mentioned.\nThe Workhouse in Poland Street is more than three-fourths\nsurrounded by houses in which deaths from cholera\noccurred, yet out of five hundred and thirty-five inmates\nonly five died of cholera, the other deaths which took\nplace being those of persons admitted after they were\nattacked. The workhouse has a pump-well on the premises,\nin addition to the supply from the Grand Junction\nWater Works, and the inmates never sent to Broad Street\nfor water. If the mortality in the workhouse had been\nequal to that in the streets immediately surrounding it on\nthree sides, upwards of one hundred persons would have\ndied.\nThere is a Brewery in Broad Street, near to the pump,\nand on perceiving that no brewer’s men were registered\nas having died of cholera, I "
+        },
+        "source_length": 368536,
+        "next_start": null
+      }
+    },
+    {
+      "turn": 3,
+      "receipt": "E4",
+      "name": "search_sources",
+      "arguments": {
+        "query": "mortar joints of the old stone",
+        "within": "S2",
+        "offset": 0
+      },
+      "result": {
+        "hits": [
+          {
+            "source_id": "S2",
+            "source": "Приход Сент-Джеймс, Вестминстер. Report on the cholera outbreak; доклады комиссии, Уайтхеда, Йорка и письмо Роджерса, 1855",
+            "start": 244585,
+            "end": 244591,
+            "read_start": 244135,
+            "preview": "= PDF PAGE 178 ===\n\n\n=== PDF PAGE 179 ===\n171\nthe mortar joints of the old stone bottom were\nfound to be perished, as was also all the jointing\nof the brick sides, which brought the brick work\ninto the"
+          },
+          {
+            "source_id": "S2",
+            "source": "Приход Сент-Джеймс, Вестминстер. Report on the cholera outbreak; доклады комиссии, Уайтхеда, Йорка и письмо Роджерса, 1855",
+            "start": 100195,
+            "end": 100201,
+            "read_start": 99745,
+            "preview": "===\n71\narches are turned over with brick, laid in mortar\nor cement, and covered in with a key-stone also\nsecured in mortar or cement. A section of the well\nin Broad Street is shewn with Mr. York's Repo"
+          },
+          {
+            "source_id": "S2",
+            "source": "Приход Сент-Джеймс, Вестминстер. Report on the cholera outbreak; доклады комиссии, Уайтхеда, Йорка и письмо Роджерса, 1855",
+            "start": 244050,
+            "end": 244053,
+            "read_start": 243600,
+            "preview": "er the street, and was found to be\nconstructed on the old fashioned plan of a flat bot-\ntom, 12 inches wide, with brick sides, rising about\ntwelve inches high and covered with old stone.\nAs this dra"
+          },
+          {
+            "source_id": "S2",
+            "source": "Приход Сент-Джеймс, Вестминстер. Report on the cholera outbreak; доклады комиссии, Уайтхеда, Йорка и письмо Роджерса, 1855",
+            "start": 244176,
+            "end": 244179,
+            "read_start": 243726,
+            "preview": " rising about\ntwelve inches high and covered with old stone.\nAs this drain had but a small fall, or inclination\noutwards to the main sewer, the bottom was\ncovered with an accumulation of soil deposi"
+          },
+          {
+            "source_id": "S2",
+            "source": "Приход Сент-Джеймс, Вестминстер. Report on the cholera outbreak; доклады комиссии, Уайтхеда, Йорка и письмо Роджерса, 1855",
+            "start": 32309,
+            "end": 32312,
+            "read_start": 31859,
+            "preview": "48-9, it did not limit itself so\nprecisely to its old localities as is often observed.\nA coincidence in the localities affected is perhaps\nmore marked in regard to the straggling cases on\nthe outski"
+          },
+          {
+            "source_id": "S2",
+            "source": "Приход Сент-Джеймс, Вестминстер. Report on the cholera outbreak; доклады комиссии, Уайтхеда, Йорка и письмо Роджерса, 1855",
+            "start": 60778,
+            "end": 60781,
+            "read_start": 60328,
+            "preview": "ay are all scraped out.\nFrom this description and the plan it will be\nseen that at the present moment nearly the whole\nof Marshall Street, South Row and a part of Broad\nStreet, traverse the old pest"
+          }
+        ],
+        "next_offset": 6
+      }
+    },
+    {
+      "turn": 4,
+      "receipt": "E5",
+      "name": "read_source",
+      "arguments": {
+        "source_id": "S2",
+        "start": 242700,
+        "end": 248600
+      },
+      "result": {
+        "passage": {
+          "read_id": "E5",
+          "source_id": "S2",
+          "source": "Приход Сент-Джеймс, Вестминстер. Report on the cholera outbreak; доклады комиссии, Уайтхеда, Йорка и письмо Роджерса, 1855",
+          "start": 242700,
+          "end": 248600,
+          "text": "rinking it,\nwith what result has been mentioned.\nThe soUtary death from Walker's Court was that of a person\nwho was known often to drink the water of an evening. She\ndied in the country, having gone away to escape the pestilence.\nI shall only add that Mr. Harrison, Surgeon, of Berwick\nStreet, was an habitual drinker of this water, and in fact did\ndrink it as usual for dinner the day before he was fatally seized.\nMrs. Harrison, on whose authority I state this, also drank itand\nwas none the worse for it.\nH. W.\nJune bth, 1855.\n\n\n=== PDF PAGE 174 ===\nM? YORK'S REPORT.\nThe Cholera Inquiry Committee, appointed\nBY St. James's Vestry, having been engaged\nseveral months in investigating any causes which\nmight have existed in the autumn of 1854 to in-\nduce the propagation of Cholera, among which was\nthe possibility of contamination of well water from\ndefective house drainage, the Secretary was in-\nstructed to adopt the best measures for inquiring\ninto, and reporting upon, the condition ofthe drain-\nage at the house No. 40, Broad Street, it being\nimmediately adjoining the parish pump in that\nstreet, which examination having been made at the\nclose of April 1855, the following were found to\nbe the results of his investigations :\n—\nThe main drain of the house was oj)ened in the\nfront vault under the street, and was found to be\nconstructed on the old fashioned plan of a flat bot-\ntom, 12 inches wide, with brick sides, rising about\ntwelve inches high and covered with old stone.\nAs this drain had but a small fall, or inclination\noutwards to the main sewer, the bottom was\ncovered with an accumulation of soil deposit about\ntwo inches thick, and upon clearing this soil away\n\n\n=== PDF PAGE 175 ===\ni\n\n\n=== PDF PAGE 176 ===\n\n\n=== PDF PAGE 177 ===\nUUUUL\nuu none1^\nDD\nn I J- ^9 \" ^. g « z 4 a mSraUtTf I—1—t-i—r-i I I I I I \\\n\n\n=== PDF PAGE 178 ===\n\n\n=== PDF PAGE 179 ===\n171\nthe mortar joints of the old stone bottom were\nfound to be perished, as was also all the jointing\nof the brick sides, which brought the brick work\ninto the condition of a sieve, and through which\nthe house drainage water must have percolated for\na considerable period. Into this drain in the\nmiddle of the vault an intersecting smaller drain\nran from the front stack pipe at the south-west\nangle of the front area, bringing the rain water\nfrom off the roof of the house, and also forming a\ncommunication with the drains of the adjoining\nhouse westward (No. 39.)\nUpon opening back the main drain, a cesspool\nintended for a trap, but misconstructed, wasfound in\nthe area 3ft. Sin. long,by 2ft. Gin. wide, and 3ft. deep,\nand upon, and over a part ofthis cesspool acommon\nopen privy (without water supply) for the use ofthe\nhouse was erected, the cesspool being fully charged\nwith soil. This privy is formed across the eastend of\nthe area, and upon removing the soil the brick-\nwork of the cesspool was found to be in the same\ndecayed condition as the drain, and which may be\nbetter comprehended by stating that the bricks\nwere easily lifted from their beds without any, the\nleast force; so that any fluid could readily pass\nthrough the work, or as was the case when first\nopened, over the top course of bricks of the trap\ninto the earth or made ground immediately under\nand adjoining the end wall eastward, this surface\ndrainage being caused by the accumulation of soil\n\n\n=== PDF PAGE 180 ===\n172\nin, and the misconstruction of the cesspool, which\nwas intended to prevent effluvia and vermin coming\ninto the house from the main sewer in the street,\nbut which in fact it facihtated rather than pre'\nvented. This point is worthy of notice, and a\nreference to the accompanying plan prepared by\nme will more fully shew its misapplication as well\nas demonstrate the fatal effect it would have in\ndriving or forcing any deleterious fluid matter into\nthe ground and parish well adjoining, by pre-\nventing its running direct into the current of the\nhouse drain.\nThe stone placed in and across this cesspool\ndipped about three inches into the fluid therein\ncontained, and as the more solid matter became\ndeposited in it, the fluid became reduced in pro-\nportion, and when opened on the 23rd of April,\n1855, it had reached that state of solidity that\nhardly any passage for its egress from it was left ;\nit had in consequence commenced to overflow be-\ntween the back of it and the end wall of the area,\nand through any other crevice at the sides of the\ncovering which was composed of saturated rotten\nboards—the condition of this cesspool covering,\ntogether with the solid matter at the bottom, led\nme to believe that it must have been in this state\nfor many months, but it could not possibly have\ngone on much longer without total stoppage. All\nthis old drainage has been removed, the cesspool\ndestroyed, and new tubular pipe drains with\n\n\n=== PDF PAGE 181 ===\n173\ncemented joints, and a syphon trapped closet have\nbeen substituted. The drain inside of the house\nwhich leads from the front area to the back kitchen\nhas not been disturbed, it appears to be used only\nfor the carrying off of waste water from a sink near\nthe cistern, but should the street pump continue\nto be used hereafter, it will be necessary to have\nthis drain reconstructed.\nIn connection with the question of how far any\ncommunication can exist, and has existed between\nthis defective drainage, and the adjoining parish\nwell which supplies the Broad Street pump, a re-\nference to the accompanying plan and section of\nthe well and drainage of the house will I conceive\nset the matter at rest.\nFrom the bottom of the house drain down to the\nwater line in the well, a vertical depth of 9 feet 2\ninches exists, and from the side of the drain\nhorizontally to the outer side of the brickwork\nof the well, there is only a space of 2 feet\n8 inches, whilst the side wall of the vault\nadjoining the cesspool actually abuts upon it ;\nthus, therefore, from the charged con"
+        },
+        "source_length": 256384,
+        "next_start": null
+      }
+    },
+    {
+      "turn": 5,
+      "receipt": "E6",
+      "name": "search_sources",
+      "arguments": {
+        "query": "",
+        "within": null,
+        "offset": 0
+      },
+      "result": {
+        "sources": [
+          {
+            "source_id": "S1",
+            "source": "John Snow. On the Mode of Communication of Cholera, 2-е издание, 1855",
+            "length": 368536
+          },
+          {
+            "source_id": "S2",
+            "source": "Приход Сент-Джеймс, Вестминстер. Report on the cholera outbreak; доклады комиссии, Уайтхеда, Йорка и письмо Роджерса, 1855",
+            "length": 256384
+          }
+        ],
+        "next_offset": null
+      }
+    },
+    {
+      "turn": 6,
+      "receipt": "E7",
+      "name": "search_sources",
+      "arguments": {
+        "query": "There was no cholera at the time",
+        "within": "S1",
+        "offset": 0
+      },
+      "result": {
+        "hits": [
+          {
+            "source_id": "S1",
+            "source": "John Snow. On the Mode of Communication of Cholera, 2-е издание, 1855",
+            "start": 86542,
+            "end": 86547,
+            "read_start": 86092,
+            "preview": "ington, was attacked with\ncholera, and died also. There was no cholera at the time,\neither at West End or in the neighbourhood where the\nniece died. Besides these two persons, only one servant\npartook"
+          },
+          {
+            "source_id": "S1",
+            "source": "John Snow. On the Mode of Communication of Cholera, 2-е издание, 1855",
+            "start": 15411,
+            "end": 15414,
+            "read_start": 14961,
+            "preview": "th, when he returned to York. At\nthree o’clock on the same day, he was attacked with cholera,\nand died Tuesday, September 25th, at three o’clock\nin the morning. [There had been no cholera in York fo"
+          },
+          {
+            "source_id": "S1",
+            "source": "John Snow. On the Mode of Communication of Cholera, 2-е издание, 1855",
+            "start": 50304,
+            "end": 50309,
+            "read_start": 49854,
+            "preview": "as so or not.\nIn Albion Terrace, Wandsworth Road, there was an\nextraordinary mortality from cholera in 1849, which was\nthe more striking as there were no other cases at the time\nin the immediate neigh"
+          },
+          {
+            "source_id": "S1",
+            "source": "John Snow. On the Mode of Communication of Cholera, 2-е издание, 1855",
+            "start": 64547,
+            "end": 64550,
+            "read_start": 64097,
+            "preview": "f\nit. This occurred on a Wednesday; he went home, was\ntaken ill with the cholera, and died on the Saturday following,\nthere being no cholera in his own neighbourhood\nat the time.\nThere is no spot in"
+          },
+          {
+            "source_id": "S1",
+            "source": "John Snow. On the Mode of Communication of Cholera, 2-е издание, 1855",
+            "start": 64663,
+            "end": 64665,
+            "read_start": 64213,
+            "preview": ",\nthere being no cholera in his own neighbourhood\nat the time.\nThere is no spot in this country in which the cholera\n33\nwas more fatal during the epidemic of 1832 than the village\nof Newburn, near "
+          },
+          {
+            "source_id": "S1",
+            "source": "John Snow. On the Mode of Communication of Cholera, 2-е издание, 1855",
+            "start": 56197,
+            "end": 56200,
+            "read_start": 55747,
+            "preview": "e household, consisting of seven individuals,\nhad the cholera, and six of them died.\nThere is no data for showing how the disease was communicated\nto the first patient, at No. 13, on July 28th;\nbut "
+          }
+        ],
+        "next_offset": 6
+      }
+    },
+    {
+      "turn": 7,
+      "receipt": "E8",
+      "name": "read_source",
+      "arguments": {
+        "source_id": "S1",
+        "start": 84850,
+        "end": 87080
+      },
+      "result": {
+        "passage": {
+          "read_id": "E8",
+          "source_id": "S1",
+          "source": "John Snow. On the Mode of Communication of Cholera, 2-е издание, 1855",
+          "start": 84850,
+          "end": 87080,
+          "text": "ghton to see his brother at\n6 Poland Street, who was attacked with cholera and died\nin twelve hours, on 1st September. The gentleman\narrived after his brother’s death, and did not see the body.\nHe only stayed about twenty minutes in the house, where\nhe took a hasty and scanty luncheon of rumpsteak, taking\nwith it a small tumbler of brandy and water, the water\nbeing from Broad Street pump. He went to Pentonville,\nand was attacked with cholera on the evening of the following\nday, 2nd September, and died the next evening.\nDr. Fraser also first called my attention to the following\ncircumstances, which are perhaps the most conclusive of\nall in proving the connexion between the Broad Street\npump and the outbreak of cholera. In the “Weekly\nReturn of Births and Deaths” of September 9th, the following\ndeath is recorded as occurring in the Hampstead\ndistrict: “At West End, on 2nd September, the widow\nof a percussion-cap maker, aged 59 years, diarrhœa two\nhours, cholera epidemica sixteen hours.”\nI was informed by this lady’s son that she had not been\nin the neighbourhood of Broad Street for many months.\nA cart went from Broad Street to West End every day,\nand it was the custom to take out a large bottle of the\nwater from the pump in Broad Street, as she preferred it.\nThe water was taken on Thursday, 31st August, and she\ndrank of it in the evening, and also on Friday. She was\nseized with cholera on the evening of the latter day, and\ndied on Saturday, as the above quotation from the register\nshows. A niece, who was on a visit to this lady, also\ndrank of the water; she returned to her residence, in a\nhigh and healthy part of Islington, was attacked with\ncholera, and died also. There was no cholera at the time,\neither at West End or in the neighbourhood where the\nniece died. Besides these two persons, only one servant\npartook of the water at Hampstead West End, and she\ndid not suffer, or, at least, not severely. There were many\npersons who drank the water from Broad Street pump\nabout the time of the outbreak, without being attacked\nwith cholera; but this does not diminish the evidence\nrespecting the influence of the water, for reasons that will\nbe fully stated in another part of this work.\nMAP 1.\n45\nThe de"
+        },
+        "source_length": 368536,
+        "next_start": null
+      }
+    },
+    {
+      "turn": 8,
+      "receipt": "E9",
+      "name": "read_source",
+      "arguments": {
+        "source_id": "S1",
+        "start": 75900,
+        "end": 80200
+      },
+      "result": {
+        "passage": {
+          "read_id": "E9",
+          "source_id": "S1",
+          "source": "John Snow. On the Mode of Communication of Cholera, 2-е издание, 1855",
+          "start": 75900,
+          "end": 80200,
+          "text": "er, on the\nevening of the 3rd September, I found so little impurity\nin it of an organic nature, that I hesitated to come to a\nconclusion. Further inquiry, however, showed me that\nthere was no other circumstance or agent common to the\ncircumscribed locality in which this sudden increase of\ncholera occurred, and not extending beyond it, except the\nwater of the above mentioned pump. I found, moreover,\nthat the water varied, during the next two days, in the\namount of organic impurity, visible to the naked eye, on\nclose inspection, in the form of small white, flocculent particles;\nand I concluded that, at the commencement of the\noutbreak, it might possibly have been still more impure.\nI requested permission, therefore, to take a list, at the\nGeneral Register Office, of the deaths from cholera, registered\nduring the week ending 2nd September, in the sub-districts\nof Golden Square, Berwick Street, and St. Ann’s,\nSoho, which was kindly granted. Eighty-nine deaths\nfrom cholera were registered, during the week, in the three\nsub-districts. Of these, only six occurred in the four first\ndays of the week; four occurred on Thursday, the 31st\nAugust; and the remaining seventy-nine on Friday and\nSaturday. I considered, therefore, that the outbreak commenced\non the Thursday; and I made inquiry, in detail,\nrespecting the eighty-three deaths registered as having\ntaken place during the last three days of the week.\nOn proceeding to the spot, I found that nearly all the\ndeaths had taken place within a short distance of the\npump. There were only ten deaths in houses situated\ndecidedly nearer to another street pump. In five of these\ncases the families of the deceased persons informed me\n40\nthat they always sent to the pump in Broad Street, as\nthey preferred the water to that of the pump which was\nnearer. In three other cases, the deceased were children\nwho went to school near the pump in Broad Street. Two\nof them were known to drink the water; and the parents\nof the third think it probable that it did so. The other\ntwo deaths, beyond the district which this pump supplies,\nrepresent only the amount of mortality from cholera that\nwas occurring before the irruption took place.\nWith regard to the deaths occurring in the locality belonging\nto the pump, there were sixty-one instances in\nwhich I was informed that the deceased persons used to\ndrink the pump-water from Broad Street, either constantly\nor occasionally. In six instances I could get no information,\nowing to the death or departure of every one connected\nwith the deceased individuals; and in six cases I\nwas informed that the deceased persons did not drink the\npump-water before their illness.\nThe result of the inquiry then was, that there had been\nno particular outbreak or increase of cholera, in this\npart of London, except among the persons who were in\nthe habit of drinking the water of the above-mentioned\npump-well.\nI had an interview with the Board of Guardians of St.\nJames’s parish, on the evening of Thursday, 7th September,\nand represented the above circumstances to them. In\nconsequence of what I said, the handle of the pump was\nremoved on the following day.\nBesides the eighty-three deaths mentioned above as\noccurring on the three last days of the week ending September\n2nd, and being registered during that week in\nthe sub-districts in which the attacks occurred, a number\nof persons died in Middlesex and other hospitals,\nand a great number of deaths which took place in the\n41\nlocality during the last two days of the week, were not\nregistered till the week following. The deaths altogether,\non the 1st and 2nd of September, which have been ascertained\nto belong to this outbreak of cholera, were one\nhundred and ninety-seven; and many persons who were\nattacked about the same time as these, died afterwards.\nI should have been glad to inquire respecting the use of\nthe water from Broad Street pump in all these instances,\nbut was engaged at the time in an inquiry in the south\ndistricts of London, which will be alluded to afterwards;\nand when I began to make fresh inquiries in the neighbourhood\nof Golden Square, after two or three weeks had\nelapsed, I found that there had been such a distribution\nof the remaining population that it would be impossible\nto arrive at a complete account of the circumstan"
+        },
+        "source_length": 368536,
+        "next_start": null
+      }
+    },
+    {
+      "turn": 9,
+      "receipt": "E10",
+      "name": "search_sources",
+      "arguments": {
+        "query": "flocculent",
+        "within": "S1",
+        "offset": 0
+      },
+      "result": {
+        "hits": [
+          {
+            "source_id": "S1",
+            "source": "John Snow. On the Mode of Communication of Cholera, 2-е издание, 1855",
+            "start": 76461,
+            "end": 76471,
+            "read_start": 76011,
+            "preview": " on\nclose inspection, in the form of small white, flocculent particles;\nand I concluded that, at the commencement of the\noutbreak, it might possibly have been still more impure.\nI requested permission, the"
+          }
+        ],
+        "next_offset": null
+      }
+    },
+    {
+      "turn": 10,
+      "receipt": "E11",
+      "name": "search_sources",
+      "arguments": {
+        "query": "flocculent",
+        "within": "S2",
+        "offset": 0
+      },
+      "result": {
+        "hits": [
+          {
+            "source_id": "S2",
+            "source": "Приход Сент-Джеймс, Вестминстер. Report on the cholera outbreak; доклады комиссии, Уайтхеда, Йорка и письмо Роджерса, 1855",
+            "start": 142310,
+            "end": 142320,
+            "read_start": 141860,
+            "preview": "ose in-\nspection, in the form of minute, whitish, flocculent\nparticles. The water of the pump in Marlborough\nStreet contained a still larger quantity of organic\nimpurities than the others, and most of the "
+          }
+        ],
+        "next_offset": null
+      }
+    }
+  ],
+  "fact-review-2": [
+    {
+      "turn": 0,
+      "receipt": "E1",
+      "name": "search_sources",
+      "arguments": {
+        "query": "hundred",
+        "within": "M5",
+        "offset": 0
+      },
+      "result": {
+        "hits": [
+          {
+            "source_id": "S1",
+            "source": "John Snow. On the Mode of Communication of Cholera, 2-е издание, 1855",
+            "start": 37070,
+            "end": 37077,
+            "read_start": 36620,
+            "preview": " disease.\nMr. Baker, of Staines, who attended two hundred and\nsixty cases of cholera and diarrhœa in 1849, chiefly among\nthe poor, informed me, in a letter with which he favoured\nme in December of that "
+          },
+          {
+            "source_id": "S1",
+            "source": "John Snow. On the Mode of Communication of Cholera, 2-е издание, 1855",
+            "start": 38492,
+            "end": 38499,
+            "read_start": 38042,
+            "preview": "In\nthe asylum for pauper children at Tooting, one hundred\nand forty deaths from cholera occurred amongst a thousand\ninmates, and the disease did not cease till the remaining\nchildren had been removed. T"
+          },
+          {
+            "source_id": "S1",
+            "source": "John Snow. On the Mode of Communication of Cholera, 2-е издание, 1855",
+            "start": 58762,
+            "end": 58769,
+            "read_start": 58312,
+            "preview": " an open sewer in\nBattersea Fields, which is four hundred feet to the north\nof the terrace, and from which the inhabitants perceived\na disagreeable odour when the wind was in certain directions;\nsecondl"
+          },
+          {
+            "source_id": "S1",
+            "source": "John Snow. On the Mode of Communication of Cholera, 2-е издание, 1855",
+            "start": 64997,
+            "end": 65004,
+            "read_start": 64547,
+            "preview": "tion\ndied. The number of the inhabitants was five hundred\nand fifty; of these, three hundred and twenty suffered\nfrom the epidemic, either in the form of diarrhœa or the\nmore confirmed disease, and the "
+          },
+          {
+            "source_id": "S1",
+            "source": "John Snow. On the Mode of Communication of Cholera, 2-е издание, 1855",
+            "start": 67264,
+            "end": 67271,
+            "read_start": 66814,
+            "preview": " the brook to\nthe well,—a distance of about three hundred yards. Mr.\nDavison said that it was disputed whether there was any\ncommunication between the drain and the brook, but that\nit was highly probabl"
+          },
+          {
+            "source_id": "S1",
+            "source": "John Snow. On the Mode of Communication of Cholera, 2-е издание, 1855",
+            "start": 67814,
+            "end": 67821,
+            "read_start": 67364,
+            "preview": "of a\nyoung man living close to the brook, about a hundred\nyards above the place at which it passes the well. He\nwas taken ill on the 29th December, 1831, and died, in\nthe stage of consecutive fever, on "
+          }
+        ],
+        "next_offset": 6
+      }
+    },
+    {
+      "turn": 1,
+      "receipt": "E2",
+      "name": "search_sources",
+      "arguments": {
+        "query": "Workhouse",
+        "within": "S1",
+        "offset": 0
+      },
+      "result": {
+        "hits": [
+          {
+            "source_id": "S1",
+            "source": "John Snow. On the Mode of Communication of Cholera, 2-е издание, 1855",
+            "start": 81654,
+            "end": 81663,
+            "read_start": 81204,
+            "preview": "eak of cholera which require to be mentioned.\nThe Workhouse in Poland Street is more than three-fourths\nsurrounded by houses in which deaths from cholera\noccurred, yet out of five hundred and thirty-five "
+          },
+          {
+            "source_id": "S1",
+            "source": "John Snow. On the Mode of Communication of Cholera, 2-е издание, 1855",
+            "start": 81939,
+            "end": 81948,
+            "read_start": 81489,
+            "preview": "of persons admitted after they were\nattacked. The workhouse has a pump-well on the premises,\nin addition to the supply from the Grand Junction\nWater Works, and the inmates never sent to Broad Street\nfor w"
+          },
+          {
+            "source_id": "S1",
+            "source": "John Snow. On the Mode of Communication of Cholera, 2-е издание, 1855",
+            "start": 82123,
+            "end": 82132,
+            "read_start": 81673,
+            "preview": "o Broad Street\nfor water. If the mortality in the workhouse had been\nequal to that in the streets immediately surrounding it on\nthree sides, upwards of one hundred persons would have\ndied.\nThere is a Brew"
+          },
+          {
+            "source_id": "S1",
+            "source": "John Snow. On the Mode of Communication of Cholera, 2-е издание, 1855",
+            "start": 87521,
+            "end": 87530,
+            "read_start": 87071,
+            "preview": "those who died after their removal to St. James’s\nWorkhouse was not registered; and I was only able to\nobtain it, in a part of the cases, on application at the\nMaster’s Office, for many of the persons wer"
+          },
+          {
+            "source_id": "S1",
+            "source": "John Snow. On the Mode of Communication of Cholera, 2-е издание, 1855",
+            "start": 140244,
+            "end": 140253,
+            "read_start": 139794,
+            "preview": "\non. In cases where persons had been removed to a workhouse\nor any other place, after the attack of cholera had\ncommenced, I inquired the water supply of the house\nwhere the individuals were living when t"
+          },
+          {
+            "source_id": "S1",
+            "source": "John Snow. On the Mode of Communication of Cholera, 2-е издание, 1855",
+            "start": 151490,
+            "end": 151499,
+            "read_start": 151040,
+            "preview": "rtained are chiefly\nthose of persons taken into a workhouse without their\naddress being known.\n84\nTABLE VII.\nThe mortality from Cholera in the four weeks ending 5th August.\nSub-Districts.\nPopulation in 18"
+          }
+        ],
+        "next_offset": 6
+      }
+    },
+    {
+      "turn": 2,
+      "receipt": "E3",
+      "name": "read_source",
+      "arguments": {
+        "source_id": "S1",
+        "start": 80700,
+        "end": 83300
+      },
+      "result": {
+        "passage": {
+          "read_id": "E3",
+          "source_id": "S1",
+          "source": "John Snow. On the Mode of Communication of Cholera, 2-е издание, 1855",
+          "start": 80700,
+          "end": 83300,
+          "text": " Street pump, it\nmust be obvious that there are various ways in which the\ndeceased persons may have taken it without the knowledge\nof their friends. The water was used for mixing\nwith spirits in all the public houses around. It was used\nlikewise at dining-rooms and coffee-shops. The keeper\nof a coffee-shop in the neighbourhood, which was frequented\nby mechanics, and where the pump-water was\nsupplied at dinner time, informed me (on 6th September)\nthat she was already aware of nine of her customers who\n42\nwere dead. The pump-water was also sold in various\nlittle shops, with a teaspoonful of effervescing powder in\nit, under the name of sherbet; and it may have been distributed\nin various other ways with which I am unacquainted.\nThe pump was frequented much more than is\nusual, even for a London pump in a populous neighbourhood.\nThere are certain circumstances bearing on the subject\nof this outbreak of cholera which require to be mentioned.\nThe Workhouse in Poland Street is more than three-fourths\nsurrounded by houses in which deaths from cholera\noccurred, yet out of five hundred and thirty-five inmates\nonly five died of cholera, the other deaths which took\nplace being those of persons admitted after they were\nattacked. The workhouse has a pump-well on the premises,\nin addition to the supply from the Grand Junction\nWater Works, and the inmates never sent to Broad Street\nfor water. If the mortality in the workhouse had been\nequal to that in the streets immediately surrounding it on\nthree sides, upwards of one hundred persons would have\ndied.\nThere is a Brewery in Broad Street, near to the pump,\nand on perceiving that no brewer’s men were registered\nas having died of cholera, I called on Mr. Huggins, the\nproprietor. He informed me that there were above seventy\nworkmen employed in the brewery, and that none of them\nhad suffered from cholera,—at least in a severe form,—only\ntwo having been indisposed, and that not seriously,\nat the time the disease prevailed. The men are allowed a\ncertain quantity of malt liquor, and Mr. Huggins believes\nthey do not drink water at all; and he is quite certain\nthat the workmen never obtained water from the pump in\nthe street. There is a deep well in the brewery, in addition\nto the New River water.\n43\nAt the percussion-cap manufactory, 37 Broad Street,\nwhere, I understand, about two hundred workpeople were\nemployed, two tubs were kept on the premises always\nsupplied with water from the pump in the street, for those\nto drink who wished; and eighteen of these workpeople\ndied of cholera at their own homes, sixteen men and two\nwomen.\nM"
+        },
+        "source_length": 368536,
+        "next_start": null
+      }
+    },
+    {
+      "turn": 3,
+      "receipt": "E4",
+      "name": "search_sources",
+      "arguments": {
+        "query": "Subsequently added",
+        "within": "S2",
+        "offset": 0
+      },
+      "result": {
+        "hits": [
+          {
+            "source_id": "S2",
+            "source": "Приход Сент-Джеймс, Вестминстер. Report on the cholera outbreak; доклады комиссии, Уайтхеда, Йорка и письмо Роджерса, 1855",
+            "start": 1963,
+            "end": 1975,
+            "read_start": 1513,
+            "preview": "son. Mr. Watkins.\n*Mr. James. *Rev.H.Whitehead.\n* Subsequently added to the Committee as originally\nappointed.\n\n\n=== PDF PAGE 6 ===\niv\nMr. York was requested to undertake the\nduties of Secretary.\nFor the pur"
+          },
+          {
+            "source_id": "S2",
+            "source": "Приход Сент-Джеймс, Вестминстер. Report on the cholera outbreak; доклады комиссии, Уайтхеда, Йорка и письмо Роджерса, 1855",
+            "start": 806,
+            "end": 811,
+            "read_start": 356,
+            "preview": " St. Anne's Court and the neighbourhood have been\nadded to it, and the fatal attacks which occurred in tlie district throughout\nthe whole epidemic have been inserted in their respective localities whe"
+          },
+          {
+            "source_id": "S2",
+            "source": "Приход Сент-Джеймс, Вестминстер. Report on the cholera outbreak; доклады комиссии, Уайтхеда, Йорка и письмо Роджерса, 1855",
+            "start": 1612,
+            "end": 1617,
+            "read_start": 1162,
+            "preview": "he accompanying Report.\nIncluding certain members added at dif-\nferent times to its original number, the\nCommittee finally consisted of the following\nGentlemen :\n—\nMessrs. Crane and Rice, the Churchiv"
+          },
+          {
+            "source_id": "S2",
+            "source": "Приход Сент-Джеймс, Вестминстер. Report on the cholera outbreak; доклады комиссии, Уайтхеда, Йорка и письмо Роджерса, 1855",
+            "start": 4717,
+            "end": 4722,
+            "read_start": 4267,
+            "preview": "ered this document sufficiently import-\nant to be added at length to its Report.\nA subsequent attempt to obtain local infor-\nmation, by a house to house visitation, was\nmore successful. By the assista"
+          },
+          {
+            "source_id": "S2",
+            "source": "Приход Сент-Джеймс, Вестминстер. Report on the cholera outbreak; доклады комиссии, Уайтхеда, Йорка и письмо Роджерса, 1855",
+            "start": 9776,
+            "end": 9781,
+            "read_start": 9326,
+            "preview": "mber half proved fatal. To\nthese would have to be added the deaths occurring\nin private practice. On the authority of Messrs.\nBraine and French, who at that time had medical\ncharge of the Cholera Hosp"
+          },
+          {
+            "source_id": "S2",
+            "source": "Приход Сент-Джеймс, Вестминстер. Report on the cholera outbreak; доклады комиссии, Уайтхеда, Йорка и письмо Роджерса, 1855",
+            "start": 26988,
+            "end": 26993,
+            "read_start": 26538,
+            "preview": " the im-\nmediately adjoining districts it must be added, that\n\n\n=== PDF PAGE 24 ===\n22\nSt. Martin's-in-the-Fields, St. Anne's Soho, and\nAll-Souls Marylebone, were attacked before, and\nSt. George's Han"
+          }
+        ],
+        "next_offset": 6
+      }
+    },
+    {
+      "turn": 4,
+      "receipt": "E5",
+      "name": "read_source",
+      "arguments": {
+        "source_id": "S2",
+        "start": 1140,
+        "end": 2080
+      },
+      "result": {
+        "passage": {
+          "read_id": "E5",
+          "source_id": "S2",
+          "source": "Приход Сент-Джеймс, Вестминстер. Report on the cholera outbreak; доклады комиссии, Уайтхеда, Йорка и письмо Роджерса, 1855",
+          "start": 1140,
+          "end": 2080,
+          "text": "ames's, Westminster,\nupon the motion of Dr. Lankester, seconded\nby Mr. Joseph Brown, \" for the purpose of\ninvestigating the causes, arising out of the\nsanitary condition of the Parish, of the late\n\" outbreak ofCholera in the districts of Golden\nSquare and Berwick Street,\" entered upon\nits duties onNovember 25th, 1854 ; and,having\nheld altogether fourteen meetings, completed\nits labours on July 25th, 1855, by adopting\nthe accompanying Report.\nIncluding certain members added at dif-\nferent times to its original number, the\nCommittee finally consisted of the following\nGentlemen :\n—\nMessrs. Crane and Rice, the Churchivardens.\n*Rev. T. Beames. *Dr. King.\nMr. Bidgood. Dr. Lankester.\nMr. Brown. *Mr. Marshall.\n*Mr. French:. *Mr. Sandford.\nMr. Geesin. *Dr. Snow.\nMr. Harrison. Mr. Watkins.\n*Mr. James. *Rev.H.Whitehead.\n* Subsequently added to the Committee as originally\nappointed.\n\n\n=== PDF PAGE 6 ===\niv\nMr. York was requested to undert"
+        },
+        "source_length": 256384,
+        "next_start": null
+      }
+    },
+    {
+      "turn": 5,
+      "receipt": "E6",
+      "name": "search_sources",
+      "arguments": {
+        "query": "stack pipe",
+        "within": "S2",
+        "offset": 0
+      },
+      "result": {
+        "hits": [
+          {
+            "source_id": "S2",
+            "source": "Приход Сент-Джеймс, Вестминстер. Report on the cholera outbreak; доклады комиссии, Уайтхеда, Йорка и письмо Роджерса, 1855",
+            "start": 236635,
+            "end": 236640,
+            "read_start": 236185,
+            "preview": " called to\nthe cross drain from the bottom of the stack pipe\nof No. 39 (see Mr. York's diagram). There were\nthree deaths from Cholera in No. 39, the attacks\nbeing on the 1st, 2nd and 4th September, tw"
+          },
+          {
+            "source_id": "S2",
+            "source": "Приход Сент-Джеймс, Вестминстер. Report on the cholera outbreak; доклады комиссии, Уайтхеда, Йорка и письмо Роджерса, 1855",
+            "start": 244942,
+            "end": 244947,
+            "read_start": 244492,
+            "preview": " an intersecting smaller drain\nran from the front stack pipe at the south-west\nangle of the front area, bringing the rain water\nfrom off the roof of the house, and also forming a\ncommunication with th"
+          },
+          {
+            "source_id": "S2",
+            "source": "Приход Сент-Джеймс, Вестминстер. Report on the cholera outbreak; доклады комиссии, Уайтхеда, Йорка и письмо Роджерса, 1855",
+            "start": 82015,
+            "end": 82019,
+            "read_start": 81565,
+            "preview": "t cer-\ntainly in the minority, water-closets with pipe-drains\nand leaden air-tight flaps are substituted for the\nolder arrangements.\nSewers.—Owing to successive alterations and ad-\n\n\n=== PDF PAGE 61 "
+          },
+          {
+            "source_id": "S2",
+            "source": "Приход Сент-Джеймс, Вестминстер. Report on the cholera outbreak; доклады комиссии, Уайтхеда, Йорка и письмо Роджерса, 1855",
+            "start": 83981,
+            "end": 83985,
+            "read_start": 83531,
+            "preview": "ers through Upper James Street, and eastward\nby a pipe-drain to end in the Cambridge Street line\nalready mentioned. 5. Great Pulteney Street has a\nsewer to itself, running south into a second trans-\n"
+          },
+          {
+            "source_id": "S2",
+            "source": "Приход Сент-Джеймс, Вестминстер. Report on the cholera outbreak; доклады комиссии, Уайтхеда, Йорка и письмо Роджерса, 1855",
+            "start": 102386,
+            "end": 102390,
+            "read_start": 101936,
+            "preview": "ar Kensington Gardens, the other from\nthe running pipe at the east end of the Serpentine.\nA sample from the Marlborough Mews well, one\nfrom a private well in Savile Eow, and two samples\nfrom the Broa"
+          },
+          {
+            "source_id": "S2",
+            "source": "Приход Сент-Джеймс, Вестминстер. Report on the cholera outbreak; доклады комиссии, Уайтхеда, Йорка и письмо Роджерса, 1855",
+            "start": 236641,
+            "end": 236645,
+            "read_start": 236191,
+            "preview": "d to\nthe cross drain from the bottom of the stack pipe\nof No. 39 (see Mr. York's diagram). There were\nthree deaths from Cholera in No. 39, the attacks\nbeing on the 1st, 2nd and 4th September, two of\n"
+          }
+        ],
+        "next_offset": 6
+      }
+    },
+    {
+      "turn": 6,
+      "receipt": "E7",
+      "name": "read_source",
+      "arguments": {
+        "source_id": "S2",
+        "start": 243950,
+        "end": 246500
+      },
+      "result": {
+        "passage": {
+          "read_id": "E7",
+          "source_id": "S2",
+          "source": "Приход Сент-Джеймс, Вестминстер. Report on the cholera outbreak; доклады комиссии, Уайтхеда, Йорка и письмо Роджерса, 1855",
+          "start": 243950,
+          "end": 246500,
+          "text": "in of the house was oj)ened in the\nfront vault under the street, and was found to be\nconstructed on the old fashioned plan of a flat bot-\ntom, 12 inches wide, with brick sides, rising about\ntwelve inches high and covered with old stone.\nAs this drain had but a small fall, or inclination\noutwards to the main sewer, the bottom was\ncovered with an accumulation of soil deposit about\ntwo inches thick, and upon clearing this soil away\n\n\n=== PDF PAGE 175 ===\ni\n\n\n=== PDF PAGE 176 ===\n\n\n=== PDF PAGE 177 ===\nUUUUL\nuu none1^\nDD\nn I J- ^9 \" ^. g « z 4 a mSraUtTf I—1—t-i—r-i I I I I I \\\n\n\n=== PDF PAGE 178 ===\n\n\n=== PDF PAGE 179 ===\n171\nthe mortar joints of the old stone bottom were\nfound to be perished, as was also all the jointing\nof the brick sides, which brought the brick work\ninto the condition of a sieve, and through which\nthe house drainage water must have percolated for\na considerable period. Into this drain in the\nmiddle of the vault an intersecting smaller drain\nran from the front stack pipe at the south-west\nangle of the front area, bringing the rain water\nfrom off the roof of the house, and also forming a\ncommunication with the drains of the adjoining\nhouse westward (No. 39.)\nUpon opening back the main drain, a cesspool\nintended for a trap, but misconstructed, wasfound in\nthe area 3ft. Sin. long,by 2ft. Gin. wide, and 3ft. deep,\nand upon, and over a part ofthis cesspool acommon\nopen privy (without water supply) for the use ofthe\nhouse was erected, the cesspool being fully charged\nwith soil. This privy is formed across the eastend of\nthe area, and upon removing the soil the brick-\nwork of the cesspool was found to be in the same\ndecayed condition as the drain, and which may be\nbetter comprehended by stating that the bricks\nwere easily lifted from their beds without any, the\nleast force; so that any fluid could readily pass\nthrough the work, or as was the case when first\nopened, over the top course of bricks of the trap\ninto the earth or made ground immediately under\nand adjoining the end wall eastward, this surface\ndrainage being caused by the accumulation of soil\n\n\n=== PDF PAGE 180 ===\n172\nin, and the misconstruction of the cesspool, which\nwas intended to prevent effluvia and vermin coming\ninto the house from the main sewer in the street,\nbut which in fact it facihtated rather than pre'\nvented. This point is worthy of notice, and a\nreference to the accompanying plan prepared by\nme will more fully shew its misapplication as well\nas demonstrate the fatal effect it would have in\ndriving or forcing any deleteri"
+        },
+        "source_length": 256384,
+        "next_start": null
+      }
+    },
+    {
+      "turn": 7,
+      "receipt": "E8",
+      "name": "read_source",
+      "arguments": {
+        "source_id": "S2",
+        "start": 235000,
+        "end": 237600
+      },
+      "result": {
+        "passage": {
+          "read_id": "E8",
+          "source_id": "S2",
+          "source": "Приход Сент-Джеймс, Вестминстер. Report on the cholera outbreak; доклады комиссии, Уайтхеда, Йорка и письмо Роджерса, 1855",
+          "start": 235000,
+          "end": 237600,
+          "text": ", and \"the relapse of its mother,\n^' with spasms and cramps\" on that occasion'\nindicate the presence of choleraic symptoms, it is\nfor me only to call attention to the coincidence.\nNeither—although I am aware of two or three\npump-water drinkers in Broad Street who were\nattacked rather sharply with Diarrhoea about a fort-\nnight before the outburst, one of whom afterwards\ndied of Cholera and another recovered from Cholera\nduring the great outburst, and notwithstanding I\nhave long since made mention in print of \" one\n\" night in August, when the inhabitants of certain\n\" contiguous streets and courts (the very same\n\" which have just suffered so severely) were very\n\" generally attacked with Diarrhoea,\"~can I speak\"\n\n\n=== PDF PAGE 170 ===\n166\nwith sufficient positiveness to connect these attacks,\nin point of time, with \" the previous illness of the\n\" infant on the 14th of August.\" Even if it should\nbe that we really are on the right track, I know\nthat at this late period it is impossible to unravel\nthe matter in such a way as to meet all objections.\nI suppose that another epidemic—if unfortunately\nwe should have one—will set all these points at\nrest. Meanwhile we mustbe content with securing\na prospect of ready attention to one important sub-\nject of investigation.\nIt is worth while however to state that, by\nrecent inquiry, I have ascertained that the dejec-\ntions of the patients in the third floor of No. 40,\nowing to great hurry and confusion, were so dis-\nposed of that but little could have found its way\ninto the cesspool at all.\nMy attention has also recently been called to\nthe cross drain from the bottom of the stack pipe\nof No. 39 (see Mr. York's diagram). There were\nthree deaths from Cholera in No. 39, the attacks\nbeing on the 1st, 2nd and 4th September, two of\n12 hours duration and one of 24 hours. The\npoint ofjunction of the two drains will be apparent\nfrom the Surveyor's diagram. Whether this fact\nbe considered to increase the difficulty which I have\nraised will depend upon the precise place and\nmanner of the supposed fatal communication. This\nis not easy to determine and, even if it could\nhave been ascertained by scientific experiments at\n\n\n=== PDF PAGE 171 ===\n167\nthe time of the excavation, cannot now be dis-\ncovered, owing to the altered state of the drain.\nHENRY WHITEHEAD, M.A.\nJune Wi, 1866.\nI had fully intended to avoid making any mention whatever\nof other streets, being apprehensive, from my Broad Street\nexperience, of being gradually drawn into an intricacy of investi-\ngation, to the complete statistical unravelling of which I should\ncertainly "
+        },
+        "source_length": 256384,
+        "next_start": null
+      }
+    },
+    {
+      "turn": 8,
+      "receipt": "E9",
+      "name": "read_source",
+      "arguments": {
+        "source_id": "S2",
+        "start": 242000,
+        "end": 244350
+      },
+      "result": {
+        "passage": {
+          "read_id": "E9",
+          "source_id": "S2",
+          "source": "Приход Сент-Джеймс, Вестминстер. Report on the cholera outbreak; доклады комиссии, Уайтхеда, Йорка и письмо Роджерса, 1855",
+          "start": 242000,
+          "end": 244350,
+          "text": " nearest, he always sent to\nit when he did not use the cistern water. There was, as I have\nsaid, only one death in Peter Street eastward of No. 23. Upon\ninquiry I found that it was in a family among the members of\nwhich four nearly simultaneous attacks, three not proving fatal,\ntook place on Sunday morning, September 3rd. They had not\nhabitually used the Broad Street water, but it so happened that\non Saturday afternoon, September 2nd, the deceased (a lad)\nfetched in a large can of it, and began drinking it freely. The\nfather remarked that he would be ill if he drank so much, but the\nmother said it would do him no harm as it was spring water\nfrom Broad Street ; upon which they all commenced drinking it,\nwith what result has been mentioned.\nThe soUtary death from Walker's Court was that of a person\nwho was known often to drink the water of an evening. She\ndied in the country, having gone away to escape the pestilence.\nI shall only add that Mr. Harrison, Surgeon, of Berwick\nStreet, was an habitual drinker of this water, and in fact did\ndrink it as usual for dinner the day before he was fatally seized.\nMrs. Harrison, on whose authority I state this, also drank itand\nwas none the worse for it.\nH. W.\nJune bth, 1855.\n\n\n=== PDF PAGE 174 ===\nM? YORK'S REPORT.\nThe Cholera Inquiry Committee, appointed\nBY St. James's Vestry, having been engaged\nseveral months in investigating any causes which\nmight have existed in the autumn of 1854 to in-\nduce the propagation of Cholera, among which was\nthe possibility of contamination of well water from\ndefective house drainage, the Secretary was in-\nstructed to adopt the best measures for inquiring\ninto, and reporting upon, the condition ofthe drain-\nage at the house No. 40, Broad Street, it being\nimmediately adjoining the parish pump in that\nstreet, which examination having been made at the\nclose of April 1855, the following were found to\nbe the results of his investigations :\n—\nThe main drain of the house was oj)ened in the\nfront vault under the street, and was found to be\nconstructed on the old fashioned plan of a flat bot-\ntom, 12 inches wide, with brick sides, rising about\ntwelve inches high and covered with old stone.\nAs this drain had but a small fall, or inclination\noutwards to the main sewer, the bottom was\ncovered with an accumulation of soil deposit about\ntwo inches thick, "
+        },
+        "source_length": 256384,
+        "next_start": null
+      }
+    },
+    {
+      "turn": 9,
+      "receipt": "E10",
+      "name": "search_sources",
+      "arguments": {
+        "query": "not registered till",
+        "within": "S1",
+        "offset": 0
+      },
+      "result": {
+        "hits": [
+          {
+            "source_id": "S1",
+            "source": "John Snow. On the Mode of Communication of Cholera, 2-е издание, 1855",
+            "start": 79422,
+            "end": 79425,
+            "read_start": 78972,
+            "preview": "cality during the last two days of the week, were not\nregistered till the week following. The deaths altogether,\non the 1st and 2nd of September, which have been ascertained\nto belong to this outbre"
+          },
+          {
+            "source_id": "S1",
+            "source": "John Snow. On the Mode of Communication of Cholera, 2-е издание, 1855",
+            "start": 23054,
+            "end": 23057,
+            "read_start": 22604,
+            "preview": "feeling of general illness, that the\npatient does not consider himself in danger, or even apply\nfor advice, till the malady is far advanced. In a few\ncases, indeed, there are dizziness, faintness, a"
+          },
+          {
+            "source_id": "S1",
+            "source": "John Snow. On the Mode of Communication of Cholera, 2-е издание, 1855",
+            "start": 26320,
+            "end": 26323,
+            "read_start": 25870,
+            "preview": "ty of the blood to a trifling extent; but it does not\ncome on till the blood is already altered, and it is only a\nconsequence of the diminished force of the circulation,\nlike the sweating met with i"
+          },
+          {
+            "source_id": "S1",
+            "source": "John Snow. On the Mode of Communication of Cholera, 2-е издание, 1855",
+            "start": 38587,
+            "end": 38590,
+            "read_start": 38137,
+            "preview": "d amongst a thousand\ninmates, and the disease did not cease till the remaining\nchildren had been removed. The children were\n19\nplaced two or three in a bed, and vomited over each other\nwhen they had"
+          },
+          {
+            "source_id": "S1",
+            "source": "John Snow. On the Mode of Communication of Cholera, 2-е издание, 1855",
+            "start": 87440,
+            "end": 87443,
+            "read_start": 86990,
+            "preview": "of the house from\nwhich they had been removed was not registered. The\naddress of those who died after their removal to St. James’s\nWorkhouse was not registered; and I was only able to\nobtain it, in "
+          },
+          {
+            "source_id": "S1",
+            "source": "John Snow. On the Mode of Communication of Cholera, 2-е издание, 1855",
+            "start": 87535,
+            "end": 87538,
+            "read_start": 87085,
+            "preview": " after their removal to St. James’s\nWorkhouse was not registered; and I was only able to\nobtain it, in a part of the cases, on application at the\nMaster’s Office, for many of the persons were too il"
+          }
+        ],
+        "next_offset": 6
+      }
+    },
+    {
+      "turn": 10,
+      "receipt": "E11",
+      "name": "read_source",
+      "arguments": {
+        "source_id": "S1",
+        "start": 77000,
+        "end": 79650
+      },
+      "result": {
+        "passage": {
+          "read_id": "E11",
+          "source_id": "S1",
+          "source": "John Snow. On the Mode of Communication of Cholera, 2-е издание, 1855",
+          "start": 77000,
+          "end": 79650,
+          "text": "he week; four occurred on Thursday, the 31st\nAugust; and the remaining seventy-nine on Friday and\nSaturday. I considered, therefore, that the outbreak commenced\non the Thursday; and I made inquiry, in detail,\nrespecting the eighty-three deaths registered as having\ntaken place during the last three days of the week.\nOn proceeding to the spot, I found that nearly all the\ndeaths had taken place within a short distance of the\npump. There were only ten deaths in houses situated\ndecidedly nearer to another street pump. In five of these\ncases the families of the deceased persons informed me\n40\nthat they always sent to the pump in Broad Street, as\nthey preferred the water to that of the pump which was\nnearer. In three other cases, the deceased were children\nwho went to school near the pump in Broad Street. Two\nof them were known to drink the water; and the parents\nof the third think it probable that it did so. The other\ntwo deaths, beyond the district which this pump supplies,\nrepresent only the amount of mortality from cholera that\nwas occurring before the irruption took place.\nWith regard to the deaths occurring in the locality belonging\nto the pump, there were sixty-one instances in\nwhich I was informed that the deceased persons used to\ndrink the pump-water from Broad Street, either constantly\nor occasionally. In six instances I could get no information,\nowing to the death or departure of every one connected\nwith the deceased individuals; and in six cases I\nwas informed that the deceased persons did not drink the\npump-water before their illness.\nThe result of the inquiry then was, that there had been\nno particular outbreak or increase of cholera, in this\npart of London, except among the persons who were in\nthe habit of drinking the water of the above-mentioned\npump-well.\nI had an interview with the Board of Guardians of St.\nJames’s parish, on the evening of Thursday, 7th September,\nand represented the above circumstances to them. In\nconsequence of what I said, the handle of the pump was\nremoved on the following day.\nBesides the eighty-three deaths mentioned above as\noccurring on the three last days of the week ending September\n2nd, and being registered during that week in\nthe sub-districts in which the attacks occurred, a number\nof persons died in Middlesex and other hospitals,\nand a great number of deaths which took place in the\n41\nlocality during the last two days of the week, were not\nregistered till the week following. The deaths altogether,\non the 1st and 2nd of September, which have been ascertained\nto belong to this outbreak of cholera, were one\nhundred and ninety-seven; and many persons who were\natta"
+        },
+        "source_length": 368536,
+        "next_start": null
+      }
+    }
+  ]
+}

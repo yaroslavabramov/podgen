@@ -1,0 +1,109 @@
+{
+  "snow-plan": {
+    "archived_request_replayed": true,
+    "instructions_sha256": "2219c9245f9efe29c975e9ba6c89eb915fcd889f7427a49fa224b4403bf650cc",
+    "changed_top_level": [],
+    "model": "gpt-6.1-sol",
+    "tool_names": [],
+    "old_payload_hash": "b8c0a1b67c7a9bfc4aaa129405ed8f6ba0f84023c18427b49f99a34d11c3feae",
+    "new_payload_hash": "b8c0a1b67c7a9bfc4aaa129405ed8f6ba0f84023c18427b49f99a34d11c3feae",
+    "schema_hash": "6406a2aef4f620f856f44a78a2bb486831db33590d05c8605c664c5081922c62"
+  },
+  "snow-plan-review": {
+    "archived_request_replayed": true,
+    "instructions_sha256": "b042b1e96d0e77f838984b03ac4f74012834ac73a20802f00c80a64fc1355014",
+    "changed_top_level": [],
+    "model": "gpt-6.1-terra",
+    "tool_names": [],
+    "old_payload_hash": "b6f5457fe15c7d92c9f334601800b6cb99208f907e45edbb9bc1931fdaf15842",
+    "new_payload_hash": "b6f5457fe15c7d92c9f334601800b6cb99208f907e45edbb9bc1931fdaf15842",
+    "schema_hash": "1132ee383634f2e8e6926cfebc8adf733c98c2a2f613ebfee3d168af04941e45"
+  },
+  "snow-draft": {
+    "archived_request_replayed": true,
+    "instructions_sha256": "6d8e2b027999a96f245fec0a90abfbb433b234a7cf3d131da4ae99955c558952",
+    "changed_top_level": [
+      "tool_choice",
+      "tools"
+    ],
+    "model": "claude-opus-5-5",
+    "tool_names": [
+      "search_sources",
+      "read_source"
+    ],
+    "old_payload_hash": "d2f79561d49071b35c4d6affd1f1f7a01df1d1816430686ddc27e0b575af05c0",
+    "new_payload_hash": "d2f79561d49071b35c4d6affd1f1f7a01df1d1816430686ddc27e0b575af05c0",
+    "schema_hash": "a3ac4af8c8ac75f2859b2742fd6b0552976d5884ca8f0986220b2393b90222c3"
+  },
+  "snow-fact-review": {
+    "archived_request_replayed": true,
+    "instructions_sha256": "62b7066f83b9aa7b486fc1e5825b56c01ae1725d5d2ad449252e3c2b18cdd4f2",
+    "changed_top_level": [
+      "include",
+      "input",
+      "instructions",
+      "text",
+      "tool_choice",
+      "tools"
+    ],
+    "model": "gpt-6.1-terra",
+    "tool_names": [
+      "search_sources",
+      "read_source"
+    ],
+    "old_payload_hash": "ede501bb9e8b9aa76bbe34bcf693785c209a5e1751e74c6284e9e1b482022a73",
+    "new_payload_hash": "62211c3368e1f7aec048fbe549858a426848b66c15225da8a48a4784a062546d",
+    "schema_hash": "195c5596939c8ecb37bf5947cd1e960ad5cfe63ceeb30fdb340b34b5db62358c"
+  },
+  "snow-reader-review-1": {
+    "archived_request_replayed": true,
+    "instructions_sha256": "ec93938e9c60cd16d8eb05004bb617176327fc9c13c99dfec284a113a0c06e21",
+    "changed_top_level": [
+      "instructions",
+      "text"
+    ],
+    "model": "gpt-6.1-terra",
+    "tool_names": [],
+    "old_payload_hash": "c922266f7f8c6d077121b95d55fa5c2e59cffc574eb0a4e97e8dd4faf637645f",
+    "new_payload_hash": "c922266f7f8c6d077121b95d55fa5c2e59cffc574eb0a4e97e8dd4faf637645f",
+    "schema_hash": "9aec42e4fde49b191e7e85b2b86e1cb414b556b199d06f237ae9d84be0e28301"
+  },
+  "snow-revise-2": {
+    "archived_request_replayed": true,
+    "instructions_sha256": "0197ebeabeb73862948781fa5f75be3a5341a4c993437511d60ada5f4d5f86ca",
+    "changed_top_level": [
+      "tool_choice",
+      "tools"
+    ],
+    "model": "claude-opus-5-5",
+    "tool_names": [
+      "search_sources",
+      "read_source"
+    ],
+    "old_payload_hash": "6c7c7c95917f259a4e45ec8461a51c9c3266a51e8324c34240a855dadf610095",
+    "new_payload_hash": "6c7c7c95917f259a4e45ec8461a51c9c3266a51e8324c34240a855dadf610095",
+    "schema_hash": "b36b8c15a11bc81ae94ac7371d137499524a9054de236c5637224dae7b571e63"
+  },
+  "rain-fact-review": {
+    "archived_request_replayed": true,
+    "instructions_sha256": "62b7066f83b9aa7b486fc1e5825b56c01ae1725d5d2ad449252e3c2b18cdd4f2",
+    "changed_top_level": [
+      "include",
+      "input",
+      "instructions",
+      "metadata",
+      "prompt_cache_options",
+      "text",
+      "tool_choice",
+      "tools"
+    ],
+    "model": "gpt-6.1-terra",
+    "tool_names": [
+      "search_sources",
+      "read_source"
+    ],
+    "old_payload_hash": "6eedb318976b6c6ba2e813b92ca33dabe9772e8c963ec21244e6c7e25c3b4999",
+    "new_payload_hash": "777b413f645b814aed1d338310bd63fb22a4b7b3589e0ff49e99e5e2082a3bac",
+    "schema_hash": "1b0f7fdb4d8e9db21edf5d5e3dd6cf7a5d77c9a462a1654658ad5639e1d13097"
+  }
+}

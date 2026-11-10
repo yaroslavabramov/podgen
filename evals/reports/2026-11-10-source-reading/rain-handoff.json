@@ -1,0 +1,42 @@
+{
+  "tasks": [
+    {
+      "origin": "fact",
+      "anchors": [
+        {
+          "utterance_index": 1,
+          "quote": "Янг Су Чжун, Чжанань Гэ и Каллен Бьюи"
+        }
+      ],
+      "problem": "Второй автор назван «Чжанань Гэ», тогда как в самой статье его имя указано как Zhifei Ge. Это не вариант передачи одного и того же имени: слушатель получает неверное имя конкретного исследователя.",
+      "action": "Заменить «Чжанань Гэ» на «Чжифэй Гэ» — передачу имени Zhifei Ge, указанного в статье.",
+      "preserve": [
+        "Указание на исследователей как авторов работы",
+        "Объяснение механизма захвата воздуха и выброса мелких капелек"
+      ],
+      "evidence_refs": [
+        {
+          "card_id": "M1",
+          "source_excerpt_indices": [
+            0,
+            1
+          ]
+        }
+      ],
+      "source_read_refs": [
+        "P1"
+      ]
+    }
+  ],
+  "passages": [
+    {
+      "ref": "P1",
+      "source": "Joung, Ge & Buie, Bioaerosol generation by raindrops on soil (2017)",
+      "source_id": "S1",
+      "start": 0,
+      "end": 2200,
+      "text": "ARTICLE\nReceived 25 Apr 2016| Accepted 23 Jan 2017| Published 7 Mar 2017\nBioaerosol generation by raindrops on soil\nY oung Soo Joung1,2, Zhifei Ge1 & Cullen R. Buie1\nAerosolized microorganisms may play an important role in climate change, disease\ntransmission, water and soil contaminants, and geographic migration of microbes. While it is\nknown that bioaerosols are generated when bubbles break on the surface of water containing\nmicrobes, it is largely unclear how viable soil-based microbes are transferred to the\natmosphere. Here we report a previously unknown mechanism by which rain disperses\nsoil bacteria into the air. Bubbles, tens of micrometres in size, formed inside the raindrops\ndisperse micro-droplets containing soil bacteria during raindrop impingement. A single\nraindrop can transfer 0.01% of bacteria on the soil surface and the bacteria can survive more\nthan one hour after the aerosol generation process. This work further reveals that bacteria\ntransfer by rain is highly dependent on the regional soil proﬁle and climate conditions.\nDOI: 10.1038/ncomms14668 OPEN\n1 Department of Mechanical Engineering, Massachusetts Institute of T echnology, 77 Massachusetts Avenue, Cambridge, Massachusetts 02139, USA.\n2 Division of Mechanical Systems Engineering, Sookmyung Women’s University, 100, Cheongpa-ro 47-gil, Y ongsan-gu, Seoul, Republic of Korea.\nCorrespondence and requests for materials should be addressed to Y .S.J. (email: ysjoung@sookmyung.ac.kr) or to Z.G. (email: zhifeige@mit.edu)\nor to C.R.B. (email: crb@mit.edu).\nNATURE COMMUNICATIONS| 8:14668 | DOI: 10.1038/ncomms14668 | www.nature.com/naturecommunications 1\n\nB\nioaerosols play an important role in climate change, human\nhealth and agricultural productivity1–5. In the atmosphere,\nbioaerosols can inﬂuence on the global climate, promoting\ncloud formation and ice nucleation even though their fraction is\nrelatively small compared to all the atmospheric aerosols6–10.O n\nthe ground, bioaerosols can change micro-biogeography faster\nthan many other transport mechanisms11,12. Because bioaerosols\ncan lead to dispersion of biological contaminants over long\ndistances relative to terrestrial transport mechanisms13,14, t"
+    }
+  ],
+  "exact_read_matches_verified": true
+}

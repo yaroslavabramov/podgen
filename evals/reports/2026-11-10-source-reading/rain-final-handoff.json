@@ -1,0 +1,85 @@
+{
+  "tasks": [
+    {
+      "origin": "fact",
+      "anchors": [
+        {
+          "utterance_index": 1,
+          "quote": "Янг Су Чжун, Чжанань Гэ и Каллен Бьюи"
+        }
+      ],
+      "problem": "Имя второго исследователя названо как «Чжанань Гэ», но в библиографической записи статьи указан Zhifei Ge. Это не вариант передачи того же имени, а неверная идентификация автора.",
+      "action": "Заменить «Чжанань Гэ» на «Чжифэй Гэ», сохранив остальных названных исследователей.",
+      "preserve": [
+        "Атрибуцию исследования трём авторам статьи."
+      ],
+      "evidence_refs": [
+        {
+          "card_id": "M1",
+          "source_excerpt_indices": [
+            0,
+            1
+          ]
+        }
+      ],
+      "source_read_refs": [
+        "P1"
+      ]
+    },
+    {
+      "origin": "fact",
+      "anchors": [
+        {
+          "utterance_index": 3,
+          "quote": "а всё, что брызнуло вверх, оседает на нижней стороне пластинки"
+        }
+      ],
+      "problem": "Фраза утверждает полный сбор всего выброшенного вверх материала. Источник подтверждает сбор аэрозолей на расположенной над грунтом пластинке и описывает подбор её высоты для максимальной эффективности сбора, но не устанавливает, что собиралось абсолютно всё. Такое усиление преувеличивает охват измерения.",
+      "action": "Сказать, что на пластинке оседают выброшенные вверх капельки или часть выброшенного материала, не утверждая, что пластинка собирает их все.",
+      "preserve": [
+        "Отверстие для падающей капли и расположение сборной пластинки на высоте одного сантиметра.",
+        "Переход к исследованию собранных капелек под микроскопом."
+      ],
+      "evidence_refs": [
+        {
+          "card_id": "M2",
+          "source_excerpt_indices": [
+            0,
+            1
+          ]
+        }
+      ],
+      "source_read_refs": [
+        "P2",
+        "P3"
+      ]
+    }
+  ],
+  "passages": [
+    {
+      "ref": "P1",
+      "source": "Joung, Ge & Buie, Bioaerosol generation by raindrops on soil (2017)",
+      "source_id": "S1",
+      "start": 0,
+      "end": 3800,
+      "text": "ARTICLE\nReceived 25 Apr 2016| Accepted 23 Jan 2017| Published 7 Mar 2017\nBioaerosol generation by raindrops on soil\nY oung Soo Joung1,2, Zhifei Ge1 & Cullen R. Buie1\nAerosolized microorganisms may play an important role in climate change, disease\ntransmission, water and soil contaminants, and geographic migration of microbes. While it is\nknown that bioaerosols are generated when bubbles break on the surface of water containing\nmicrobes, it is largely unclear how viable soil-based microbes are transferred to the\natmosphere. Here we report a previously unknown mechanism by which rain disperses\nsoil bacteria into the air. Bubbles, tens of micrometres in size, formed inside the raindrops\ndisperse micro-droplets containing soil bacteria during raindrop impingement. A single\nraindrop can transfer 0.01% of bacteria on the soil surface and the bacteria can survive more\nthan one hour after the aerosol generation process. This work further reveals that bacteria\ntransfer by rain is highly dependent on the regional soil proﬁle and climate conditions.\nDOI: 10.1038/ncomms14668 OPEN\n1 Department of Mechanical Engineering, Massachusetts Institute of T echnology, 77 Massachusetts Avenue, Cambridge, Massachusetts 02139, USA.\n2 Division of Mechanical Systems Engineering, Sookmyung Women’s University, 100, Cheongpa-ro 47-gil, Y ongsan-gu, Seoul, Republic of Korea.\nCorrespondence and requests for materials should be addressed to Y .S.J. (email: ysjoung@sookmyung.ac.kr) or to Z.G. (email: zhifeige@mit.edu)\nor to C.R.B. (email: crb@mit.edu).\nNATURE COMMUNICATIONS| 8:14668 | DOI: 10.1038/ncomms14668 | www.nature.com/naturecommunications 1\n\nB\nioaerosols play an important role in climate change, human\nhealth and agricultural productivity1–5. In the atmosphere,\nbioaerosols can inﬂuence on the global climate, promoting\ncloud formation and ice nucleation even though their fraction is\nrelatively small compared to all the atmospheric aerosols6–10.O n\nthe ground, bioaerosols can change micro-biogeography faster\nthan many other transport mechanisms11,12. Because bioaerosols\ncan lead to dispersion of biological contaminants over long\ndistances relative to terrestrial transport mechanisms13,14, they\nsigniﬁcantly affect changes in biodiversity and ecology as well\nas the propagation of biological pollutants 10,15. Furthermore,\nbioaerosols can be effective carriers of pathogenic organisms to\nplants, animals and humans, resulting in the spread of disease4,16.\nTo date, aerosols generated at water/air interfaces are considered\none of the main mechanisms for transferring microbes to the\nenvironment17–20. While it has been generally accepted that\nsoil can serve as an intermediate home for pathogens before\nthey transfer to their hosts, it is not clear where and how the\nmicrobes in the soil transfer from their original habitats to the\natmosphere21–25. Considering that most microbes prefer aqueous\nenvironments to survive, it is still a mystery to explain how viable\nsoil-based microbes spread much further and faster than would\nbe expected through the air1,26,27. Futhermore, even though we\nknow that after a rainfall there is a rapid increase of bioaerosol\nconcentration in the air, we have not explained the wide spread of\nmicrobes with the transfer modes discovered to date9,28,29.\nIn this work, aerosols represent small water droplets suspended\nin the air; in particular, bioaerosols are deﬁned as aerosols\ncontaining microbes. Recently, we discovered a new mechanism\nof aerosol generation by raindrops hitting soil 30 (Fig. 1a–d).\nWe demonstrated that when a raindrop hits soils, small bubbles\nare formed inside the raindrop and then small droplets eject\nwhen the bubbles burst at the air/raindrop interface. Depending\non soil wetting-properties and raindrop impact speed, the amount\nof "
+    },
+    {
+      "ref": "P2",
+      "source": "Joung, Ge & Buie, Bioaerosol generation by raindrops on soil (2017)",
+      "source_id": "S1",
+      "start": 37400,
+      "end": 40300,
+      "text": "e area. Six different soils were used; clay, sandy clay and sand\nwere purchased from Sigma-Aldrich (Clean clay #5, PH–Sandy clay, and Clean\nsand #4,), another clay and sand from World’s Science (Nasco soil samples, Fort\nAtkinson, WI, USA), and the other sandy clay soil was collected at Boston area.\nTwo TLC plates were purchased from Sigma-Aldrich (silica gel and aluminium\noxide matrixes).\nVisualization of aerosols containing bacteria. To visualize cell-containing\naerosol on the sampling plates, we pre-treat soils with ﬂuorescently labelled\nbacterial suspension. Two ﬂuorescent dyes were used to indicate the cells and the\naerosols. SYTO BC (Life Technologies, Carlsbad, CA, USA) was used to stain\nbacteria with green ﬂuorescence (excitation peak at 485 nm and emission peak at\n500 nm). Final concentration of 5mM of SYTO BC was added to the cell\nsuspension. Rhodamine B (Sigma-Aldrich) was added to the cell suspension to\nvisualize the aerosols with red ﬂuorescence (excitation peak at 540 nm and\nemission peak at 625 nm). The ﬁnal concentration of Rhodamine B was\n0.001 g l/C0 1. Raindrops, which come from deionized water, hit porous media,\ngenerating aerosols. The aerosols were collected on the sampling plate. The aerosols\nand the bacteria were detected by different ﬁlters in the ﬂuorescence microscope,\nbecause Rhodamine B was dissolved into the aerosols. In this work, we did not\nconsider evaporation when calculating aerosol size because the time scale from\naerosol generation to aerosol impact and measurement on the sampling plate is\nmuch smaller than the time scale of evaporation. The mean velocity of aerosol\nejections is 10 m s/C0 1 and the gap distance from the surface to the sampling plate\nwas 10 mm, so the impact time scale is roughly 1 microsecond. Considering the\nﬂight velocity and the mean aerosol size under the common environment condition\nof 20/C176C and 25% RH, the diameter change for an aerosol with initial diameter of\n100 mmi s o0.04%, so the effect of evaporation on measured size is not\nsigniﬁcant53.\nDrop impingement on soils with bacteria and microspheres. Drop impinge-\nments with deionized water were conducted on the prepared soils and TLC plates\npre-permeated with cells or microspheres. The impact velocity of raindrops was\nvaried with different dropping heights from the surfaces. The raindrops hit on the\nsurfaces after passing through the hole at the centre of the sampling plate located\nabove the surface. The height of the sampling plate was varied from 2 to 15 mm\nto ﬁnd the optimal height of the sampling plate for the maximum collection\nefﬁciency. In this work, we used 10 mm of the sampling height. The surface\ntemperature of soils and TLC plates was varied from 5 to 50/C176C with a house-made\ntemperature controller. The impact speed varies from 0.6 to 1.7 m s/C0 1. The impact\nspeed was estimated using the drop release height and calibrated"
+    },
+    {
+      "ref": "P3",
+      "source": "Joung, Ge & Buie, Bioaerosol generation by raindrops on soil (2017)",
+      "source_id": "S1",
+      "start": 4850,
+      "end": 6470,
+      "text": "he method, we quantitatively examine\nthe effects of bacterial surface concentration, soil composition,\nraindrop impact speed, and surface temperature to identify trends\nin bacteria transfer from soil to air. We also verify that bacteria\ncan indeed survive after the aerosolization process. Finally,\nwe estimate the global transfer rate of soil bacteria by rainfall.\nResults\nVisualization of aerosols containing soil bacteria. In this work\nwe show that soil-borne bacteria can be transferred from soil to\nRaindrop\nAerosols\nSampling plate\nBacteria\nBacteria\nBacteria\nSoil\nAerosol Aerosol\nRaindrop\nFalling hole\nAerosol\nRaindrop\nhitting on soil\nSoil with\nbacteria\nt = 0 ms t = 31 ms t = 423 msab c d\ne f\ng\nh\nFigure 1 | Bioaerosol generation by raindrops.(a–d) Aerosols generated by drop impingement on a reference surface, which maximized the aerosol\ngeneration (a TLC plate (TLC-C) in T able 1). The TLC plates served as an ideal soil-like surface. The white lines are the trajectories of aerosols ejected from\nthe initial droplet after impact over a period of 400 ms. Due to air ﬂow above the droplet, the trajectories of the ejected aerosols are curved. The scalebars\nindicate 1 mm. For more details, see Supplementary Movie 1. (e) Schematic illustration of the experimental procedure for drop impingement on soil and\naerosol collection. (f) Confocal microscopy images ofC. glutamicum on the surface of clay soil with the cell density of 250 cells mm/C0 2.( g,h) Fluorescent\nmicroscopy images of aerosols generated by drop impingement on clay soil pre-permeated withC. glutamicum. The red circles and the yellow dots indic"
+    }
+  ],
+  "exact_read_matches_verified": true
+}

@@ -1,0 +1,15 @@
+{
+  "resp_msg_011CgtwWxwPKwMPfPxVBsJbq": {
+    "stage": "revise-2",
+    "model": "claude-opus-5-5",
+    "usage": {
+      "input_tokens": 31558,
+      "output_tokens": 6375,
+      "input_tokens_details": {
+        "cached_tokens": 0,
+        "cache_write_tokens": 20132
+      }
+    },
+    "usd": "0.273864"
+  }
+}
