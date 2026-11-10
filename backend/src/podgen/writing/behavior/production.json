@@ -2,49 +2,49 @@
   "formats": {
     "solo": {
       "plan-review": {
-        "version": "whole-episode-a/sha256:2990010ed0de9046fa72bf09d64f7ff767ef382df9919b6dca59cd0d23a1d501",
-        "sha256": "2990010ed0de9046fa72bf09d64f7ff767ef382df9919b6dca59cd0d23a1d501"
+        "version": "whole-episode-a/sha256:4389852781880f40646229ba7cf76ebd1d3f8daf4f2b595751f9411715830a89",
+        "sha256": "4389852781880f40646229ba7cf76ebd1d3f8daf4f2b595751f9411715830a89"
       },
       "draft": {
-        "version": "whole-episode-a/sha256:891532a3d042d96c5d7a3e7ec83bf4ba424f774b79854c7180b0c5ca7bb11d63",
-        "sha256": "6d8e2b027999a96f245fec0a90abfbb433b234a7cf3d131da4ae99955c558952"
+        "version": "whole-episode-a/sha256:13b21c996662ca29534c6ed2b0c2ac1ffd6ca324b25c1390be95e908c939059a",
+        "sha256": "13b21c996662ca29534c6ed2b0c2ac1ffd6ca324b25c1390be95e908c939059a"
       },
       "plan": {
-        "version": "whole-episode-a/sha256:e8e16af079dd6630d13facee0b135044d073d70808dddc4870304abb1e8e1483",
-        "sha256": "e8e16af079dd6630d13facee0b135044d073d70808dddc4870304abb1e8e1483"
+        "version": "whole-episode-a/sha256:a3634c8af3c1a83c4a3e5b97c4b46cc72ba041953c9d94163bba16c4ec23467c",
+        "sha256": "a3634c8af3c1a83c4a3e5b97c4b46cc72ba041953c9d94163bba16c4ec23467c"
       },
       "plan-revise": {
-        "version": "whole-episode-a/sha256:35761128e64e21dd1c37b1257e9b343574924c651113e64a1708dca513692c8e",
-        "sha256": "35761128e64e21dd1c37b1257e9b343574924c651113e64a1708dca513692c8e"
+        "version": "whole-episode-a/sha256:12a11b1988cdae45d68be3690cf336a3a718474f97deaef85ce9fde64f3abbc7",
+        "sha256": "12a11b1988cdae45d68be3690cf336a3a718474f97deaef85ce9fde64f3abbc7"
       }
     },
     "dialogue": {
       "plan-review": {
-        "version": "whole-episode-a/sha256:979f9b3c79480403b804428f7f2a4497b0c4409354d0a96d501b604d0d0b1b43",
-        "sha256": "979f9b3c79480403b804428f7f2a4497b0c4409354d0a96d501b604d0d0b1b43"
+        "version": "whole-episode-a/sha256:8b1959539e36e41c6295a2745de2631742af16e58ae02189e21afb0711e51928",
+        "sha256": "8b1959539e36e41c6295a2745de2631742af16e58ae02189e21afb0711e51928"
       },
       "draft": {
-        "version": "whole-episode-a/sha256:84b0e28c4f0df8bfb07236a7882b18d10f56b6cf73cb8a52c46e2788b3f83b43",
-        "sha256": "d3eabaf95603803dba50735c7fd8b7a4fe9d397f7f489a0ef02bab7cb4d8e237"
+        "version": "whole-episode-a/sha256:cf8863c91cf3139c8d5e51317240ea3417f98dcd807ce7a8d78686048ae1dd5a",
+        "sha256": "cf8863c91cf3139c8d5e51317240ea3417f98dcd807ce7a8d78686048ae1dd5a"
       },
       "plan": {
-        "version": "whole-episode-a/sha256:e8e16af079dd6630d13facee0b135044d073d70808dddc4870304abb1e8e1483",
-        "sha256": "e8e16af079dd6630d13facee0b135044d073d70808dddc4870304abb1e8e1483"
+        "version": "whole-episode-a/sha256:a3634c8af3c1a83c4a3e5b97c4b46cc72ba041953c9d94163bba16c4ec23467c",
+        "sha256": "a3634c8af3c1a83c4a3e5b97c4b46cc72ba041953c9d94163bba16c4ec23467c"
       },
       "plan-revise": {
-        "version": "whole-episode-a/sha256:35761128e64e21dd1c37b1257e9b343574924c651113e64a1708dca513692c8e",
-        "sha256": "35761128e64e21dd1c37b1257e9b343574924c651113e64a1708dca513692c8e"
+        "version": "whole-episode-a/sha256:12a11b1988cdae45d68be3690cf336a3a718474f97deaef85ce9fde64f3abbc7",
+        "sha256": "12a11b1988cdae45d68be3690cf336a3a718474f97deaef85ce9fde64f3abbc7"
       }
     }
   },
   "readings": {
     "reader-review-1": {
-      "version": "reader-review/sha256:f442e4c6a561f8782d0d037b8227d7086f008c4fb8c8f60334943eac2a10569e",
-      "sha256": "f442e4c6a561f8782d0d037b8227d7086f008c4fb8c8f60334943eac2a10569e"
+      "version": "reader-review/sha256:5fa00d503635ada0f568e75726a40e308a8616480d7bd4503e2f2f5624d80002",
+      "sha256": "5fa00d503635ada0f568e75726a40e308a8616480d7bd4503e2f2f5624d80002"
     },
     "dual-revise": {
-      "version": "dual-revise/sha256:0197ebeabeb73862948781fa5f75be3a5341a4c993437511d60ada5f4d5f86ca",
-      "sha256": "0197ebeabeb73862948781fa5f75be3a5341a4c993437511d60ada5f4d5f86ca"
+      "version": "dual-revise/sha256:31bcb5fcd4c5443a23340af4a0653a5a1b922d70d3662e37801465892f10bfdf",
+      "sha256": "31bcb5fcd4c5443a23340af4a0653a5a1b922d70d3662e37801465892f10bfdf"
     },
     "fact-review": {
       "version": "fact-review/sha256:62b7066f83b9aa7b486fc1e5825b56c01ae1725d5d2ad449252e3c2b18cdd4f2",

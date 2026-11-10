@@ -1,0 +1,147 @@
+{
+  "cases": {
+    "snow-pump/plan": {
+      "replay_exact": true,
+      "changed": [
+        "instructions"
+      ],
+      "input_identical": true,
+      "schema_identical": true,
+      "before_prompt_sha256": "e8e16af079dd6630d13facee0b135044d073d70808dddc4870304abb1e8e1483",
+      "after_prompt_sha256": "a3634c8af3c1a83c4a3e5b97c4b46cc72ba041953c9d94163bba16c4ec23467c"
+    },
+    "snow-pump/plan-review": {
+      "replay_exact": true,
+      "changed": [
+        "instructions"
+      ],
+      "input_identical": true,
+      "schema_identical": true,
+      "before_prompt_sha256": "2990010ed0de9046fa72bf09d64f7ff767ef382df9919b6dca59cd0d23a1d501",
+      "after_prompt_sha256": "4389852781880f40646229ba7cf76ebd1d3f8daf4f2b595751f9411715830a89"
+    },
+    "snow-pump/draft": {
+      "replay_exact": true,
+      "changed": [
+        "instructions"
+      ],
+      "input_identical": true,
+      "schema_identical": true,
+      "before_prompt_sha256": "6d8e2b027999a96f245fec0a90abfbb433b234a7cf3d131da4ae99955c558952",
+      "after_prompt_sha256": "13b21c996662ca29534c6ed2b0c2ac1ffd6ca324b25c1390be95e908c939059a"
+    },
+    "snow-pump/reader-review": {
+      "replay_exact": true,
+      "changed": [
+        "instructions",
+        "text"
+      ],
+      "input_identical": true,
+      "schema_identical": false,
+      "before_prompt_sha256": "f442e4c6a561f8782d0d037b8227d7086f008c4fb8c8f60334943eac2a10569e",
+      "after_prompt_sha256": "5fa00d503635ada0f568e75726a40e308a8616480d7bd4503e2f2f5624d80002"
+    },
+    "snow-pump/fact-review": {
+      "replay_exact": true,
+      "changed": [],
+      "input_identical": true,
+      "schema_identical": true,
+      "before_prompt_sha256": "62b7066f83b9aa7b486fc1e5825b56c01ae1725d5d2ad449252e3c2b18cdd4f2",
+      "after_prompt_sha256": "62b7066f83b9aa7b486fc1e5825b56c01ae1725d5d2ad449252e3c2b18cdd4f2"
+    },
+    "snow-pump/revise-1": {
+      "replay_exact": true,
+      "changed": [
+        "instructions"
+      ],
+      "input_identical": true,
+      "schema_identical": true,
+      "before_prompt_sha256": "0197ebeabeb73862948781fa5f75be3a5341a4c993437511d60ada5f4d5f86ca",
+      "after_prompt_sha256": "31bcb5fcd4c5443a23340af4a0653a5a1b922d70d3662e37801465892f10bfdf"
+    },
+    "snow-pump/revise-2": {
+      "replay_exact": true,
+      "changed": [
+        "instructions"
+      ],
+      "input_identical": true,
+      "schema_identical": true,
+      "before_prompt_sha256": "0197ebeabeb73862948781fa5f75be3a5341a4c993437511d60ada5f4d5f86ca",
+      "after_prompt_sha256": "31bcb5fcd4c5443a23340af4a0653a5a1b922d70d3662e37801465892f10bfdf"
+    },
+    "rain-soil/plan": {
+      "replay_exact": true,
+      "changed": [
+        "instructions"
+      ],
+      "input_identical": true,
+      "schema_identical": true,
+      "before_prompt_sha256": "e8e16af079dd6630d13facee0b135044d073d70808dddc4870304abb1e8e1483",
+      "after_prompt_sha256": "a3634c8af3c1a83c4a3e5b97c4b46cc72ba041953c9d94163bba16c4ec23467c"
+    },
+    "rain-soil/plan-review": {
+      "replay_exact": true,
+      "changed": [
+        "instructions"
+      ],
+      "input_identical": true,
+      "schema_identical": true,
+      "before_prompt_sha256": "2990010ed0de9046fa72bf09d64f7ff767ef382df9919b6dca59cd0d23a1d501",
+      "after_prompt_sha256": "4389852781880f40646229ba7cf76ebd1d3f8daf4f2b595751f9411715830a89"
+    },
+    "rain-soil/draft": {
+      "replay_exact": true,
+      "changed": [
+        "instructions"
+      ],
+      "input_identical": true,
+      "schema_identical": true,
+      "before_prompt_sha256": "6d8e2b027999a96f245fec0a90abfbb433b234a7cf3d131da4ae99955c558952",
+      "after_prompt_sha256": "13b21c996662ca29534c6ed2b0c2ac1ffd6ca324b25c1390be95e908c939059a"
+    },
+    "rain-soil/reader-review": {
+      "replay_exact": true,
+      "changed": [
+        "instructions",
+        "text"
+      ],
+      "input_identical": true,
+      "schema_identical": false,
+      "before_prompt_sha256": "f442e4c6a561f8782d0d037b8227d7086f008c4fb8c8f60334943eac2a10569e",
+      "after_prompt_sha256": "5fa00d503635ada0f568e75726a40e308a8616480d7bd4503e2f2f5624d80002"
+    },
+    "rain-soil/fact-review": {
+      "replay_exact": true,
+      "changed": [],
+      "input_identical": true,
+      "schema_identical": true,
+      "before_prompt_sha256": "62b7066f83b9aa7b486fc1e5825b56c01ae1725d5d2ad449252e3c2b18cdd4f2",
+      "after_prompt_sha256": "62b7066f83b9aa7b486fc1e5825b56c01ae1725d5d2ad449252e3c2b18cdd4f2"
+    },
+    "rain-soil/revise-1": {
+      "replay_exact": true,
+      "changed": [
+        "instructions"
+      ],
+      "input_identical": true,
+      "schema_identical": true,
+      "before_prompt_sha256": "0197ebeabeb73862948781fa5f75be3a5341a4c993437511d60ada5f4d5f86ca",
+      "after_prompt_sha256": "31bcb5fcd4c5443a23340af4a0653a5a1b922d70d3662e37801465892f10bfdf"
+    },
+    "rain-soil/revise-2": {
+      "replay_exact": true,
+      "changed": [
+        "instructions"
+      ],
+      "input_identical": true,
+      "schema_identical": true,
+      "before_prompt_sha256": "0197ebeabeb73862948781fa5f75be3a5341a4c993437511d60ada5f4d5f86ca",
+      "after_prompt_sha256": "31bcb5fcd4c5443a23340af4a0653a5a1b922d70d3662e37801465892f10bfdf"
+    }
+  },
+  "craft_reference": "unchanged and read in full",
+  "saved_plans": "preserved verbatim including host functions",
+  "published_reader_schemas_10_and_11": "unchanged",
+  "new_reader_schema": "listener-experience/12",
+  "api_calls": 0
+}

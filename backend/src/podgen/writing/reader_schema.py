@@ -12,6 +12,8 @@ PRODUCTION_VERSION = "listener-experience/7"
 COMMISSION_VERSION = "listener-experience/8"
 RECORDING_VERSION = "listener-experience/9"
 LISTENING_VERSION = "listener-experience/10"
+COMMENTARY_VERSION = "listener-experience/11"
+SCENE_COMPARISON_VERSION = "listener-experience/12"
 
 FIELDS = {
     "listener_answer": (
@@ -60,6 +62,8 @@ def describe_reader(schema, version):
         COMMISSION_VERSION,
         RECORDING_VERSION,
         LISTENING_VERSION,
+        COMMENTARY_VERSION,
+        SCENE_COMPARISON_VERSION,
     ):
         raise ContractError("unknown_reader_review_schema_version")
     for field, description in FIELDS.items():
@@ -67,7 +71,15 @@ def describe_reader(schema, version):
     for field, description in FINDING_FIELDS.items():
         schema["$defs"]["EditorialFinding"]["properties"][field]["description"] = description
 
-    if version in (V5, PRODUCTION_VERSION, COMMISSION_VERSION, RECORDING_VERSION, LISTENING_VERSION):
+    if version in (
+        V5,
+        PRODUCTION_VERSION,
+        COMMISSION_VERSION,
+        RECORDING_VERSION,
+        LISTENING_VERSION,
+        COMMENTARY_VERSION,
+        SCENE_COMPARISON_VERSION,
+    ):
         from .reader_wording import describe_wording_first
 
         describe_wording_first(schema)
@@ -79,14 +91,22 @@ def describe_reader(schema, version):
             from .reader_commission import describe_commission
 
             describe_commission(schema)
-        if version in (RECORDING_VERSION, LISTENING_VERSION):
+        if version in (RECORDING_VERSION, LISTENING_VERSION, COMMENTARY_VERSION, SCENE_COMPARISON_VERSION):
             from .reader_recording import describe_recording
 
             describe_recording(schema)
-        if version == LISTENING_VERSION:
+        if version in (LISTENING_VERSION, COMMENTARY_VERSION, SCENE_COMPARISON_VERSION):
             from .reader_listening import describe_listening
 
             describe_listening(schema)
+        if version in (COMMENTARY_VERSION, SCENE_COMPARISON_VERSION):
+            from .reader_commentary import describe_commentary
+
+            describe_commentary(schema)
+        if version == SCENE_COMPARISON_VERSION:
+            from .reader_commentary import describe_scene_comparison
+
+            describe_scene_comparison(schema)
     elif version == VERSION:
         from .reader_story import describe_story_edit
 
@@ -114,6 +134,8 @@ def feedback_model(version):
         COMMISSION_VERSION,
         RECORDING_VERSION,
         LISTENING_VERSION,
+        COMMENTARY_VERSION,
+        SCENE_COMPARISON_VERSION,
     ):
         from .revision.scopes import ReaderAssessmentV4
 

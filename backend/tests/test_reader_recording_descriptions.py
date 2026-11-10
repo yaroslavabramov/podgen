@@ -12,9 +12,11 @@ from podgen.runtime.evaluation.preview_snapshot import PreviewSnapshot
 from podgen.runtime.evaluation.role_schema import response_schema
 from podgen.writing.behavior import resolve_behavior
 from podgen.writing.reader_schema import (
+    COMMENTARY_VERSION,
     COMMISSION_VERSION,
     LISTENING_VERSION,
     RECORDING_VERSION,
+    SCENE_COMPARISON_VERSION,
     feedback_model,
 )
 from tests.schema_cases import without_descriptions
@@ -30,6 +32,8 @@ HISTORICAL = [
     "0fb5c7e70e98dfde2c5c8d8ffc32641c32da76666cb42d4f6aa8e860e2305da8",
     "84a780e5b31e37d11212227997319c8bcce231d849d68028743facc2b3e268a8",
     "0e2f3976fed226de2824ac8e9e271f442f8ff6beb6b2618bffd609504862e744",
+    "9b514cffee3ed8aaf3b2880f33b97e54d4a8206d37713893000c63006ad3dec5",
+    "9c4090eb0b2f2d20cc4a5ba0e97ec7a16cd33c584b8ce2816ad8571fe6d5eedc",
 ]
 
 
@@ -85,17 +89,57 @@ def test_listening_addenda_keep_the_previous_criteria_and_response_contract():
         ) == response_schema(stage, "editorial-role-packets/1", reader_schema_version=RECORDING_VERSION)
 
 
+def test_commentary_tasks_preserve_all_other_descriptions_and_contracts():
+    from podgen.writing.reader_commentary import FIELDS, FINDING_FIELDS
+
+    for stage in ("reader-review", "reader-review-1", "reader-review-2"):
+        old = response_schema(stage, "editorial-role-packets/1", reader_schema_version=LISTENING_VERSION)
+        current = response_schema(stage, "editorial-role-packets/1", reader_schema_version=COMMENTARY_VERSION)
+        assert json.dumps(without_descriptions(current)) == json.dumps(without_descriptions(old))
+        restored = deepcopy(current)
+        for field in FIELDS:
+            restored["properties"][field]["description"] = old["properties"][field]["description"]
+        for field in FINDING_FIELDS:
+            restored["$defs"]["EditorialFinding"]["properties"][field]["description"] = old["$defs"][
+                "EditorialFinding"
+            ]["properties"][field]["description"]
+        assert restored == old
+    assert feedback_model(COMMENTARY_VERSION) is feedback_model(LISTENING_VERSION)
+
+
+def test_scene_comparison_preserves_the_first_live_control_contract():
+    from podgen.writing.reader_commentary import SCENE_FIELDS, SCENE_FINDING_FIELDS
+
+    for stage in ("reader-review", "reader-review-1", "reader-review-2"):
+        old = response_schema(stage, "editorial-role-packets/1", reader_schema_version=COMMENTARY_VERSION)
+        current = response_schema(
+            stage, "editorial-role-packets/1", reader_schema_version=SCENE_COMPARISON_VERSION
+        )
+        assert json.dumps(without_descriptions(current)) == json.dumps(without_descriptions(old))
+        restored = deepcopy(current)
+        for field in SCENE_FIELDS:
+            restored["properties"][field]["description"] = old["properties"][field]["description"]
+        for field in SCENE_FINDING_FIELDS:
+            restored["$defs"]["EditorialFinding"]["properties"][field]["description"] = old["$defs"][
+                "EditorialFinding"
+            ]["properties"][field]["description"]
+        assert restored == old
+    assert feedback_model(SCENE_COMPARISON_VERSION) is feedback_model(COMMENTARY_VERSION)
+
+
 @pytest.mark.parametrize(
     "previous_version,previous_hash",
     [
         (COMMISSION_VERSION, "ec93938e9c60cd16d8eb05004bb617176327fc9c13c99dfec284a113a0c06e21"),
         (RECORDING_VERSION, "a86d0aabb38af129e3d774a0f21a90ec357ab00777c240329c118b5043d0e8b0"),
+        (LISTENING_VERSION, "f442e4c6a561f8782d0d037b8227d7086f008c4fb8c8f60334943eac2a10569e"),
+        (COMMENTARY_VERSION, "ad7b8a78cdab7ddb4229c00b611cac9c07b4b80ac9679e88e6a2eee2757f2d50"),
     ],
 )
 def test_frozen_previous_reader_replays_full_prompt_and_schema(monkeypatch, previous_version, previous_hash):
     materials, _, _, _, script, _, _, _, profile = data_and_profile()
     _, _, command, manifest = release(monkeypatch, materials, profile)
-    assert manifest["reader_review_schema_version"] == LISTENING_VERSION
+    assert manifest["reader_review_schema_version"] == SCENE_COMPARISON_VERSION
     previous = (
         Path(__file__).parents[1] / f"src/podgen/writing/behavior/assets/{previous_hash}.md"
     ).read_text()

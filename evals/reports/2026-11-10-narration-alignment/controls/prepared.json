@@ -1,0 +1,28 @@
+{
+  "contract": "reader-commentary-prepared/1",
+  "reader_schema": "listener-experience/12",
+  "prompt_sha256": "5fa00d503635ada0f568e75726a40e308a8616480d7bd4503e2f2f5624d80002",
+  "endpoint_called": false,
+  "requests": [
+    {
+      "case_id": "01",
+      "request": "requests/01.json",
+      "sha256": "60be55f510d558734cd9b8c7d43fedf4de5577005bef8ae2cf2c99086faea8ab"
+    },
+    {
+      "case_id": "02",
+      "request": "requests/02.json",
+      "sha256": "e280e188e31cdccd13f95ea709dda8fab72b9672eea84ef4454e6bb79e4dbb2b"
+    },
+    {
+      "case_id": "03",
+      "request": "requests/03.json",
+      "sha256": "0c28961e0dc557379a215bc0dbe86d79bfb89ba9a57b4286ab36124884fe339c"
+    },
+    {
+      "case_id": "04",
+      "request": "requests/04.json",
+      "sha256": "0a487caf644368daa53fc80b4af242b81b3c1a9a599fb6e4ef766ec2581e03d5"
+    }
+  ]
+}
