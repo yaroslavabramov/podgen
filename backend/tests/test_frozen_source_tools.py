@@ -94,3 +94,24 @@ def test_only_delivered_reads_reach_the_matching_writer_tasks_and_are_shared_onc
         resolve_review_reads(original, [dict(opened, text="hallucinated")], m)
     with pytest.raises(ContractError, match="invalid_source_read_locator"):
         SourceCorpus(materials("Other revision")).locate(fact["findings"][0]["source_read_ids"][0])
+
+
+def test_explicit_range_uses_its_pinned_budget_and_open_ended_reads_stay_small():
+    corpus = SourceCorpus(materials("а" * 15000))
+    args = {"source_id": "S1", "start": 100, "end": 6700}
+    result = corpus.execute("read_source", args, read_id="E3", max_read_chars=9600)
+    assert result["next_start"] is None
+    assert result["passage"]["text"] == "а" * 6600
+    assert read(corpus, 100, 6700)["next_start"] == 2500
+    assert (
+        corpus.execute("read_source", dict(args, end=None), read_id="E4", max_read_chars=9600)["next_start"]
+        == 2500
+    )
+    assert (
+        corpus.execute("read_source", dict(args, end=15000), read_id="E5", max_read_chars=9600)["next_start"]
+        == 9700
+    )
+    stored = resolve_review_reads(
+        {"findings": [finding(["E3"])]}, [result["passage"]], materials("а" * 15000)
+    )
+    assert corpus.locate(stored["findings"][0]["source_read_ids"][0])["end"] == 6700

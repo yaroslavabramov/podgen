@@ -9,6 +9,7 @@ from .contracts import METHODS, Read
 from .search import search
 
 PAGE_CHARS = 2400
+MAX_EXPLICIT_CHARS = 9600
 
 
 @dataclass(frozen=True)
@@ -48,7 +49,7 @@ class SourceCorpus:
                 )
             )
 
-    def execute(self, name, arguments, *, read_id):
+    def execute(self, name, arguments, *, read_id, max_read_chars=PAGE_CHARS):
         if name not in METHODS:
             return {"error": "unknown_source_tool"}
         try:
@@ -65,7 +66,10 @@ class SourceCorpus:
             stop = len(doc.text) if args.end is None else args.end
             if not 0 <= args.start < stop <= len(doc.text):
                 return {"error": "invalid_source_range", "source_length": len(doc.text)}
-            end = min(stop, args.start + PAGE_CHARS)
+            if type(max_read_chars) is not int or not PAGE_CHARS <= max_read_chars <= MAX_EXPLICIT_CHARS:
+                raise ContractError("invalid_source_tool_read_budget")
+            page_size = PAGE_CHARS if args.end is None else max_read_chars
+            end = min(stop, args.start + page_size)
             return dict(
                 passage=dict(
                     read_id=read_id,
@@ -88,6 +92,10 @@ class SourceCorpus:
             start, end = int(start), int(end)
         except (KeyError, ValueError) as error:
             raise ContractError("unknown_source_read_locator") from error
-        if doc.digest != fingerprint or not 0 <= start < end <= len(doc.text) or end - start > PAGE_CHARS:
+        if (
+            doc.digest != fingerprint
+            or not 0 <= start < end <= len(doc.text)
+            or end - start > MAX_EXPLICIT_CHARS
+        ):
             raise ContractError("invalid_source_read_locator")
         return dict(source=doc.title, source_id=key, start=start, end=end, text=doc.text[start:end])
