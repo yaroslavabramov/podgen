@@ -1,0 +1,17 @@
+{
+  "model": "claude-opus-5-5",
+  "id": "resp_msg_011Cguxnkh1236U5tXzmaK7r",
+  "status": "completed",
+  "usage": {
+    "input_tokens": 9877,
+    "output_tokens": 3280,
+    "input_tokens_details": {
+      "cached_tokens": 0,
+      "cache_write_tokens": 7451
+    }
+  },
+  "estimated_usd": "0.112559",
+  "count": 9877,
+  "request_sha256": "73d5c9981cba6e2f1f64924b345eac071257a9a4362aa2e1248985d93ebaeb00",
+  "provider_request_id": "req_011Cguxnk1Kwmk1sRMEGY9Hx"
+}
