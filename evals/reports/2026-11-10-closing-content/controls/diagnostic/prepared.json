@@ -1,0 +1,17 @@
+{
+  "model": "gpt-6.1-terra",
+  "reader_schema": "listener-experience/13",
+  "criteria_sha256": "16db4ce84b802d9311588563452112e67aa7e860b9e92c6e4e5fe24966aec834",
+  "requests": [
+    {
+      "case": "work",
+      "stage": "reader-review",
+      "file": "work-reader-review.json",
+      "source_sha256": "fac42aeecdb7f4bb9c1e6d3c4a86a5c0b26e77dcbc41568d248c4995be4482f8",
+      "request_sha256": "0b759a18034fab5ae609e6cd35dd56bbd00a11cb83dac14713fe717d088242bd",
+      "instruction_digest": "51752e323aff6ff6b285a0445b5a828a670b19baab7352ce44e2a4164f4ebcda",
+      "schema_digest": "0c506ff37cbb7623678f55e74fcea4f4a5f3802e67045591e4cc89837e854f84",
+      "input_digest": "92c48716ea5a7f88fe4a6ff6ea44810b25bb040a03081e34fbb6b61f286c1e80"
+    }
+  ]
+}
