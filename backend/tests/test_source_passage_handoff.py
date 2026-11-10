@@ -130,7 +130,7 @@ def test_percolation_revision_preserves_the_experimental_packet_and_its_primary_
     assert CASE / revision["previous_input"] == RESTORED
     assert sha256(RESTORED.read_bytes()).hexdigest() == revision["previous_sha256"]
     old = read(RESTORED)
-    new = read(CASE / "shared.json")
+    new = read(CASE / "history/before-material-rebuild-2026-11-10.json")
     assert (
         digest(old) == revision["previous_digest"] == read(CASE / "source-restoration.json")["target_digest"]
     )
@@ -214,7 +214,12 @@ def test_curated_sources_remain_separate_from_complete_fact_check_evidence():
     materials = current_materials()
     _, _, _, _, script, *_ = fixture()
     planner = role_payload("plan", materials, projection_version=V9)
-    assert sum(len(card.get("source_excerpts", [])) for card in planner["dossier"]["knowledge_cards"]) == 8
+    for view, card in zip(
+        planner["dossier"]["knowledge_cards"], materials.packet.dossier.knowledge_cards, strict=True
+    ):
+        assert [row["text"] for row in view.get("source_excerpts", [])] == [
+            card.excerpts[i].text for i in (card.narrative_excerpt_indices or [])
+        ]
     clinical = next(
         card for card in materials.packet.dossier.knowledge_cards if card.label == "Возражение врача"
     )
@@ -225,7 +230,15 @@ def test_curated_sources_remain_separate_from_complete_fact_check_evidence():
     fact = reading_payload("fact-review", materials, script=script, projection_version=V9)
     for quote in clinical.excerpts:
         assert any(row["text"] == quote.text for row in fact["evidence"])
-    assert len(fact["evidence"]) == 47
+    titles = {doc.key: doc.title for doc in materials.packet.documents}
+    expected = {
+        (titles[e.document], e.text, card.card_id)
+        for card in materials.packet.dossier.knowledge_cards
+        for e in card.excerpts
+    }
+    assert {
+        (row["source"], row["text"], key) for row in fact["evidence"] for key in row["supports"]
+    } == expected
     reader = reading_payload("reader-review", materials, script=script, projection_version=V9)
     assert not {"support", "evidence", "source_excerpts"}.intersection(reader)
 

@@ -20,7 +20,10 @@ def materials_for(case):
         / "evals/editorial-inputs"
         / ("current/snow-pump" if case == "snow-pump" else "experiments/rain-soil")
     )
-    packet = EditorialInput.model_validate_json((base / "shared.json").read_bytes())
+    packet_path = base / (
+        "history/before-material-rebuild-2026-11-10.json" if case == "snow-pump" else "shared.json"
+    )
+    packet = EditorialInput.model_validate_json(packet_path.read_bytes())
     docs = []
     for source in packet.documents:
         if source.purpose != "primary":

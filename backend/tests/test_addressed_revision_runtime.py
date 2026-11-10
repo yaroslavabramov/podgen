@@ -34,9 +34,9 @@ def test_real_83_ordinary_run_persists_only_three_edits_and_rechecks_the_complet
     own_dataset, tmp_path, monkeypatch
 ):
     prefix, options, _, source_map, _ = prepare(own_dataset, "snow-pump", tmp_path, monkeypatch)
-    current = ROOT / "evals/editorial-inputs/current/snow-pump/shared.json"
+    packet = ROOT / "evals/editorial-inputs/current/snow-pump/history/before-material-rebuild-2026-11-10.json"
     mapping = {}
-    for document in json.loads(current.read_text())["documents"]:
+    for document in json.loads(packet.read_text())["documents"]:
         path = tmp_path / (document["key"] + "-ref.json")
         assert (
             invoke(
@@ -54,7 +54,7 @@ def test_real_83_ordinary_run_persists_only_three_edits_and_rechecks_the_complet
     source_map = tmp_path / "current-source-map.json"
     source_map.write_text(json.dumps(mapping))
     shared = tmp_path / "current-ref.json"
-    assert invoke(prefix, "editorial-import", input=current, source_map=source_map, out=shared) == 0
+    assert invoke(prefix, "editorial-import", input=packet, source_map=source_map, out=shared) == 0
     _, _, script, _ = actual_case()
     source, initial = tmp_path / "source.json", tmp_path / "initial-ref.json"
     source.write_text(json.dumps(script, ensure_ascii=False))
@@ -64,7 +64,7 @@ def test_real_83_ordinary_run_persists_only_three_edits_and_rechecks_the_complet
         initial_script_ref="@" + str(initial),
         review_mode="independent-readings/1",
     )
-    references = ModelReferences.create(EditorialInput.model_validate_json(current.read_bytes()))
+    references = ModelReferences.create(EditorialInput.model_validate_json(packet.read_bytes()))
     provider = Actual83Provider(references)
     monkeypatch.setattr(writing_cli, "OpenAIProvider", lambda *a, **k: provider)
     with pytest.raises(Paused):
