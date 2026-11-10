@@ -1,0 +1,341 @@
+{
+  "contract": "editorial-input/2",
+  "assignment": {
+    "key": "apollo13-air",
+    "title": "Как на «Аполлоне-13» очищали воздух",
+    "question": "Расскажи, как на «Аполлоне-13» после аварии справились с углекислым газом. Хочу выпуск на 6–8 минут, с одним рассказчиком.",
+    "audience": "Слушатели, которым интересны истории космических полётов.",
+    "listener_outcome": "Узнать, как экипаж и люди на Земле справились с углекислым газом после аварии.",
+    "format": "solo",
+    "output_language": "ru",
+    "speakers": [
+      {
+        "label": "РАССКАЗЧИК",
+        "function": "Рассказывает историю полёта.",
+        "speech_register": "Разговорный русский."
+      }
+    ],
+    "duration": {
+      "target_seconds": 420,
+      "min_seconds": 360,
+      "max_seconds": 480
+    },
+    "knowledge_cutoff": "2026-11-10T00:00:00Z",
+    "required_topics": [],
+    "excluded_topics": [],
+    "style_guidance": [],
+    "genre": "Документальный подкаст"
+  },
+  "documents": [
+    {
+      "key": "B",
+      "title": "Заказ на выпуск",
+      "purpose": "brief",
+      "source_path": "editorial-inputs/experiments/apollo13-air/brief.md",
+      "sha256": "d2230c0af0fafa413c1f29043d12bb33b66e936b396c4e94ba760e757201215d"
+    },
+    {
+      "key": "D",
+      "title": "Очистка воздуха на «Аполлоне-13»",
+      "purpose": "dossier",
+      "source_path": "editorial-inputs/experiments/apollo13-air/dossier.md",
+      "sha256": "cb8fa45ec730063c54b9c6736974371689614c399fcc406722a2b564fd2696b1"
+    },
+    {
+      "key": "M",
+      "title": "NASA, Apollo 13 Mission Report (1970)",
+      "purpose": "primary",
+      "source_path": "editorial-inputs/experiments/apollo13-air/sources/mission-report.txt",
+      "sha256": "d143459daa49284ad368283de1e95866c3050669d841c5fc202866a142c4a2ee"
+    },
+    {
+      "key": "T",
+      "title": "J. C. LeBlanc, Apollo 13 LiOH Canister Breakthrough Test (1970)",
+      "purpose": "primary",
+      "source_path": "editorial-inputs/experiments/apollo13-air/sources/ground-test.txt",
+      "sha256": "19889e9ea095e6239d42c59fd01e38c6c9cf57711ac7233b591d491e659d22df"
+    },
+    {
+      "key": "V",
+      "title": "NASA, Apollo 13 Technical Air-to-Ground Voice Transcription (1970)",
+      "purpose": "primary",
+      "source_path": "editorial-inputs/experiments/apollo13-air/sources/air-to-ground.txt",
+      "sha256": "c14a6e8d10e0d13e2a21a700935d818ca165f4a11bb57ddef90f948a11db4fdf"
+    },
+    {
+      "key": "L",
+      "title": "James A. Lovell, Apollo Expeditions to the Moon, chapter 13 (1975)",
+      "purpose": "primary",
+      "source_path": "editorial-inputs/experiments/apollo13-air/sources/lovell.txt",
+      "sha256": "5ad7902787e805f5bfdd99fcfade888e3315e5a9be02eb367d601dda850da654"
+    }
+  ],
+  "dossier": {
+    "summary": "Запасные поглотители из командного модуля удалось подключить к системе лунного. Инженеры испытали устройство в камере, экипаж собрал его по радио, а измерения на борту показали, что парциальное давление углекислого газа упало.",
+    "summary_support_labels": [
+      "A2",
+      "A3",
+      "A4",
+      "A5",
+      "A8"
+    ],
+    "throughline_constraints": [],
+    "threads": [],
+    "knowledge_cards": [
+      {
+        "card_id": "A1",
+        "label": "Лунный модуль на обратном пути",
+        "title": "Лунный модуль на обратном пути",
+        "claim": "В апреле 1970 года, примерно через 56 часов после старта, авария в служебном модуле сорвала посадку на Луну. На обратном пути экипаж зависел от систем лунного модуля.",
+        "story_facts": "Командир Джим Ловелл, пилот лунного модуля Фред Хейз и пилот командного модуля Джек Суайгерт обогнули Луну. До возвращения в командный модуль перед входом в атмосферу электричество и системы жизнеобеспечения им давал лунный модуль.",
+        "context": "Лётный отчёт, раздел 1.0, с. 1-1. Джек — имя, которым Суайгерта называют в переговорах.",
+        "limitations": [],
+        "excerpts": [
+          {
+            "document": "M",
+            "start": 176,
+            "end": 822,
+            "text": "The Apollo 13 mission, planned as a lunar landing in the Fra Mauro area, was aborted because of an abrupt loss of service module cryogenic oxygen associated with a fire in one of the two tanks at approximately 56 hours. The lunar module provided the necessary support to sustain a minimum operational condition for a safe return to earth. A circumlunar profile was executed as the most efficient means of earth return, with the lunar module providing power and life support until transfer to the command module just prior to entry. Although the mission was unsuccessful as planned, a lunar flyby and several scientific experiments were completed."
+          },
+          {
+            "document": "M",
+            "start": 894,
+            "end": 1149,
+            "text": "The space vehicle, with a crew of James A. Lovell, Commander; Fred W. Haise, Jr., Lunar Module Pilot; and John L. Swigert, Jr., Command Module Pilot; was launched from Kennedy Space Center, Florida, at 2:13:00 p.m. e.s.t. (19:13:00 G.m.t.) April 11, 1970."
+          },
+          {
+            "document": "V",
+            "start": 1947,
+            "end": 2469,
+            "text": "03 18 37 28  CMP  Okay, Joe; Aquarius. We've got that done.\n03 18 37 32  CC   Okay, Jack. The next step is to get the EVA cue card and use it to form an arch over the top of the canister; just tuck one short end under one ridge on the top the other one against the ridge on the other side so that it forms a rounded arch over the top of the canister. You see, Jack, what we're going to do is slip the bag over this whole assembly and the cue card will serve to keep the bag from being sucked down against the screen. Over."
+          }
+        ],
+        "narrative_excerpt_indices": [
+          0
+        ]
+      },
+      {
+        "card_id": "A2",
+        "label": "Запас в соседнем модуле",
+        "title": "Запас в соседнем модуле",
+        "claim": "Троим людям предстояло прожить в лунном модуле существенно дольше, чем двум при высадке. Квадратные патроны из командного модуля не вставлялись в круглые гнёзда лунного.",
+        "story_facts": "Пока люди дышат, в кабине накапливается углекислый газ. Его поглощают сменные патроны с гидроксидом лития. Ловелл вспоминал, что лунный модуль рассчитывали на двоих примерно на два дня, а в аварийном полёте троим предстояло провести там почти четверо суток. Отдел бортовых систем NASA насчитал 24 патрона в командном модуле.",
+        "context": "Оценка времени — воспоминания Ловелла, гл. 13.3–4. Число патронов — отчёт об испытании, с. 3.",
+        "limitations": [],
+        "excerpts": [
+          {
+            "document": "L",
+            "start": 185,
+            "end": 583,
+            "text": "Fred had figured that we had enough lithium hydroxide canisters, which remove carbon dioxide from the spacecraft. There were four cartridge from the LM, and four from the backpacks, counting backups. But he forgot that there would be three of us in the LM instead of the normal two. The LM was designed to support two men for two days. Now it was being asked to care for three men nearly four days."
+          },
+          {
+            "document": "L",
+            "start": 662,
+            "end": 1055,
+            "text": "We would have died of the exhaust from our own lungs if Mission Control hadn't come up with a marvelous fix. The trouble was the square lithium hydroxide canisters from the CM would not fit the round openings of those in the LM environmental system. After a day and a half in the LM a warning light showed us that the carbon dioxide had built up to a dangerous level, but the ground was ready."
+          },
+          {
+            "document": "T",
+            "start": 580,
+            "end": 885,
+            "text": "POWER FAILURE ON THE COMMAND MODULE DURING THE APOLLO 13 MISSION MADE IT IMPERATIVE TO DEVELOP AND TEST EMERGENCY MEASURES WHICH WOULD ENABLE THE APOLLO 13 CREW TO UTILIZE THE CO2 REMOVAL CAPACITY OF THE 24 LITHIUM HYDROXIDE CANISTERS OF THE COMMAND MODULE, BY CONVERTING THEM FOR USE IN THE LUNAR MODULE."
+          }
+        ],
+        "narrative_excerpt_indices": [
+          0,
+          1
+        ]
+      },
+      {
+        "card_id": "A3",
+        "label": "Куда подключить патрон",
+        "title": "Куда подключить патрон",
+        "claim": "Инженеры предложили пропускать воздух через патрон с помощью шлангов, которые обычно подсоединялись к скафандрам.",
+        "story_facts": "Сам патрон остался снаружи системы, открытой стороной к воздуху кабины. На другую сторону надели герметично приклеенный пакет. Угол пакета соединили со шлангом. Воздух из кабины проходил сквозь поглотитель и по шлангу возвращался в систему циркуляции.",
+        "context": "Наземный отчёт, раздел Discussion of Results, с. 3. Путь воздуха в полёте описан в лётном отчёте, раздел 6.7, с. 6-10.",
+        "limitations": [],
+        "excerpts": [
+          {
+            "document": "T",
+            "start": 886,
+            "end": 1091,
+            "text": "USE OF THESE CANISTERS WOULD REQUIRE AN ADAPTATION PERMITTING THEIR ATTACHMENT TO THE LUNAR MODULE ENVIRONMENTAL CONTROL SYSTEM DISCHARGE HOSES WHICH ARE NORMALLY ATTACHED TO THE PRESSURE GARMENT ASSEMBLY."
+          },
+          {
+            "document": "M",
+            "start": 2085,
+            "end": 2461,
+            "text": "One side of each of two command module cartridges was covered and sealed with a plastic bag normally used to store a liquid-cooling garment. As shown in figure 6.7-1, one corner of the bag was sealed to the inlet of the suit circuit hose. The cabin atmosphere then returned to the lunar module suit circuit through these supplemental cartridges by way of the two outlet hoses."
+          },
+          {
+            "document": "V",
+            "start": 3673,
+            "end": 3803,
+            "text": "03 21 56 09  CMP  Okay. The canisters are situated as you - as you would like with the bottom of the canister exposed to free air."
+          }
+        ],
+        "narrative_excerpt_indices": [
+          1
+        ]
+      },
+      {
+        "card_id": "A4",
+        "label": "Дыхание в пустой камере",
+        "title": "Дыхание в пустой камере",
+        "claim": "Отдел бортовых систем собрал и испытал устройство во время полёта. Камера изображала кабину, подаваемый в неё углекислый газ — дыхание экипажа.",
+        "story_facts": "Оборудование требовалось испытать достаточно рано, чтобы осталось время на другой вариант. В камере диаметром чуть больше трёх метров к двум шлангам подключили по патрону. Когда закрыли обходные отверстия, перепад давления увеличился: через поглотитель пошёл нужный поток воздуха. Людей в камере не было.",
+        "context": "Наземный отчёт, с. 3–4. Это испытательный стенд на Земле.",
+        "limitations": [],
+        "excerpts": [
+          {
+            "document": "T",
+            "start": 1092,
+            "end": 1493,
+            "text": "OF NECESSITY, THIS ADAPTATION MUST (1) PROVIDE A WORKABLE SYSTEM, (2) EMPLOY MATERIALS AVAILABLE TO THE FLIGHTCREW, AND (3) BE RELATIVELY SIMPLE SO THAT DETAILS COULD BE TRANSMITTED TO THE CREW WITHOUT DANGER OF MISINTERPRETATION. IT WAS ALSO ESSENTIAL THAT AN EVALUATION OF THE MODIFIED SYSTEM BE COMPLETED IN AMPLE TIME TO PERMIT THE DEVELOPMENT OF ALTERNATE MEASURES IF THESE PROVED TO BE REQUIRED."
+          },
+          {
+            "document": "T",
+            "start": 2126,
+            "end": 3462,
+            "text": "THE MODIFIED CANISTER SYSTEM WAS TESTED IN THE CREW SYSTEMS DIVISION 11-FOOT-DIAMETER CHAMBER (SIMULATED LUNAR MODULE CABIN), WITH ONE OF THE RECONFIGURED CANISTERS CONNECTED TO THE COMMANDER'S DISCHARGE HOSE AND A SECOND CANISTER CONNECTED TO THE LUNAR MODULE PILOT'S HOSE. BOTH CANISTERS WERE SUPPORTED JUST OFF THE CABIN FLOOR EXPOSED TO THE CABIN ATMOSPHERE, AND BOTH HOSES WERE CONNECTED TO INLETS OF THE FLIGHT-CONFIGURED ENVIRONMENTAL CONTROL SYSTEM. WITH THE CHAMBER AT 27000 FEET, THE DIFFERENTIAL PRESSURE WAS 0.3 INCH H2O ACROSS THE COMMANDER'S CANISTER AND 0.4 INCH ACROSS THE LUNAR MODULE PILOT'S CANISTER (SHORTER HOSE CONNECTIONS). THE SUIT FAN DIFFERENTIAL PRESSURE WAS 9.0 INCHES H2O. THE CHAMBER WAS RETURNED TO SITE PRESSURE, AND THE BYPASS OF EACH CANISTER WAS PLUGGED, USING A PORTION OF A LIQUID COOLING GARMENT SOCK AND COVERING IT WITH A PIECE OF A FLIGHT PROCEDURE COVER (FIGURE 1). WITH THE CHAMBER AGAIN AT 27000 FEET, THE DIFFERENTIAL PRESSURE OF EACH CANISTER SHOWED AN INCREASE TO ABOUT 0.8 INCH H2O, AND THE SUIT FAN DIFFERENTIAL PRESSURE INCREASED TO 9.6 INCHES H2O. THESE HIGHER DIFFERENTIAL PRESSURES WERE NECESSARY TO ENSURE ADEQUATE FLOWS THROUGH THE LIOH IN EACH CANISTER. THE TEST WAS UNMANNED, AND CARBON DIOXIDE WAS INJECTED INTO THE CABIN TO SIMULATE THE METABOLIC CO2 OUTPUT OF THE APOLLO CREW."
+          }
+        ],
+        "narrative_excerpt_indices": [
+          0
+        ]
+      },
+      {
+        "card_id": "A5",
+        "label": "Гарнитура для Джека",
+        "title": "Гарнитура для Джека",
+        "claim": "Ловелл предложил дать Суайгерту гарнитуру, чтобы тот записал указания. Джо Кервин из Хьюстона предложил собирать устройство прямо во время разговора.",
+        "story_facts": "Через 90 часов после старта Ловелл собирался дать Джеку Суайгерту записать инструкцию, а потом приступить к работе. Кервин предложил другой порядок: собрать вещи и говорить с Джеком по мере сборки. Он перечислил два патрона, серую клейкую ленту, упаковочные пакеты от двух костюмов охлаждения и картонную карточку из бортовой памятки.",
+        "context": "Стенограмма, с. 410–411, запись 03 18 07 46–03 18 09 17. Подпись к фотографии NASA в гл. 13.4 называет обоих участников.",
+        "limitations": [],
+        "excerpts": [
+          {
+            "document": "V",
+            "start": 890,
+            "end": 1880,
+            "text": "03 18 08 38  CDR  I'll give Jack the headset and let him copy the instructions.\n03 18 08 43  CC   Okay, Jim. The way I thought it might be best to do it would be to have you gather the equipment and let us talk you through your procedure while you do it. Now, maybe you could give Jack the headset and - and - get the equipment together, and we'll talk you through the procedure. I think it'll be a little easier to do that way than if you tried to copy it all down - and then go do it.\n03 18 09 11  CDR  Okay. Do you have any equipment listed? I'll just get it and give it to him and I can just sit here where I am.\n03 18 09 17  CC   Okay. I think the equipment you'll need will be two command module lithium hydroxide canisters, a roll of the gray tape, the two LCGs, because we're going to use the bags from the LCGs, and one - one LM cue card - one of those cardboard cue cards which you will cut off about an inch and a half out from the ring. Now, I think that's all we'll need. Over."
+          },
+          {
+            "document": "L",
+            "start": 1500,
+            "end": 1640,
+            "text": "CapCom Joe Kerwin led Astronaut Swigert, step by step, for an hour to build a contraption like the one the experts had constructed on Earth."
+          }
+        ],
+        "narrative_excerpt_indices": [
+          0
+        ]
+      },
+      {
+        "card_id": "A6",
+        "label": "Зачем согнули карточку",
+        "title": "Зачем согнули карточку",
+        "claim": "Жёсткую карточку выгнули над сеткой патрона. Дуга оставляла зазор и не давала потоку воздуха притянуть к сетке пластик.",
+        "story_facts": "Кервин предложил вставить края карточки под выступы по бокам патрона. Услышав назначение дуги, Суайгерт повторил указания, предложил подрезать край ножницами и доложил, что дуга закреплена лентой.",
+        "context": "Стенограмма, с. 415, запись 03 18 37 28–03 18 43 34.",
+        "limitations": [],
+        "excerpts": [
+          {
+            "document": "V",
+            "start": 2007,
+            "end": 2469,
+            "text": "03 18 37 32  CC   Okay, Jack. The next step is to get the EVA cue card and use it to form an arch over the top of the canister; just tuck one short end under one ridge on the top the other one against the ridge on the other side so that it forms a rounded arch over the top of the canister. You see, Jack, what we're going to do is slip the bag over this whole assembly and the cue card will serve to keep the bag from being sucked down against the screen. Over."
+          },
+          {
+            "document": "V",
+            "start": 2732,
+            "end": 3606,
+            "text": "03 18 38 31  CMP  Okay. I got the idea. Okay. Let me just repeat it here. Take a cue card, form an arch over the top, bringing it under the side here. When we're through, run a piece of tape from the sides across the top of that to anchor to the other side.\n03 18 38 51  CC   That's correct.\n03 18 38 56  CMP  Okay. It worked.\n03 18 39 00  CMP  The top. ... Across the top.\n03 18 39 18  CMP  Looks like you're going to have to cut the cue card slightly.\n03 18 39 32  CMP  Doesn't have to be really ... over that the only thing we're ... we can just take the scissors and cut off the edge here. The only thing this does, Jim, is prevent this from being sucked down into the container.\n03 18 40 28  CMP  Still going to need some more tape. Cut off the end. Okay. Whack off the bottom. ...\n03 18 43 34  CMP  Okay, Joe. We've got that arch built, and it's all taped in securely."
+          }
+        ],
+        "narrative_excerpt_indices": [
+          0,
+          1
+        ]
+      },
+      {
+        "card_id": "A7",
+        "label": "Два шланга в тесной кабине",
+        "title": "Два шланга в тесной кабине",
+        "claim": "Когда патроны заняли места, Хьюстон попросил закрепить синие шланги подальше от них, чтобы воздух не циркулировал по короткому пути.",
+        "story_facts": "Суайгерт сообщил, что один патрон у панели электропитания, второй в переходном туннеле. В Хьюстоне хотели направить часть потока в командный модуль. Джек переспросил, увести ли туда оба шланга. Решение о том, где именно их закрепить, оставили ему.",
+        "context": "Стенограмма, с. 448, запись 03 21 56 09–03 21 57 03.",
+        "limitations": [],
+        "excerpts": [
+          {
+            "document": "V",
+            "start": 3828,
+            "end": 4528,
+            "text": "03 21 56 18  CMP  The position of the LMP's canister - The LMP's canister is sitting on the EPS panel now, and the CDR's canister is positioned up in the tunnel.\n03 21 56 31  CC   Okay. Real fine, Jack. The next step is to physically separate both blue hoses a good distance away from the canister so that we don't short circuit the flow, and tape them in place; and the ideal location for them would be up in the tunnel so as to get some flow into the command module. Over.\n03 21 56 57  CMP  Both hoses in the - up into the command module?\n03 21 57 03  CC   Oh, you can use your judgment on that, Jack. We'd like at least one, and the recommendation that I got was to put them both up in the tunnel."
+          }
+        ],
+        "narrative_excerpt_indices": [
+          0
+        ]
+      },
+      {
+        "card_id": "A8",
+        "label": "Показание, которое услышал Хейз",
+        "title": "Показание, которое услышал Хейз",
+        "claim": "Хейз попросил проверить, как работает собранное устройство. Из-за помех ему пришлось повторить вопрос. Хьюстон сообщил показание 0,2.",
+        "story_facts": "Примерно через 94 с половиной часа после старта Хейз спросил, что видно на Земле. Хьюстон передал показание по углекислому газу. Единица измерения — миллиметры ртутного столба, это парциальное давление газа. В техническом отчёте сопоставлены прежнее повышение примерно до 15 мм и снижение до 0,2 мм после установки.",
+        "context": "Стенограмма, с. 455, запись 03 22 32 33–03 22 33 31; наземный отчёт, с. 3. Предыдущее высокое показание и ответ Хьюстона относятся к разным моментам.",
+        "limitations": [],
+        "excerpts": [
+          {
+            "document": "V",
+            "start": 4701,
+            "end": 5253,
+            "text": "03 22 32 43  LMP  Okay. How did our ... configurations appear to be working down there?\n03 22 32 54  CC   I'm sorry, Fred, but we got noisy again there.\n03 22 33 02  LMP  Okay. Let me know when you want me to try it.\n03 22 33 05  CC   Okay. That sounds better already. Go ahead.\n03 22 33 11  LMP  Okay. I'd just like to ... how's - how's our lith-o cartridge setup ... appear to be working down there.\n03 22 33 21  CC   We are reading 0.2 on our CO2 sets here, and we're all delighted. It seems to be working fine.\n03 22 33 31  LMP  Boy, that is great."
+          },
+          {
+            "document": "T",
+            "start": 1708,
+            "end": 2075,
+            "text": "AFTER CHAMBER TESTS HAD INDICATED THAT THE SYSTEM WOULD PERFORM SATISFACTORILY, DETAILS OF THE MODIFICATIONS WERE TRANSMITTED TO THE FLIGHTCREW, AND A REPLICA OF THE TEST SYSTEM WAS ASSEMBLED AND PUT INTO USE ON THE FLIGHT VEHICLE (FIGURE 6). FOLLOWING THIS INSTALLATION, THE CO2 CONCENTRATION IN THE FLIGHT VEHICLE, WHICH HAD RISEN TO 15 MM HG, DROPPED TO 0.2 MM HG."
+          }
+        ],
+        "narrative_excerpt_indices": [
+          0
+        ]
+      },
+      {
+        "card_id": "A9",
+        "label": "Ещё по одному патрону",
+        "title": "Ещё по одному патрону",
+        "claim": "На борту примерно через двадцать часов работы к каждому из первых двух командных патронов присоединили ещё по одному. Пока воздух очищали только командными патронами, показания держались в пределах 0,1–1,8 мм ртутного столба.",
+        "story_facts": "В камере продолжили опыты. Для второго испытания по бортовой телеметрии рассчитали, сколько газа выдыхает экипаж, и настроили подачу в камере. Второе испытание позволило рассчитать, когда пора менять патроны, и экономить электричество на передаче показаний. Свежий патрон можно было пристроить к отработанному, сохранив уже собранное соединение со шлангом.",
+        "context": "На борту — лётный отчёт, раздел 6.7, с. 6-10. Испытание 16 апреля на Земле — отчёт стенда, с. 4–5.",
+        "limitations": [],
+        "excerpts": [
+          {
+            "document": "M",
+            "start": 2583,
+            "end": 2936,
+            "text": "After approximately 20 hours of operation with two command module cartridges, an additional unit was stacked on each original cartridge to improve the carbon dioxide removal capability. With this supplemental configuration, when only command module cartridges were being used, the indicated carbon dioxide level was maintained between 0.1 and 1.8 mm Hg."
+          },
+          {
+            "document": "T",
+            "start": 3555,
+            "end": 4382,
+            "text": "DURING THE FIRST TEST PHASE, TELEMETRY WAS TRANSMITTED INTERMITTENTLY FROM THE LUNAR MODULE, AND FROM THESE DATA THE METABOLIC CO2 OUTPUT OF THE CREW WAS DETERMINED AND FOUND TO BE 1100 SCCM. USING THIS INJECTION RATE, A SECOND TEST PHASE WAS BEGUN AT 1600 HOURS ON APRIL 16, 1970. THE PRINCIPAL PURPOSE OF THIS TEST PHASE WAS TO PERMIT CONSERVATION OF LUNAR MODULE POWER BY DETERMINING THE TIMES AT WHICH THE FLIGHTCREW SHOULD CHANGE CANISTERS, ELIMINATING THE NEED TO USE TELEMETRY DATA FOR THIS PURPOSE. IN ADDITION, THE TEST PROVIDED CONTINUING ASSURANCE THAT THE EMERGENCY CANISTER CONFIGURATION WOULD CONTINUE TO OPERATE EFFECTIVELY. TO SIMPLIFY NEW CANISTER INSTALLATION BY ELIMINATING CANISTER RECONFIGURATION, EACH OF THE DEPLETED CANISTERS OF TEST PHASE 1 WAS STACKED ON ONE OF THE NEW CANISTERS USED IN TEST PHASE 2."
+          },
+          {
+            "document": "T",
+            "start": 4805,
+            "end": 4985,
+            "text": "THE TEST ALSO ESTABLISHED THE TIME INTERVAL BETWEEN CANISTER REPLACEMENTS, AND REDUCED THE POWER DEMAND ON THE LUNAR MODULE BY ELIMINATING RELIANCE ON TELEMETRY FOR THIS OPERATION."
+          }
+        ],
+        "narrative_excerpt_indices": [
+          0
+        ]
+      }
+    ]
+  }
+}
