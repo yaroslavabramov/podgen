@@ -381,10 +381,17 @@ def test_invalid_final_response_fails_root(monkeypatch, output, code):
     assert journal.root["status"] in ("failed", "validation_failed")
 
 
-def test_source_search_failure_resumes_unfinished_tool_without_repaying_provider(monkeypatch):
+@pytest.mark.parametrize("compact_profile", [False, True])
+def test_source_search_failure_resumes_unfinished_tool_without_repaying_provider(
+    monkeypatch, compact_profile
+):
     from podgen.retrieval import RetrievalUnavailable
 
     journal, profile, limits, corpus = setup(monkeypatch, turns=2)
+    if compact_profile:
+        from podgen.retrieval.config import COMPACT_PROFILE_V1
+
+        journal.snapshot["source_tool_contract"]["retrieval"] = deepcopy(COMPACT_PROFILE_V1)
     requests = []
     attempts = []
 

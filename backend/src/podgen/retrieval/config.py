@@ -1,5 +1,6 @@
 """Published immutable retrieval profile. New weights or preprocessing require a new profile."""
 
+import json
 from copy import deepcopy
 
 from podgen.domain.errors import ContractError
@@ -47,11 +48,38 @@ PROFILE = dict(
 )
 
 
+# This exact compact form was persisted before the implementation's nine fixed settings
+# were made explicit. It uses the same weights and behavior; partial forms are not profiles.
+COMPACT_PROFILE_V1 = dict(
+    version="hybrid-local/1",
+    encoder=ENCODER,
+    reranker=RERANKER,
+    chunk_tokens=224,
+    overlap_tokens=32,
+    candidate_pool=96,
+    page_hits=6,
+    preview_characters=280,
+    max_response_bytes=6144,
+    max_documents=64,
+    max_characters=2000000,
+    max_chunks=12000,
+)
+
+
 def profile():
     return deepcopy(PROFILE)
 
 
 def validate(value):
-    if value != PROFILE:
+    try:
+        identity = json.dumps(value, sort_keys=True, separators=(",", ":"), allow_nan=False)
+        published = [
+            json.dumps(item, sort_keys=True, separators=(",", ":"), allow_nan=False)
+            for item in (PROFILE, COMPACT_PROFILE_V1)
+        ]
+    except (ValueError, TypeError):
+        raise ContractError("unsupported_source_retrieval_profile") from None
+    if not isinstance(value, dict) or identity not in published:
         raise ContractError("unsupported_source_retrieval_profile")
+    # Preserve the archived representation; validation must never rewrite a manifest or request.
     return deepcopy(value)
