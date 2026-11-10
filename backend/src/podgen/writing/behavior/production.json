@@ -10,12 +10,12 @@
         "sha256": "13b21c996662ca29534c6ed2b0c2ac1ffd6ca324b25c1390be95e908c939059a"
       },
       "plan": {
-        "version": "whole-episode-a/sha256:a3634c8af3c1a83c4a3e5b97c4b46cc72ba041953c9d94163bba16c4ec23467c",
-        "sha256": "a3634c8af3c1a83c4a3e5b97c4b46cc72ba041953c9d94163bba16c4ec23467c"
+        "version": "whole-episode-a/sha256:747ef6b93b9186b644f48647b28a3b910cb8bb31201ff9477a3eadb30aad9811",
+        "sha256": "747ef6b93b9186b644f48647b28a3b910cb8bb31201ff9477a3eadb30aad9811"
       },
       "plan-revise": {
-        "version": "whole-episode-a/sha256:12a11b1988cdae45d68be3690cf336a3a718474f97deaef85ce9fde64f3abbc7",
-        "sha256": "12a11b1988cdae45d68be3690cf336a3a718474f97deaef85ce9fde64f3abbc7"
+        "version": "whole-episode-a/sha256:4f1fbab0ec0782d5e543dfce74deda72b264bd65b1d907a90416e2dc5d1e2f70",
+        "sha256": "4f1fbab0ec0782d5e543dfce74deda72b264bd65b1d907a90416e2dc5d1e2f70"
       }
     },
     "dialogue": {
@@ -28,12 +28,12 @@
         "sha256": "cf8863c91cf3139c8d5e51317240ea3417f98dcd807ce7a8d78686048ae1dd5a"
       },
       "plan": {
-        "version": "whole-episode-a/sha256:a3634c8af3c1a83c4a3e5b97c4b46cc72ba041953c9d94163bba16c4ec23467c",
-        "sha256": "a3634c8af3c1a83c4a3e5b97c4b46cc72ba041953c9d94163bba16c4ec23467c"
+        "version": "whole-episode-a/sha256:747ef6b93b9186b644f48647b28a3b910cb8bb31201ff9477a3eadb30aad9811",
+        "sha256": "747ef6b93b9186b644f48647b28a3b910cb8bb31201ff9477a3eadb30aad9811"
       },
       "plan-revise": {
-        "version": "whole-episode-a/sha256:12a11b1988cdae45d68be3690cf336a3a718474f97deaef85ce9fde64f3abbc7",
-        "sha256": "12a11b1988cdae45d68be3690cf336a3a718474f97deaef85ce9fde64f3abbc7"
+        "version": "whole-episode-a/sha256:4f1fbab0ec0782d5e543dfce74deda72b264bd65b1d907a90416e2dc5d1e2f70",
+        "sha256": "4f1fbab0ec0782d5e543dfce74deda72b264bd65b1d907a90416e2dc5d1e2f70"
       }
     }
   },
