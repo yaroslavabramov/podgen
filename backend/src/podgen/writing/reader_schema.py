@@ -11,6 +11,7 @@ VERSION = "listener-experience/6"
 PRODUCTION_VERSION = "listener-experience/7"
 COMMISSION_VERSION = "listener-experience/8"
 RECORDING_VERSION = "listener-experience/9"
+LISTENING_VERSION = "listener-experience/10"
 
 FIELDS = {
     "listener_answer": (
@@ -58,6 +59,7 @@ def describe_reader(schema, version):
         PRODUCTION_VERSION,
         COMMISSION_VERSION,
         RECORDING_VERSION,
+        LISTENING_VERSION,
     ):
         raise ContractError("unknown_reader_review_schema_version")
     for field, description in FIELDS.items():
@@ -65,7 +67,7 @@ def describe_reader(schema, version):
     for field, description in FINDING_FIELDS.items():
         schema["$defs"]["EditorialFinding"]["properties"][field]["description"] = description
 
-    if version in (V5, PRODUCTION_VERSION, COMMISSION_VERSION, RECORDING_VERSION):
+    if version in (V5, PRODUCTION_VERSION, COMMISSION_VERSION, RECORDING_VERSION, LISTENING_VERSION):
         from .reader_wording import describe_wording_first
 
         describe_wording_first(schema)
@@ -77,10 +79,14 @@ def describe_reader(schema, version):
             from .reader_commission import describe_commission
 
             describe_commission(schema)
-        if version == RECORDING_VERSION:
+        if version in (RECORDING_VERSION, LISTENING_VERSION):
             from .reader_recording import describe_recording
 
             describe_recording(schema)
+        if version == LISTENING_VERSION:
+            from .reader_listening import describe_listening
+
+            describe_listening(schema)
     elif version == VERSION:
         from .reader_story import describe_story_edit
 
@@ -100,7 +106,15 @@ def feedback_model(version):
         from .revision.scopes import ReaderAssessment
 
         return ReaderAssessment
-    if version in (V4, V5, VERSION, PRODUCTION_VERSION, COMMISSION_VERSION, RECORDING_VERSION):
+    if version in (
+        V4,
+        V5,
+        VERSION,
+        PRODUCTION_VERSION,
+        COMMISSION_VERSION,
+        RECORDING_VERSION,
+        LISTENING_VERSION,
+    ):
         from .revision.scopes import ReaderAssessmentV4
 
         return ReaderAssessmentV4
