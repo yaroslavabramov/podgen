@@ -12,13 +12,13 @@ def request_record(journal, row):
     return journal.read(RuntimeRef(record_kind="tool_execution", record_id=row["request_record_id"]))
 
 
-def unsent_evidence(journal, row):
+def unsent_evidence(journal, row, *, total_input=False):
     from .source_tool_recovery import evidence_target
 
     target = evidence_target(journal, row)
     if target is not None:
         try:
-            return unsent_evidence(*target)
+            return unsent_evidence(*target, total_input=total_input)
         except RunFailure as error:
             raise RunFailure(error.code, run_id=row["run_id"], invocation_id=row["invocation_id"]) from None
 
@@ -58,7 +58,16 @@ def unsent_evidence(journal, row):
     if measurement["visible_bytes"] != measured or failure["data"].get("status") != "validation_failed":
         reject()
     code = failure["data"].get("code")
-    if code == "role_visible_byte_budget_exceeded":
+    if total_input and code == "run_token_budget_exceeded":
+        if len(events) != 4 or type(row.get("input_tokens")) is not int:
+            reject()
+        ref, response = events["count_response"]
+        count = load_unique_json(journal.read_blob(ref, BlobRef.model_validate(response["response_blob"])))
+        if count.get("input_tokens") != row["input_tokens"]:
+            reject()
+    elif total_input:
+        reject()
+    elif code == "role_visible_byte_budget_exceeded":
         if (
             len(events) != 2
             or row.get("input_tokens") is not None

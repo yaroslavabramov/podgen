@@ -56,6 +56,8 @@ def _projection(invocation):
 def _export_attempt(journal, invocation, base, write_json, directory):
     request_ref = RuntimeRef(record_kind="tool_execution", record_id=invocation["request_record_id"])
     request = journal.read(request_ref)
+    if invocation["attempt_kind"] == "total_input_retry":
+        write_json(base / "request-record.json", request)
     _write(
         directory / base / "request.json",
         journal.read_blob(request_ref, BlobRef.model_validate(request["request_blob"])),
@@ -139,6 +141,11 @@ def export_run(repo, project, run_id, directory):
 
         export_continuation(journal, manifest, write_json)
         result["planning_continuation"] = manifest["planning_continuation"]
+    from .total_input_recovery import effective_ceiling
+
+    ceiling = effective_ceiling(journal, run_id)
+    if ceiling != manifest["command"]["limits"]["max_total_input_tokens"]:
+        result["authorized_max_total_input_tokens"] = ceiling
     manifest_ref = RuntimeRef(record_kind="context_assembly", record_id=row["manifest_id"])
     _write(
         directory / "inputs.json",

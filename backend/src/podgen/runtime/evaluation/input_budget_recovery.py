@@ -121,7 +121,7 @@ def effective_limits(journal, row, *, manifest=None):
             }:
                 raise Conflict("input_budget_request_changed")
             return limits
-        if row["attempt_kind"] != "credit_retry":
+        if row["attempt_kind"] not in ("credit_retry", "total_input_retry"):
             break
         row = parent
         body, context = journal.request(row), request_record(journal, row)["context"]

@@ -25,7 +25,12 @@ def unsent_without_generation(journal, row):
         try:
             unsent_evidence(journal, row)
         except RunFailure:
-            pass
+            try:
+                unsent_evidence(journal, row, total_input=True)
+            except RunFailure:
+                pass
+            else:
+                return True
         else:
             return True
     return False

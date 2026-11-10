@@ -42,7 +42,7 @@ def validate_lineage(rows, stage):
                     and parent["operation_kind"] == "role"
                     and repairs == 1
                 )
-            elif row["attempt_kind"] == "input_budget_retry":
+            elif row["attempt_kind"] in ("input_budget_retry", "total_input_retry"):
                 valid = (
                     valid
                     and parent["operation_kind"] == row["operation_kind"] == "role"
@@ -62,6 +62,8 @@ def attempt_identity(run_id, stage, index, kind, parent):
         return uuid5(run_id, "invocation:" + stage)
     if kind == "anchor_repair":
         return uuid5(run_id, "invocation:" + stage + ":anchor-repair:1")
+    if kind == "total_input_retry":
+        return uuid5(parent["invocation_id"], "total-input-budget-retry:1")
     if kind == "input_budget_retry":
         return uuid5(parent["invocation_id"], "input-budget-retry:1")
     return uuid5(
@@ -91,7 +93,7 @@ def validate_preparation(rows, stage, index, kind, operation, parent_id):
                 and parent["status"] == "validation_failed"
                 and not any(row["attempt_kind"] == "plan_target_repair" for row in rows)
             )
-        elif kind == "input_budget_retry":
+        elif kind in ("input_budget_retry", "total_input_retry"):
             valid = (
                 operation == parent["operation_kind"] == "role" and parent["status"] == "validation_failed"
             )

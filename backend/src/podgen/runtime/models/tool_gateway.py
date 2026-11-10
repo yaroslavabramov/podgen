@@ -162,7 +162,11 @@ def invoke_tools(gateway, root, profile, contract, *, limits, totals, guard):
             for row in previous
         )
         physical = type(gateway)(
-            turn_journal, gateway.provider_factory, sleep=gateway.sleep, poll_seconds=gateway.poll_seconds
+            turn_journal,
+            gateway.provider_factory,
+            sleep=gateway.sleep,
+            poll_seconds=gateway.poll_seconds,
+            total_input_ceiling=gateway.total_input_ceiling,
         )
         try:
             response = physical.invoke_once(

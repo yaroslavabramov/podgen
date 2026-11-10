@@ -11,10 +11,20 @@ from .contracts import ProviderFault
 
 
 class ModelGateway:
-    def __init__(self, journal, provider_factory, *, sleep=time.sleep, poll_seconds=2, source_corpus=None):
+    def __init__(
+        self,
+        journal,
+        provider_factory,
+        *,
+        sleep=time.sleep,
+        poll_seconds=2,
+        source_corpus=None,
+        total_input_ceiling=None,
+    ):
         self.journal, self.provider_factory = journal, provider_factory
         self.sleep, self.poll_seconds = sleep, poll_seconds
         self.source_corpus = source_corpus
+        self.total_input_ceiling = total_input_ceiling
 
     def _fail(self, invocation, code, *, status="failed"):
         self.journal.event(invocation, "failure", data=dict(code=code, status=status))
@@ -131,7 +141,12 @@ class ModelGateway:
             if invocation["input_tokens"] + profile.output_limit > profile.context_limit:
                 self._fail(invocation, "context_capacity_exceeded", status="validation_failed")
             if (
-                totals["input"] + invocation["input_tokens"] > limits.max_total_input_tokens
+                totals["input"] + invocation["input_tokens"]
+                > (
+                    self.total_input_ceiling
+                    if self.total_input_ceiling is not None
+                    else limits.max_total_input_tokens
+                )
                 or totals["output"] + profile.output_limit > limits.max_total_output_tokens
             ):
                 self._fail(invocation, "run_token_budget_exceeded", status="validation_failed")

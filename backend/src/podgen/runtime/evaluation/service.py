@@ -71,6 +71,8 @@ class WritingEvaluation:
         retry_input_budget=None,
         max_visible_bytes=None,
         max_input_tokens=None,
+        retry_total_input_budget=None,
+        max_total_input_tokens=None,
         stop_after_plan=False,
     ):
         if command.actor_id != self.repo.actor_id:
@@ -128,6 +130,8 @@ class WritingEvaluation:
                         budget_target=retry_input_budget,
                         max_visible_bytes=max_visible_bytes,
                         max_input_tokens=max_input_tokens,
+                        total_input_target=retry_total_input_budget,
+                        max_total_input_tokens=max_total_input_tokens,
                         guard=lambda: None,
                         allow_create=False,
                     )
@@ -152,6 +156,8 @@ class WritingEvaluation:
                         budget_target=retry_input_budget,
                         max_visible_bytes=max_visible_bytes,
                         max_input_tokens=max_input_tokens,
+                        total_input_target=retry_total_input_budget,
+                        max_total_input_tokens=max_total_input_tokens,
                         guard=lambda: None,
                         allow_create=False,
                     )
@@ -174,6 +180,8 @@ class WritingEvaluation:
                         retry_input_budget,
                         max_visible_bytes,
                         max_input_tokens,
+                        retry_total_input_budget,
+                        max_total_input_tokens,
                     )
                 ):
                     raise RunFailure("credit_refusal_retry_not_eligible", run_id=command.run_id)
@@ -282,8 +290,13 @@ class WritingEvaluation:
                 budget_target=retry_input_budget,
                 max_visible_bytes=max_visible_bytes,
                 max_input_tokens=max_input_tokens,
+                total_input_target=retry_total_input_budget,
+                max_total_input_tokens=max_total_input_tokens,
                 guard=guard,
             )
+            from .total_input_recovery import effective_ceiling
+
+            gateway.total_input_ceiling = effective_ceiling(journal, command.run_id)
             if not stop_after_plan:
                 checkpoint.mark(journal, "resumed", datetime.now(timezone.utc))
             journal.status(command.run_id, "running")

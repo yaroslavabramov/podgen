@@ -21,7 +21,7 @@ def database():
     with db.transaction() as tx:
         assert (
             tx.execute(text("SELECT version_num FROM alembic_version")).scalar_one()
-            == "0017_model_tool_turns"
+            == "0018_total_input_retry"
         )
     yield db
     db.engine.dispose()
