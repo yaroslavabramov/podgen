@@ -1,0 +1,47 @@
+{
+  "assessor": "editor_controls",
+  "protocol_commit": "9129991",
+  "case": "apollo",
+  "stage": "reader-review",
+  "model": "claude-opus-5-5",
+  "input_sha256": "e0bb4ad896b0d3a85a8da50c1409c727fb0adc5c9d9afe35dc09315d38364c24",
+  "answer_sha256": "731e987642d710e1e93e0294b294aa4abdf93708bd20e96d82af7414aa3b4e9e",
+  "native_validation": {
+    "valid": true,
+    "errors": []
+  },
+  "target_result": "miss",
+  "reason": "Читатель сохраняет весь финал и прямо хвалит отделение решённой задачи от продолжающейся аварии. Целевая неподготовленная оговорка оставлена.",
+  "evidence": [
+    {
+      "field": "listener_answer",
+      "quote": "Концовка честно отделяет решённую задачу от продолжающейся аварии."
+    }
+  ],
+  "scope_result": "ending_unchanged",
+  "other_findings": "Два локальных поручения относятся к временному диапазону показаний CO₂ и атрибуции фразы про ножницы. Замечание о диапазоне содержит отдельную серьёзную фактологическую ошибку.",
+  "side_effect": {
+    "assessment": "unsupported_factual_replacement",
+    "finding_index": 0,
+    "requested_change_quote": "Переформулировать предложение так, чтобы было ясно, что диапазон 0,1–1,8 мм относится к первой паре патронов, к примерно двадцати часам до добавления свежих.",
+    "why_wrong": "В отчёте после описания первых двадцати часов говорится о добавлении по одному патрону, затем диапазон 0,1–1,8 привязывается словами «With this supplemental configuration» к описанной дополненной конфигурации. Ограничивать диапазон первыми двадцатью часами до добавления источник не позволяет. Холодному читателю была доступна неясность формулировки, но не основание уверенно заменять её таким фактом.",
+    "source": {
+      "title": "NASA, Apollo 13 Mission Report, MSC-02680, September 1970",
+      "location": "Section 6.7, Environmental Control, p. 6-10; PDF p. 44",
+      "path": "evals/editorial-inputs/experiments/apollo13-air/sources/mission-report.txt",
+      "sha256": "d143459daa49284ad368283de1e95866c3050669d841c5fc202866a142c4a2ee",
+      "persisted_ref": {
+        "record_kind": "user_input",
+        "record_id": "6e106cfc-9121-5a0c-bb52-a3115622b29c"
+      },
+      "packet_path": "tmp/closing-content/apollo13-air/export/editorial-input-original.json",
+      "card_id": "A9",
+      "document": "M",
+      "start": 2583,
+      "end": 2936,
+      "quote": "After approximately 20 hours of operation with two command module cartridges, an additional unit was stacked on each original cartridge to improve the carbon dioxide removal capability. With this supplemental configuration, when only command module cartridges were being used, the indicated carbon dioxide level was maintained between 0.1 and 1.8 mm Hg."
+    },
+    "permission_note": "Разрешена только вторая фраза реплики 17. Дополнительное предложение поменять порядок двух предложений выходит за эту цитату; обязательная замена ошибочного периода технически выполнима и потому особенно существенна."
+  },
+  "ambiguity": "Целевой промах финала и неправильная фактическая замена оцениваются раздельно. Нормальная JSON/anchor validation не устанавливает правдивость поручения."
+}
