@@ -77,6 +77,35 @@ def _export_attempt(journal, invocation, base, write_json, directory):
                 journal.read_blob(ref, BlobRef.model_validate(record["data"]["request_blob"])),
             )
     write_json(base / "events.json", events)
+    source_events = [
+        record for record in events if record["event_kind"] in ("source_tool_call", "source_tool_result")
+    ]
+    if source_events:
+        write_json(base / "source-tools.json", source_events)
+    from .source_tool_contract import applies, from_manifest
+
+    if invocation["operation_kind"] == "role" and applies(
+        invocation["stage"], from_manifest(journal.manifest(invocation["run_id"]))
+    ):
+        from .model_turns import rows
+
+        for turn in rows(journal, invocation):
+            prefix = base / "turns" / f"{turn['turn_index']:03d}"
+            write_json(prefix / "state.json", _projection(turn))
+            write_json(
+                prefix / "events.json",
+                [
+                    record
+                    for record in events
+                    if record["data"].get("source_turn_index") == turn["turn_index"]
+                ],
+            )
+            ref = RuntimeRef(record_kind="tool_execution", record_id=turn["request_record_id"])
+            stored = journal.read(ref)
+            _write(
+                directory / prefix / "request.json",
+                journal.read_blob(ref, BlobRef.model_validate(stored["request_blob"])),
+            )
 
 
 def export_run(repo, project, run_id, directory):
@@ -135,6 +164,19 @@ def export_run(repo, project, run_id, directory):
             if invocation["attempt_index"]:
                 base /= f"attempt-{invocation['attempt_index']}"
             _export_attempt(journal, invocation, base, write_json, directory)
+            from .source_tool_contract import applies, from_manifest
+
+            if invocation["operation_kind"] == "role" and applies(stage, from_manifest(manifest)):
+                from .model_turns import charged_rows
+
+                # Known physical output is shown even if a different turn has unknown usage.
+                turns = charged_rows(journal, invocation)
+                result["input_tokens"] += invocation["input_tokens"] or 0
+                result["output_tokens_known"] += sum(turn["output_tokens"] or 0 for turn in turns)
+                result["unknown_usage_invocations"].extend(
+                    str(turn["invocation_id"]) for turn in turns if turn["output_tokens"] is None
+                )
+                continue
             unsent = unsent_without_generation(journal, invocation)
             if not unsent:
                 result["input_tokens"] += invocation["input_tokens"] or 0

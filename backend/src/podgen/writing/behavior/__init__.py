@@ -48,10 +48,9 @@ class BehaviorProfile:
 
     @property
     def fact_schema(self):
-        from podgen.writing.fact_context import SCHEMA_VERSION
         from podgen.writing.revision.contracts import FACT_VERSION
 
-        return SCHEMA_VERSION if self.name == PRODUCTION else FACT_VERSION
+        return "fact-revision/4" if self.name == PRODUCTION else FACT_VERSION
 
     @property
     def prompt_cache_layout(self):
@@ -192,7 +191,7 @@ def resolve_behavior(name=None, editorial_pass=1):
         "planning-duration-context/1" if modern else None,
         "plan-material-selection/2" if modern else None,
         "script-edit-assignment/3" if name == PRODUCTION else "script-edit-assignment/1" if modern else None,
-        "listener-experience/7"
+        "listener-experience/8"
         if name == PRODUCTION
         else "listener-experience/6"
         if modern

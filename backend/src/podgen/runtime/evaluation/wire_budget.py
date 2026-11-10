@@ -28,6 +28,8 @@ def visible_sizes(body):
     values = dict(
         instructions=body["instructions"], input=body["input"], schema=body["text"]["format"]["schema"]
     )
+    if body.get("tools"):
+        values["tools"] = body["tools"]
     sizes = {
         name: len(json.dumps(value, ensure_ascii=False, allow_nan=False, separators=(",", ":")).encode())
         for name, value in values.items()

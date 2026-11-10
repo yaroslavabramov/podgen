@@ -20,6 +20,7 @@ def compile_role_request(
     projection_version=CURRENT,
     reference_catalog=None,
     prompt_cache_layout=None,
+    source_tool_contract=None,
     **inputs,
 ):
     prompt_cache.validate(prompt_cache_layout, projection_version)
@@ -34,7 +35,9 @@ def compile_role_request(
     body = response_request(
         run_id, stage, profile, payload, instructions, schema, prompt_cache_layout=prompt_cache_layout
     )
-    return body
+    from .source_tool_contract import bind
+
+    return bind(body, stage, profile, source_tool_contract)
 
 
 def compile_reading_request(
@@ -48,6 +51,7 @@ def compile_reading_request(
     reference_catalog=None,
     revision_comparison=None,
     prompt_cache_layout=None,
+    source_tool_contract=None,
     **inputs,
 ):
     from podgen.writing.reading_views import reading_payload
@@ -81,7 +85,7 @@ def compile_reading_request(
         stable_support_ids = sorted(selected_labels(plan, materials.packet)) if plan is not None else []
         if references is not None:
             stable_support_ids = references.translate({"material_refs": stable_support_ids})["material_refs"]
-    return response_request(
+    body = response_request(
         run_id,
         stage,
         profile,
@@ -91,3 +95,6 @@ def compile_reading_request(
         prompt_cache_layout=prompt_cache_layout,
         stable_support_ids=stable_support_ids,
     )
+    from .source_tool_contract import bind
+
+    return bind(body, stage, profile, source_tool_contract)

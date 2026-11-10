@@ -251,7 +251,14 @@ class WritingEvaluation:
                 if command.input_contract == "legacy-author-materials/1"
                 else self.provider_factory
             )
-            gateway = ModelGateway(journal, factory, **self.gateway_options)
+            from .source_tool_contract import from_manifest as source_contract
+
+            corpus = None
+            if source_contract(manifest) is not None:
+                from podgen.writing.source_tools import SourceCorpus
+
+                corpus = SourceCorpus(materials)
+            gateway = ModelGateway(journal, factory, source_corpus=corpus, **self.gateway_options)
             outputs = {}
             records = {}
             totals = {"input": 0, "output": 0}

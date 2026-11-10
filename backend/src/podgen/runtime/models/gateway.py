@@ -11,9 +11,10 @@ from .contracts import ProviderFault
 
 
 class ModelGateway:
-    def __init__(self, journal, provider_factory, *, sleep=time.sleep, poll_seconds=2):
+    def __init__(self, journal, provider_factory, *, sleep=time.sleep, poll_seconds=2, source_corpus=None):
         self.journal, self.provider_factory = journal, provider_factory
         self.sleep, self.poll_seconds = sleep, poll_seconds
+        self.source_corpus = source_corpus
 
     def _fail(self, invocation, code, *, status="failed"):
         self.journal.event(invocation, "failure", data=dict(code=code, status=status))
@@ -33,6 +34,25 @@ class ModelGateway:
         ) from None
 
     def invoke(self, invocation, profile, *, limits, totals, guard):
+        if invocation["status"] == "completed":
+            return json.dumps(self.journal.output(invocation)["output"], ensure_ascii=False)
+        from podgen.runtime.evaluation.source_tool_contract import applies, from_manifest
+
+        contract = from_manifest(self.journal.manifest(invocation["run_id"]))
+        if invocation["operation_kind"] == "role" and applies(invocation["stage"], contract):
+            from podgen.domain.errors import ContractError
+
+            from .tool_gateway import invoke_tools
+
+            try:
+                return invoke_tools(
+                    self, invocation, profile, contract, limits=limits, totals=totals, guard=guard
+                )
+            except ContractError as error:
+                self._fail(invocation, error.code, status="validation_failed")
+        return self.invoke_once(invocation, profile, limits=limits, totals=totals, guard=guard)
+
+    def invoke_once(self, invocation, profile, *, limits, totals, guard, full_response=False):
         j = self.journal
         if invocation["status"] == "completed":
             return json.dumps(j.output(invocation)["output"], ensure_ascii=False)
@@ -140,7 +160,7 @@ class ModelGateway:
                 self._fail(invocation, "provider_response_id_missing", status="outcome_unknown")
             invocation = dict(invocation, provider_response_id=response_id)
             if status == "completed":
-                text = self._output_text(invocation, response)
+                text = None if full_response else self._output_text(invocation, response)
                 usage = response.get("usage") or {}
                 if not isinstance(usage, dict):
                     self._fail(invocation, "provider_invalid_usage")
@@ -155,7 +175,7 @@ class ModelGateway:
                     input_tokens=usage.get("input_tokens"),
                     output_tokens=usage.get("output_tokens"),
                 )
-                return text
+                return response if full_response else text
             if not isinstance(status, str):
                 self._fail(invocation, "provider_malformed_status")
             if status not in ("queued", "in_progress"):

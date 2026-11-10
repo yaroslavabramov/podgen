@@ -17,7 +17,7 @@ from podgen.writing.revision import verification
 from podgen.writing.revision.context import from_manifest as revision_context_from_manifest
 from podgen.writing.roles import WriteOutput
 
-from . import author_material
+from . import author_material, source_tool_contract
 from .contracts import RunFailure
 from .profiles import load_profile
 from .reading_workflow import VERSION, base_stage
@@ -127,6 +127,7 @@ def execute_reading_stage(
             projection_version=manifest["role_projection_version"],
             reference_catalog=references,
             prompt_cache_layout=prompt_cache.from_manifest(manifest),
+            source_tool_contract=source_tool_contract.from_manifest(manifest),
             fact_context_contract=fact_context.from_manifest(manifest),
             plan_selection_contract=selection_from_manifest(manifest),
             author_plan_handoff=author_plan.from_manifest(manifest),
@@ -184,6 +185,18 @@ def execute_reading_stage(
             wire_output = parsed.model_dump(mode="json")
             if references is not None:
                 parsed = model.model_validate(references.translate(wire_output, inbound=True))
+            if base == "fact-review" and source_tool_contract.from_manifest(manifest) is not None:
+                from podgen.writing.source_tools import resolve_review_reads
+
+                from .source_tool_trace import successful_read_passages
+
+                parsed = model.model_validate(
+                    resolve_review_reads(
+                        parsed.model_dump(mode="json"),
+                        successful_read_passages(journal, invocation),
+                        materials,
+                    )
+                )
             revised = None
             if revision:
                 output, composition, revised = revision.apply(wire_output)
@@ -256,10 +269,12 @@ def execute_reading_stage(
         raise Conflict("independent_reading_binding_mismatch")
     if revision:
         revision.verify(record)
+    from .usage import attempt_usage
+
+    used = attempt_usage(journal, invocation, profile.output_limit)
     return StageResult(
         record["output"],
         RuntimeRef(record_kind="tool_execution", record_id=invocation["output_record_id"]),
-        (invocation["input_tokens"] or 0) + prior["input"],
-        (invocation["output_tokens"] if invocation["output_tokens"] is not None else profile.output_limit)
-        + prior["output"],
+        used["input"] + prior["input"],
+        used["output"] + prior["output"],
     )

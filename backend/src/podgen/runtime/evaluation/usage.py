@@ -32,6 +32,15 @@ def unsent_without_generation(journal, row):
 
 
 def attempt_usage(journal, row, output_reservation):
+    from .source_tool_contract import applies, from_manifest
+
+    if row["operation_kind"] == "role" and applies(
+        row["stage"], from_manifest(journal.manifest(row["run_id"]))
+    ):
+        from .model_turns import usage
+
+        value = usage(journal, row, output_reservation)
+        return dict(input=value["input"], output=value["output"])
     if unsent_without_generation(journal, row):
         return dict(input=0, output=0)
     return dict(

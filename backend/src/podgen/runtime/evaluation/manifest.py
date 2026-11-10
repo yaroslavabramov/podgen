@@ -18,6 +18,7 @@ from podgen.writing.planning_duration import KEY as DURATION_KEY
 from podgen.writing.reader_schema import V2 as LEGACY_READER_SCHEMA_VERSION
 from podgen.writing.revision.contracts import VERSION as REVISION_VERSION
 
+from . import source_tool_contract
 from .compiler import COMPILER_VERSION, materials_hash
 from .contracts import command_payload
 from .profiles import load_profile
@@ -47,6 +48,7 @@ def create_manifest(repo, generation, command, journal, materials):
         else None
     )
     references = preview_references(materials, behavior.projection)
+    tools = source_tool_contract.create(behavior) if editorial else None
     producer = CodeProducer(
         kind="code",
         component="whole-episode-evaluation",
@@ -135,6 +137,8 @@ def create_manifest(repo, generation, command, journal, materials):
     )
     if editorial and behavior.plan_review_schema is not None:
         manifest[PRESERVE_KEY] = behavior.plan_review_schema
+    if tools is not None:
+        manifest[source_tool_contract.KEY] = tools
     if editorial and behavior.planning_ending_guidance is not None:
         manifest[ending_guidance.KEY] = behavior.planning_ending_guidance
     if behavior.verification:

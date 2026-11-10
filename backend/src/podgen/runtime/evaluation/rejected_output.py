@@ -15,6 +15,11 @@ def rejected_output(journal, original, model, *, code):
         raise RunFailure(code)
     request = journal.request(original)
     events = [event for event in journal.events(original) if event["event_kind"] == "provider_response"]
+    final = [
+        event for event in journal.events(original) if event["event_kind"] == "source_tools_final_response"
+    ]
+    if final:
+        events = final
     if not events:
         raise RunFailure(code)
     ref = RuntimeRef(record_kind="tool_execution", record_id=events[-1]["record_id"])

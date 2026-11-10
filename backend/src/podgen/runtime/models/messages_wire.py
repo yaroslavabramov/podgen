@@ -1,6 +1,7 @@
 """Translate Podgen's text-generation request to Messages and back to the journal envelope."""
 
 import json
+from copy import deepcopy
 
 from .contracts import ProviderFault
 
@@ -56,6 +57,22 @@ def _text_block(piece):
 def messages_request(body, *, counting=False):
     messages = []
     for message in body["input"]:
+        if message.get("type") == "anthropic_assistant":
+            messages.append(dict(role="assistant", content=deepcopy(message["content"])))
+            continue
+        if message.get("type") == "function_call_output":
+            block = dict(type="tool_result", tool_use_id=message["call_id"], content=message["output"])
+            if message.get("is_error"):
+                block["is_error"] = True
+            if (
+                messages
+                and messages[-1]["role"] == "user"
+                and all(piece.get("type") == "tool_result" for piece in messages[-1]["content"])
+            ):
+                messages[-1]["content"].append(block)
+            else:
+                messages.append(dict(role="user", content=[block]))
+            continue
         if message["role"] != "user":
             raise ProviderFault("unsupported_anthropic_input")
         messages.append(
@@ -77,17 +94,22 @@ def messages_request(body, *, counting=False):
         ),
     )
     if body.get("tools"):
-        if body["tool_choice"] != "auto" or body.get("parallel_tool_calls"):
+        if body["tool_choice"] not in ("auto", "none") or body.get("parallel_tool_calls"):
             raise ProviderFault("unsupported_anthropic_tool_configuration")
         result["tools"] = [
             dict(
                 name=t["name"],
                 description=t["description"],
                 input_schema=_native_schema(t["parameters"], output=False),
+                **({"strict": t["strict"]} if "strict" in t else {}),
             )
             for t in body["tools"]
         ]
-        result["tool_choice"] = dict(type="auto", disable_parallel_tool_use=True)
+        result["tool_choice"] = (
+            dict(type="auto", disable_parallel_tool_use=True)
+            if body["tool_choice"] == "auto"
+            else dict(type="none")
+        )
     if not counting:
         result.update(max_tokens=body["max_output_tokens"], stream=False)
     return result
@@ -152,7 +174,7 @@ def normalize_message(message, request):
     )
     if "cache_read_input_tokens" in usage or "cache_creation_input_tokens" in usage:
         accounting["input_tokens_details"] = dict(cached_tokens=cached, cache_write_tokens=written)
-    return dict(
+    result = dict(
         id="resp_" + message["id"],
         model=message["model"],
         metadata=request["metadata"],
@@ -160,3 +182,6 @@ def normalize_message(message, request):
         output=parts,
         usage=accounting,
     )
+    if request.get("tools"):
+        result["anthropic_content"] = deepcopy(message["content"])
+    return result

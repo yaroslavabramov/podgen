@@ -269,7 +269,7 @@ class EvaluationJournal:
 
     def last_response(self, invocation):
         for event in reversed(self.events(invocation)):
-            if event["event_kind"] == "provider_response":
+            if event["event_kind"] in ("provider_response", "source_tools_final_response"):
                 ref = RuntimeRef(record_kind="tool_execution", record_id=event["record_id"])
                 record = self.read(ref)
                 return self.read_blob(ref, BlobRef.model_validate(record["response_blob"]))

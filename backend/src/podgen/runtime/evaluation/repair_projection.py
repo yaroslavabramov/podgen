@@ -12,6 +12,9 @@ def replace_input(body, instructions, payload):
         dict(instructions=instructions, input=payload, schema=body["text"]["format"]["schema"])
     )
     body["instructions"] = instructions
+    if body.get("tools"):
+        body.update(tools=[], tool_choice="none", parallel_tool_calls=False)
+        body.pop("include", None)
     body["input"] = [
         dict(
             role="user",

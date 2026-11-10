@@ -14,7 +14,7 @@ from podgen.writing.model_references import CATALOG_KEY, run_references
 from podgen.writing.plan_selection import from_manifest as selection_from_manifest
 from podgen.writing.projection_versions import manifest_version, script_handoff
 
-from . import author_material
+from . import author_material, source_tool_contract
 from .compiler import COMPILER_VERSION, compile_request
 from .contracts import RunFailure
 from .profiles import load_profile
@@ -68,6 +68,7 @@ def execute_stage(
             projection_version=manifest_version(manifest),
             reference_catalog=references,
             prompt_cache_layout=prompt_cache.from_manifest(manifest),
+            source_tool_contract=source_tool_contract.from_manifest(manifest),
             plan_selection_contract=selection_from_manifest(manifest),
             author_plan_handoff=author_plan.from_manifest(manifest),
             author_source_excerpts=source_passages.from_manifest(manifest),
@@ -217,10 +218,12 @@ def execute_stage(
         output_ref = journal.record(record, record_id=uuid5(invocation["invocation_id"], "output"))
         journal.transition(invocation, "completed", output_ref=output_ref)
     saved = journal.invocation(command.run_id, stage)
+    from .usage import attempt_usage
+
+    used = attempt_usage(journal, saved, profile.output_limit)
     return StageResult(
         output,
         RuntimeRef(record_kind="tool_execution", record_id=saved["output_record_id"]),
-        (saved["input_tokens"] or 0) + prior["input"],
-        (saved["output_tokens"] if saved["output_tokens"] is not None else profile.output_limit)
-        + prior["output"],
+        used["input"] + prior["input"],
+        used["output"] + prior["output"],
     )

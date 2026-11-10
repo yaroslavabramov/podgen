@@ -16,6 +16,7 @@ from podgen.writing.projections import CONTRACT, validate_model_content
 from podgen.writing.reading_views import reading_audience
 from podgen.writing.revision.context import from_manifest as revision_context_from_manifest
 
+from . import source_tool_contract
 from .compiler import response_request
 from .repair_projection import anchor_payload, target_payload
 from .role_request import compile_role_request
@@ -37,6 +38,11 @@ def preview_request(
     ):
         raise ContractError("preview_behavior_profile_mismatch")
     behavior = None if snapshot else resolve_behavior(behavior_profile, editorial_pass or 1)
+    tools = (
+        source_tool_contract.from_manifest(snapshot.manifest)
+        if snapshot
+        else source_tool_contract.create(behavior)
+    )
     if behavior:
         behavior.validate_model(stage, profile)
     projection = manifest_version(snapshot.manifest) if snapshot else behavior.projection
@@ -153,6 +159,7 @@ def preview_request(
             revision.schema if revision else schema(),
             projection_version=projection,
             reference_catalog=references,
+            source_tool_contract=tools,
             prompt_cache_layout=cache_layout,
             fact_context_contract=fact_context.from_manifest(snapshot.manifest)
             if snapshot
@@ -187,6 +194,7 @@ def preview_request(
             schema(),
             projection_version=projection,
             reference_catalog=references,
+            source_tool_contract=tools,
             prompt_cache_layout=cache_layout,
             plan_selection_contract=selection,
             author_plan_handoff=handoff,
