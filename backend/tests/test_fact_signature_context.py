@@ -7,12 +7,12 @@ from pathlib import Path
 from uuid import UUID
 
 import pytest
+
 from podgen.runtime.evaluation.preview import preview_request
 from podgen.runtime.evaluation.preview_snapshot import PreviewSnapshot
 from podgen.runtime.evaluation.request_payload import request_payload
 from podgen.writing import fact_context
 from podgen.writing.source_signatures import signature_evidence
-
 from tests.signature_cases import materials_for
 from tests.source_excerpt_cases import release
 
@@ -22,6 +22,19 @@ def test_v1_bytes_stay_identical_and_v2_supports_only_the_cited_cards(monkeypatc
     materials, profile = materials_for(case)
     _, _, _, current = release(monkeypatch, materials, profile)
     assert current[fact_context.KEY] == fact_context.SIGNATURE_VERSION
+    # Reconstruct the released pre-tools pair. Hash fixtures represent those exact historical requests.
+    from podgen.runtime.evaluation.role_schema import response_schema
+    from podgen.writing.model_references import bind_schema, run_references
+
+    current.pop("source_tool_contract")
+    current["fact_review_schema_version"] = fact_context.SCHEMA_VERSION
+    for stage in ("fact-review", "fact-review-1", "fact-review-2"):
+        current["response_schemas"][stage] = bind_schema(
+            response_schema(
+                stage, "editorial-role-packets/1", fact_schema_version=fact_context.SCHEMA_VERSION
+            ),
+            run_references(materials, current),
+        )
     old = deepcopy(current)
     old[fact_context.KEY] = fact_context.VERSION
     script = dict(utterances=[dict(speaker=materials.speaker_labels[0], text="A frozen factual statement.")])

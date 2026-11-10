@@ -75,7 +75,7 @@ def test_released_production_is_one_catalog_and_old_missing_command_fields_keep_
     assert production.author_plan_handoff == "approved-story/1"
     assert production.planning_contract is None
     assert production.planning_ending_guidance == "story-resolution/1"
-    assert production.reader_schema == "listener-experience/7" and production.verification is None
+    assert production.reader_schema == "listener-experience/8" and production.verification is None
     base = resolve_behavior("narrative-rebuild/1")
     for fmt in ("solo", "dialogue"):
         draft = production.instructions("draft", fmt)
@@ -390,7 +390,7 @@ def test_production_reader_changes_only_descriptions_from_the_verified_archive_f
         reasoning=dict(effort="medium"), text=dict(verbosity="high"), store=False, background=False
     )
     current = preview_request(uuid4(), "reader-review", profile, materials, draft=script)
-    assert resolve_behavior().reader_schema == "listener-experience/7"
+    assert resolve_behavior().reader_schema == "listener-experience/8"
     historical = response_schema(
         "reader-review", "editorial-role-packets/1", reader_schema_version="listener-experience/5"
     )
