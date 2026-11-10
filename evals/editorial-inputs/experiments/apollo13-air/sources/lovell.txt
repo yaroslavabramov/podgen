@@ -1,0 +1,10 @@
+James A. Lovell. "Houston, We've Had a Problem." Apollo Expeditions to the Moon. NASA SP-350 (1975), chapter 13. Selected passages.
+
+[Chapter 13.3, final paragraph of Lovell's account]
+Fred had figured that we had enough lithium hydroxide canisters, which remove carbon dioxide from the spacecraft. There were four cartridge from the LM, and four from the backpacks, counting backups. But he forgot that there would be three of us in the LM instead of the normal two. The LM was designed to support two men for two days. Now it was being asked to care for three men nearly four days.
+
+[Chapter 13.4, opening of Lovell's account, before the change to navigation]
+We would have died of the exhaust from our own lungs if Mission Control hadn't come up with a marvelous fix. The trouble was the square lithium hydroxide canisters from the CM would not fit the round openings of those in the LM environmental system. After a day and a half in the LM a warning light showed us that the carbon dioxide had built up to a dangerous level, but the ground was ready. They had thought up a way to attach a CM canister to the LM system by using plastic bags, cardboard, and tape- all materials we had on board. Jack and I put it together: just like building a model airplane. The contraption wasn't very handsome, but it worked. It was a great improvisation- and a fine example of cooperation between ground and space.
+
+[Chapter 13.4, NASA photograph caption, identification of the participants, second sentence]
+CapCom Joe Kerwin led Astronaut Swigert, step by step, for an hour to build a contraption like the one the experts had constructed on Earth.

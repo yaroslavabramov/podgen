@@ -1,0 +1,49 @@
+NASA. Apollo 13 Technical Air-to-Ground Voice Transcription. April 1970.
+Selected continuous exchanges. Times are mission elapsed days, hours, minutes and seconds. CDR = Commander, CMP = Command Module Pilot, LMP = Lunar Module Pilot, CC = Capsule Communicator.
+
+[Tape 61/1, p. 410, PDF p. 417, 03 18 07 46 through 03 18 08 30]
+03 18 07 46  CDR  Okay. Jack's up with me now and you all ... procedure for making these lithium hydroxide devices, and soon as he gets on his helmet, he'll be ready to copy, and then he'll get started making one.
+03 18 08 05  CC   Roger that, Jim. Understand - -
+03 18 08 07  CDR  On second thought -
+03 18 08 09  CC   Go ahead.
+03 18 08 13  CDR  I'll give Jack the headset for a while and he'll copy down your instructions.
+03 18 08 30  CC   Okay, Jim. I didn't copy your second thought. Over.
+
+[Tape 61/2, p. 411, PDF p. 418, 03 18 08 38 through 03 18 09 17]
+03 18 08 38  CDR  I'll give Jack the headset and let him copy the instructions.
+03 18 08 43  CC   Okay, Jim. The way I thought it might be best to do it would be to have you gather the equipment and let us talk you through your procedure while you do it. Now, maybe you could give Jack the headset and - and - get the equipment together, and we'll talk you through the procedure. I think it'll be a little easier to do that way than if you tried to copy it all down - and then go do it.
+03 18 09 11  CDR  Okay. Do you have any equipment listed? I'll just get it and give it to him and I can just sit here where I am.
+03 18 09 17  CC   Okay. I think the equipment you'll need will be two command module lithium hydroxide canisters, a roll of the gray tape, the two LCGs, because we're going to use the bags from the LCGs, and one - one LM cue card - one of those cardboard cue cards which you will cut off about an inch and a half out from the ring. Now, I think that's all we'll need. Over.
+
+[Tape 61/6, p. 415, PDF p. 422, 03 18 37 28 through 03 18 43 34]
+03 18 37 28  CMP  Okay, Joe; Aquarius. We've got that done.
+03 18 37 32  CC   Okay, Jack. The next step is to get the EVA cue card and use it to form an arch over the top of the canister; just tuck one short end under one ridge on the top the other one against the ridge on the other side so that it forms a rounded arch over the top of the canister. You see, Jack, what we're going to do is slip the bag over this whole assembly and the cue card will serve to keep the bag from being sucked down against the screen. Over.
+03 18 38 10  CMP  Okay. I got the idea.
+03 18 38 13  CC   Okay. And when you've done that, to hold the arch in place, just run a strip of tape across the side of the - that is, across the top of the arch, and anchor it down to the sticky strips along each side.
+03 18 38 31  CMP  Okay. I got the idea. Okay. Let me just repeat it here. Take a cue card, form an arch over the top, bringing it under the side here. When we're through, run a piece of tape from the sides across the top of that to anchor to the other side.
+03 18 38 51  CC   That's correct.
+03 18 38 56  CMP  Okay. It worked.
+03 18 39 00  CMP  The top. ... Across the top.
+03 18 39 18  CMP  Looks like you're going to have to cut the cue card slightly.
+03 18 39 32  CMP  Doesn't have to be really ... over that the only thing we're ... we can just take the scissors and cut off the edge here. The only thing this does, Jim, is prevent this from being sucked down into the container.
+03 18 40 28  CMP  Still going to need some more tape. Cut off the end. Okay. Whack off the bottom. ...
+03 18 43 34  CMP  Okay, Joe. We've got that arch built, and it's all taped in securely.
+
+[Tape 64/1, p. 448, PDF p. 455, 03 21 56 09 through 03 21 57 03]
+03 21 56 09  CMP  Okay. The canisters are situated as you - as you would like with the bottom of the canister exposed to free air.
+03 21 56 17  CC   Okay.
+03 21 56 18  CMP  The position of the LMP's canister - The LMP's canister is sitting on the EPS panel now, and the CDR's canister is positioned up in the tunnel.
+03 21 56 31  CC   Okay. Real fine, Jack. The next step is to physically separate both blue hoses a good distance away from the canister so that we don't short circuit the flow, and tape them in place; and the ideal location for them would be up in the tunnel so as to get some flow into the command module. Over.
+03 21 56 57  CMP  Both hoses in the - up into the command module?
+03 21 57 03  CC   Oh, you can use your judgment on that, Jack. We'd like at least one, and the recommendation that I got was to put them both up in the tunnel.
+
+[Tape 64/8, p. 455, PDF p. 462, 03 22 32 33 through 03 22 33 31]
+03 22 32 33  LMP  Hey, Houston; Aquarius. How do you read?
+03 22 32 38  CC   Aquarius, Houston. Go ahead.
+03 22 32 43  LMP  Okay. How did our ... configurations appear to be working down there?
+03 22 32 54  CC   I'm sorry, Fred, but we got noisy again there.
+03 22 33 02  LMP  Okay. Let me know when you want me to try it.
+03 22 33 05  CC   Okay. That sounds better already. Go ahead.
+03 22 33 11  LMP  Okay. I'd just like to ... how's - how's our lith-o cartridge setup ... appear to be working down there.
+03 22 33 21  CC   We are reading 0.2 on our CO2 sets here, and we're all delighted. It seems to be working fine.
+03 22 33 31  LMP  Boy, that is great.
