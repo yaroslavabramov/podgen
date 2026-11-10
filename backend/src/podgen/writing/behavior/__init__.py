@@ -191,7 +191,7 @@ def resolve_behavior(name=None, editorial_pass=1):
         "planning-duration-context/1" if modern else None,
         "plan-material-selection/2" if modern else None,
         "script-edit-assignment/3" if name == PRODUCTION else "script-edit-assignment/1" if modern else None,
-        "listener-experience/12"
+        "listener-experience/13"
         if name == PRODUCTION
         else "listener-experience/6"
         if modern

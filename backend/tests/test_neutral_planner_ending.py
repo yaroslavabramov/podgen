@@ -76,14 +76,9 @@ def test_real_planner_and_rewrite_previews_keep_previous_schema_and_prompt_when_
     )
     assert saved["instructions"] == previous and fresh["instructions"] == instructions
     ending = fresh["text"]["format"]["schema"]["$defs"]["PlanningFinalMoment"]["properties"]
-    from podgen.writing.ending_context_descriptions import WHY
+    from podgen.writing.compact_editorial_descriptions import PLANNER_ENDING
 
-    assert all(
-        ending[field]["description"] == description
-        for field, description in FIELDS.items()
-        if field != "why_end_here"
-    )
-    assert ending["why_end_here"]["description"] == WHY
+    assert all(ending[field]["description"] == description for field, description in PLANNER_ENDING.items())
     fresh["instructions"] = previous
     fresh["text"]["format"]["schema"] = saved["text"]["format"]["schema"]
     assert fresh == saved

@@ -57,17 +57,18 @@ def test_ending_tasks_change_only_planning_descriptions_and_leave_other_roles_ex
         if name in ("plan", "plan-revise"):
             ending = current["$defs"]["PlanningFinalMoment"]["properties"]
             assert (
-                "Leave composition and spoken wording to the writer" in ending["last_moment"]["description"]
+                "composition and spoken wording remain the writer's task"
+                in ending["last_moment"]["description"]
             )
-            from podgen.writing.ending_context_descriptions import WHY
+            from podgen.writing.compact_editorial_descriptions import PLANNER_ENDING
 
-            assert ending["why_end_here"]["description"] == WHY
+            assert ending["why_end_here"]["description"] == PLANNER_ENDING["why_end_here"]
             assert (
                 "not a recap"
                 in old["$defs"]["PlanningFinalMoment"]["properties"]["last_moment"]["description"]
             )
         elif name.startswith("plan-review"):
-            assert "preceding material" in current["properties"]["listener_answer"]["description"]
+            assert "listening experience" in current["properties"]["listener_answer"]["description"]
             assert current != old
         else:
             assert current == old
@@ -80,6 +81,7 @@ def test_ending_tasks_change_only_planning_descriptions_and_leave_other_roles_ex
         ending_guidance.LEGACY_VERSION,
         ending_guidance.SPEECH_VERSION,
         ending_guidance.NEUTRAL_VERSION,
+        ending_guidance.CONTEXT_VERSION,
         ending_guidance.VERSION,
     ],
 )

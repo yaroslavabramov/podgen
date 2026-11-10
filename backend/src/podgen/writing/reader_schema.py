@@ -14,6 +14,7 @@ RECORDING_VERSION = "listener-experience/9"
 LISTENING_VERSION = "listener-experience/10"
 COMMENTARY_VERSION = "listener-experience/11"
 SCENE_COMPARISON_VERSION = "listener-experience/12"
+COMPACT_VERSION = "listener-experience/13"
 
 FIELDS = {
     "listener_answer": (
@@ -64,6 +65,7 @@ def describe_reader(schema, version):
         LISTENING_VERSION,
         COMMENTARY_VERSION,
         SCENE_COMPARISON_VERSION,
+        COMPACT_VERSION,
     ):
         raise ContractError("unknown_reader_review_schema_version")
     for field, description in FIELDS.items():
@@ -79,6 +81,7 @@ def describe_reader(schema, version):
         LISTENING_VERSION,
         COMMENTARY_VERSION,
         SCENE_COMPARISON_VERSION,
+        COMPACT_VERSION,
     ):
         from .reader_wording import describe_wording_first
 
@@ -107,6 +110,10 @@ def describe_reader(schema, version):
             from .reader_commentary import describe_scene_comparison
 
             describe_scene_comparison(schema)
+        if version == COMPACT_VERSION:
+            from .compact_editorial_descriptions import describe_reader as describe_compact_reader
+
+            describe_compact_reader(schema)
     elif version == VERSION:
         from .reader_story import describe_story_edit
 
@@ -136,6 +143,7 @@ def feedback_model(version):
         LISTENING_VERSION,
         COMMENTARY_VERSION,
         SCENE_COMPARISON_VERSION,
+        COMPACT_VERSION,
     ):
         from .revision.scopes import ReaderAssessmentV4
 

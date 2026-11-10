@@ -8,12 +8,14 @@ KEY = "planning_ending_guidance"
 LEGACY_VERSION = "story-resolution/1"
 SPEECH_VERSION = "story-resolution/2"
 NEUTRAL_VERSION = "story-resolution/3"
-VERSION = "story-resolution/4"
+CONTEXT_VERSION = "story-resolution/4"
+VERSION = "story-resolution/5"
 
 
 def validate(version, projection):
     if version is not None and (
-        version not in (LEGACY_VERSION, SPEECH_VERSION, NEUTRAL_VERSION, VERSION) or projection != V9
+        version not in (LEGACY_VERSION, SPEECH_VERSION, NEUTRAL_VERSION, CONTEXT_VERSION, VERSION)
+        or projection != V9
     ):
         raise ContractError("unsupported_planning_ending_guidance")
     return version
@@ -29,18 +31,22 @@ def from_manifest(manifest):
 def describe(schema, stage, version):
     if version is None:
         return
-    if version in (SPEECH_VERSION, NEUTRAL_VERSION, VERSION):
+    if version in (SPEECH_VERSION, NEUTRAL_VERSION, CONTEXT_VERSION, VERSION):
         from .closing_speech import describe as describe_closing_speech
 
         describe_closing_speech(schema, stage)
-        if version in (NEUTRAL_VERSION, VERSION) and stage in ("plan", "plan-revise"):
+        if version in (NEUTRAL_VERSION, CONTEXT_VERSION, VERSION) and stage in ("plan", "plan-revise"):
             from .planner_ending_descriptions import describe as describe_planner_ending
 
             describe_planner_ending(schema)
-        if version == VERSION:
+        if version in (CONTEXT_VERSION, VERSION):
             from .ending_context_descriptions import describe as describe_ending_context
 
             describe_ending_context(schema, stage)
+        if version == VERSION:
+            from .compact_editorial_descriptions import describe_planning
+
+            describe_planning(schema, stage)
         return
     if stage in ("plan", "plan-revise"):
         ending = schema["$defs"]["PlanningFinalMoment"]["properties"]

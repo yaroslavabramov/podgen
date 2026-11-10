@@ -20,6 +20,6 @@ def test_exact_contextual_delta_keeps_all_other_schema_content_and_roles():
             expected["$defs"]["PlanReviewFinding"]["properties"]["requested_change"]["description"] = (
                 REQUESTED_CHANGE
             )
-        assert schema(stage, ending_guidance.VERSION) == expected
+        assert schema(stage, ending_guidance.CONTEXT_VERSION) == expected
     for stage in ("draft", "revise", "fact-review", "reader-review"):
-        assert schema(stage, ending_guidance.VERSION) == schema(stage, ending_guidance.NEUTRAL_VERSION)
+        assert schema(stage, ending_guidance.CONTEXT_VERSION) == schema(stage, ending_guidance.NEUTRAL_VERSION)

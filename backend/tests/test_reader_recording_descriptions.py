@@ -6,7 +6,6 @@ from copy import deepcopy
 from pathlib import Path
 
 import pytest
-
 from podgen.runtime.evaluation.preview import preview_request
 from podgen.runtime.evaluation.preview_snapshot import PreviewSnapshot
 from podgen.runtime.evaluation.role_schema import response_schema
@@ -14,11 +13,13 @@ from podgen.writing.behavior import resolve_behavior
 from podgen.writing.reader_schema import (
     COMMENTARY_VERSION,
     COMMISSION_VERSION,
+    COMPACT_VERSION,
     LISTENING_VERSION,
     RECORDING_VERSION,
     SCENE_COMPARISON_VERSION,
     feedback_model,
 )
+
 from tests.schema_cases import without_descriptions
 from tests.source_excerpt_cases import data_and_profile, release
 
@@ -139,7 +140,7 @@ def test_scene_comparison_preserves_the_first_live_control_contract():
 def test_frozen_previous_reader_replays_full_prompt_and_schema(monkeypatch, previous_version, previous_hash):
     materials, _, _, _, script, _, _, _, profile = data_and_profile()
     _, _, command, manifest = release(monkeypatch, materials, profile)
-    assert manifest["reader_review_schema_version"] == SCENE_COMPARISON_VERSION
+    assert manifest["reader_review_schema_version"] == COMPACT_VERSION
     previous = (
         Path(__file__).parents[1] / f"src/podgen/writing/behavior/assets/{previous_hash}.md"
     ).read_text()

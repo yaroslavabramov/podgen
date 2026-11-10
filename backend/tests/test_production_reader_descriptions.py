@@ -12,12 +12,13 @@ from podgen.writing.behavior import resolve_behavior
 from podgen.writing.reader_episode import FIELDS, FINDING_FIELDS
 from podgen.writing.reader_schema import (
     COMMISSION_VERSION,
+    COMPACT_VERSION,
     PRODUCTION_VERSION,
-    SCENE_COMPARISON_VERSION,
     V5,
     VERSION,
     feedback_model,
 )
+
 from tests.schema_cases import without_descriptions
 from tests.source_excerpt_cases import data_and_profile, release
 
@@ -49,7 +50,7 @@ def test_production_reader_changes_only_field_descriptions_in_all_rounds():
 
 
 def test_other_profiles_and_other_roles_keep_their_previous_schemas():
-    assert resolve_behavior("production/1").reader_schema == SCENE_COMPARISON_VERSION
+    assert resolve_behavior("production/1").reader_schema == COMPACT_VERSION
     assert resolve_behavior("existing/1").reader_schema == VERSION
     for name in (
         "narrative-rebuild/1",
@@ -76,7 +77,7 @@ def test_other_profiles_and_other_roles_keep_their_previous_schemas():
 def test_new_release_pins_episode_descriptions_and_an_old_snapshot_replays_the_old_tasks(monkeypatch):
     materials, _, _, _, script, _, _, _, profile = data_and_profile()
     store, _, command, manifest = release(monkeypatch, materials, profile)
-    assert manifest["reader_review_schema_version"] == SCENE_COMPARISON_VERSION
+    assert manifest["reader_review_schema_version"] == COMPACT_VERSION
     old = deepcopy(manifest)
     old["reader_review_schema_version"] = V5
     for stage in ("reader-review", "reader-review-1", "reader-review-2"):
