@@ -1,0 +1,71 @@
+{
+  "contract": "editorial-input/2",
+  "cards": 24,
+  "excerpts": 68,
+  "source_bytes_and_all_spans": "exact",
+  "persisted_original_json": "byte-identical",
+  "historical_snapshot": "byte-identical-to-previous-HEAD",
+  "assignment": "unchanged",
+  "old_card_ids": "all-17-preserved",
+  "all_creative_records_and_excerpts": "unchanged-in-production-projection",
+  "ordinary_cli_import": "passed",
+  "ordinary_cli_previews": {
+    "plan": {
+      "visible_bytes": {
+        "instructions": 6184,
+        "input": 61473,
+        "schema": 9105,
+        "total": 76762
+      },
+      "endpoint_called": false
+    },
+    "plan-review": {
+      "visible_bytes": {
+        "instructions": 8404,
+        "input": 107188,
+        "schema": 5093,
+        "total": 120685
+      },
+      "endpoint_called": false
+    },
+    "draft": {
+      "visible_bytes": {
+        "instructions": 5763,
+        "input": 105576,
+        "schema": 1545,
+        "tools": 1826,
+        "total": 114710
+      },
+      "endpoint_called": false
+    },
+    "fact-review": {
+      "visible_bytes": {
+        "instructions": 7928,
+        "input": 131929,
+        "schema": 9247,
+        "tools": 1826,
+        "total": 150930
+      },
+      "endpoint_called": false
+    },
+    "reader-review": {
+      "visible_bytes": {
+        "instructions": 5864,
+        "input": 21671,
+        "schema": 9635,
+        "total": 37170
+      },
+      "endpoint_called": false
+    }
+  },
+  "preview_plan_and_draft": "historical unchanged outputs used only for offline shape inspection; no new plan or model result",
+  "provider_calls": 0,
+  "database": "isolated; dropped after check",
+  "packet_sha256": "e0a660988ff6c47fb796964293bb5da695e2c5d5306fc2d782e9c01b06bb9101",
+  "document_sha256": {
+    "D1": "2520bfe38d4e0b1d92c5bfc5d9f3273552c09ed578f4ca183d093a2480df0cc6",
+    "D2": "c2145a20e14f70cf6c1669e333bb10eac20fe9417f6888ea8791d183488a5ebc",
+    "D3": "42e641eb17a9a3295e4846c3b5b76da7596475bd80d30b31e0d46f44fa4a95ca",
+    "D4": "b793e19dfb610899a4c355afe9ac258d8d9304b5a998b1e616ddf11f22e7c546"
+  }
+}

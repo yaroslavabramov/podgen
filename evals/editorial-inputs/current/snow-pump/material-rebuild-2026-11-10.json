@@ -1,0 +1,45 @@
+{
+  "date": "2026-11-10",
+  "previous_sha256": "862832d6b7834a017376250f79e31c468c3dae6d98a90839fd669ab4b42d97b1",
+  "target_sha256": "e0a660988ff6c47fb796964293bb5da695e2c5d5306fc2d782e9c01b06bb9101",
+  "previous_snapshot": "history/before-material-rebuild-2026-11-10.json",
+  "dossier": "dossier-v5.md",
+  "unchanged_assignment": true,
+  "preserved_card_ids": [
+    "C14b82a922a73",
+    "C8f02286bc580",
+    "C6e16f4eded9a",
+    "Cc5ef8f053199",
+    "Cf09c44d3d10b",
+    "Cc8ff1484b011",
+    "Cb1f0e697faba",
+    "C37abad3bffb1",
+    "Ca49628392361",
+    "Cf17597a5a330",
+    "C36479ab5239d",
+    "C8b2adbd3e180",
+    "Ce5cb095a3e6d",
+    "Cee554ab22bb8",
+    "Cd392f2fdcffb",
+    "C23d72f102d80",
+    "C0e414a5f3c87"
+  ],
+  "added_card_ids": [
+    "Ce70cf3d7c485",
+    "C6d0974d6053c",
+    "C30aadcc28389",
+    "C6b9588fd309a",
+    "C1c3feffbccc9",
+    "Cf9104355c42c",
+    "C898748577d02"
+  ],
+  "updated_card_ids": [
+    "C6e16f4eded9a",
+    "Cf09c44d3d10b",
+    "C36479ab5239d",
+    "C37abad3bffb1"
+  ],
+  "primary_documents_unchanged": true,
+  "cards": 24,
+  "excerpts": 68
+}
