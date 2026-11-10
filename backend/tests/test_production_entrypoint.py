@@ -73,7 +73,7 @@ def test_released_production_is_one_catalog_and_old_missing_command_fields_keep_
     assert production.name == DEFAULT == PRODUCTION == "production/1"
     assert production.author_plan_handoff == "approved-story/1"
     assert production.planning_contract is None
-    assert production.planning_ending_guidance == "story-resolution/3"
+    assert production.planning_ending_guidance == "story-resolution/4"
     assert production.reader_schema == "listener-experience/12" and production.verification is None
     base = resolve_behavior("narrative-rebuild/1")
     for fmt in ("solo", "dialogue"):

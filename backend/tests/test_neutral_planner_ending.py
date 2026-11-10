@@ -29,7 +29,7 @@ def schema(stage, version):
 def test_only_five_planner_descriptions_change_and_every_other_role_stays_exact():
     for stage in ("plan", "plan-revise"):
         previous = schema(stage, ending_guidance.SPEECH_VERSION)
-        current = schema(stage, ending_guidance.VERSION)
+        current = schema(stage, ending_guidance.NEUTRAL_VERSION)
         expected = deepcopy(previous)
         for field, description in FIELDS.items():
             expected["$defs"]["PlanningFinalMoment"]["properties"][field]["description"] = description
@@ -41,7 +41,7 @@ def test_only_five_planner_descriptions_change_and_every_other_role_stays_exact(
             for field, description in FIELDS.items()
         )
     for stage in ("plan-review", "plan-review-revised", "draft", "revise", "fact-review", "reader-review"):
-        assert schema(stage, ending_guidance.SPEECH_VERSION) == schema(stage, ending_guidance.VERSION)
+        assert schema(stage, ending_guidance.SPEECH_VERSION) == schema(stage, ending_guidance.NEUTRAL_VERSION)
 
 
 @pytest.mark.parametrize("stage", ["plan", "plan-revise"])
@@ -76,7 +76,14 @@ def test_real_planner_and_rewrite_previews_keep_previous_schema_and_prompt_when_
     )
     assert saved["instructions"] == previous and fresh["instructions"] == instructions
     ending = fresh["text"]["format"]["schema"]["$defs"]["PlanningFinalMoment"]["properties"]
-    assert all(ending[field]["description"] == description for field, description in FIELDS.items())
+    from podgen.writing.ending_context_descriptions import WHY
+
+    assert all(
+        ending[field]["description"] == description
+        for field, description in FIELDS.items()
+        if field != "why_end_here"
+    )
+    assert ending["why_end_here"]["description"] == WHY
     fresh["instructions"] = previous
     fresh["text"]["format"]["schema"] = saved["text"]["format"]["schema"]
     assert fresh == saved

@@ -59,20 +59,29 @@ def test_ending_tasks_change_only_planning_descriptions_and_leave_other_roles_ex
             assert (
                 "Leave composition and spoken wording to the writer" in ending["last_moment"]["description"]
             )
-            assert ending["why_end_here"]["description"] == "Why this ending suits the selected story."
+            from podgen.writing.ending_context_descriptions import WHY
+
+            assert ending["why_end_here"]["description"] == WHY
             assert (
                 "not a recap"
                 in old["$defs"]["PlanningFinalMoment"]["properties"]["last_moment"]["description"]
             )
         elif name.startswith("plan-review"):
-            assert "concluding speech" in current["properties"]["listener_answer"]["description"]
+            assert "preceding material" in current["properties"]["listener_answer"]["description"]
             assert current != old
         else:
             assert current == old
 
 
 @pytest.mark.parametrize(
-    "pin", [None, ending_guidance.LEGACY_VERSION, ending_guidance.SPEECH_VERSION, ending_guidance.VERSION]
+    "pin",
+    [
+        None,
+        ending_guidance.LEGACY_VERSION,
+        ending_guidance.SPEECH_VERSION,
+        ending_guidance.NEUTRAL_VERSION,
+        ending_guidance.VERSION,
+    ],
 )
 def test_actual_planner_release_preview_and_live_use_the_same_pinned_descriptions(monkeypatch, pin):
     materials, _, _, _, _, _, _, _, profile = data_and_profile()

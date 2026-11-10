@@ -51,6 +51,11 @@ PREVIOUS = dict(
             "7d6f072d6c8736a27e99249605b01cc20ddccd6daab4cb78fe8999dc70242556",
             "b55eef856ef22a1ee5a56cd1f24f8c208b00849089032ccdd9df52ca30302262",
         ),
+        (
+            ending_guidance.NEUTRAL_VERSION,
+            "49e5dadccaffeca2b1486d697d9800ed38b416afd347b4132fff7376eb8b286b",
+            "b55eef856ef22a1ee5a56cd1f24f8c208b00849089032ccdd9df52ca30302262",
+        ),
     ],
 )
 def test_historical_full_schemas_and_field_order_remain_exact(pin, planner, reviewer):
