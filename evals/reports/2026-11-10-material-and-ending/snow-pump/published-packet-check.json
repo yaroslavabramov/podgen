@@ -1,0 +1,19 @@
+{
+  "staged_dossier_sha256": "4bd2bba98ee40af6d926ec4cb92dd3e3a2e93064f14172fc2b9fcf254578c368",
+  "released_dossier_sha256": "c2145a20e14f70cf6c1669e333bb10eac20fe9417f6888ea8791d183488a5ebc",
+  "identical_packet_except_dossier_document_digest": true,
+  "identical_tool_corpus": true,
+  "identical_role_request_hashes": {
+    "plan": "b904a17d8d56110d545a765b490c8593af234d9e7d05d5147fe6cb13cb79dabe",
+    "plan-review": "7c371e6a802cb16b9f5e700621197bfb77d642f9242add023c10bd5fc08c657a",
+    "draft": "f8907077177491b408fa5ed4275090f2e01a4d2c018afcf0cb5b60b9c015a509",
+    "reader-review": "cd41fe225f5c023f8ee6204e99a8a6935446e5bf57d3572bf7390932f3f3b8b7",
+    "fact-review": "95831016bfdc70a560d0e04b4b9b5bd86d4e4dc4e8fd5a9b7dbce9d16890ac06",
+    "revise-1": "dc82455dc1f3ab9bb9e9e370f2289c33f2bf7c56f33bf2f13685f43b3294a17a",
+    "reader-review-1": "372ca7faac91cfaee6ec8c40b56ec05ebf003a17c8bb829d871c91c9dab4debd",
+    "fact-review-1": "1528864babab4625ccb4700f949a7ff444f2d41635f6f22dca90284ce33495d8",
+    "revise-2": "3e45c96860f808ff77d471a7b03701e750edd36ddae9db72a513582a68d42251",
+    "reader-review-2": "eead4f87f1180a9efb03a938b5b3f9a0d961d5233fe1a3e6b96f0a2f59d021b5",
+    "fact-review-2": "7bd2ad61a5b95eeaa4b8adbaac43b59dfb59ab96213cd377684f4d512b872b3d"
+  }
+}

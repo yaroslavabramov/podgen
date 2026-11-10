@@ -1,0 +1,41 @@
+{
+  "plan": {
+    "replay": "identical",
+    "changed": [],
+    "sha_before": "aff8d0bf5fe48c0cea602fa4ecf5b9075d3d70196c38264671b2aa5ae707e8cd",
+    "sha_after": "aff8d0bf5fe48c0cea602fa4ecf5b9075d3d70196c38264671b2aa5ae707e8cd"
+  },
+  "plan-review": {
+    "replay": "identical",
+    "changed": [],
+    "sha_before": "37d2877c47058cc7ffd3f29eaaac2049724f1c8c9ea1e59979592db1648a04ff",
+    "sha_after": "37d2877c47058cc7ffd3f29eaaac2049724f1c8c9ea1e59979592db1648a04ff"
+  },
+  "draft": {
+    "replay": "identical",
+    "changed": [],
+    "sha_before": "ea647e6d725534c08dbf28d5a4033a143bfc90b0c2c0db023cdabc5d52848fff",
+    "sha_after": "ea647e6d725534c08dbf28d5a4033a143bfc90b0c2c0db023cdabc5d52848fff"
+  },
+  "reader-review": {
+    "replay": "identical",
+    "changed": [
+      "instructions",
+      "text"
+    ],
+    "sha_before": "d37993062d981e8cdea6f13d46a1ca07445d2b0381b5a2768fd7a854a8eeab5a",
+    "sha_after": "491186123659184789b2cd7bbc8076dc5a3355be480c634bb7f810680be7e0b9"
+  },
+  "fact-review": {
+    "replay": "identical",
+    "changed": [],
+    "sha_before": "2863a9c2a2105394e1b98bc5356e30d2829a57b24c6e8e9a94c8bfaf40a69019",
+    "sha_after": "2863a9c2a2105394e1b98bc5356e30d2829a57b24c6e8e9a94c8bfaf40a69019"
+  },
+  "revise-1": {
+    "replay": "identical",
+    "changed": [],
+    "sha_before": "bcee8f2fefba8655672911f4aabdd65393583254cff10a26c3ea9da4ad7c502b",
+    "sha_after": "bcee8f2fefba8655672911f4aabdd65393583254cff10a26c3ea9da4ad7c502b"
+  }
+}

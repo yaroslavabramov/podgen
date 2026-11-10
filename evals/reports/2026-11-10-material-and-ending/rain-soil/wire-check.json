@@ -1,0 +1,14 @@
+{
+  "plan": {
+    "model": "gpt-6.1-sol",
+    "instructions_sha": "9b77383ca118a4a25b09f9ad2c9a46dfe8516fa15883cef2bae25a92d357bf12",
+    "schema_sha": "b91a11d21257e1c8447dc3155e906356ce10095268d7eb8acde5cec0033b7163",
+    "payload_sha": "d46796dffb2de7b76307cebacda951d3758867fda4baeb8af399d19326028ab3"
+  },
+  "reader-review": {
+    "model": "gpt-6.1-terra",
+    "instructions_sha": "2d5550eef534de1a8eb05423cb4c93bf977e73d7212880953de1d16430ef3534",
+    "schema_sha": "c29a1eaca6fd0e2ed26bd9b5e6d6ec1bf461f3d3ad86238a0de7bb388bc0f01e",
+    "payload_sha": "03f870e34f559b753d8651bd7c4a09925f5c1d4ac7cea1770feddac53e866486"
+  }
+}

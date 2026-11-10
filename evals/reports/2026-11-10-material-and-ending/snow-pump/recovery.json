@@ -1,0 +1,28 @@
+{
+  "run_id": "24ed89ee-1a99-4ae4-a6ea-3f4a73b2c4a2",
+  "stage": "fact-review-2",
+  "previous_completed_stages": [
+    "plan",
+    "plan-review",
+    "draft",
+    "reader-review",
+    "fact-review",
+    "revise-1",
+    "reader-review-1",
+    "fact-review-1",
+    "revise-2",
+    "reader-review-2"
+  ],
+  "previous_stage_outputs_identical": true,
+  "original_run_manifest_identical": true,
+  "previous_provider_responses": 33,
+  "previous_provider_responses_identical": true,
+  "first_resumed_turn": 9,
+  "original_input_ceiling": 1048576,
+  "charged_input_before": 1012991,
+  "unsent_request_tokens": 37484,
+  "authorized_input_ceiling": 1210000,
+  "new_provider_responses": 1,
+  "extra_estimated_usd": "0.0183076",
+  "final_input_usage": 1050475
+}
