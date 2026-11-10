@@ -1,0 +1,25 @@
+{
+  "model": "gpt-6.1-sol",
+  "id": "resp_04e522b85425727a016af38d420b8487d2b35068d0f583ccfd",
+  "status": "completed",
+  "usage": {
+    "input_tokens": 3962,
+    "input_tokens_details": {
+      "cache_write_tokens": 0,
+      "cache_write_tokens_details": {
+        "ttl_12h_tokens": 0,
+        "ttl_30m_tokens": 0
+      },
+      "cached_tokens": 3374
+    },
+    "output_tokens": 1350,
+    "output_tokens_details": {
+      "reasoning_tokens": 199
+    },
+    "total_tokens": 5312
+  },
+  "estimated_usd": "0.0150134",
+  "count": 3962,
+  "request_sha256": "49125bd1e0ea5c541d829eca666b3057f82dd4c65917b753bec653f74d0de61c",
+  "provider_request_id": "req_a145dbf26efc46208b34f81ab00b2e3b"
+}

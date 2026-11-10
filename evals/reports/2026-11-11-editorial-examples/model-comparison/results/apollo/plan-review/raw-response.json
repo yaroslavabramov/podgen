@@ -1,0 +1,351 @@
+{
+  "id": "resp_0b9c579ed47b514f016af38ccba97487d2bc8daad042540b02",
+  "object": "response",
+  "created_at": 1794346187,
+  "status": "completed",
+  "access_programs": {
+    "cyber": "standard"
+  },
+  "background": false,
+  "billing": {
+    "payer": "developer"
+  },
+  "completed_at": 1794346220,
+  "error": null,
+  "frequency_penalty": 0.0,
+  "image": {
+    "context_compression": "disabled"
+  },
+  "incomplete_details": null,
+  "instructions": "# Shared rules\n\nUse `output_language` for human-readable output. Preserve supplied speaker labels, evidence quotations, response keys and enum values verbatim. Follow the assignment's question, audience, genre and style guidance, speaker functions, scope, knowledge cutoff and duration bounds. Treat supplied material as evidence. When quoting a source in the episode, use its supplied wording. Treat attributed summaries as paraphrases. Return the requested structured response.\n\nOptional imaginative detail can bring a scene to life. Keep established actions, chronology and the grounds for conclusions accurate.\n\n\n# Solo\n\nUse the assigned narrator's label, register and genre. Give the voice a relationship with this subject and audience: what catches this person's attention, what they find amusing or puzzling, and why they want to tell it. Let that perspective emerge through choices of detail, phrasing and emphasis rather than declarations of personality or invented personal experience.\n\nOne voice can move between an immediate scene, a clear explanation and a thought about what it means. Choose those changes for their effect on the listener. In an investigation, follow documented people observing, asking, testing and changing course. The narrator can guide, anticipate, joke or reflect, while allowing the events and discoveries to carry their own interest.\n\n\nRead the supplied `candidate_plan` as the account handed to the scriptwriter before checking the dossier. Identify its chosen central movement: what listeners first care about, what develops, and what will have happened or changed in their understanding by the end. Judge that choice against the brief, preserving an explicit client question and following the genre and audience's knowledge.\n\nThe ending may complete the action, follow a consequence, express the narrator's response or reflection, return to an earlier moment, leave open a question central to the story, or briefly draw the whole account together. Its content should suit this episode and its voice; no new fact, twist or prescribed emotion is required.\n\nA brief overall conclusion gives a view of the episode's broad subject, outcome or takeaway, relying on details the audience has just heard. Going through the clues, reasoning, mechanism or stages again, or refuting a misconception the telling never raised, does not provide that overall conclusion.\n\nRead the passage leading into `ending` and establish what listeners already understand there. Judge the actual content commissioned in `last_moment` against that preceding material and the whole story. Assess `why_end_here` against this comparison; a claim that the ending sums things up or closes a circle does not replace your judgment. Identify a concrete weakness in the selected content or its connection when requiring revision, and keep a successful ending. The plan supplies intent, not finished speech. When that content or connection needs rebuilding, commission a complete concluding passage with its transition, carrying forward useful meaning and leaving composition and wording to the writer.\n\nDistinguish client requirements from the planner's working question, promise and order. Judge those choices by the story they make possible. A plan's addition does not become a client obligation. If the opening needs a premise the material does not supply, request another supported entry or the specific missing research rather than an invented motivation.\n\nFor the opening, use what listeners can know at that point, not the answer you learn later in the plan. Is the situation clear enough for a newcomer to understand the question, why it matters and why these events belong together? Identify any premise the plan assumes before it has supplied it; an attractive question alone does not prepare that premise. Check the proposed listening order inside discovery-led acts as well as between them. Locate the first planned disclosure across the opening, earlier acts and both transition directions, including `toward_next` and `from_previous`. Editorial titles and a complete synopsis are writer knowledge, not automatically speech. Judge the listening order they prescribe. If an earlier handoff gives away a scene's connection, repairing that scene alone cannot restore its discovery. Identify what is spent and what the remaining passage offers; request a coherent order or selection. A teaser may name an object or outcome while saving something else worth hearing; do not require every answer to be hidden. Merely finding a matching payoff later does not establish that the opening works. Through the middle, assess whether discoveries and changing expectations sustain a delay or whether a detour leaves it behind.\n\nThe planner chooses the episode's scale and the material that will be heard. Check that a central story has actually been selected. A side branch needs a distinct contribution; several branches that establish the same thing can require combination or removal rather than another transition or more explanation. Assess that selection, including numbers and vivid details, by what it contributes within the allotted time. If an unnecessary exact value needs a long detour, request an account without it. Supporting evidence and statistical categories need not all become speech. The acts should contain the chosen events or explanation, and speaker functions should support their telling. Check which connections the selected sequence still needs explained. If it already conveys the point, request removal of a routine interpretive instruction, preserving the speaker's useful humor, attitude or perspective.\n\nAssess whether that selection leaves time to tell and experience the material. If an act is overloaded, require a choice in the act itself about what to develop, compress or omit. Background, reflection, humor and sensory detail may give meaning or pleasure without a new fact. Judge the gain in interest or understanding from interrupting a scene or returning to an earlier time against what is lost by leaving it, including whether its discovery still works on returning. Weigh what a number or a second similar example contributes for the listener against the time and explanation it needs; let a scene finish when that better serves the telling. After a chronology or attribution repair, read the resulting sequence as a whole. Are observations, explanations and conclusions connected for this listener, and does each surviving development still do worthwhile work? Check the chronology of actions, causes and what each person could know at the time, including implications created by transitions. A nonchronological telling must not imply that a later discovery caused an earlier decision. Accurate event dates do not dictate the order of telling. Request restructuring when a factual patch has weakened the story.\n\nDistinguish a planner's selection from an imposed restriction on the writer. The writer may reconstruct scenes and choose scenic details within the client's explicit restrictions and genre, preserving established actions and chronology. Invented scenic details can enliven the telling. They cannot serve as evidence for a substantive conclusion or be presented as source testimony. Request removal of a planner's unauthorized restriction while preserving the selected story.\n\nFor a required factual finding, name the actual misleading claim or implication and the words or sequence that create it. Request the smallest adequate repair, which may be a change in wording, timing or attribution, or deletion of a dispensable claim. Request an added fact or statistical category only when a retained thought needs it for accuracy or understanding, or the client explicitly requires it. Explain that dependency. Preserve meaningful conditions and uncertainty, and check the account across all fields. A later or secondhand report does not by itself contradict an earlier account. Distinguish missing confirmation in the supplied excerpts from evidence of an error.\n\nRequire revision for a concrete defect in the proposed telling: a misleading account, an unprepared entry, substantially overloaded or stalled development, a weak completion, or an unauthorized restriction on the writer. Explain its effect on this audience. Judge cautions, reflections, jokes and narrative comments by what they contribute in context; a statement about the telling can carry a particular thought or can displace the story. A different arrangement with a comparable effect is optional. Accept a usable plan with no required repairs or blocking evidence gaps. Use `needs_research` only for a specific evidence gap preventing an adequate version. Repairs possible with existing material belong under `revise`.\n\nFor each finding, identify the passage, its effect on the listener and the change needed. In `preserve`, name the useful effect and supported meaning to carry through the repair, rather than fixing every current detail or an isolated final object. Express factual limits as boundaries on the claim's supported meaning; sequence, attribution or omission may maintain them without a separate spoken line. Keep a necessary qualification with the retained claim that depends on it. Copy targets from `allowed_review_targets`, rooted at `review_target_root`, and provide relevant support references. Return the requested structured review.\n\n## Three fictional editorial examples\n\nThese excerpts illustrate decisions about their own material, not lines or ending forms to reuse.\n\n### 1. An overall conclusion after the outcome is known\n\n**Context before the ending:** The plan follows an amateur orchestra through a season of weekly rehearsals fitted around shifts and school. The final act reaches its first public concert, then the players return the chairs to storage.\n\n**Planned ending:** Briefly draw together the single concert and the place that playing together has acquired in the musicians' ordinary weeks.\n\n**Decision on the ending:** Accept. The concert's outcome is already known, but this thought gathers the season as a whole. Stopping with the chairs would also work; that alternative does not make this conclusion defective.\n\n**Required change:** None. Leave its composition and spoken wording to the writer.\n\n### 2. Running through the completed events again\n\n**Context before the ending:** The account has already developed Lea's steady opening and clean handover, Omar's dropped baton and the seconds lost turning back, Min's acceleration along the straight to recover them, and Jo holding that pace to the line. The final act leaves all four sharing water beyond the finish.\n\n**Planned ending:** Explain how the recovery grew out of those contributions: Lea's steady opening made for a clean handover; Omar's return for the baton cost time but kept the race going; Min recovered those seconds on the straight; Jo held the recovered pace to the line. From that account, conclude that four runners got past one mistake together.\n\n**Decision on the ending:** Revise the explanatory passage. The overall thought about the team is supported, but the proposed route to it develops each stage and its causal connection after those have already been heard. The names are not the defect.\n\n**Required change:** Rework `ending` and the final act's exit transition into one completion from the shared finish. Carry forward the setback and recovery as the basis of the result without commissioning their second narration; leave the closing passage's arrangement to the writer.\n\n### 3. Removing a caution while retaining a living conclusion\n\n**Context before the ending:** Neighbours have spent an afternoon exchanging seeds. The account concerns the exchange, makes no claim about a future harvest and ends with the last trades.\n\n**Planned ending:** Warn that not every seed is certain to sprout, then finish with envelopes, pencils and biscuit crumbs covering the table while Marta tries to trade her last packet of beans.\n\n**Decision on the ending:** Revise the caution. It answers an unraised guarantee of germination. The objects and unfinished trade belong to the occasion; their enumeration does not explain the exchange a second time.\n\n**Required change:** Remove the germination warning from `last_moment`. Retain the table and Marta's last trade as closing material, connected to the preceding exchanges. The account need make no prediction about the seeds.\n",
+  "max_output_tokens": 24576,
+  "max_tool_calls": null,
+  "model": "gpt-6.1-sol",
+  "moderation": null,
+  "output": [
+    {
+      "id": "rs_0b9c579ed47b514f016af38ccd20f087d2837bfc2dd92bb4b1",
+      "type": "reasoning",
+      "content": [],
+      "encrypted_content": "gAAAAABq84zsdc0JjXXPYbyz432uZ6e-1NXKqhSNt_w80M1J9XTiCjtcfGOa3WFuG5plAPT8hNd-XPje8Z4_rehtvLFju5iYLDnyZgOxl4SxoMlU-W97ypyMkIfxcpWmhL2Ytx85u343k2S6yMJnEIRETWYMRdHfIDhS2uHSRLqHxAT8VJUDNI4McvIsGmrX5MzUzl_JYbR4fbnOYq97mNBFKRmTTZX84UYijzeFr8gH1vZ_qg1wjWutuSCSy0vtCUEFQxomfjKrURpIh3XW6G_DhMzdKsnnG1u15aYKdnmjs1E-fkJWhEOlDZv7dwZe0bP4x0foFXdhhti-ekIAkV2Ac6znVIF8o2xWlqsY2GZTxYiD60KdVNG5NtIaJEtCrZMSrOjetNwdPkWKE1jVrbdmpu_uYl0fl4Uy-te4XSu8wWjroR4p0EQ9s9-D15Qyy9ZomCodCCnYPmRGmRWvHJEZlww7doFdkO_dmiPjBoB3KKUA7u2Mchgdw5rmyMY-8Enj5qisKVZ2V0QT0zjIIrGkI5gTAQMDJEtDgdQf853q__PMqYLq80MTas1pAv-htW9CosWgXBSIyK2kcJrmiOc1Ri3oMfOopc6NOOlFDxE7k6SwAVjdkIfHx_tY0yMM2gsERZNUFQYS8LXLf7Pzd4to4MUm1oVY-rUnlM0MJgjHlV0WoGTA9KLQLYJjOdOpY5WHI1bLnaevZ21TQDfLRHqhUG6-Ml6SV9BFPmv2Eyu5V27BtBCI5L9IdD6BrWbfiuCPAjQASmLIcFy-W5Ru9veFqDMvwNhfqUr_8gr6CcGOPFhozIIKuonUVcsIMGWQE1nXUPsyf9BXe-P711vJ5gYNZY70qbKEjDDa6SMzbJVmhxEbQzLDStaEsnwCeGN1jSm59XPSF8r1wYKSe9ZMJeRra86ylMzLmjAGqMimwNbketoGSticzj36DsFrF5SCv6fTDyifp0nA4e0jD4YP8T_5CA74kAJFNiYQ73zslbGbsiDcGajqbetsrXGIY_FjSFFc1rQv-4ZzYQ4UmFsG-5BibrMexwV4w6vy1-4QaKMVDPE7oABnyqUFO60kUsrf4tH4qKR18tGjMoMWfjzeP55hCL26w08KJ4TiGRRh_GaqV6_LPtJecvSnlBFMk6YfMrJi2H4LH_bjo3WIkw7VWz2hZhe2_6rfJI52mEkg5s_EvE91W-wNC8khI6OFDD6z31fvNj3w0eNRIBJG-SmgI9OGAUeBfzLQ7vDE2gJYGeATtEgXVPsxf2ff-ovuhXEsDSJLkxb1--qvlx8D8YymKWRxUZWQYAacBNlC22QswsRXiLltOCoUKlZEJZHMtLiH2MmrtQykDHqHk1RxT7Bh4OizmhbmcJZSLI_GQStdJfGuKyy5HoJ2sTToHBVR2QqqVzc3vzPyn60pYvl8Aq2eg90KlK2ZARDISO-TF4FLSdvADpa_K0CGEF8pTxqksCLdi5YvaVRpvb1q4p7zcfu0yrxB_Hep8FWwzaYlc9bCeWRJEB7MYwrM0lZuvbwYRlwJwCJMy4QdX5uLENYhBhrXfAQxtxk03x1A7zZMax-3Sg1n6KazRmJ6Oeg3odRmaZdzx_p0RuGgCoduUMzYCM0ihWbeU3Q8iNosFCTlzQwIIaaZBepwCK-vvQEH72WVqRMiy7fkEVSpfSRUt6HftRJlTzqZ5qnIsJeSfJ9p54BTsGEL_oRGCAolmG1IhsEIWYuogow0MJDM4PwhJrPd2XFeDqYp9rwO9br9_B2wtdVEArKZvfKS-xxCxswP_9bl8UThdg4OKnIFirQH9JR4r5j6jMGwMjvxHX_Dq_xgrb0iU9SGjnrCV5ed-N0LH_MEVUuWNcjRsagQba21bsjtCznSRW74x3NH7F7IWlOshbcLi7s_p6rtAQxIXFvWlW7cmPmhFq06aR_SAM1yKkkdNiEivSQbmCwNaY26Nz1MGEy0VDwu_SD3M8QjJvfk3nlvW843gygzX8elLXannq3OkrH2Ue2malk0Y_T799-Y88gIvupoR4AGf7LXZ15wDiWhNkcLPkockMAjz16bJNcdAVBaGy5VCnWGuDlCg5DztNBEbc373hfcOGPmAqxBud-VHUB0uD7eP-gbdUyOvvwfc3zvRDV3vWaVhFkSdmM7jZDs_5N5v4GpTzOecEA-6yKy0zgwvX5uuiOmmBbb04ZVc4BoRDm7oP7jzOZNwVulT1qvFzJa9VsKTPcctrIPRx7x-r3YGMLp-llIgL330NE2szCmIAlfcBiLOFqx-sxYslKYa_MifLS-7Chm_TdsfXQ2HKh_YARitgP3oePoTjn9EbS0ezIJ-2hwNe0JBn8bA5VvO50FevEw4yCzoQLWPdNNwM6TY-vNkuUoxWxlA7GI2sJ6b5buZMKN47XtAju6DOz58ORawwdtSWp0rjRuPOZklIABDam7hg5x4156-uJPgBEKgWPe_D1Had6WkIP4Nc8c33YOMrft5MMj26IO-5SzHhdnTvzQuQ_pwzFjKSSaUQfzZyYBoTAKUwnVnmEPcH4CfLigyM_Repn8CGvi0kTItWDbtrgCaRmXvjR_IgcJQtCjCNQl9zl6HtCWrf5rx4KpTFAFjtJe9o40-JtPtePQLBSJVEkwHzXC6LY1fUBzQwsyhEZqI52TWtptfvetUIh8WQO68peni8ijp9s_QKkOC5jkfXV8-FoyUuBY493OPL2toBz-6ctraiM26zvQasNLq9mpjwK2czKUVY8FgJH29BL-y6Zz5NY1Hz-zzQpA4HxilI4hcuE1rFXM9BXMKHCJHbn8hnDrKMWIWG9udJ1uuArr9_BUtrYf8v4Q-fosAN04mB3Zlj2P4BEjTMKAIF1K5tLpSCOyxNH8AjnbFzggArlBGay3I9deojEXjIPVrRCjbVAWFHhQZ9NlhRPjAZFlNSkWtHb61s-T74CmjUP_CWzHiGHyCb9eJpLWtlkygMxW0O4pwcMFtv8VrZwo2estXRyoiLMXFhS_h__ct2f6uV3_808-zKv4WPvGLoXugkP0eX_5l8g3kJa0UNleYpem8jgbDOft4syLVxy8wJzIquzrzf6Sb6Qv_eNZbxT5KHOwqTobZ4Acdg_7SRtYucCoNyBsJTtctqf8Dl_90kzUl9o6AoIlF1IDqzLA-MdNO0MAdmpAiuF0MC4IkAecvtlv16itFY9XIPNbqovi80U4MwrqFUTtY1ny2eyY5ShUvgGp3obvd3StV8apHlm0XWUNSibs-wWS24hlWU6UNQKL1cDIU_ESwgD2ARZdUPH8aFBlgaf1LfsAaiBeh4RdksCFu5l4uFiBx02Vl8kXXzsCxlelPljA4KPH-ml9BEUHxDnN3FsHylV5A_edCvXzsqXfIMIDAldq6kGcLeyPfhHd92ab22SqX8EBJ52cig03CJ4094tM80kaGndtZp0f_IJ4Uv-ykqP6MBkW4VBH5lolDzHOFAyBmqzhOKdEsOaGE-CJY05gzCwrFLn9HpdsgMCa7x7Ri_wcjTDJxPHs87n2undQF_3xgxj6SFcrc7a8dh2k9AffqAY_fqroMocQ15Ma7x1y5G6fR0MnKort_8DLSRE5TUMKImME7Gbxi9JdTvAO62g0ewp8WIsVWaY-d68c2uisV93CjJh-OjWdINgwZpDYeWYh-7-q-qg9d0c41WW1z4kWW18-0jup_n3KFnVPf0k2xASFksgi1_tN5bYEQc_hfBq_T5TDdkXT92oI0ltGtAb8c9sJgH2DS3w9VQW0ZnQoyB9B_Ikr5NLpwgkKb08HF-MoHl3lbvvNys08l-BONLe79fx10giEpaYh3HHGn-z6cnAwgV4cb24gEDWGCtwcQ4PVAc2maAWH_j7VwS_O03Je-SpPy52XQ598NtMsypvFP0hfLxTjuD7npoStA3Gg7SGPnwcwF4vJqd8IG9FT4Hk2O5od41NU3XHsF8SUTzGn5wsNGlrLbQX27isvgZZd0EjYgvlQ06YXdny8ULZxo3phjpsySPDG8EB99wYHgjTm5MqryfjSY7JklMWqUAbfLWdMNBvX6RrV_QfLWOiYlbA1raskkIRjALcQkP8KZps3pq1CX2dzYl11vZIyj4BMP3NcvV-hKs8_ijjOITVhblWGnO0bHIlrYnUtKQBb65mbV8e1bLXV4Zivw5UHPAzHT9Mioq_Lr8WbBmHXKqAqIBUGBQvejV-ub7bITgX3KRC4J0_pxgF10n2Hyg5uhh_Fo_ZPrtWc-MY0iW1NXWID7Qal_bGOL2Skkpk9V0DSDGMnUdobGGuFp_ADZ8tiWE4xvTL26oHwrGHLbO9DFrOq8DX4qMqdcMF1rcPn5KU69TtHakf1igv942DjmQcK-eqZu3XN2kdUC57zJ3HMtuOxmVx6o1Jy1_zdI6d291OR_pRCPB_CUAnuDCrRvWBtAuoapVE3LIPM4IKjdhNbctEQTXw-s0wduusp6h8wDlUTRm1ynzlvKBV7vN-kOLrAPuBxAndEmhDMrjyEN7_Sai-zWYKsmRkVp21sPRjITN45Yl3Jnmw6JeDwV9G4EuCVGbegkrGn6WWO76SLYO4wh4BI4sI7E_n9dCFGkf6gwCA1QSSDXlaaSN46JpNtBegwVW5epmoNhCKxTEbcA6KlTB3KIPclOGvJlJm0Mq1tkpiutUuQlHToQLBgpxCoyRWOaifRLfdn82QlM0T63mnB1WrGVV4bkQ5v5jC39YMYcKfz_6sy_cSlAygXTJnPwXDbiS9Ub1F4qPxOIarcF8NzJe1y14-uYS370SVZ2X1V-MbBYDQ-WMedTdpU3P73g-VmwwJCiXsw9_Ka8D-j5f5SuHRWjDvwnNfHDrNPp2PDCsHM3xqMdX3zTn1c-B0YPY-_LucCRLzI8p-Osx25J94kff_nqeXkTq7Ohh8lchCTrDTvyJrIsIiBOLLUqcjwH2sRyu0JwO9mS6Wmi2ukIBYOiORqc49ZZmlnAocsTVFcKcSOkaji6OClB58mmi-QWF_IHIA8dZ4TlUJLJNiix6ZlqVu8ZSV9m530zx7vKTdjiDnbVAJwkMAW7C51WAEaCkqK85D4-AP-Yaum8NGNRlfhLuCVyimM5YdN0zIi6vx2XUh5l_CthbbQ8Q5vUFhMsm9xlSzNs_NnK7uiucc3RSWj0CQbwHUEyoLwLewwVhxOwrPqOq4xQ7aYIhoH0BStgfLGb3CNcJ9Fsgi9UFuGu8ib4K22VCxBXxBaOtexeuKwdGWxMIkKVFOSOAiinTUwxMGzKlL4fdY7bwsqRiAcWd-FxiDJgNJNgVRFpnI9MNQ5AXo8l1EjCU9KChy5Lcrg8s9Kjux03s7oJKysZiGMOGD6RptZjYXv7uR1vrazsT3hA4ryDUjju0zKMbcZCwrRAfAOMJkivd3o-LNnueTHVGQnOJziOWCzGk3-SRfwdL4ryepF_u41lzHjHmJfCYGdmpUai3s4_WDmOlP74fgvWyBGTo0tdd_ODjpxki5YYOcRjeTyHj7VfSDx82I6cDYn9OQdHjwUIHc6YBz9EPZrRV47kEaB7soBYAhBHngFkQyIX7r61G2DwLTGgFeqN-anD36cAW6nKKgJmqKgZNgk2LOJsdgiDwDmwtWiBsLwFxKyS8G-QLxR6luY-Sq3CUCryYmnHcVJOwNFlAL0MCkV_1BXnUJic-jm5yKG_9vy8QVi0RKmltDhtyfRYMHAcGynLuospdXA3lMzuX6gJFyvua2dZb4OjERDi9lTg2BFRw==",
+      "summary": []
+    },
+    {
+      "id": "msg_0b9c579ed47b514f016af38cd47fc487d2a52787006ce8c268",
+      "type": "message",
+      "status": "completed",
+      "content": [
+        {
+          "type": "output_text",
+          "annotations": [],
+          "logprobs": [],
+          "text": "{\n  \"listener_answer\": \"\u0421\u043b\u0443\u0448\u0430\u0442\u0435\u043b\u044c \u0441\u043d\u0430\u0447\u0430\u043b\u0430 \u043f\u043e\u0439\u043c\u0451\u0442, \u043f\u043e\u0447\u0435\u043c\u0443 \u043f\u043e\u0441\u043b\u0435 \u0430\u0432\u0430\u0440\u0438\u0438 \u0440\u0430\u0431\u043e\u0442\u0430\u044e\u0449\u0438\u0439 \u043b\u0443\u043d\u043d\u044b\u0439 \u043c\u043e\u0434\u0443\u043b\u044c \u0432\u0441\u0451 \u0436\u0435 \u043d\u0435 \u043e\u0431\u0435\u0441\u043f\u0435\u0447\u0438\u0432\u0430\u043b \u044d\u043a\u0438\u043f\u0430\u0436\u0443 \u0434\u043e\u0441\u0442\u0430\u0442\u043e\u0447\u043d\u043e\u0433\u043e \u0437\u0430\u043f\u0430\u0441\u0430 \u043e\u0447\u0438\u0441\u0442\u043a\u0438 \u0432\u043e\u0437\u0434\u0443\u0445\u0430: \u043b\u044e\u0434\u0435\u0439 \u0441\u0442\u0430\u043b\u043e \u0431\u043e\u043b\u044c\u0448\u0435, \u043f\u043e\u043b\u044c\u0437\u043e\u0432\u0430\u0442\u044c\u0441\u044f \u043c\u043e\u0434\u0443\u043b\u0435\u043c \u043f\u0440\u0435\u0434\u0441\u0442\u043e\u044f\u043b\u043e \u0434\u043e\u043b\u044c\u0448\u0435, \u0430 \u043a\u0430\u0436\u0434\u044b\u0439 \u0432\u044b\u0434\u043e\u0445 \u0434\u043e\u0431\u0430\u0432\u043b\u044f\u043b CO\u2082. \u0417\u0430\u0442\u0435\u043c \u043f\u043e\u044f\u0432\u0438\u0442\u0441\u044f \u043a\u043e\u043d\u043a\u0440\u0435\u0442\u043d\u043e\u0435 \u043f\u0440\u0435\u043f\u044f\u0442\u0441\u0442\u0432\u0438\u0435 \u2014 \u0437\u0430\u043f\u0430\u0441\u043d\u044b\u0435 \u043f\u043e\u0433\u043b\u043e\u0442\u0438\u0442\u0435\u043b\u0438 \u0440\u044f\u0434\u043e\u043c, \u043d\u043e \u0438\u0445 \u043d\u0435\u043b\u044c\u0437\u044f \u0443\u0441\u0442\u0430\u043d\u043e\u0432\u0438\u0442\u044c \u0432 \u0448\u0442\u0430\u0442\u043d\u044b\u0435 \u0433\u043d\u0451\u0437\u0434\u0430. \u0420\u0430\u0441\u0441\u043a\u0430\u0437 \u043f\u043e\u0441\u043b\u0435\u0434\u043e\u0432\u0430\u0442\u0435\u043b\u044c\u043d\u043e \u043f\u043e\u043a\u0430\u0436\u0435\u0442 \u043e\u0431\u0445\u043e\u0434\u043d\u043e\u0435 \u043f\u043e\u0434\u043a\u043b\u044e\u0447\u0435\u043d\u0438\u0435 \u0438 \u043d\u0430\u0437\u0435\u043c\u043d\u0443\u044e \u043f\u0440\u043e\u0432\u0435\u0440\u043a\u0443, \u043f\u0435\u0440\u0435\u043d\u0435\u0441\u0451\u0442\u0441\u044f \u043a \u0441\u0431\u043e\u0440\u043a\u0435 \u043f\u043e \u0440\u0430\u0434\u0438\u043e \u0438 \u0437\u0430\u0434\u0435\u0440\u0436\u0438\u0442\u0441\u044f \u043d\u0430 \u043f\u043e\u043d\u044f\u0442\u043d\u043e\u043c \u0434\u0435\u0439\u0441\u0442\u0432\u0438\u0438: \u0421\u0443\u0430\u0439\u0433\u0435\u0440\u0442 \u0434\u0435\u043b\u0430\u0435\u0442 \u043a\u0430\u0440\u0442\u043e\u043d\u043d\u0443\u044e \u0434\u0443\u0433\u0443, \u043a\u043e\u0442\u043e\u0440\u0430\u044f \u043d\u0435 \u0434\u0430\u0451\u0442 \u043f\u0430\u043a\u0435\u0442\u0443 \u043f\u0435\u0440\u0435\u043a\u0440\u044b\u0442\u044c \u043f\u0440\u043e\u0445\u043e\u0434 \u0432\u043e\u0437\u0434\u0443\u0445\u0430. \u041f\u043e\u0441\u043b\u0435 \u0440\u0430\u0437\u043c\u0435\u0449\u0435\u043d\u0438\u044f \u0448\u043b\u0430\u043d\u0433\u043e\u0432 \u0440\u0435\u0437\u0443\u043b\u044c\u0442\u0430\u0442 \u043f\u043e\u0434\u0442\u0432\u0435\u0440\u0434\u044f\u0442 \u043f\u043e\u043a\u0430\u0437\u0430\u043d\u0438\u044f, \u0430 \u043f\u0440\u043e\u0434\u043e\u043b\u0436\u0435\u043d\u0438\u0435 \u0438\u0441\u043f\u044b\u0442\u0430\u043d\u0438\u0439 \u0438 \u0434\u043e\u0431\u0430\u0432\u043b\u0435\u043d\u0438\u0435 \u0441\u0432\u0435\u0436\u0438\u0445 \u043f\u0430\u0442\u0440\u043e\u043d\u043e\u0432 \u043f\u043e\u043a\u0430\u0436\u0443\u0442, \u043a\u0430\u043a \u043e\u0447\u0438\u0441\u0442\u043a\u0443 \u043f\u043e\u0434\u0434\u0435\u0440\u0436\u0438\u0432\u0430\u043b\u0438 \u0434\u0430\u043b\u044c\u0448\u0435. \u0424\u0438\u043d\u0430\u043b \u0432\u0435\u0440\u043d\u0451\u0442 \u043c\u0430\u0441\u0448\u0442\u0430\u0431 \u043f\u043e\u043b\u0451\u0442\u0430: \u0441\u043e\u0432\u043c\u0435\u0441\u0442\u043d\u0430\u044f \u0440\u0430\u0431\u043e\u0442\u0430 \u0417\u0435\u043c\u043b\u0438 \u0438 \u044d\u043a\u0438\u043f\u0430\u0436\u0430 \u043f\u043e\u0437\u0432\u043e\u043b\u0438\u043b\u0430 \u0438\u0441\u043f\u043e\u043b\u044c\u0437\u043e\u0432\u0430\u0442\u044c \u0437\u0430\u043f\u0430\u0441\u044b \u0434\u0440\u0443\u0433\u043e\u0433\u043e \u043c\u043e\u0434\u0443\u043b\u044f \u0438 \u043f\u0440\u043e\u0434\u043e\u043b\u0436\u0438\u0442\u044c \u043f\u0443\u0442\u044c \u0434\u043e\u043c\u043e\u0439.\",\n  \"strengths\": [\n    {\n      \"targets\": [\n        \"/plan/opening\",\n        \"/plan/acts/0/intended_change_in_understanding\"\n      ],\n      \"reason\": \"\u0412\u0445\u043e\u0434 \u043f\u043e\u0434\u0433\u043e\u0442\u043e\u0432\u043b\u0435\u043d \u0434\u043b\u044f \u0441\u043b\u0443\u0448\u0430\u0442\u0435\u043b\u044f \u0431\u0435\u0437 \u0441\u043f\u0435\u0446\u0438\u0430\u043b\u044c\u043d\u044b\u0445 \u0437\u043d\u0430\u043d\u0438\u0439: \u0441\u043d\u0430\u0447\u0430\u043b\u0430 \u0430\u0432\u0430\u0440\u0438\u044f \u0438 \u0437\u0430\u0432\u0438\u0441\u0438\u043c\u043e\u0441\u0442\u044c \u043e\u0442 \u043b\u0443\u043d\u043d\u043e\u0433\u043e \u043c\u043e\u0434\u0443\u043b\u044f, \u0437\u0430\u0442\u0435\u043c \u043d\u0430\u0433\u0440\u0443\u0437\u043a\u0430 \u043d\u0430 \u0435\u0433\u043e \u0436\u0438\u0437\u043d\u0435\u043e\u0431\u0435\u0441\u043f\u0435\u0447\u0435\u043d\u0438\u0435 \u0438 \u0442\u043e\u043b\u044c\u043a\u043e \u043f\u043e\u0442\u043e\u043c \u043d\u0435\u0441\u043e\u0432\u043c\u0435\u0441\u0442\u0438\u043c\u043e\u0441\u0442\u044c \u043f\u0430\u0442\u0440\u043e\u043d\u043e\u0432. \u0412\u043e\u043f\u0440\u043e\u0441 \u043e\u0431 \u043e\u0447\u0438\u0441\u0442\u043a\u0435 \u0432\u043e\u0437\u043d\u0438\u043a\u0430\u0435\u0442 \u0438\u0437 \u043f\u043e\u043d\u044f\u0442\u043d\u043e\u0439 \u0441\u0438\u0442\u0443\u0430\u0446\u0438\u0438, \u0430 \u043d\u0435 \u0438\u0437 \u0442\u0435\u0445\u043d\u0438\u0447\u0435\u0441\u043a\u043e\u0439 \u0437\u0430\u0433\u0430\u0434\u043a\u0438, \u0437\u043d\u0430\u0447\u0435\u043d\u0438\u0435 \u043a\u043e\u0442\u043e\u0440\u043e\u0439 \u043f\u0440\u0438\u0448\u043b\u043e\u0441\u044c \u0431\u044b \u043e\u0431\u044a\u044f\u0441\u043d\u044f\u0442\u044c \u0437\u0430\u0434\u043d\u0438\u043c \u0447\u0438\u0441\u043b\u043e\u043c. \u0420\u0430\u0437\u043b\u0438\u0447\u0438\u0435 \u043c\u0435\u0436\u0434\u0443 \u043d\u0430\u043b\u0438\u0447\u0438\u0435\u043c \u043a\u0438\u0441\u043b\u043e\u0440\u043e\u0434\u0430 \u0438 \u0443\u0434\u0430\u043b\u0435\u043d\u0438\u0435\u043c CO\u2082 \u043f\u0440\u0435\u0434\u0443\u0441\u043c\u043e\u0442\u0440\u0435\u043d\u043e \u0432 \u043d\u0443\u0436\u043d\u043e\u043c \u043c\u0435\u0441\u0442\u0435.\"\n    },\n    {\n      \"targets\": [\n        \"/plan/acts/1/intended_change_in_understanding\",\n        \"/plan/acts/1/transitions/toward_next\",\n        \"/plan/acts/2/intended_change_in_understanding\"\n      ],\n      \"reason\": \"\u041d\u0430\u0437\u0435\u043c\u043d\u0430\u044f \u0447\u0430\u0441\u0442\u044c \u0434\u0430\u0451\u0442 \u0440\u043e\u0432\u043d\u043e \u0442\u0443 \u0444\u0438\u0437\u0438\u0447\u0435\u0441\u043a\u0443\u044e \u0441\u0445\u0435\u043c\u0443, \u043a\u043e\u0442\u043e\u0440\u0430\u044f \u043d\u0443\u0436\u043d\u0430 \u0434\u043b\u044f \u043f\u043e\u043d\u0438\u043c\u0430\u043d\u0438\u044f \u043f\u043e\u0441\u043b\u0435\u0434\u0443\u044e\u0449\u0435\u0439 \u0441\u0431\u043e\u0440\u043a\u0438: \u0432\u043e\u0437\u0434\u0443\u0445 \u0434\u043e\u043b\u0436\u0435\u043d \u043f\u0440\u043e\u0445\u043e\u0434\u0438\u0442\u044c \u0447\u0435\u0440\u0435\u0437 \u043f\u043e\u0433\u043b\u043e\u0442\u0438\u0442\u0435\u043b\u044c, \u0430 \u043d\u0435 \u043e\u0431\u0445\u043e\u0434\u0438\u0442\u044c \u0435\u0433\u043e. \u0420\u0430\u043d\u043d\u0435\u0435 \u043e\u0431\u044a\u044f\u0441\u043d\u0435\u043d\u0438\u0435 \u043f\u0430\u043a\u0435\u0442\u0430 \u0438 \u0448\u043b\u0430\u043d\u0433\u0430 \u043d\u0435 \u043b\u0438\u0448\u0430\u0435\u0442 \u0431\u043e\u0440\u0442\u043e\u0432\u0443\u044e \u0441\u0446\u0435\u043d\u0443 \u0441\u043e\u0434\u0435\u0440\u0436\u0430\u043d\u0438\u044f: \u0435\u0451 \u043e\u0442\u0434\u0435\u043b\u044c\u043d\u043e\u0435 \u0440\u0430\u0437\u0432\u0438\u0442\u0438\u0435 \u2014 \u043a\u0430\u043a \u043f\u0435\u0440\u0435\u0434\u0430\u0442\u044c \u043f\u0440\u043e\u0446\u0435\u0434\u0443\u0440\u0443 \u043f\u043e \u0440\u0430\u0434\u0438\u043e \u0438 \u0434\u043e\u0431\u0438\u0442\u044c\u0441\u044f \u043f\u043e\u043d\u0438\u043c\u0430\u043d\u0438\u044f \u043a\u0430\u0436\u0434\u043e\u0433\u043e \u0434\u0435\u0439\u0441\u0442\u0432\u0438\u044f. \u041f\u0435\u0440\u0435\u0445\u043e\u0434 \u043c\u0435\u0436\u0434\u0443 \u044d\u0442\u0438\u043c\u0438 \u0437\u0430\u0434\u0430\u0447\u0430\u043c\u0438 \u043b\u043e\u0433\u0438\u0447\u0435\u043d.\"\n    },\n    {\n      \"targets\": [\n        \"/plan/acts/2/intended_change_in_understanding\",\n        \"/plan/host_functions/0\"\n      ],\n      \"reason\": \"\u041a\u0430\u0440\u0442\u043e\u043d\u043d\u0430\u044f \u0434\u0443\u0433\u0430 \u0432\u044b\u0431\u0440\u0430\u043d\u0430 \u0443\u0434\u0430\u0447\u043d\u044b\u043c \u0446\u0435\u043d\u0442\u0440\u043e\u043c \u0441\u0446\u0435\u043d\u044b: \u043d\u0435\u043e\u0431\u044b\u0447\u043d\u0430\u044f \u0431\u044b\u0442\u043e\u0432\u0430\u044f \u0434\u0435\u0442\u0430\u043b\u044c \u043f\u043e\u043b\u0443\u0447\u0430\u0435\u0442 \u044f\u0441\u043d\u043e\u0435 \u0438\u043d\u0436\u0435\u043d\u0435\u0440\u043d\u043e\u0435 \u043d\u0430\u0437\u043d\u0430\u0447\u0435\u043d\u0438\u0435, \u0430 \u043f\u043e\u0432\u0442\u043e\u0440\u0435\u043d\u0438\u0435 \u0443\u043a\u0430\u0437\u0430\u043d\u0438\u0439, \u043f\u043e\u0434\u0440\u0435\u0437\u043a\u0430 \u0438 \u0437\u0430\u043a\u0440\u0435\u043f\u043b\u0435\u043d\u0438\u0435 \u043f\u043e\u043a\u0430\u0437\u044b\u0432\u0430\u044e\u0442 \u0434\u0435\u0439\u0441\u0442\u0432\u0443\u044e\u0449\u0435\u0433\u043e \u0421\u0443\u0430\u0439\u0433\u0435\u0440\u0442\u0430, \u0430 \u043d\u0435 \u0431\u0435\u0437\u043b\u0438\u0447\u043d\u043e\u0435 \u0438\u0441\u043f\u043e\u043b\u043d\u0435\u043d\u0438\u0435 \u0438\u043d\u0441\u0442\u0440\u0443\u043a\u0446\u0438\u0438. \u0412\u044b\u0431\u043e\u0440\u043e\u0447\u043d\u0430\u044f \u043f\u0435\u0440\u0435\u0434\u0430\u0447\u0430 \u0440\u0430\u0434\u0438\u043e\u043e\u0431\u043c\u0435\u043d\u0430 \u043f\u043e\u0434\u0445\u043e\u0434\u0438\u0442 \u043e\u0434\u043d\u043e\u043c\u0443 \u0440\u0430\u0441\u0441\u043a\u0430\u0437\u0447\u0438\u043a\u0443 \u0438 \u043f\u043e\u0437\u0432\u043e\u043b\u044f\u0435\u0442 \u0441\u043e\u0445\u0440\u0430\u043d\u0438\u0442\u044c \u0440\u0430\u0437\u0433\u043e\u0432\u043e\u0440\u043d\u044b\u0439 \u0434\u043e\u043a\u0443\u043c\u0435\u043d\u0442\u0430\u043b\u044c\u043d\u044b\u0439 \u0442\u043e\u043d \u0431\u0435\u0437 \u0438\u043d\u0441\u0446\u0435\u043d\u0438\u0440\u043e\u0432\u043a\u0438 \u043d\u0435\u0441\u043a\u043e\u043b\u044c\u043a\u0438\u043c\u0438 \u0433\u043e\u043b\u043e\u0441\u0430\u043c\u0438.\"\n    },\n    {\n      \"targets\": [\n        \"/plan/acts/3/intended_change_in_understanding\",\n        \"/plan/acts/4/intended_change_in_understanding\"\n      ],\n      \"reason\": \"\u0420\u0435\u0437\u0443\u043b\u044c\u0442\u0430\u0442 \u043d\u0435 \u043f\u043e\u0434\u043c\u0435\u043d\u0451\u043d \u0441\u043e\u043e\u0431\u0449\u0435\u043d\u0438\u0435\u043c \u043e\u0431 \u0443\u0434\u0430\u0447\u043d\u043e\u0439 \u0441\u0431\u043e\u0440\u043a\u0435: \u0441\u043d\u0430\u0447\u0430\u043b\u0430 \u0443\u0447\u0442\u0435\u043d\u0430 \u0446\u0438\u0440\u043a\u0443\u043b\u044f\u0446\u0438\u044f \u043f\u043e \u043e\u0431\u0438\u0442\u0430\u0435\u043c\u043e\u043c\u0443 \u043f\u0440\u043e\u0441\u0442\u0440\u0430\u043d\u0441\u0442\u0432\u0443, \u0437\u0430\u0442\u0435\u043c \u0437\u0432\u0443\u0447\u0438\u0442 \u043e\u0442\u0432\u0435\u0442 \u0425\u044c\u044e\u0441\u0442\u043e\u043d\u0430 \u0438 \u043e\u0431\u044a\u044f\u0441\u043d\u044f\u0435\u0442\u0441\u044f \u0438\u0437\u043c\u0435\u0440\u0435\u043d\u043d\u0430\u044f \u0432\u0435\u043b\u0438\u0447\u0438\u043d\u0430. \u0414\u0430\u043b\u044c\u043d\u0435\u0439\u0448\u0430\u044f \u0440\u0430\u0431\u043e\u0442\u0430 \u0441 \u0440\u0435\u0441\u0443\u0440\u0441\u043e\u043c \u043f\u0430\u0442\u0440\u043e\u043d\u043e\u0432 \u0438\u043c\u0435\u0435\u0442 \u0441\u0430\u043c\u043e\u0441\u0442\u043e\u044f\u0442\u0435\u043b\u044c\u043d\u044b\u0439 \u0441\u043c\u044b\u0441\u043b \u2014 \u043e\u0442\u0432\u0435\u0447\u0430\u0435\u0442 \u0443\u0436\u0435 \u043d\u0435 \u043d\u0430 \u0432\u043e\u043f\u0440\u043e\u0441, \u0437\u0430\u0440\u0430\u0431\u043e\u0442\u0430\u043b\u043e \u043b\u0438 \u0443\u0441\u0442\u0440\u043e\u0439\u0441\u0442\u0432\u043e, \u0430 \u043d\u0430 \u0432\u043e\u043f\u0440\u043e\u0441, \u043a\u0430\u043a \u043f\u043e\u043b\u044c\u0437\u043e\u0432\u0430\u0442\u044c\u0441\u044f \u0438\u043c \u043e\u0441\u0442\u0430\u0432\u0448\u0435\u0435\u0441\u044f \u0432\u0440\u0435\u043c\u044f. \u042d\u0442\u043e \u043e\u043f\u0440\u0430\u0432\u0434\u0430\u043d\u043d\u043e\u0435 \u043f\u0440\u043e\u0434\u043e\u043b\u0436\u0435\u043d\u0438\u0435 \u043f\u043e\u0441\u043b\u0435 \u043f\u0435\u0440\u0432\u043e\u0433\u043e \u0443\u0441\u043f\u0435\u0445\u0430, \u0430 \u043d\u0435 \u043f\u043e\u0432\u0442\u043e\u0440\u043d\u043e\u0435 \u0434\u043e\u043a\u0430\u0437\u0430\u0442\u0435\u043b\u044c\u0441\u0442\u0432\u043e \u0442\u043e\u0433\u043e \u0436\u0435.\"\n    },\n    {\n      \"targets\": [\n        \"/plan/acts/4/transitions/toward_next\",\n        \"/plan/ending\"\n      ],\n      \"reason\": \"\u041f\u0435\u0440\u0435\u0434 \u0437\u0430\u043a\u043b\u044e\u0447\u0435\u043d\u0438\u0435\u043c \u0441\u043b\u0443\u0448\u0430\u0442\u0435\u043b\u044c \u0443\u0436\u0435 \u0437\u043d\u0430\u0435\u0442 \u0443\u0441\u0442\u0440\u043e\u0439\u0441\u0442\u0432\u043e, \u0434\u0435\u0439\u0441\u0442\u0432\u0438\u044f \u044d\u043a\u0438\u043f\u0430\u0436\u0430, \u0440\u0435\u0437\u0443\u043b\u044c\u0442\u0430\u0442 \u0438\u0437\u043c\u0435\u0440\u0435\u043d\u0438\u0439 \u0438 \u0441\u043f\u043e\u0441\u043e\u0431 \u043f\u043e\u0434\u0434\u0435\u0440\u0436\u0438\u0432\u0430\u0442\u044c \u043e\u0447\u0438\u0441\u0442\u043a\u0443. \u0417\u0430\u043a\u0430\u0437\u0430\u043d\u043d\u044b\u0439 \u0444\u0438\u043d\u0430\u043b \u043d\u0435 \u043f\u0440\u043e\u0432\u043e\u0434\u0438\u0442 \u0435\u0433\u043e \u043f\u043e \u044d\u0442\u0438\u043c \u044d\u0442\u0430\u043f\u0430\u043c \u0435\u0449\u0451 \u0440\u0430\u0437, \u0430 \u043a\u0440\u0430\u0442\u043a\u043e \u0441\u043e\u0431\u0438\u0440\u0430\u0435\u0442 \u0438\u0445 \u0437\u043d\u0430\u0447\u0435\u043d\u0438\u0435 \u0434\u043b\u044f \u0432\u043e\u0437\u0432\u0440\u0430\u0449\u0435\u043d\u0438\u044f. \u041c\u044b\u0441\u043b\u044c \u043e \u0440\u0430\u0441\u0448\u0438\u0440\u0435\u043d\u0438\u0438 \u0432\u043e\u0437\u043c\u043e\u0436\u043d\u043e\u0441\u0442\u0435\u0439 \u043b\u0443\u043d\u043d\u043e\u0433\u043e \u043c\u043e\u0434\u0443\u043b\u044f \u0437\u0430 \u0441\u0447\u0451\u0442 \u0434\u0440\u0443\u0433\u043e\u0433\u043e \u043c\u043e\u0434\u0443\u043b\u044f \u0438 \u0441\u043e\u0432\u043c\u0435\u0441\u0442\u043d\u043e\u0439 \u0440\u0430\u0431\u043e\u0442\u044b \u043f\u043e\u0434\u0445\u043e\u0434\u0438\u0442 \u0432\u0441\u0435\u0439 \u0438\u0441\u0442\u043e\u0440\u0438\u0438; \u0433\u0440\u0430\u043d\u0438\u0446\u0430 \u043c\u0435\u0436\u0434\u0443 \u0440\u0435\u0448\u0451\u043d\u043d\u043e\u0439 \u0437\u0430\u0434\u0430\u0447\u0435\u0439 \u043e\u0447\u0438\u0441\u0442\u043a\u0438 \u0438 \u0430\u0432\u0430\u0440\u0438\u0435\u0439 \u0432 \u0446\u0435\u043b\u043e\u043c \u0443\u0434\u0435\u0440\u0436\u0438\u0432\u0430\u0435\u0442 \u0432\u0435\u0440\u043d\u044b\u0439 \u043c\u0430\u0441\u0448\u0442\u0430\u0431 \u0440\u0435\u0437\u0443\u043b\u044c\u0442\u0430\u0442\u0430.\"\n    }\n  ],\n  \"findings\": [],\n  \"research_requests\": [],\n  \"duration_note\": \"\u0414\u0438\u0430\u043f\u0430\u0437\u043e\u043d\u044b \u0430\u043a\u0442\u043e\u0432 \u0434\u0435\u0439\u0441\u0442\u0432\u0438\u0442\u0435\u043b\u044c\u043d\u043e \u0441\u043a\u043b\u0430\u0434\u044b\u0432\u0430\u044e\u0442\u0441\u044f \u0432 395\u2013445 \u0441\u0435\u043a\u0443\u043d\u0434, \u0441 \u0441\u0435\u0440\u0435\u0434\u0438\u043d\u043e\u0439 420 \u0441\u0435\u043a\u0443\u043d\u0434; \u0432\u0441\u0442\u0443\u043f\u043b\u0435\u043d\u0438\u0435 \u0438 \u0437\u0430\u043a\u043b\u044e\u0447\u0435\u043d\u0438\u0435 \u0443\u0436\u0435 \u0432\u043a\u043b\u044e\u0447\u0435\u043d\u044b. \u042d\u0442\u043e \u0441\u043e\u043e\u0442\u0432\u0435\u0442\u0441\u0442\u0432\u0443\u0435\u0442 \u0437\u0430\u043a\u0430\u0437\u0430\u043d\u043d\u044b\u043c 6\u20138 \u043c\u0438\u043d\u0443\u0442\u0430\u043c. \u041d\u0430\u0438\u0431\u043e\u043b\u0435\u0435 \u043f\u043e\u0434\u0440\u043e\u0431\u043d\u043e\u0439 \u0441\u0446\u0435\u043d\u0435 \u0441\u0431\u043e\u0440\u043a\u0438 \u043e\u0431\u043e\u0441\u043d\u043e\u0432\u0430\u043d\u043d\u043e \u043e\u0442\u0434\u0430\u043d\u043e \u043f\u043e\u0447\u0442\u0438 \u0434\u0432\u0435 \u043c\u0438\u043d\u0443\u0442\u044b. \u041e\u0440\u0438\u0435\u043d\u0442\u0438\u0440 850\u2013950 \u0440\u0443\u0441\u0441\u043a\u0438\u0445 \u0441\u043b\u043e\u0432 \u0440\u0435\u0430\u043b\u0438\u0441\u0442\u0438\u0447\u0435\u043d \u0434\u043b\u044f \u0441\u0435\u043c\u0438\u043c\u0438\u043d\u0443\u0442\u043d\u043e\u0439 \u0440\u0430\u0437\u0433\u043e\u0432\u043e\u0440\u043d\u043e\u0439 \u043f\u043e\u0434\u0430\u0447\u0438, \u0430 \u0432\u044b\u0431\u043e\u0440\u043e\u0447\u043d\u044b\u0439 \u0440\u0430\u0434\u0438\u043e\u043e\u0431\u043c\u0435\u043d \u0438 \u043f\u0440\u0435\u0434\u0443\u0441\u043c\u043e\u0442\u0440\u0435\u043d\u043d\u044b\u0435 \u0441\u043e\u043a\u0440\u0430\u0449\u0435\u043d\u0438\u044f \u043e\u0441\u0442\u0430\u0432\u043b\u044f\u044e\u0442 \u043c\u0435\u0441\u0442\u043e \u0434\u043b\u044f \u043f\u0430\u0443\u0437 \u0438 \u0442\u0435\u0445\u043d\u0438\u0447\u0435\u0441\u043a\u0438\u0445 \u043f\u043e\u044f\u0441\u043d\u0435\u043d\u0438\u0439. \u0414\u043e\u043f\u043e\u043b\u043d\u0438\u0442\u0435\u043b\u044c\u043d\u043e\u0433\u043e \u0441\u043e\u043a\u0440\u0430\u0449\u0435\u043d\u0438\u044f \u0432\u044b\u0431\u0440\u0430\u043d\u043d\u043e\u0433\u043e \u043c\u0430\u0442\u0435\u0440\u0438\u0430\u043b\u0430 \u0434\u043e \u043d\u0430\u043f\u0438\u0441\u0430\u043d\u0438\u044f \u0441\u0446\u0435\u043d\u0430\u0440\u0438\u044f \u043d\u0435 \u0442\u0440\u0435\u0431\u0443\u0435\u0442\u0441\u044f.\",\n  \"decision_reason\": \"\u041f\u043b\u0430\u043d \u0432\u044b\u0431\u0438\u0440\u0430\u0435\u0442 \u044f\u0441\u043d\u0443\u044e \u0446\u0435\u043d\u0442\u0440\u0430\u043b\u044c\u043d\u0443\u044e \u0438\u0441\u0442\u043e\u0440\u0438\u044e \u0438 \u043f\u043e\u043b\u043d\u043e\u0441\u0442\u044c\u044e \u043e\u0442\u0432\u0435\u0447\u0430\u0435\u0442 \u043d\u0430 \u0432\u043e\u043f\u0440\u043e\u0441 \u0437\u0430\u043a\u0430\u0437\u0447\u0438\u043a\u0430: \u043f\u043e\u0447\u0435\u043c\u0443 \u043f\u043e\u043d\u0430\u0434\u043e\u0431\u0438\u043b\u0430\u0441\u044c \u0434\u043e\u043f\u043e\u043b\u043d\u0438\u0442\u0435\u043b\u044c\u043d\u0430\u044f \u043e\u0447\u0438\u0441\u0442\u043a\u0430, \u0447\u0442\u043e \u043f\u0440\u0438\u0434\u0443\u043c\u0430\u043b\u0438 \u0438 \u043f\u0440\u043e\u0432\u0435\u0440\u0438\u043b\u0438 \u043d\u0430 \u0417\u0435\u043c\u043b\u0435, \u0447\u0442\u043e \u0441\u043e\u0431\u0440\u0430\u043b \u044d\u043a\u0438\u043f\u0430\u0436 \u0438 \u043a\u0430\u043a \u043f\u043e\u0434\u0442\u0432\u0435\u0440\u0434\u0438\u043b\u0438 \u0438 \u043f\u043e\u0434\u0434\u0435\u0440\u0436\u0438\u0432\u0430\u043b\u0438 \u0440\u0435\u0437\u0443\u043b\u044c\u0442\u0430\u0442. \u0422\u0435\u0445\u043d\u0438\u0447\u0435\u0441\u043a\u0438\u0435 \u0441\u0432\u0435\u0434\u0435\u043d\u0438\u044f \u0432\u0441\u0442\u0440\u043e\u0435\u043d\u044b \u0432 \u0441\u043c\u0435\u043d\u0443 \u043f\u0440\u0430\u043a\u0442\u0438\u0447\u0435\u0441\u043a\u0438\u0445 \u0437\u0430\u0434\u0430\u0447, \u043f\u043e\u0441\u043b\u0435\u0434\u043e\u0432\u0430\u0442\u0435\u043b\u044c\u043d\u043e\u0441\u0442\u044c \u043d\u0435 \u0441\u043e\u0437\u0434\u0430\u0451\u0442 \u043b\u043e\u0436\u043d\u044b\u0445 \u043f\u0440\u0438\u0447\u0438\u043d\u043d\u044b\u0445 \u0441\u0432\u044f\u0437\u0435\u0439, \u0430 \u0444\u0438\u043d\u0430\u043b \u0437\u0430\u0432\u0435\u0440\u0448\u0430\u0435\u0442 \u0440\u0430\u0441\u0441\u043a\u0430\u0437 \u043e\u0431\u0449\u0438\u043c \u0437\u043d\u0430\u0447\u0435\u043d\u0438\u0435\u043c \u0440\u0430\u0431\u043e\u0442\u044b \u0431\u0435\u0437 \u043f\u043e\u0432\u0442\u043e\u0440\u043d\u043e\u0433\u043e \u0440\u0430\u0437\u0431\u043e\u0440\u0430 \u043c\u0435\u0445\u0430\u043d\u0438\u0437\u043c\u0430. \u0421\u0443\u0449\u0435\u0441\u0442\u0432\u0435\u043d\u043d\u044b\u0445 \u0434\u0435\u0444\u0435\u043a\u0442\u043e\u0432 \u043f\u043e\u0432\u0435\u0441\u0442\u0432\u043e\u0432\u0430\u043d\u0438\u044f \u0438\u043b\u0438 \u043f\u0440\u043e\u0431\u0435\u043b\u043e\u0432 \u0432 \u043f\u0440\u0435\u0434\u043e\u0441\u0442\u0430\u0432\u043b\u0435\u043d\u043d\u044b\u0445 \u043c\u0430\u0442\u0435\u0440\u0438\u0430\u043b\u0430\u0445, \u043f\u0440\u0435\u043f\u044f\u0442\u0441\u0442\u0432\u0443\u044e\u0449\u0438\u0445 \u0441\u0446\u0435\u043d\u0430\u0440\u0438\u044e, \u043d\u0435\u0442.\",\n  \"decision\": \"accept\"\n}"
+        }
+      ],
+      "phase": "final_answer",
+      "role": "assistant"
+    }
+  ],
+  "parallel_tool_calls": false,
+  "presence_penalty": 0.0,
+  "previous_response_id": null,
+  "prompt_cache_key": null,
+  "prompt_cache_options": {
+    "mode": "explicit",
+    "ttl": "30m"
+  },
+  "prompt_cache_retention": "24h",
+  "reasoning": {
+    "context": "all_turns",
+    "effort": "medium",
+    "mode": "standard",
+    "summary": null
+  },
+  "safety_identifier": null,
+  "service_tier": "default",
+  "store": false,
+  "temperature": 1.0,
+  "text": {
+    "format": {
+      "type": "json_schema",
+      "description": null,
+      "name": "plan_review",
+      "schema": {
+        "$defs": {
+          "PlanReviewFinding": {
+            "additionalProperties": false,
+            "properties": {
+              "targets": {
+                "description": "JSON Pointers into the exact supplied plan.",
+                "items": {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "minItems": 1,
+                "title": "Targets",
+                "type": "array"
+              },
+              "priority": {
+                "enum": [
+                  "blocking",
+                  "important",
+                  "optional"
+                ],
+                "title": "Priority",
+                "type": "string"
+              },
+              "observation": {
+                "minLength": 1,
+                "title": "Observation",
+                "type": "string",
+                "description": "Specific effect of this choice on the story the listener would receive, whether or not its facts are correct."
+              },
+              "requested_change": {
+                "minLength": 1,
+                "title": "Requested Change",
+                "type": "string",
+                "description": "Concrete change to the addressed plan passage, its intended listening effect and any dependent passages to change together."
+              },
+              "preserve": {
+                "items": {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "title": "Preserve",
+                "type": "array",
+                "description": "Preserve a useful story choice or the supported meaning of a claim. A factual boundary limits what the revision can imply; it calls for an explicit explanation only when the listener needs it to understand the retained claim. May be empty."
+              },
+              "material_refs": {
+                "items": {
+                  "minLength": 1,
+                  "type": "string",
+                  "enum": [
+                    "M1",
+                    "M2",
+                    "M3",
+                    "M4",
+                    "M5",
+                    "M6",
+                    "M7",
+                    "M8",
+                    "M9"
+                  ]
+                },
+                "title": "Material Refs",
+                "type": "array"
+              }
+            },
+            "required": [
+              "targets",
+              "priority",
+              "observation",
+              "requested_change",
+              "preserve",
+              "material_refs"
+            ],
+            "title": "PlanReviewFinding",
+            "type": "object"
+          },
+          "PlanReviewStrength": {
+            "additionalProperties": false,
+            "properties": {
+              "targets": {
+                "description": "JSON Pointers into the exact supplied plan.",
+                "items": {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "minItems": 1,
+                "title": "Targets",
+                "type": "array"
+              },
+              "reason": {
+                "minLength": 1,
+                "title": "Reason",
+                "type": "string",
+                "description": "What this addressed choice contributes to the story and listening experience; wording and position remain revisable."
+              }
+            },
+            "required": [
+              "targets",
+              "reason"
+            ],
+            "title": "PlanReviewStrength",
+            "type": "object"
+          },
+          "PlanningResearchRequest": {
+            "additionalProperties": false,
+            "properties": {
+              "question": {
+                "minLength": 1,
+                "title": "Question",
+                "type": "string"
+              },
+              "why_needed": {
+                "minLength": 1,
+                "title": "Why Needed",
+                "type": "string"
+              },
+              "affected_act_ids": {
+                "description": "Local act labels; empty for an episode-wide question.",
+                "items": {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "title": "Affected Act Ids",
+                "type": "array"
+              },
+              "material_refs": {
+                "description": "Relevant supplied locators; may be empty for missing evidence.",
+                "items": {
+                  "minLength": 1,
+                  "type": "string",
+                  "enum": [
+                    "M1",
+                    "M2",
+                    "M3",
+                    "M4",
+                    "M5",
+                    "M6",
+                    "M7",
+                    "M8",
+                    "M9"
+                  ]
+                },
+                "title": "Material Refs",
+                "type": "array"
+              },
+              "blocking": {
+                "description": "Whether the promised answer requires this unresolved material.",
+                "title": "Blocking",
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "question",
+              "why_needed",
+              "affected_act_ids",
+              "material_refs",
+              "blocking"
+            ],
+            "title": "PlanningResearchRequest",
+            "type": "object"
+          }
+        },
+        "additionalProperties": false,
+        "properties": {
+          "listener_answer": {
+            "minLength": 1,
+            "title": "Listener Answer",
+            "type": "string",
+            "description": "The listening experience enabled by the selected plan: opening premises, developments, disclosures, chronology and ending."
+          },
+          "strengths": {
+            "items": {
+              "$ref": "#/$defs/PlanReviewStrength"
+            },
+            "title": "Strengths",
+            "type": "array",
+            "description": "Addressed properties that help this particular story and genre work. Explain their contribution; praise does not freeze the current selection or sequence."
+          },
+          "findings": {
+            "items": {
+              "$ref": "#/$defs/PlanReviewFinding"
+            },
+            "title": "Findings",
+            "type": "array",
+            "description": "Addressed defects and optional improvements in the proposed telling, with the changes they need. May be empty."
+          },
+          "research_requests": {
+            "items": {
+              "$ref": "#/$defs/PlanningResearchRequest"
+            },
+            "title": "Research Requests",
+            "type": "array"
+          },
+          "duration_note": {
+            "minLength": 1,
+            "title": "Duration Note",
+            "type": "string"
+          },
+          "decision_reason": {
+            "minLength": 1,
+            "title": "Decision Reason",
+            "type": "string",
+            "description": "Concrete reason for the decision following from the preceding story assessment and addressed findings, including their consequence for this audience and request."
+          },
+          "decision": {
+            "enum": [
+              "accept",
+              "revise",
+              "needs_research"
+            ],
+            "title": "Decision",
+            "type": "string",
+            "description": "Decision reached after assessing the story enabled by this plan. Factual accuracy alone does not establish that its chosen telling works; a good plan need not be changed."
+          }
+        },
+        "required": [
+          "decision",
+          "decision_reason",
+          "listener_answer",
+          "strengths",
+          "findings",
+          "research_requests",
+          "duration_note"
+        ],
+        "title": "PlanReviewOutput",
+        "type": "object"
+      },
+      "strict": true
+    },
+    "verbosity": "high"
+  },
+  "tool_choice": "none",
+  "tool_usage": {
+    "image_gen": {
+      "input_tokens": 0,
+      "input_tokens_details": {
+        "image_tokens": 0,
+        "text_tokens": 0
+      },
+      "output_tokens": 0,
+      "output_tokens_details": {
+        "image_tokens": 0,
+        "text_tokens": 0
+      },
+      "total_tokens": 0
+    },
+    "web_search": {
+      "num_requests": 0
+    }
+  },
+  "tools": [],
+  "top_logprobs": 0,
+  "top_p": 0.98,
+  "truncation": "disabled",
+  "usage": {
+    "input_tokens": 11753,
+    "input_tokens_details": {
+      "cache_write_tokens": 6322,
+      "cache_write_tokens_details": {
+        "ttl_12h_tokens": 0,
+        "ttl_30m_tokens": 6322
+      },
+      "cached_tokens": 0
+    },
+    "output_tokens": 1462,
+    "output_tokens_details": {
+      "reasoning_tokens": 248
+    },
+    "total_tokens": 13215
+  },
+  "user": null,
+  "metadata": {
+    "podgen_run_id": "777cb9be-60e6-4db1-9709-d032c28eb544",
+    "podgen_invocation_id": "830a65cd-5676-5b58-a09f-adea962bf2c5",
+    "podgen_stage": "plan-review",
+    "compiler_version": "whole-episode-baseline-a/1",
+    "podgen_prompt_cache_layout": "stable-role-prefix/1"
+  }
+}
