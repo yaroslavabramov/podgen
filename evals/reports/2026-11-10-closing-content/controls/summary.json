@@ -1,0 +1,122 @@
+{
+  "criteria_commit": "c474195",
+  "instructions_commit": "6484d28",
+  "schema_commit": "440081e",
+  "model": "gpt-6.1-terra",
+  "reasoning_effort": "medium",
+  "total_generations": 8,
+  "total_estimate_usd": "0.17369335",
+  "tokens": {
+    "input_tokens": 62326,
+    "cached_input_tokens": 2727,
+    "cache_write_tokens": 35612,
+    "output_tokens": 21011,
+    "reasoning_tokens": 8657
+  },
+  "results": [
+    {
+      "case": "apollo",
+      "role": "plan-review",
+      "decision": "revise",
+      "ending_assessment": "replacement",
+      "findings": 1,
+      "cost_usd": "0.02410675",
+      "input_tokens": 11502,
+      "cached_input_tokens": 0,
+      "cache_write_tokens": 5739,
+      "output_tokens": 2234,
+      "reasoning_tokens": 1155
+    },
+    {
+      "case": "apollo",
+      "role": "reader-review",
+      "decision": "revise",
+      "ending_assessment": "replacement",
+      "findings": 5,
+      "cost_usd": "0.0328815",
+      "input_tokens": 5130,
+      "cached_input_tokens": 0,
+      "cache_write_tokens": 2726,
+      "output_tokens": 5414,
+      "reasoning_tokens": 2036
+    },
+    {
+      "case": "snow",
+      "role": "plan-review",
+      "decision": "revise",
+      "ending_assessment": "replacement",
+      "findings": 3,
+      "cost_usd": "0.03894975",
+      "input_tokens": 22446,
+      "cached_input_tokens": 0,
+      "cache_write_tokens": 14755,
+      "output_tokens": 2563,
+      "reasoning_tokens": 898
+    },
+    {
+      "case": "snow",
+      "role": "reader-review",
+      "decision": "revise",
+      "ending_assessment": "replacement",
+      "findings": 4,
+      "cost_usd": "0.02990025",
+      "input_tokens": 6723,
+      "cached_input_tokens": 0,
+      "cache_write_tokens": 2729,
+      "output_tokens": 4499,
+      "reasoning_tokens": 1969
+    },
+    {
+      "case": "library",
+      "role": "plan-review",
+      "decision": "accept",
+      "ending_assessment": "keep",
+      "findings": 0,
+      "cost_usd": "0.011739",
+      "input_tokens": 4900,
+      "cached_input_tokens": 0,
+      "cache_write_tokens": 3436,
+      "output_tokens": 1196,
+      "reasoning_tokens": 608
+    },
+    {
+      "case": "library",
+      "role": "reader-review",
+      "decision": "revise",
+      "ending_assessment": "keep",
+      "findings": 1,
+      "cost_usd": "0.01309675",
+      "input_tokens": 3315,
+      "cached_input_tokens": 0,
+      "cache_write_tokens": 2727,
+      "output_tokens": 1820,
+      "reasoning_tokens": 872
+    },
+    {
+      "case": "work",
+      "role": "plan-review",
+      "decision": "revise",
+      "ending_assessment": "keep_summary_rephrase",
+      "findings": 2,
+      "cost_usd": "0.01442",
+      "input_tokens": 5025,
+      "cached_input_tokens": 0,
+      "cache_write_tokens": 3500,
+      "output_tokens": 1704,
+      "reasoning_tokens": 580
+    },
+    {
+      "case": "work",
+      "role": "reader-review",
+      "decision": "revise",
+      "ending_assessment": "false_positive_cut_summary",
+      "findings": 1,
+      "cost_usd": "0.00859935",
+      "input_tokens": 3285,
+      "cached_input_tokens": 2727,
+      "cache_write_tokens": 0,
+      "output_tokens": 1581,
+      "reasoning_tokens": 539
+    }
+  ]
+}
