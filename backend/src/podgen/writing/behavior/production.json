@@ -39,16 +39,16 @@
   },
   "readings": {
     "reader-review-1": {
-      "version": "reader-review/sha256:afe78071b8753bc220d2affd899d658ce831560d7327b290b211a370655e6d51",
-      "sha256": "afe78071b8753bc220d2affd899d658ce831560d7327b290b211a370655e6d51"
+      "version": "reader-review/sha256:ec93938e9c60cd16d8eb05004bb617176327fc9c13c99dfec284a113a0c06e21",
+      "sha256": "ec93938e9c60cd16d8eb05004bb617176327fc9c13c99dfec284a113a0c06e21"
     },
     "dual-revise": {
       "version": "dual-revise/sha256:0197ebeabeb73862948781fa5f75be3a5341a4c993437511d60ada5f4d5f86ca",
       "sha256": "0197ebeabeb73862948781fa5f75be3a5341a4c993437511d60ada5f4d5f86ca"
     },
     "fact-review": {
-      "version": "fact-review/sha256:9d3b7264619764aca76c336208b3c34b558fac7c70e7c36856092b6eded14a95",
-      "sha256": "9d3b7264619764aca76c336208b3c34b558fac7c70e7c36856092b6eded14a95"
+      "version": "fact-review/sha256:b851eab1f622965f59abc23a4b00246906eae43150d4dcf75d38c23d163dd664",
+      "sha256": "b851eab1f622965f59abc23a4b00246906eae43150d4dcf75d38c23d163dd664"
     }
   }
 }
