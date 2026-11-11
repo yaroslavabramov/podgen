@@ -1,0 +1,25 @@
+{
+  "case": "apollo-continuation-reader-review-1",
+  "recommendation": "keep",
+  "validation": "passed",
+  "model": "gpt-6.1-terra",
+  "usage": {
+    "input_tokens": 8464,
+    "input_tokens_details": {
+      "cache_write_tokens": 3557,
+      "cache_write_tokens_details": {
+        "ttl_12h_tokens": 0,
+        "ttl_30m_tokens": 3557
+      },
+      "cached_tokens": 0
+    },
+    "output_tokens": 1850,
+    "output_tokens_details": {
+      "reasoning_tokens": 249
+    },
+    "total_tokens": 10314
+  },
+  "estimated_usd": "0.01860325",
+  "request_sha256": "a7a7606e899a9ea94cbbd442b7c3627e7fc385016a9c05e5d1fbeb6afeb9f07c",
+  "source_sha256": "9e6cac1968319036eb0d2c510f25b2efc70739faecfc3685bc2b8c8c6a886fd4"
+}

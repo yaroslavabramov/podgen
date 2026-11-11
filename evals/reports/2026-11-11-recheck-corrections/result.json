@@ -1,0 +1,62 @@
+{
+  "run_id": "3d4acc00-14db-454a-90c2-9d164b3c0bf5",
+  "status": "needs_attention",
+  "review_status": "revision_limit_exhausted",
+  "semantic_acceptance": false,
+  "production_ready": false,
+  "unknown_usage_invocations": [],
+  "decisions": {
+    "plan-review": {
+      "decision": "revise",
+      "required": 2,
+      "optional": 0
+    },
+    "plan-review-revised": {
+      "decision": "accept",
+      "required": 0,
+      "optional": 0
+    },
+    "reader-review": {
+      "decision": "revise",
+      "required": 4,
+      "optional": 0
+    },
+    "fact-review": {
+      "decision": "revise",
+      "required": 2,
+      "optional": 0
+    },
+    "reader-review-1": {
+      "decision": "revise",
+      "required": 2,
+      "optional": 0
+    },
+    "fact-review-1": {
+      "decision": "revise",
+      "required": 1,
+      "optional": 1
+    },
+    "reader-review-2": {
+      "decision": "keep",
+      "required": 0,
+      "optional": 0
+    },
+    "fact-review-2": {
+      "decision": "revise",
+      "required": 1,
+      "optional": 0
+    }
+  },
+  "word_counts": {
+    "draft": 1849,
+    "revise-1": 1852,
+    "revise-2": 1854
+  },
+  "late_finding_phrase": "раньше, чем кто-либо смог увидеть саму заразу",
+  "phrase_present_in_all_three_versions": true,
+  "full_cycle_estimated_usd": "1.56388870",
+  "controls_estimated_usd": "0.05890950",
+  "total_estimated_usd": "1.62279820",
+  "physical_responses": 46,
+  "export_path": "/Users/yaroslavabramov/side/podgen/tmp/recheck-corrections/snow-pump/export"
+}

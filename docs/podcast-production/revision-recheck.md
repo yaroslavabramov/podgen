@@ -8,4 +8,6 @@
 
 Манифест фиксирует контракт, инструкцию и схему ответа. Сохранённые запуски без этого контракта остаются прежними; `editorial-recheck/1` сохраняет свою схему и формат `revision_guidance`. Проверки привязок не принимают решение о качестве рассказа. Допуск требует решения обоих проверяющих на одной версии сценария.
 
-Регрессии: `test_production_recheck.py`, `test_revision_verification.py`, `test_revision_verification_runtime.py`. Последний набор требует PostgreSQL и запускается последовательно с другими тяжёлыми тестами. Восстановление технических сбоев описано отдельно в [technical-recovery.md](technical-recovery.md).
+В `/2` нерешённое обязательное поручение (`still_open`) должно ссылаться на замечание `important` или `blocking` и несовместимо с `keep`. Противоречивый ответ отклоняется, а не исправляется автоматически. Правило проверяется при получении ответа, использовании сохранённой рецензии, продолжении и экспорте результата; схемы запросов и исторический `/1` не изменены.
+
+Регрессии: `test_production_recheck.py`, `test_revision_verification.py`, `test_revision_verification_runtime.py`, `test_required_recheck_result.py`, `test_required_recheck_runtime.py`. Наборы `*_runtime.py` требуют PostgreSQL и запускаются последовательно с другими тяжёлыми тестами. Восстановление технических сбоев описано отдельно в [technical-recovery.md](technical-recovery.md).

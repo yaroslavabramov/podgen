@@ -1,0 +1,507 @@
+{
+  "model": "gpt-6.1-terra",
+  "instructions": "# Read the revised episode as a finished telling\n\nDecide whether you would send the complete current script to the assigned speakers to record. Read its spoken words in order for its genre, format and audience, then examine the supplied revision context. Report `reading_mode=informed`. Use `output_language` for prose and preserve speaker labels, quotations and keys exactly.\n\n## Verify the commissioned revision\n\nUse `revision_check` to compare the current script with the previous version and the work actually assigned to the writer. Its `assignments` are the transmitted `revision_tasks`, identified by R for reader tasks and F for factual tasks, with their anchors, `problem`, `action` and any `preserve` content. Judge that work rather than reconstructing an assignment from earlier reviews. Use `previous_reader_decision` to understand the preceding recording decision; it is context to verify, not a verdict to repeat. `revision_operation` records the edit permissions given to the writer. Do not rely on the writer's report of completion.\n\nReconstruct the previous script by reading `previous_script_in_order` blocks in order. A `copy_current` block copies the complete current utterances from its zero-based `first` through `last` indices, inclusive; a `previous_turns` block supplies the exact old utterances where they differ. Concatenating these blocks restores the previous spoken script without omissions. After concatenating the blocks, number the reconstructed previous utterances from zero in their restored order; resolve previous anchors by those positions, ignoring any current-script `index` values carried by copied utterances. Assignment anchors refer to that reconstructed previous script. Anchors for your findings and edit permissions must refer to the complete current script. Compare the actual passages, their joins and dependent speech, including changes elsewhere in the episode.\n\nReturn exactly one entry in `assignment_results` for every supplied assignment ID. In `judgment`, explain what changed in the speech and whether it resolves the underlying `problem` while retaining the useful meaning and effect in `preserve`. Use `achieved` when the assigned approach achieves the intended result; `solved_differently` when another means resolves the problem; `no_longer_needed` when the current composition has removed the claim, passage or dependency that made the task necessary; and `still_open` when the required problem remains. A difference from the proposed `action` alone does not establish failure. For each `still_open` result, commission the remaining repair in a required current finding and set `followup_finding` to its zero-based index. For the other outcomes, use null.\n\nAssess both R and F assignments for execution and their effect on the telling. No original source evidence is supplied here: the assignment's diagnosis or proposed correction is not independent evidence. The fact checker separately verifies factual support. Do not certify a factual claim from the assignment alone or leave an otherwise completed F task open merely because its sources are not visible to you. Identify contradictions or missing connections that the present speech itself creates.\n\nIn `effect_on_episode`, explain how the revision changed the complete listening experience, including gains and any lost clarity, discovery, humor, voice or completion. Recheck the whole current episode, not only assigned lines. A new substantial error may require repair even in unchanged speech or after an earlier approval; ground it in the current words and explain its material effect on recording readiness. An equally effective arrangement or optional polish does not reopen resolved work or justify another rewrite. Judge the resulting episode, not literal compliance with a proposed edit or the number of changes.\n\n## Judge the complete telling\n\nRead the whole script before commissioning repairs. Decide how the voice works across the episode and what the complete telling leaves the listener with. Put these judgments in `listener_answer`, supported by concrete words from the relevant passages. When considering a required repair, compare the passage as written with the proposed alternative and identify the defect the change resolves. A plot summary or a general description of the tone does not establish either readiness or a defect. Track what this listener can understand as the speech unfolds. When a sentence relies on a reference or inference, check whether the needed connection is available at that point. Do not silently supply knowledge from later in the script. A deliberate question or delayed reveal can leave its answer open while making clear what the listener is following.\n\nBefore approving a scene followed by explanatory commentary, establish what listeners can already understand at its last substantive action, result or reply. Compare hearing the scene and its next join with the commentary against hearing them without it. Make this comparison part of the readiness decision even when the scene itself works and deserves praise. When the longer version merely restates that understanding and weakens pace, voice or the pleasure of discovery, require the exact cut or shortening. Keep or repair an explanation that supplies a needed connection. A joke, aside or reflection may contribute through timing, attitude, relationship or pleasure without adding information.\n\nThe ending may complete the action, follow a consequence, express the narrator's response or reflection, return to an earlier moment, leave open a question central to the story, or briefly draw the whole account together. Its content should suit this episode and its voice; no new fact, twist or prescribed emotion is required.\n\nA brief overall conclusion gives a view of the episode's broad subject, outcome or takeaway, relying on details the audience has just heard. Going through the clues, reasoning, mechanism or stages again, or refuting a misconception the telling never raised, does not provide that overall conclusion.\n\nRead the entire ending with its setup, the understanding or change achieved and what remains open. Judge its actual words, rhythm and transition into the stopping point against what listeners have just heard. For a proposed cut, read the surviving ending: does it still complete the telling, or does removing the repeated explanation leave an abrupt stop, an unsupported conclusion or an unprepared correction? Use the actual stopping words and joins to establish the defect and the effect of the repair. Commission a complete ending with its transition when that is the coherent repair, without fixing the current last sentence as its destination. If the telling stops before a prepared answer, request completion within the available material or a change to what the story promises. An earlier possible stop alone is not a defect; keep the current ending when it works.\n\n## Commission the needed work\n\nLet the comparisons determine the findings. In `observation`, explain the current defect and its effect on this listener. In `requested_change`, commission a concrete change to the addressed telling: what the writer should develop, connect, reveal, select or replace, and what the resulting passage should achieve. Choose the smallest coherent repair that resolves the demonstrated defect. A word or sentence may restore an intelligible reference or transition; rebuild a connected passage when its development or dependencies need to change together. Keep your evidential and editorial analysis in the diagnosis; it is not itself speech to put on air. For a recurring manner or extended ending that needs connected revision, give one coherent passage assignment before independent line repairs. In `preserve`, state the supported meaning and useful effect to retain; a factual boundary constrains the repaired account without automatically becoming a spoken qualification. Use `important` or `blocking` and recommend `revise` for a demonstrated defect. An alternative with a comparable listening effect is `optional`. Use `keep` when no required repair remains.\n\nRead the entire surviving sequence after each proposed operation. Keep the necessary connection between observation, explanation and conclusion, and keep clear the subject, units and population of retained claims. If a comparison or explanation lacks a basis, decide whether it is needed for the commissioned question. An unclear branch may be removed when that question is already understandable without it. If the branch is needed, ask the writer to establish the missing basis from the sources or change the retained account or claim. Repairing the scope of the account does not automatically require a spoken explanation of methodology. Ask for methodological detail when this audience needs it to understand what remains. A statement of caution alone does not supply a missing basis. Judge a qualification with its whole paragraph and the words that will remain: retain it when those words still invite a specific mistaken understanding, naming both. Hear the actual grammar, idiom and cadence, and require repair of an objective language error. An intended mystery can leave an answer open while supplying the basis the listener needs to follow it. Do not invent a replacement account.\n\n## Authorize and return the review\n\nSet `revision_scope` from required work, using `none` when there is none. When a connected passage needs rebuilding, use `sequence` and authorize its complete inclusive range in `sequence_ranges`: two short exact quotes identify its first and last utterances, which may be the same utterance. Include the setup, support for dependent conclusions and handoff that need to change together. For an ending rewrite, check that the authorized range includes its entire needed development through the intended stopping point and any dependent setup. A self-contained wording correction within an ending may remain local. A move needs a connected range covering its original and intended positions and the intervening speech. Use `whole_episode` when the repair requires recomposing the complete telling. Local repairs change quoted wording only; quote an entire local deletion. Quotes of surviving join lines identify the join without authorizing deletion between them.\n\nAnchor each finding to exact nonempty quotations and supplied zero-based utterance indices. Address dependent passages with the underlying repair. Record useful contributions in strengths without treating them as approval of the whole voice or ending. Keep comparisons to the speech needed to explain the decision and operation. Use `duration_context` as an estimate, leave `research_requests` empty and return the requested structured review. External verification belongs to evidence reading; report no measured audio or human listening.\n",
+  "input": [
+    {
+      "role": "user",
+      "content": [
+        {
+          "type": "input_text",
+          "text": "{\"output_language\":\"ru\",\"audience\":\"General listeners; no prior topic knowledge is assumed.\",\"format\":\"solo\",\"genre\":\"Документальный подкаст\"}",
+          "prompt_cache_breakpoint": {
+            "mode": "explicit"
+          }
+        },
+        {
+          "type": "input_text",
+          "text": "{\"script\":{\"utterances\":[{\"index\":0,\"speaker\":\"РАССКАЗЧИК\",\"text\":\"Апрель 1970 года. «Аполлон-13» летит к Луне. Примерно через пятьдесят шесть часов после старта в служебном модуле резко пропадает кислород: в одном из двух баков случился пожар. Высадку отменяют. Теперь задача одна — вернуться домой, облетев Луну. Командир Джим Ловелл, пилот лунного модуля Фред Хейз и пилот командного модуля Джек Суайгерт перебираются в лунный модуль. Он и будет давать им электричество и всё, что нужно для жизни.\"},{\"index\":1,\"speaker\":\"РАССКАЗЧИК\",\"text\":\"Только строили его для другой работы. Ловелл потом вспоминал: лунный модуль рассчитан на двоих человек на два дня. А теперь он должен был поддерживать троих почти четверо суток.\"},{\"index\":2,\"speaker\":\"РАССКАЗЧИК\",\"text\":\"Кислород — только часть дела. С каждым выдохом в закрытой кабине становится больше углекислого газа. Его поглощают сменные патроны с гидроксидом лития: воздух прогоняют через патрон, и газ там остаётся. Хейз прикинул, что патронов хватит. Но, как пишет Ловелл, он забыл, что людей в модуле будет трое, а не двое.\"},{\"index\":3,\"speaker\":\"РАССКАЗЧИК\",\"text\":\"Запас лежит совсем рядом, в командном модуле. По подсчётам инженеров NASA, там двадцать четыре патрона. Вот только эти патроны квадратные, а гнёзда в лунном модуле круглые. Поглотитель есть, а вставить его некуда.\"},{\"index\":4,\"speaker\":\"РАССКАЗЧИК\",\"text\":\"На Земле за дело берутся инженеры, отвечающие за системы экипажа. Требования у них жёсткие. Конструкция должна работать. Собрать её можно только из того, что есть на борту. И она должна быть настолько простой, чтобы её можно было продиктовать по радио без риска, что экипаж поймёт неправильно. А ещё проверить её надо заранее, чтобы при неудаче оставалось время придумать что-то другое.\"},{\"index\":5,\"speaker\":\"РАССКАЗЧИК\",\"text\":\"Квадрат в круг не влезает, поэтому его туда и не вставляют. Патрон оставляют снаружи, открытой стороной к воздуху кабины. На другую сторону надевают пластиковый пакет — в таких хранились костюмы с жидкостным охлаждением, которые астронавты носили под скафандром, — и наглухо заклеивают. Угол пакета соединяют со шлангом, по которому воздух обычно идёт к скафандру. Система тянет воздух из кабины через поглотитель в пакет, а оттуда по шлангу обратно в систему.\"},{\"index\":6,\"speaker\":\"РАССКАЗЧИК\",\"text\":\"Это проверяют в камере диаметром чуть больше трёх метров, которая изображает кабину лунного модуля. Людей внутри нет: углекислый газ впрыскивают так, будто дышит экипаж. Два переделанных патрона подключены к двум шлангам. Сначала часть воздуха проскальзывает через щели в обход поглотителя. Эти щели затыкают куском носка от того же костюма охлаждения и обрезком обложки бортовой инструкции. Перепад давления на патронах заметно вырастает, а значит, воздух идёт сквозь гидроксид лития. Схема работает.\"},{\"index\":7,\"speaker\":\"РАССКАЗЧИК\",\"text\":\"Теперь её надо передать на корабль. Девяносто часов полёта. Ловелл предлагает дать Джеку гарнитуру, чтобы тот записал инструкцию. Но Джо Кервин, который ведёт связь из Хьюстона, предлагает иначе: соберите вещи, а мы проведём вас по процедуре прямо во время сборки. Так, говорит он, будет проще, чем всё записать, а потом делать.\"},{\"index\":8,\"speaker\":\"РАССКАЗЧИК\",\"text\":\"Список короткий. Два патрона из командного модуля. Рулон серой клейкой ленты. Пакеты от двух костюмов охлаждения. И одна картонная карточка из бортовой памятки. Её ещё придётся обрезать.\"},{\"index\":9,\"speaker\":\"РАССКАЗЧИК\",\"text\":\"Картонная карточка. В космическом корабле, на пути от Луны. Кервин говорит: согните её дугой над патроном, один край заведите под выступ, другой уприте в выступ на другой стороне. И тут же объясняет зачем. Сверху на всё это наденут пакет. Если воздух потянет пакет внутрь, тот прилипнет к сетке патрона и перекроет поток. Дуга держит пакет и оставляет воздуху проход.\"},{\"index\":10,\"speaker\":\"РАССКАЗЧИК\",\"text\":\"Суайгерт повторяет задание своими словами. Потом прикидывает: «Кажется, карточку придётся чуть подрезать». Возьмём ножницы, отрежем край. «Она нужна только для одного, Джим, — чтобы это не засосало внутрь». Ещё немного ленты, ещё один обрезок. И наконец: «Джо, дуга готова, всё надёжно закреплено лентой».\"},{\"index\":11,\"speaker\":\"РАССКАЗЧИК\",\"text\":\"Дальше всё уже знакомо: пакет, лента, шланг. По словам Ловелла, Кервин около часа вёл Суайгерта шаг за шагом, пока на борту не появилось такое же устройство, какое собрали на Земле.\"},{\"index\":12,\"speaker\":\"РАССКАЗЧИК\",\"text\":\"Остаётся решить, куда всё поставить. Почти через девяносто четыре часа полёта Суайгерт докладывает: один патрон стоит на панели электропитания, второй — в переходном туннеле. «Отлично, Джек», — отвечают из Хьюстона.\"},{\"index\":13,\"speaker\":\"РАССКАЗЧИК\",\"text\":\"Через полчаса с небольшим Хейз спрашивает, как их конструкция выглядит с Земли. Связь шумит, ему приходится повторить. И наконец ответ: «У нас по углекислому газу 0,2, мы все в восторге. Похоже, всё отлично работает».\"},{\"index\":14,\"speaker\":\"РАССКАЗЧИК\",\"text\":\"Ноль целых две десятых — это миллиметры ртутного столба, парциальное давление углекислого газа. Проще говоря, мера того, сколько его в воздухе. До установки, по техническому отчёту, этот показатель поднимался примерно до пятнадцати.\"},{\"index\":15,\"speaker\":\"РАССКАЗЧИК\",\"text\":\"«Вот это здорово», — отвечает Хейз.\"},{\"index\":16,\"speaker\":\"РАССКАЗЧИК\",\"text\":\"Но на этом работа не закончилась: любой патрон рано или поздно выработается. На Земле по бортовой телеметрии рассчитали, сколько углекислого газа выдыхает экипаж, и шестнадцатого апреля начали в камере второе испытание с такой же подачей газа. Оно показало, когда пора менять патроны. Значит, больше не нужно было тратить драгоценное электричество лунного модуля на передачу данных, чтобы это выяснить.\"},{\"index\":17,\"speaker\":\"РАССКАЗЧИК\",\"text\":\"Примерно через двадцать часов работы к каждому из двух патронов пристроили сверху ещё один, свежий. Пока работали только патроны из командного модуля, приборы показывали от одной десятой до одного и восьми десятых миллиметра.\"},{\"index\":18,\"speaker\":\"РАССКАЗЧИК\",\"text\":\"Лунный модуль обогнул с экипажем Луну и давал им электричество и воздух почти до самого конца. Лишь перед входом в атмосферу трое перешли обратно в командный модуль. Аварию это не отменило: всё остальное возвращение оставалось трудным. Но одну смертельную задачу решили. Решили ее квадратные патроны из соседнего модуля, пакет от костюма, серая лента, картонная карточка и час спокойного разговора между Хьюстоном и кораблём.\"}]},\"duration_context\":{\"current_text\":{\"word_count\":843},\"audio_measured\":false,\"requested\":{\"target_seconds\":420,\"min_seconds\":360,\"max_seconds\":480},\"estimated_word_target\":770,\"estimated_word_range\":{\"min\":660,\"max\":880},\"estimate_basis\":\"Russian solo reference reading at 110 words/minute\",\"estimated_current_seconds\":460},\"revision_check\":{\"previous_script_in_order\":[{\"copy_current\":{\"first\":0,\"last\":7}},{\"previous_turns\":[{\"speaker\":\"РАССКАЗЧИК\",\"text\":\"Список короткий. Два патрона из командного модуля. Рулон серой клейкой ленты. Пакеты от двух костюмов охлаждения. И одна картонная карточка из бортовой памятки, которую нужно обрезать в паре-тройке сантиметров от кольца.\"}]},{\"copy_current\":{\"first\":9,\"last\":11}},{\"previous_turns\":[{\"speaker\":\"РАССКАЗЧИК\",\"text\":\"Остаётся решить, куда всё поставить. Почти через девяносто четыре часа полёта Суайгерт докладывает: один патрон стоит на панели электропитания, второй — в переходном туннеле. Хьюстон просит отнести синие шланги подальше от патронов, иначе очищенный воздух будет просто ходить по кругу рядом с ними. Лучше всего вывести шланги в туннель, чтобы часть потока шла и в командный модуль. «Оба шланга?» — уточняет Джек. Решайте сами, отвечают ему: хотя бы один, но советуют оба.\"}]},{\"copy_current\":{\"first\":13,\"last\":16}},{\"previous_turns\":[{\"speaker\":\"РАССКАЗЧИК\",\"text\":\"Примерно через двадцать часов работы к каждому из двух патронов пристроили сверху ещё один, свежий. Пакет и шланг переделывать не пришлось. Пока работали только патроны из командного модуля, приборы показывали от одной десятой до одного и восьми десятых миллиметра.\"}]},{\"copy_current\":{\"first\":18,\"last\":18}}],\"assignments\":[{\"origin\":\"reader\",\"anchors\":[{\"utterance_index\":12,\"quote\":\"Хьюстон просит отнести синие шланги подальше от патронов, иначе очищенный воздух будет просто ходить по кругу рядом с ними. Лучше всего вывести шланги в туннель, чтобы часть потока шла и в командный модуль. «Оба шланга?» — уточняет Джек. Решайте сами, отвечают ему: хотя бы один, но советуют оба.\"},{\"utterance_index\":5,\"quote\":\"Система тянет воздух из кабины через поглотитель в пакет, а оттуда по шлангу обратно в систему.\"}],\"problem\":\"Ранее шланг показан как путь воздуха от патрона обратно в систему. Теперь синие шланги надо отнести от патронов, чтобы очищенный воздух не ходил рядом с ними по кругу, но их роль относительно уже описанных шлангов не обозначена. Слушателю трудно представить и расположение деталей, и причину новой просьбы Хьюстона.\",\"action\":\"Уточнить в passage о синих шлангах их связь с ранее описанным движением воздуха и смысл разнесения шлангов и патронов, не придумывая неподтверждённых деталей. Если имеющийся материал не позволяет ясно различить их роли, убрать неясное ответвление о шлангах вместе с зависимым вопросом Джека; сохранить понятный результат установки.\",\"id\":\"R1\",\"preserve\":[\"Сообщение Суайгерта о размещении двух патронов.\",\"Практический характер обмена с Хьюстоном, если связь шлангов с циркуляцией удастся ясно показать.\",\"Ранее описанный путь воздуха через поглотитель не должен быть незаметно изменён.\"]},{\"origin\":\"reader\",\"anchors\":[{\"utterance_index\":8,\"quote\":\"И одна картонная карточка из бортовой памятки, которую нужно обрезать в паре-тройке сантиметров от кольца.\"}],\"problem\":\"Кольцо появляется без предмета, к которому его можно отнести. Точная инструкция об обрезке заставляет слушателя искать невведённую деталь, хотя для дальнейшего рассказа важно не расстояние от кольца, а то, что карточку подгоняют и сгибают в дугу.\",\"action\":\"Убрать необъяснённый ориентир с кольцом или сделать его понятным в самой этой строке, если он необходим; оставить подготовку к последующей подгонке карточки.\",\"id\":\"R2\",\"preserve\":[\"Карточка остаётся частью списка и затем превращается в подпорку для пакета.\"]},{\"origin\":\"fact\",\"anchors\":[{\"utterance_index\":8,\"quote\":\"в паре-тройке сантиметров от кольца\"}],\"problem\":\"Указанное расстояние не совпадает с записью переговоров: Кервин сказал обрезать карточку примерно в полутора дюймах от кольца, то есть примерно в 3,8 см. «Пара-тройка сантиметров» задаёт меньший диапазон. Это небольшая, но конкретная ошибка в воспроизведении инструкции.\",\"action\":\"Заменить расстояние на «примерно в четырёх сантиметрах от кольца» либо опустить численную подробность, сохранив указание обрезать карточку.\",\"id\":\"F1\",\"preserve\":[\"Список материалов и роль карточки в последующей сборке.\"]},{\"origin\":\"fact\",\"anchors\":[{\"utterance_index\":17,\"quote\":\"Пакет и шланг переделывать не пришлось.\"}],\"problem\":\"Это утверждение относится к добавлению патронов на борту. Лётный отчёт подтверждает, что примерно через 20 часов к каждому первоначальному патрону добавили ещё один, но не сообщает, что при этом не пришлось менять пакет и шланг. Отчёт наземного испытания говорит об устранении необходимости переделывать новые патроны в ходе второго этапа стендового теста; он не устанавливает указанную подробность бортовой операции. Проверенные фрагменты не доказывают, что утверждение ложно, но не подтверждают его.\",\"action\":\"Убрать утверждение о том, что на борту пакет и шланг не пришлось переделывать. Сохранить подтверждённое добавление по одному патрону к каждой из двух сборок и последующий диапазон показаний.\",\"id\":\"F2\",\"preserve\":[\"Примерно 20 часов работы до добавления патронов.\",\"Диапазон 0,1–1,8 мм ртутного столба при работе только командных патронов.\"]}],\"revision_operation\":{\"mode\":\"targeted\",\"script_version\":0,\"targets\":[{\"target_id\":\"T1\",\"utterance_index\":5,\"text\":\"Система тянет воздух из кабины через поглотитель в пакет, а оттуда по шлангу обратно в систему.\"},{\"target_id\":\"T2\",\"utterance_index\":8,\"text\":\"И одна картонная карточка из бортовой памятки, которую нужно обрезать в паре-тройке сантиметров от кольца.\"},{\"target_id\":\"T3\",\"utterance_index\":8,\"text\":\"в паре-тройке сантиметров от кольца\"},{\"target_id\":\"T4\",\"utterance_index\":12,\"text\":\"Хьюстон просит отнести синие шланги подальше от патронов, иначе очищенный воздух будет просто ходить по кругу рядом с ними. Лучше всего вывести шланги в туннель, чтобы часть потока шла и в командный модуль. «Оба шланга?» — уточняет Джек. Решайте сами, отвечают ему: хотя бы один, но советуют оба.\"},{\"target_id\":\"T5\",\"utterance_index\":17,\"text\":\"Пакет и шланг переделывать не пришлось.\"},{\"target_id\":\"B5\",\"before_utterance_index\":5},{\"target_id\":\"B6\",\"before_utterance_index\":6},{\"target_id\":\"B8\",\"before_utterance_index\":8},{\"target_id\":\"B9\",\"before_utterance_index\":9},{\"target_id\":\"B12\",\"before_utterance_index\":12},{\"target_id\":\"B13\",\"before_utterance_index\":13},{\"target_id\":\"B17\",\"before_utterance_index\":17},{\"target_id\":\"B18\",\"before_utterance_index\":18}],\"sequences\":[]},\"previous_reader_decision\":{\"recommendation\":\"revise\",\"listener_answer\":\"История быстро задаёт понятную задачу: модуль, рассчитанный на двоих, должен поддерживать жизнь троих, а подходящий поглотитель нельзя вставить в его гнёзда. Рассказ постепенно переводит угрозу в доступную для воображения инженерную работу: внешний патрон, пакет и проверка в камере. На борту внимание с общей схемы сужается до картонной дуги. К моменту сообщения «дуга готова» слушатель уже знает, что она не даёт пакету перекрыть поток; повтор Суайгерта здесь не лишний комментарий, а признак того, что исполнитель понял задачу. Следующее краткое «пакет, лента, шланг» ускоряет сборку вместо повторного прохождения всех шагов. Мешают два локальных вопроса: откуда взялось кольцо в инструкции и как синие шланги связаны с ранее описанным потоком. После результата 0,2 пояснение единицы и сравнение с прежним показателем дают слушателю основание разделить восторг Хейза. Испытание на срок службы добавляет последствие, а не отменяет успех. Финал возвращается к материалам и часу спокойного разговора: это краткое, подходящее голосу подведение итога, а не повторное изложение механизма; он завершает рассказ.\",\"strengths\":[{\"anchors\":[{\"utterance_index\":1,\"quote\":\"лунный модуль рассчитан на двоих человек на два дня. А теперь он должен был поддерживать троих почти четверо суток.\"},{\"utterance_index\":3,\"quote\":\"патроны квадратные, а гнёзда в лунном модуле круглые. Поглотитель есть, а вставить его некуда.\"}],\"reason\":\"Ограничения сформулированы конкретно и понятны без предварительных знаний о космических системах.\"},{\"anchors\":[{\"utterance_index\":9,\"quote\":\"Дуга держит пакет и оставляет воздуху проход.\"},{\"utterance_index\":10,\"quote\":\"«Джо, дуга готова, всё надёжно закреплено лентой».\"},{\"utterance_index\":11,\"quote\":\"Дальше всё уже знакомо: пакет, лента, шланг.\"}],\"reason\":\"Сначала становится понятна функция маленькой детали, затем сцена показывает работу экипажа, а переход экономно сворачивает уже известные действия.\"},{\"anchors\":[{\"utterance_index\":13,\"quote\":\"«У нас по углекислому газу 0,2, мы все в восторге. Похоже, всё отлично работает».\"},{\"utterance_index\":14,\"quote\":\"До установки, по техническому отчёту, этот показатель поднимался примерно до пятнадцати.\"},{\"utterance_index\":15,\"quote\":\"«Вот это здорово», — отвечает Хейз.\"}],\"reason\":\"Показание, его масштаб и реакция экипажа соединяют технический результат с человеческим облегчением.\"},{\"anchors\":[{\"utterance_index\":18,\"quote\":\"квадратные патроны из соседнего модуля, пакет от костюма, серая лента, картонная карточка и час спокойного разговора между Хьюстоном и кораблём.\"}],\"reason\":\"Финальный перечень собирает физические предметы и сотрудничество в один образ, не объясняя заново всю схему.\"}],\"important_limits\":[\"В сцене со шлангами их отношение к ранее описанному пути воздуха не установлено достаточно ясно для слушателя.\"],\"revision_scope\":{\"scale\":\"local\",\"reason\":\"Неясность касается двух самостоятельных мест: ориентира для обрезки карточки и роли синих шлангов. Остальная последовательность, включая завершение, может сохраниться; для решения о шлангах необходимо учитывать уже рассказанный путь воздуха.\",\"anchors\":[{\"utterance_index\":8,\"quote\":\"И одна картонная карточка из бортовой памятки, которую нужно обрезать в паре-тройке сантиметров от кольца.\"},{\"utterance_index\":12,\"quote\":\"Хьюстон просит отнести синие шланги подальше от патронов, иначе очищенный воздух будет просто ходить по кругу рядом с ними. Лучше всего вывести шланги в туннель, чтобы часть потока шла и в командный модуль. «Оба шланга?» — уточняет Джек. Решайте сами, отвечают ему: хотя бы один, но советуют оба.\"}],\"dependent_passages\":[{\"reason\":\"При уточнении или удалении эпизода с синими шлангами нужно сохранить согласованность с ранее объяснённым путём воздуха.\",\"anchors\":[{\"utterance_index\":5,\"quote\":\"Система тянет воздух из кабины через поглотитель в пакет, а оттуда по шлангу обратно в систему.\"}]}]}}}}"
+        }
+      ]
+    }
+  ],
+  "max_output_tokens": 24576,
+  "text": {
+    "verbosity": "high",
+    "format": {
+      "type": "json_schema",
+      "name": "reader_review",
+      "schema": {
+        "$defs": {
+          "AssignmentResult": {
+            "additionalProperties": false,
+            "properties": {
+              "assignment_id": {
+                "minLength": 1,
+                "title": "Assignment Id",
+                "type": "string",
+                "enum": [
+                  "R1",
+                  "R2",
+                  "F1",
+                  "F2"
+                ]
+              },
+              "outcome": {
+                "enum": [
+                  "achieved",
+                  "solved_differently",
+                  "no_longer_needed",
+                  "still_open"
+                ],
+                "title": "Outcome",
+                "type": "string"
+              },
+              "judgment": {
+                "description": "What the edit actually did here and how that reads now.",
+                "minLength": 1,
+                "title": "Judgment",
+                "type": "string"
+              },
+              "followup_finding": {
+                "anyOf": [
+                  {
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "Zero-based current finding for an outstanding issue; otherwise null.",
+                "title": "Followup Finding"
+              }
+            },
+            "required": [
+              "assignment_id",
+              "outcome",
+              "judgment",
+              "followup_finding"
+            ],
+            "title": "AssignmentResult",
+            "type": "object"
+          },
+          "DependentPassage": {
+            "additionalProperties": false,
+            "properties": {
+              "reason": {
+                "description": "Why this passage must change with the addressed repair.",
+                "minLength": 1,
+                "title": "Reason",
+                "type": "string"
+              },
+              "anchors": {
+                "items": {
+                  "$ref": "#/$defs/UtteranceAnchor"
+                },
+                "minItems": 1,
+                "title": "Anchors",
+                "type": "array"
+              }
+            },
+            "required": [
+              "reason",
+              "anchors"
+            ],
+            "title": "DependentPassage",
+            "type": "object"
+          },
+          "EditorialFinding": {
+            "additionalProperties": false,
+            "properties": {
+              "dimension": {
+                "enum": [
+                  "promise",
+                  "mechanism",
+                  "structure",
+                  "transition",
+                  "repetition",
+                  "oral_style",
+                  "speaker_contribution",
+                  "factuality",
+                  "attribution",
+                  "duration",
+                  "ending"
+                ],
+                "title": "Dimension",
+                "type": "string"
+              },
+              "priority": {
+                "enum": [
+                  "blocking",
+                  "important",
+                  "optional"
+                ],
+                "title": "Priority",
+                "type": "string"
+              },
+              "anchors": {
+                "items": {
+                  "$ref": "#/$defs/UtteranceAnchor"
+                },
+                "minItems": 1,
+                "title": "Anchors",
+                "type": "array"
+              },
+              "observation": {
+                "description": "Specific defect in the anchored words and its effect in listening order. For grammar, identify the faulty form or construction.",
+                "minLength": 1,
+                "title": "Observation",
+                "type": "string"
+              },
+              "requested_change": {
+                "description": "Concrete operation on the addressed words or passage, its intended listening effect and any dependent joins. Editorial diagnosis is not proposed spoken wording.",
+                "minLength": 1,
+                "title": "Requested Change",
+                "type": "string"
+              },
+              "preserve": {
+                "description": "Supported meaning, necessary factual conditions and useful listening effects to retain. May be empty.",
+                "items": {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "title": "Preserve",
+                "type": "array"
+              }
+            },
+            "required": [
+              "dimension",
+              "priority",
+              "anchors",
+              "observation",
+              "requested_change",
+              "preserve"
+            ],
+            "title": "EditorialFinding",
+            "type": "object"
+          },
+          "EditorialStrength": {
+            "additionalProperties": false,
+            "properties": {
+              "anchors": {
+                "items": {
+                  "$ref": "#/$defs/UtteranceAnchor"
+                },
+                "minItems": 1,
+                "title": "Anchors",
+                "type": "array"
+              },
+              "reason": {
+                "description": "What works for the listener and should survive revision.",
+                "minLength": 1,
+                "title": "Reason",
+                "type": "string"
+              }
+            },
+            "required": [
+              "anchors",
+              "reason"
+            ],
+            "title": "EditorialStrength",
+            "type": "object"
+          },
+          "PinpointAssessment": {
+            "additionalProperties": false,
+            "properties": {
+              "scale": {
+                "description": "Local includes multiple independent pinpoint repairs at any distance; whole_episode explicitly authorizes recomposing the complete telling.",
+                "enum": [
+                  "none",
+                  "local",
+                  "whole_episode"
+                ],
+                "title": "Scale",
+                "type": "string"
+              },
+              "reason": {
+                "description": "Concrete editorial reason for this scale and its intended effect on the listening experience; do not infer quality from counts.",
+                "minLength": 1,
+                "title": "Reason",
+                "type": "string"
+              },
+              "anchors": {
+                "description": "Exact passages supporting this choice. Required repair needs at least one; none may use an empty list.",
+                "items": {
+                  "$ref": "#/$defs/UtteranceAnchor"
+                },
+                "title": "Anchors",
+                "type": "array"
+              },
+              "dependent_passages": {
+                "description": "Explicitly addressed dependent passages; no automatic neighboring-text permission. Empty when none are needed.",
+                "items": {
+                  "$ref": "#/$defs/DependentPassage"
+                },
+                "title": "Dependent Passages",
+                "type": "array"
+              }
+            },
+            "required": [
+              "scale",
+              "reason",
+              "anchors",
+              "dependent_passages"
+            ],
+            "title": "PinpointAssessment",
+            "type": "object"
+          },
+          "ResearchNeed": {
+            "additionalProperties": false,
+            "properties": {
+              "anchors": {
+                "items": {
+                  "$ref": "#/$defs/UtteranceAnchor"
+                },
+                "minItems": 1,
+                "title": "Anchors",
+                "type": "array"
+              },
+              "question": {
+                "minLength": 1,
+                "title": "Question",
+                "type": "string"
+              },
+              "why_needed": {
+                "minLength": 1,
+                "title": "Why Needed",
+                "type": "string"
+              }
+            },
+            "required": [
+              "anchors",
+              "question",
+              "why_needed"
+            ],
+            "title": "ResearchNeed",
+            "type": "object"
+          },
+          "SequenceAssessment": {
+            "additionalProperties": false,
+            "properties": {
+              "scale": {
+                "const": "sequence",
+                "title": "Scale",
+                "type": "string"
+              },
+              "reason": {
+                "description": "Concrete editorial reason for this scale and its intended effect on the listening experience; do not infer quality from counts.",
+                "minLength": 1,
+                "title": "Reason",
+                "type": "string"
+              },
+              "anchors": {
+                "description": "Exact passages supporting this choice. Required repair needs at least one; none may use an empty list.",
+                "items": {
+                  "$ref": "#/$defs/UtteranceAnchor"
+                },
+                "title": "Anchors",
+                "type": "array"
+              },
+              "dependent_passages": {
+                "description": "Explicitly addressed dependent passages; no automatic neighboring-text permission. Empty when none are needed.",
+                "items": {
+                  "$ref": "#/$defs/DependentPassage"
+                },
+                "title": "Dependent Passages",
+                "type": "array"
+              },
+              "sequence_ranges": {
+                "description": "Explicit editable sequences; do not infer their boundaries from scattered findings. Text outside them remains protected except separately addressed local repairs.",
+                "items": {
+                  "$ref": "#/$defs/SequenceRange"
+                },
+                "minItems": 1,
+                "title": "Sequence Ranges",
+                "type": "array"
+              }
+            },
+            "required": [
+              "scale",
+              "reason",
+              "anchors",
+              "dependent_passages",
+              "sequence_ranges"
+            ],
+            "title": "SequenceAssessment",
+            "type": "object"
+          },
+          "SequenceRange": {
+            "additionalProperties": false,
+            "properties": {
+              "anchors": {
+                "description": "First and last editable utterances, in that order. Quotes identify the boundaries; the complete inclusive range is authorized.",
+                "items": {
+                  "$ref": "#/$defs/UtteranceAnchor"
+                },
+                "maxItems": 2,
+                "minItems": 2,
+                "title": "Anchors",
+                "type": "array"
+              },
+              "reason": {
+                "minLength": 1,
+                "title": "Reason",
+                "type": "string"
+              }
+            },
+            "required": [
+              "anchors",
+              "reason"
+            ],
+            "title": "SequenceRange",
+            "type": "object"
+          },
+          "UtteranceAnchor": {
+            "additionalProperties": false,
+            "properties": {
+              "utterance_index": {
+                "description": "Zero-based position in the exact supplied WriteOutput.utterances list.",
+                "minimum": 0,
+                "title": "Utterance Index",
+                "type": "integer"
+              },
+              "quote": {
+                "description": "Exact nonempty substring of that utterance's spoken text.",
+                "minLength": 1,
+                "title": "Quote",
+                "type": "string"
+              }
+            },
+            "required": [
+              "utterance_index",
+              "quote"
+            ],
+            "title": "UtteranceAnchor",
+            "type": "object"
+          }
+        },
+        "additionalProperties": false,
+        "properties": {
+          "reading_mode": {
+            "const": "informed",
+            "title": "Reading Mode",
+            "type": "string"
+          },
+          "listener_answer": {
+            "description": "The complete listening experience in speech order: understanding, interest, cumulative voice and ending.",
+            "minLength": 1,
+            "title": "Listener Answer",
+            "type": "string"
+          },
+          "assignment_results": {
+            "items": {
+              "$ref": "#/$defs/AssignmentResult"
+            },
+            "title": "Assignment Results",
+            "type": "array",
+            "minItems": 4,
+            "maxItems": 4
+          },
+          "effect_on_episode": {
+            "description": "How the edit changed the complete listening experience, including any loss worth repairing.",
+            "minLength": 1,
+            "title": "Effect On Episode",
+            "type": "string"
+          },
+          "findings": {
+            "items": {
+              "$ref": "#/$defs/EditorialFinding"
+            },
+            "title": "Findings",
+            "type": "array",
+            "description": "Anchored defects and optional improvements in the actual spoken text, at the required repair scale. May be empty."
+          },
+          "revision_scope": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/PinpointAssessment"
+              },
+              {
+                "$ref": "#/$defs/SequenceAssessment"
+              }
+            ],
+            "title": "Revision Scope",
+            "description": "Editable scale and ranges needed for the required changes, including dependent passages. Use none when no required repair remains."
+          },
+          "important_limits": {
+            "items": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "title": "Important Limits",
+            "type": "array",
+            "description": "Only limits in the supplied text that materially affect this listening experience. May be empty; do not invent problems or require a list of caveats in the script."
+          },
+          "research_requests": {
+            "items": {
+              "$ref": "#/$defs/ResearchNeed"
+            },
+            "title": "Research Requests",
+            "type": "array"
+          },
+          "strengths": {
+            "items": {
+              "$ref": "#/$defs/EditorialStrength"
+            },
+            "title": "Strengths",
+            "type": "array",
+            "description": "Anchored wording or narrative contributions and useful listening effects to retain."
+          },
+          "duration_note": {
+            "description": "Evidence and uncertainty about duration; never invented timing.",
+            "minLength": 1,
+            "title": "Duration Note",
+            "type": "string"
+          },
+          "recommendation": {
+            "enum": [
+              "keep",
+              "revise",
+              "needs_material"
+            ],
+            "title": "Recommendation",
+            "type": "string",
+            "description": "Recording readiness based on required repairs; keep when none remain."
+          }
+        },
+        "required": [
+          "reading_mode",
+          "listener_answer",
+          "assignment_results",
+          "effect_on_episode",
+          "findings",
+          "revision_scope",
+          "important_limits",
+          "research_requests",
+          "strengths",
+          "duration_note",
+          "recommendation"
+        ],
+        "title": "RevisionReading",
+        "type": "object"
+      },
+      "strict": true
+    }
+  },
+  "tools": [],
+  "tool_choice": "none",
+  "parallel_tool_calls": false,
+  "truncation": "disabled",
+  "stream": false,
+  "metadata": {
+    "podgen_run_id": "9766e112-7709-4504-ba04-a6c565c1be62",
+    "podgen_invocation_id": "9766e112-7709-4504-ba04-a6c565c1be62",
+    "podgen_stage": "reader-review-1",
+    "compiler_version": "whole-episode-baseline-a/1",
+    "podgen_prompt_cache_layout": "stable-role-prefix/1",
+    "podgen_origin_run_id": "e5883424-f968-4883-852e-0c7e31359570"
+  },
+  "reasoning": {
+    "effort": "medium"
+  },
+  "store": false,
+  "background": false,
+  "prompt_cache_options": {
+    "mode": "explicit"
+  }
+}

@@ -1,0 +1,46 @@
+{
+  "controls": [
+    {
+      "case": "apollo-continuation-reader-review-1",
+      "identical_model_input": true,
+      "instructions_sha256": "38df9c99e8642fde657263cdae2c87744f3dd0dca36efad10fb679879f110239",
+      "recommendation": "keep",
+      "tasks": {
+        "R1": "achieved",
+        "R2": "achieved",
+        "F1": "achieved",
+        "F2": "achieved"
+      },
+      "findings": 0,
+      "estimated_usd": "0.01860325"
+    },
+    {
+      "case": "snow-pump-reader-review-1",
+      "identical_model_input": true,
+      "instructions_sha256": "38df9c99e8642fde657263cdae2c87744f3dd0dca36efad10fb679879f110239",
+      "recommendation": "keep",
+      "tasks": {
+        "R1": "achieved",
+        "R2": "achieved",
+        "R3": "achieved",
+        "F1": "achieved",
+        "F2": "achieved",
+        "F3": "achieved"
+      },
+      "findings": 0,
+      "estimated_usd": "0.0224555"
+    },
+    {
+      "case": "snow-pump-reader-review-2",
+      "identical_model_input": true,
+      "instructions_sha256": "38df9c99e8642fde657263cdae2c87744f3dd0dca36efad10fb679879f110239",
+      "recommendation": "keep",
+      "tasks": {
+        "F1": "achieved"
+      },
+      "findings": 0,
+      "estimated_usd": "0.01785075"
+    }
+  ],
+  "estimated_usd": "0.05890950"
+}
