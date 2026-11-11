@@ -68,8 +68,10 @@ def previous_reader_decision(journal, run_id, revision_stage, revision, before):
 def verify_saved(journal, run_id, stage, script_ref, script, invocation, context, output, *, version=VERSION):
     from podgen.writing.revision.verification import feedback_model
 
+    from .recheck_request import semantic_request
+
     _, expected = load(journal, run_id, stage, version=version, script_ref=script_ref, script=script)
-    sent = request_payload(journal.request(invocation))
+    sent = request_payload(semantic_request(journal, run_id, stage, invocation, context, script, output))
     if sent.get("revision_check") != expected or context.get("revision_verification") != dict(
         contract=version, comparison_hash=digest(expected)
     ):
