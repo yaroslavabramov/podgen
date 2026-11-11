@@ -72,9 +72,6 @@ def _describe(schema, *, fact):
             "reading_mode": "Informed assessment with factual evidence and remit supplied."
             if fact
             else "Script-only for the initial cold reading; informed when previous review context is supplied.",
-            "audit": "Complete contextual factual assessment of this version, including positive decisions and unchecked work."
-            if fact
-            else "Complete judgment of this telling, including its cumulative voice, successful passages, defects and unchecked work.",
             "listener_answer": "The factual account this episode conveys at its contextual scope. Individual checks are recorded in audit."
             if fact
             else "The understanding listeners develop as the spoken episode unfolds.",
@@ -88,6 +85,11 @@ def _describe(schema, *, fact):
         if name in defs:
             _fields(defs[name], descriptions)
     audit = defs.get("FactAudit" if fact else "ReaderAudit", {})
+    audit["description"] = (
+        "Complete contextual factual assessment of this version, including positive decisions and unchecked work."
+        if fact
+        else "Complete judgment of this telling, including its cumulative voice, successful passages, defects and unchecked work."
+    )
     _fields(audit, COMMON)
     if not fact:
         _fields(
