@@ -3,12 +3,12 @@
 from podgen.writing.compact_editorial_descriptions import describe_reader as describe_reader_fields
 
 COMMON = {
-    "coverage": "Current utterance ranges, their review status, linked decisions and any work left unchecked.",
-    "areas": "Status, linked decisions and explanation for each role-specific audit area.",
+    "coverage": "Ordered, non-overlapping inclusive ranges covering every current utterance exactly once, from index 0 through the final utterance without gaps. Each range records its review status, linked decisions and unchecked work.",
+    "areas": "Exactly one entry for every role-specific audit area, with status, linked decisions and explanation. A reviewed area must link at least one decision whose verdict is not unchecked and whose claim type or aspect matches that area.",
     "overall_judgment": "Assessment of the complete current account, grounded in its actual content and the recorded decisions.",
 }
 DECISION = {
-    "decision_id": "Unique local identifier for this current audit decision.",
+    "decision_id": "Unique local identifier for this current audit decision: D followed by a positive integer without leading zeros, such as D1 or D2.",
     "anchors": "Exact current spoken words locating the assessed passage.",
     "contextual_meaning": "What the connected passage conveys to this audience in the surrounding account.",
     "context_scope": "The subject, time, extent, attribution and surrounding context to which this decision applies.",
@@ -27,7 +27,7 @@ DEFINITIONS = {
         "first_utterance_index": "First current utterance in this inclusive range, indexed from zero.",
         "last_utterance_index": "Last current utterance in this inclusive range, indexed from zero.",
         "status": "Whether this range was reviewed, remains unchecked or contains no applicable material for this role.",
-        "decision_ids": "Current audit decisions recording the review of this range.",
+        "decision_ids": "Current audit decisions recording the review of this range; at least one is required when status is reviewed.",
         "explanation": "Work performed, work still unchecked or grounds for inapplicability in this range.",
     },
     "DecisionDisposition": {
@@ -127,7 +127,9 @@ def _describe(schema, *, fact):
         {
             "aspect": "Role-specific area of the complete audit.",
             "status": "Whether this area was reviewed, remains unchecked or does not apply to this account.",
-            "decision_ids": "Current decisions recording the assessment of this area.",
+            "decision_ids": "Current decisions recording this area. For reviewed status, at least one linked decision must have a verdict other than unchecked and contain the matching claim type: factual_accuracy maps to factual, causality to causal, chronology to chronological, and generalization to generalization."
+            if fact
+            else "Current decisions recording this area. For reviewed status, at least one linked decision must have a verdict other than unchecked and include this area's aspect in its aspects list.",
             "explanation": "Assessment performed, remaining unchecked work or grounds for inapplicability.",
         },
     )
