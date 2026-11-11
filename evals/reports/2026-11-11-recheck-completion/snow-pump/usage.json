@@ -1,0 +1,93 @@
+{
+  "run_id": "2d5d4dd8-76ec-4c2a-82d2-06a2fa171421",
+  "status": "needs_attention",
+  "failure": "planning_revision_limit_exhausted",
+  "estimated_usd": "0.27124650",
+  "responses": 4,
+  "calls": {
+    "resp_08ed6e9e13a37309016af445d1061087d28990da04ee747fdd": {
+      "stage": "plan-review-revised",
+      "model": "gpt-6.1-terra",
+      "usage": {
+        "input_tokens": 23060,
+        "input_tokens_details": {
+          "cache_write_tokens": 0,
+          "cache_write_tokens_details": {
+            "ttl_12h_tokens": 0,
+            "ttl_30m_tokens": 0
+          },
+          "cached_tokens": 14755
+        },
+        "output_tokens": 2154,
+        "output_tokens_details": {
+          "reasoning_tokens": 804
+        },
+        "total_tokens": 25214
+      },
+      "usd": "0.01981275"
+    },
+    "resp_06345b66a0fb6952016af444d4515487d2850ca015c8758e56": {
+      "stage": "plan",
+      "model": "gpt-6.1-sol",
+      "usage": {
+        "input_tokens": 15004,
+        "input_tokens_details": {
+          "cache_write_tokens": 0,
+          "cache_write_tokens_details": {
+            "ttl_12h_tokens": 0,
+            "ttl_30m_tokens": 0
+          },
+          "cached_tokens": 0
+        },
+        "output_tokens": 7241,
+        "output_tokens_details": {
+          "reasoning_tokens": 745
+        },
+        "total_tokens": 22245
+      },
+      "usd": "0.102418"
+    },
+    "resp_045da41ffed58a8e016af4459bbcf487d2ae92755b64ae0172": {
+      "stage": "plan-revise",
+      "model": "gpt-6.1-sol",
+      "usage": {
+        "input_tokens": 21835,
+        "input_tokens_details": {
+          "cache_write_tokens": 0,
+          "cache_write_tokens_details": {
+            "ttl_12h_tokens": 0,
+            "ttl_30m_tokens": 0
+          },
+          "cached_tokens": 0
+        },
+        "output_tokens": 6885,
+        "output_tokens_details": {
+          "reasoning_tokens": 109
+        },
+        "total_tokens": 28720
+      },
+      "usd": "0.11252"
+    },
+    "resp_076839745220712a016af4456d8f4887d2a07ef481e31e89cd": {
+      "stage": "plan-review",
+      "model": "gpt-6.1-terra",
+      "usage": {
+        "input_tokens": 22772,
+        "input_tokens_details": {
+          "cache_write_tokens": 14755,
+          "cache_write_tokens_details": {
+            "ttl_12h_tokens": 0,
+            "ttl_30m_tokens": 14755
+          },
+          "cached_tokens": 0
+        },
+        "output_tokens": 2007,
+        "output_tokens_details": {
+          "reasoning_tokens": 999
+        },
+        "total_tokens": 24779
+      },
+      "usd": "0.03649575"
+    }
+  }
+}
