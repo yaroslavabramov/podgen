@@ -48,6 +48,7 @@ def test_full_audit_memory_retains_old_read_without_reexecuting_it_and_replays(
     command = WritingRunCommand.model_validate(manifest["command"])
     assert manifest["reading_audit_contract"] == "reading-audit/1"
     assert manifest["reading_audit_consistency_contract"] == "decision-findings/1"
+    assert manifest["reading_audit_memory_projection"] == "shared-packet-evidence/1"
     fact_calls = [
         body for body in provider.requests if body["metadata"]["podgen_stage"].startswith("fact-review")
     ]
@@ -63,12 +64,16 @@ def test_full_audit_memory_retains_old_read_without_reexecuting_it_and_replays(
         assert reader["previous_recommendation"] == "keep"
         assert all(task["origin"] == "fact" for task in fact["assignments"])
         assert fact["previous_evidence"][0]["original_id"] == "E1"
+        assert len(fact["previous_evidence"]) == 1
+        assert dict(from_review="current", evidence_id="B1") in fact["previous_decisions"][0]["source_refs"]
         writer = request_payload(journal.request(journal.invocation(run_id, f"revise-{number}")))
         assert writer["review_source_passages"][0]["text"] == fact["previous_evidence"][0]["content"]["text"]
         assert "audit_context" not in writer and "FULL_PERSISTED_REASON" not in json.dumps(writer)
         stored = journal.output(journal.invocation(run_id, f"fact-review-{number}"))
         assert len(stored["output"]["audit"]["claim_checks"][0]["rationale"]) > 1600
         assert stored["reading_audit"]["resolved_evidence"]["previous:H1"]["original_id"] == "E1"
+        assert stored["reading_audit"]["binding"]["reused_packet_evidence"] == {"current:B1": "B1"}
+        assert stored["reading_audit"]["resolved_evidence"]["current:B1"]["content"]["text"]
     generation = generation_repo(repo)
     materials = load_editorial_materials(generation, project, command.author_ref, case_id=command.case_id)
     for stage in (

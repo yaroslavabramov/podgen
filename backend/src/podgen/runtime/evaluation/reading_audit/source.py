@@ -11,13 +11,15 @@ from podgen.writing.projections import indexed_draft
 from podgen.writing.reading_audit import VERSION
 from podgen.writing.reading_audit.consistency import from_manifest as consistency_from_manifest
 from podgen.writing.reading_audit.input import initial_context
+from podgen.writing.reading_audit.memory_projection import from_manifest as memory_from_manifest
 from podgen.writing.reading_audit.registry import from_manifest
 from podgen.writing.reading_audit.validation import decisions
 from podgen.writing.revision.task_verification import comparison
 
 from ..reading_workflow import base_stage
 from ..request_payload import request_payload
-from .evidence import snapshots, validate_retained
+from .evidence import snapshots
+from .memory import current_packet, fingerprint, project
 
 
 @dataclass(frozen=True)
@@ -33,6 +35,7 @@ def prepare(journal, run_id, stage, manifest, materials, script, script_ref):
     if from_manifest(manifest) is None or base_stage(stage) not in ("reader-review", "fact-review"):
         return None
     consistency = consistency_from_manifest(manifest)
+    memory_projection = memory_from_manifest(manifest)
     fact = base_stage(stage) == "fact-review"
     binding = dict(
         contract=VERSION,
@@ -48,6 +51,12 @@ def prepare(journal, run_id, stage, manifest, materials, script, script_ref):
         binding["source_snapshots"] = [
             {k: v for k, v in row.items() if k != "text"} for row in snapshot_index.values()
         ]
+    packet = {}
+    if memory_projection is not None:
+        binding["memory_projection_contract"] = memory_projection
+        if fact:
+            packet = current_packet(materials, manifest, snapshot_index)
+            binding["packet_evidence_hash"] = fingerprint(packet)
     view = initial_context(fact=fact)
     previous_evidence = {}
     if stage != base_stage(stage):
@@ -95,15 +104,17 @@ def prepare(journal, run_id, stage, manifest, materials, script, script_ref):
             or bound["script_hash"] != digest(before)
         ):
             raise Conflict("audit_previous_context_changed")
-        # Reused evidence retains its original selectors and event/request refs. H aliases
-        # are view-local; an earlier E1 never becomes this invocation's E1.
         aliases = {}
         if fact:
-            for key, value in prior["reading_audit"]["resolved_evidence"].items():
-                validate_retained(value, materials, snapshot_index)
-                alias = f"H{len(previous_evidence) + 1}"
-                previous_evidence[alias] = deepcopy(value)
-                aliases[key] = alias
+            aliases, previous_evidence, reused = project(
+                prior["reading_audit"]["resolved_evidence"],
+                packet,
+                materials,
+                snapshot_index,
+                shared=memory_projection is not None,
+            )
+            if memory_projection is not None:
+                binding["reused_packet_evidence"] = reused
         prior_decisions = []
         for row in decisions(prior["output"]):
             compact = {
@@ -111,10 +122,7 @@ def prepare(journal, run_id, stage, manifest, materials, script, script_ref):
             }
             if fact:
                 compact["source_refs"] = [
-                    dict(
-                        from_review="previous",
-                        evidence_id=aliases[f"{ref['from_review']}:{ref['evidence_id']}"],
-                    )
+                    deepcopy(aliases[f"{ref['from_review']}:{ref['evidence_id']}"])
                     for ref in row["source_refs"]
                 ]
             prior_decisions.append(compact)

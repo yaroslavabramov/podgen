@@ -78,12 +78,7 @@ def _selectors(content, materials, snapshot_index=None):
     return result
 
 
-def current_catalog(journal, invocation, materials, snapshot_index=None, corpus=None):
-    root = original_invocation(journal, invocation)
-    request_ref = RuntimeRef(record_kind="tool_execution", record_id=root["request_record_id"])
-    request = journal.read(request_ref)
-    payload = request_payload(journal.request(root))
-    references = context_references(request["context"])
+def packet_catalog(payload, materials, snapshot_index=None, references=None):
     result = {}
     for item in payload["audit_context"].get("packet_evidence_index", []):
         field, index = item["path"].strip("/").split("/")
@@ -97,8 +92,20 @@ def current_catalog(journal, invocation, materials, snapshot_index=None, corpus=
             content=content,
             content_hash=digest(content),
             source_selectors=_selectors(content, materials, snapshot_index),
-            request_ref=request_ref.model_dump(mode="json"),
-            origin_invocation_id=str(root["invocation_id"]),
+        )
+    return result
+
+
+def current_catalog(journal, invocation, materials, snapshot_index=None, corpus=None):
+    root = original_invocation(journal, invocation)
+    request_ref = RuntimeRef(record_kind="tool_execution", record_id=root["request_record_id"])
+    request = journal.read(request_ref)
+    payload = request_payload(journal.request(root))
+    references = context_references(request["context"])
+    result = packet_catalog(payload, materials, snapshot_index, references)
+    for value in result.values():
+        value.update(
+            request_ref=request_ref.model_dump(mode="json"), origin_invocation_id=str(root["invocation_id"])
         )
     corpus = corpus or SourceCorpus(materials)
     for ancestor in lineage(journal, root):

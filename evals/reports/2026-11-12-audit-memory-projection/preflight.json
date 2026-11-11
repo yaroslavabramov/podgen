@@ -1,0 +1,32 @@
+{
+  "mode": "offline_read_only_prospective_projection",
+  "source_run_id": "f1fdf0d9-da5a-4153-8ad4-db3aea97fa9c",
+  "source_stage": "fact-review-1",
+  "memory_projection": "shared-packet-evidence/1",
+  "old_visible_bytes": {
+    "instructions": 15908,
+    "input": 233494,
+    "schema": 20408,
+    "tools": 2271,
+    "total": 272081
+  },
+  "new_visible_bytes": {
+    "instructions": 15908,
+    "input": 198786,
+    "schema": 20408,
+    "tools": 2271,
+    "total": 237373
+  },
+  "saved_visible_bytes": 34708,
+  "old_retained_evidence": 42,
+  "new_retained_evidence": 3,
+  "reused_packet_references": 39,
+  "previous_decisions": 19,
+  "original_frozen_request_exact": true,
+  "non_memory_payload_exact": true,
+  "instructions_schema_tools_exact": true,
+  "full_prior_reports_unchanged": true,
+  "frozen_outcome_replay": "keep",
+  "api_called": false,
+  "frozen_manifest_changed": false
+}

@@ -43,6 +43,11 @@ def finalize(journal, invocation, parsed, audit, materials, script):
     if fact:
         corpus = SourceCorpus(materials)
         current = current_catalog(journal, invocation, materials, audit.snapshot_index, corpus)
+        if "packet_evidence_hash" in audit.binding:
+            from .memory import fingerprint
+
+            if fingerprint(current) != audit.binding["packet_evidence_hash"]:
+                raise ContractError("audit_shared_packet_binding_mismatch")
         retained = resolve(output, current, audit.previous_evidence, materials, audit.snapshot_index)
         for finding in output["findings"]:
             aliases = finding["source_read_ids"]

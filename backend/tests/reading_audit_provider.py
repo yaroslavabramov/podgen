@@ -54,6 +54,10 @@ class AuditProvider:
                 source_review="current" if initial else "previous",
                 still_open=fact and stage == "fact-review-1",
             )
+            if fact:
+                value["audit"]["claim_checks"][0]["source_refs"].append(
+                    dict(from_review="current", evidence_id="B1")
+                )
             output = [
                 dict(
                     type="message",

@@ -58,3 +58,17 @@ def evidence_views(packet):
             if identity not in row["supports"]:
                 row["supports"].append(identity)
     return list(primary.values()), list(context.values())
+
+
+def evidence_for_materials(materials, contract):
+    """The same canonical packet rows supply delivery and lossless audit-memory matching."""
+    if contract is None:
+        from .projections import evidence_view
+
+        return evidence_view(materials.packet), []
+    primary, context = evidence_views(materials.packet)
+    if contract == SIGNATURE_VERSION:
+        from .source_signatures import signature_evidence
+
+        primary.extend(signature_evidence(materials))
+    return primary, context

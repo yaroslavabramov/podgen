@@ -8,8 +8,10 @@ from .schemas import AuditedFact, AuditedReader
 
 def from_manifest(manifest):
     from .consistency import from_manifest as consistency_from_manifest
+    from .memory_projection import from_manifest as memory_from_manifest
 
     consistency_from_manifest(manifest)
+    memory_from_manifest(manifest)
     value = manifest.get(KEY)
     if value is not None and (
         value != VERSION

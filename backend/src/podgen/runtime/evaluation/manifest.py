@@ -18,6 +18,8 @@ from podgen.writing.planning_duration import KEY as DURATION_KEY
 from podgen.writing.reader_schema import V2 as LEGACY_READER_SCHEMA_VERSION
 from podgen.writing.reading_audit.consistency import KEY as CONSISTENCY_KEY
 from podgen.writing.reading_audit.consistency import VERSION as CONSISTENCY_VERSION
+from podgen.writing.reading_audit.memory_projection import KEY as MEMORY_KEY
+from podgen.writing.reading_audit.memory_projection import VERSION as MEMORY_VERSION
 from podgen.writing.revision.contracts import VERSION as REVISION_VERSION
 
 from . import source_tool_contract
@@ -174,6 +176,7 @@ def create_manifest(repo, generation, command, journal, materials):
         if behavior.reading_audit:
             manifest["reading_audit_contract"] = behavior.reading_audit
             manifest[CONSISTENCY_KEY] = CONSISTENCY_VERSION
+            manifest[MEMORY_KEY] = MEMORY_VERSION
         manifest["limitations"][1] = (
             "independent model readings; not evidence of human listening or production approval"
         )

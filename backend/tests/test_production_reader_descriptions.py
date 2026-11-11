@@ -84,6 +84,7 @@ def test_new_release_pins_episode_descriptions_and_an_old_snapshot_replays_the_o
     cold.pop("revision_verification_contract")
     cold.pop("reading_audit_contract")
     cold.pop("reading_audit_consistency_contract")
+    cold.pop("reading_audit_memory_projection")
     cold["reader_review_schema_version"] = COMPACT_VERSION
     cold["fact_review_schema_version"] = "fact-revision/4"
     for stage in ("reader-review", "reader-review-1", "reader-review-2"):
