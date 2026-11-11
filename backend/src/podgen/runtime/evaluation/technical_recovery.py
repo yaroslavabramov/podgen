@@ -7,6 +7,7 @@ from podgen.domain.contracts.common import RuntimeRef
 from podgen.domain.errors import Conflict
 
 from .contracts import RunFailure
+from .count_failure_evidence import count_failure_evidence
 from .source_tool_recovery import evidence_target, resume_authorization, retry_request
 from .technical_recovery_policy import KIND, MAX_STAGE_REPLACEMENTS, STATES, VERSION
 
@@ -18,6 +19,15 @@ def _record(journal, row):
 def evidence(journal, root):
     target = evidence_target(journal, root)
     view, row = target if target else (journal, root)
+    count_failure = count_failure_evidence(view, row)
+    if count_failure is not None:
+        return dict(
+            count_event_ref=count_failure["count_event_ref"],
+            submit_event_ref=None,
+            failure_event_refs=[count_failure["failure_event_ref"]],
+            physical_invocation_id=str(row["invocation_id"]),
+            provider_response_id=None,
+        )
     if row["status"] not in STATES or row.get("output_record_id") is not None:
         raise RunFailure(
             "technical_recovery_not_eligible", run_id=root["run_id"], invocation_id=root["invocation_id"]

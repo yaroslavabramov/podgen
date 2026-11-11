@@ -6,6 +6,8 @@ Recovery first checks the locally archived completed response, validating its mo
 
 The immutable replacement request records `technical-recovery/1`, the original request and invocation, physical-turn evidence, actor and a maximum of two technical replacements per stage. These replacements are separate from the two author revisions and any address repair. The original ambiguous attempt and its usage reservation remain intact. Every replacement is counted and checked against the existing context, role, run and elapsed budgets. Subsequent resumes reuse the admitted attempt; they do not create another child of the same parent.
 
+A transient failure during input-token counting can also receive a linked replacement. Admission requires one count intent bound to the exact stored request, one transient count error, and no count acknowledgement, generation submit or response. The unsent turn has no generation usage or reservation; earlier completed turns remain charged once. Configuration, validation and budget failures do not qualify through this path.
+
 For a tool-enabled stage, the replacement starts at the exact interrupted model turn. Its full stored conversation includes prior model output and completed tool results. Source receipts retain their E-identifiers; completed source reads are not executed again. Model-turn and tool-call limits continue from the original position.
 
 Existing manifests, prompts, schemas and outputs are not upgraded. The recovery policy is pinned in the appended authorization record. Export includes every attempt, its events and replacement authorization, with unknown usage still reported. Apply migration `0021_technical_recovery` before using this recovery path.

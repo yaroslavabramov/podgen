@@ -22,7 +22,7 @@ from podgen.runtime.models.openai_provider import OpenAIProvider
 
 from tests.source_tool_runtime_support import MemoryJournal
 from tests.test_source_tool_recovery import invoke, prepare
-from tests.test_source_tool_runtime import call, final
+from tests.test_source_tool_runtime import call, final, setup
 
 
 class Journal(MemoryJournal):
@@ -358,3 +358,115 @@ def test_semantic_failure_or_finished_response_never_creates_technical_replaceme
     with pytest.raises(RunFailure, match="technical_recovery_not_eligible"):
         recover(journal, gateway, profile, journal.root.copy())
     assert len(journal.roots) == len(provider.sent) == 1
+
+
+def test_failed_fourth_count_resumes_exact_tool_transcript_without_repeating_three_reads(monkeypatch):
+    journal, profile, limits, corpus = setup(monkeypatch, turns=5)
+    journal.snapshot["stages"] = [journal.root["stage"]]
+    journal.records[journal.root["request_record_id"]]["context"] = dict(profile_ref={"saved": "profile"})
+    counts, sent = [], []
+
+    def handler(request):
+        body = json.loads(request.content)
+        if request.url.path.endswith("/input_tokens"):
+            counts.append(body)
+            if len(counts) == 4:
+                raise httpx.ReadTimeout("Count endpoint interrupted", request=request)
+            return httpx.Response(200, json=dict(input_tokens=100))
+        sent.append(body)
+        turn = int(body["metadata"]["podgen_source_turn"])
+        return httpx.Response(
+            200,
+            json=dict(
+                id=f"resp_turn_{turn}",
+                model=body["model"],
+                metadata=body["metadata"],
+                status="completed",
+                output=[call(turn + 1)] if turn < 3 else [final()],
+                usage=dict(input_tokens=100, output_tokens=10),
+            ),
+        )
+
+    with httpx.Client(transport=httpx.MockTransport(handler)) as client:
+        gateway = ModelGateway(
+            journal, lambda _: OpenAIProvider("test-secret", http_client=client), source_corpus=corpus
+        )
+        with pytest.raises(RunFailure, match="provider_transport_error"):
+            invoke(gateway, journal.root, profile, limits)
+        parent = journal.root.copy()
+        assert parent["status"] == "failed"
+        assert len(sent) == len(corpus.calls) == 3
+        original = model_turns.rows(journal, parent)[-1]
+        assert original["turn_index"] == 3 and original["input_tokens"] is None
+        paid = attempt_usage(journal, parent, profile.output_limit)
+        assert paid == dict(input=300, output=30)
+        row = resume_current(
+            journal,
+            SimpleNamespace(run_id=parent["run_id"]),
+            gateway=gateway,
+            load_profile=lambda ref, stage: profile,
+            guard=lambda: None,
+        )
+        assert row["attempt_kind"] == "technical_retry"
+        assert recover(journal, gateway, profile, parent) == row
+        assert journal.request(row)["input"] == journal.request(original)["input"]
+        assert invoke(gateway, row, profile, limits, paid) == '{"answer":"done"}'
+    assert [body["metadata"]["podgen_source_turn"] for body in sent] == ["0", "1", "2", "3"]
+    assert [options["read_id"] for _, _, options in corpus.calls] == ["E1", "E2", "E3"]
+    assert counts[3] == counts[4]
+    assert journal.roots[parent["invocation_id"]] == parent
+    assert attempt_usage(journal, parent, profile.output_limit) == paid
+
+
+def test_plain_count_failure_has_no_generation_reservation_and_recovers():
+    journal, provider, profile, limits, gateway = plain(faults=0)
+    original_count = provider.count
+    provider.count = lambda _: (_ for _ in ()).throw(ProviderFault("provider_transport_error"))
+    with pytest.raises(RunFailure, match="provider_transport_error"):
+        invoke(gateway, journal.root, profile, limits)
+    parent = journal.root.copy()
+    assert not provider.sent
+    assert attempt_usage(journal, parent, profile.output_limit) == dict(input=0, output=0)
+    provider.count = original_count
+    child = recover(journal, gateway, profile, parent)
+    assert invoke(gateway, child, profile, limits) == '{"answer":"done"}'
+    assert len(provider.sent) == 1
+
+
+@pytest.mark.parametrize(
+    "tamper", ["submit", "binding", "body", "configuration", "400", "validation", "budget"]
+)
+def test_count_recovery_requires_proof_of_unsent_transient_failure(tamper):
+    journal, provider, profile, limits, gateway = plain()
+    provider.count = lambda _: (_ for _ in ()).throw(ProviderFault("provider_transport_error"))
+    with pytest.raises(RunFailure):
+        invoke(gateway, journal.root, profile, limits)
+    if tamper in ("validation", "budget"):
+        journal.transition(journal.root, "validation_failed")
+        journal.event(
+            journal.root,
+            "failure",
+            data=dict(
+                code="run_token_budget_exceeded" if tamper == "budget" else "role_output_validation_failed"
+            ),
+        )
+    elif tamper == "submit":
+        journal.event(
+            journal.root, "submit_intent", data=dict(client_request_id=str(journal.root["invocation_id"]))
+        )
+    else:
+        event = next(
+            e
+            for e in journal.events(journal.root)
+            if e["event_kind"] == ("count_intent" if tamper == "body" else "provider_error")
+        )
+        record = journal.records[event["record_id"]]
+        if tamper == "binding":
+            record["invocation_id"] = "another-invocation"
+        elif tamper == "body":
+            record["data"]["request_blob"] = journal.blob(b"{}").model_dump(mode="json")
+        else:
+            record["data"]["code"] = "provider_http_400" if tamper == "400" else "provider_http_401"
+    with pytest.raises((RunFailure, Conflict)):
+        recover(journal, gateway, profile, journal.root.copy())
+    assert len(journal.roots) == 1 and not provider.sent
