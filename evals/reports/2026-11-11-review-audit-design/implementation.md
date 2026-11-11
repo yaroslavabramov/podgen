@@ -1,6 +1,6 @@
 # Contextual audits: activated instructions
 
-The four instruction assets in `proposed-assets.json` are now selected by `production.json`. `fact-verification` is the distinct subsequent fact-review key; the runtime manifest selector uses it for audited repeat stages. Planner, draft, writer revision, models and revision limits are outside this change.
+The active instructions are selected by [production.json](../../../backend/src/podgen/writing/behavior/production.json). Reader first/recheck retain the assets in the [initial release](proposed-assets.json); fact first/recheck use the [contextual claim release](contextual-claim-release/manifest.json), activated in commit `447c392`. `fact-verification` is the distinct subsequent fact-review key; the runtime manifest selector uses it for audited repeat stages. Planner, draft, writer revision, models and revision limits are outside this change.
 
 ## Decisions expected to change
 
@@ -18,4 +18,4 @@ All four full instruction texts were read after integration and compared with th
 
 No provider calls or heavy tests were run for this change. The retained scripts and source bindings are unchanged. These structural checks do not establish that a model makes the intended judgments: read the native audit outputs from the root-coordinated Snow/Apollo fact pairs and then the native revision/recheck before reporting behavioral qualification. In particular, an acceptable target need not receive a whole-script `keep` if other independent required findings are valid.
 
-The separate runtime contract document still needs its owner's wording synchronized for `effect_on_episode` (null initially, revision effect on reread), `previous_coverage_indices`, and E/H finding evidence. The implementation and field descriptions already use those agreed contracts.
+The [runtime contract](../../../docs/podcast-production/reading-audit-contract.md), synchronized in commit `f8c64a2`, documents initial `effect_on_episode=null`, revision effect on reread, `previous_coverage_indices`, and current E / retained H finding evidence. It agrees with the implementation and field descriptions.
