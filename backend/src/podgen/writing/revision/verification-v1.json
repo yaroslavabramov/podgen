@@ -1,0 +1,447 @@
+{
+  "$defs": {
+    "AssignmentResult": {
+      "additionalProperties": false,
+      "properties": {
+        "assignment_id": {
+          "minLength": 1,
+          "title": "Assignment Id",
+          "type": "string"
+        },
+        "outcome": {
+          "enum": [
+            "achieved",
+            "solved_differently",
+            "no_longer_needed",
+            "still_open"
+          ],
+          "title": "Outcome",
+          "type": "string"
+        },
+        "judgment": {
+          "description": "What the edit actually did here and how that reads now.",
+          "minLength": 1,
+          "title": "Judgment",
+          "type": "string"
+        },
+        "followup_finding": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Zero-based current finding for an outstanding issue; otherwise null.",
+          "title": "Followup Finding"
+        }
+      },
+      "required": [
+        "assignment_id",
+        "outcome",
+        "judgment",
+        "followup_finding"
+      ],
+      "title": "AssignmentResult",
+      "type": "object"
+    },
+    "DependentPassage": {
+      "additionalProperties": false,
+      "properties": {
+        "reason": {
+          "description": "Why this passage must change with the addressed repair.",
+          "minLength": 1,
+          "title": "Reason",
+          "type": "string"
+        },
+        "anchors": {
+          "items": {
+            "$ref": "#/$defs/UtteranceAnchor"
+          },
+          "minItems": 1,
+          "title": "Anchors",
+          "type": "array"
+        }
+      },
+      "required": [
+        "reason",
+        "anchors"
+      ],
+      "title": "DependentPassage",
+      "type": "object"
+    },
+    "EditorialFinding": {
+      "additionalProperties": false,
+      "properties": {
+        "dimension": {
+          "enum": [
+            "promise",
+            "mechanism",
+            "structure",
+            "transition",
+            "repetition",
+            "oral_style",
+            "speaker_contribution",
+            "factuality",
+            "attribution",
+            "duration",
+            "ending"
+          ],
+          "title": "Dimension",
+          "type": "string"
+        },
+        "priority": {
+          "enum": [
+            "blocking",
+            "important",
+            "optional"
+          ],
+          "title": "Priority",
+          "type": "string"
+        },
+        "anchors": {
+          "items": {
+            "$ref": "#/$defs/UtteranceAnchor"
+          },
+          "minItems": 1,
+          "title": "Anchors",
+          "type": "array"
+        },
+        "observation": {
+          "description": "Specific effect of these spoken words on the listener: impression, interest, clarity, selection, pace or language, as relevant to this text's genre.",
+          "minLength": 1,
+          "title": "Observation",
+          "type": "string"
+        },
+        "requested_change": {
+          "description": "Actionable editorial change and its intended effect on this listening experience. May concern selection, wording, impression or structure as well as understanding; preserve what works and the text's genre.",
+          "minLength": 1,
+          "title": "Requested Change",
+          "type": "string"
+        },
+        "preserve": {
+          "description": "Useful properties of the passage to retain; may be empty.",
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "title": "Preserve",
+          "type": "array"
+        }
+      },
+      "required": [
+        "dimension",
+        "priority",
+        "anchors",
+        "observation",
+        "requested_change",
+        "preserve"
+      ],
+      "title": "EditorialFinding",
+      "type": "object"
+    },
+    "EditorialStrength": {
+      "additionalProperties": false,
+      "properties": {
+        "anchors": {
+          "items": {
+            "$ref": "#/$defs/UtteranceAnchor"
+          },
+          "minItems": 1,
+          "title": "Anchors",
+          "type": "array"
+        },
+        "reason": {
+          "description": "What works for the listener and should survive revision.",
+          "minLength": 1,
+          "title": "Reason",
+          "type": "string"
+        }
+      },
+      "required": [
+        "anchors",
+        "reason"
+      ],
+      "title": "EditorialStrength",
+      "type": "object"
+    },
+    "PinpointAssessment": {
+      "additionalProperties": false,
+      "properties": {
+        "scale": {
+          "description": "Local includes multiple independent pinpoint repairs at any distance; whole_episode explicitly authorizes recomposing the complete telling.",
+          "enum": [
+            "none",
+            "local",
+            "whole_episode"
+          ],
+          "title": "Scale",
+          "type": "string"
+        },
+        "reason": {
+          "description": "Concrete editorial reason for this scale and its intended effect on the listening experience; do not infer quality from counts.",
+          "minLength": 1,
+          "title": "Reason",
+          "type": "string"
+        },
+        "anchors": {
+          "description": "Exact passages supporting this choice. Required repair needs at least one; none may use an empty list.",
+          "items": {
+            "$ref": "#/$defs/UtteranceAnchor"
+          },
+          "title": "Anchors",
+          "type": "array"
+        },
+        "dependent_passages": {
+          "description": "Explicitly addressed dependent passages; no automatic neighboring-text permission. Empty when none are needed.",
+          "items": {
+            "$ref": "#/$defs/DependentPassage"
+          },
+          "title": "Dependent Passages",
+          "type": "array"
+        }
+      },
+      "required": [
+        "scale",
+        "reason",
+        "anchors",
+        "dependent_passages"
+      ],
+      "title": "PinpointAssessment",
+      "type": "object"
+    },
+    "ResearchNeed": {
+      "additionalProperties": false,
+      "properties": {
+        "anchors": {
+          "items": {
+            "$ref": "#/$defs/UtteranceAnchor"
+          },
+          "minItems": 1,
+          "title": "Anchors",
+          "type": "array"
+        },
+        "question": {
+          "minLength": 1,
+          "title": "Question",
+          "type": "string"
+        },
+        "why_needed": {
+          "minLength": 1,
+          "title": "Why Needed",
+          "type": "string"
+        }
+      },
+      "required": [
+        "anchors",
+        "question",
+        "why_needed"
+      ],
+      "title": "ResearchNeed",
+      "type": "object"
+    },
+    "SequenceAssessment": {
+      "additionalProperties": false,
+      "properties": {
+        "scale": {
+          "const": "sequence",
+          "title": "Scale",
+          "type": "string"
+        },
+        "reason": {
+          "description": "Concrete editorial reason for this scale and its intended effect on the listening experience; do not infer quality from counts.",
+          "minLength": 1,
+          "title": "Reason",
+          "type": "string"
+        },
+        "anchors": {
+          "description": "Exact passages supporting this choice. Required repair needs at least one; none may use an empty list.",
+          "items": {
+            "$ref": "#/$defs/UtteranceAnchor"
+          },
+          "title": "Anchors",
+          "type": "array"
+        },
+        "dependent_passages": {
+          "description": "Explicitly addressed dependent passages; no automatic neighboring-text permission. Empty when none are needed.",
+          "items": {
+            "$ref": "#/$defs/DependentPassage"
+          },
+          "title": "Dependent Passages",
+          "type": "array"
+        },
+        "sequence_ranges": {
+          "description": "Explicit editable sequences; do not infer their boundaries from scattered findings. Text outside them remains protected except separately addressed local repairs.",
+          "items": {
+            "$ref": "#/$defs/SequenceRange"
+          },
+          "minItems": 1,
+          "title": "Sequence Ranges",
+          "type": "array"
+        }
+      },
+      "required": [
+        "scale",
+        "reason",
+        "anchors",
+        "dependent_passages",
+        "sequence_ranges"
+      ],
+      "title": "SequenceAssessment",
+      "type": "object"
+    },
+    "SequenceRange": {
+      "additionalProperties": false,
+      "properties": {
+        "anchors": {
+          "description": "First and last editable utterances, in that order. Quotes identify the boundaries; the complete inclusive range is authorized.",
+          "items": {
+            "$ref": "#/$defs/UtteranceAnchor"
+          },
+          "maxItems": 2,
+          "minItems": 2,
+          "title": "Anchors",
+          "type": "array"
+        },
+        "reason": {
+          "minLength": 1,
+          "title": "Reason",
+          "type": "string"
+        }
+      },
+      "required": [
+        "anchors",
+        "reason"
+      ],
+      "title": "SequenceRange",
+      "type": "object"
+    },
+    "UtteranceAnchor": {
+      "additionalProperties": false,
+      "properties": {
+        "utterance_index": {
+          "description": "Zero-based position in the exact supplied WriteOutput.utterances list.",
+          "minimum": 0,
+          "title": "Utterance Index",
+          "type": "integer"
+        },
+        "quote": {
+          "description": "Exact nonempty substring of that utterance's spoken text.",
+          "minLength": 1,
+          "title": "Quote",
+          "type": "string"
+        }
+      },
+      "required": [
+        "utterance_index",
+        "quote"
+      ],
+      "title": "UtteranceAnchor",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "reading_mode": {
+      "const": "informed",
+      "title": "Reading Mode",
+      "type": "string"
+    },
+    "listener_answer": {
+      "description": "Follow this particular telling from the first thing the listener wants to know to its last moment. Identify what advances or interrupts the story and how the ending lands.",
+      "minLength": 1,
+      "title": "Listener Answer",
+      "type": "string"
+    },
+    "assignment_results": {
+      "items": {
+        "$ref": "#/$defs/AssignmentResult"
+      },
+      "title": "Assignment Results",
+      "type": "array"
+    },
+    "effect_on_episode": {
+      "description": "How the edit changed the complete listening experience, including any loss worth repairing.",
+      "minLength": 1,
+      "title": "Effect On Episode",
+      "type": "string"
+    },
+    "revision_scope": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/PinpointAssessment"
+        },
+        {
+          "$ref": "#/$defs/SequenceAssessment"
+        }
+      ],
+      "title": "Revision Scope",
+      "description": "Choose the scale needed to deliver that complete story. If changing the order or development of a connected scene, authorize its inclusive range. A cluster of separate wording edits cannot authorize that work."
+    },
+    "findings": {
+      "items": {
+        "$ref": "#/$defs/EditorialFinding"
+      },
+      "title": "Findings",
+      "type": "array",
+      "description": "Commission each change once. Lead with any necessary story edit, giving its intended effect, the passage to rebuild and what to keep. Follow with independent line repairs. May be empty."
+    },
+    "strengths": {
+      "items": {
+        "$ref": "#/$defs/EditorialStrength"
+      },
+      "title": "Strengths",
+      "type": "array",
+      "description": "Anchored observations about what works for this listener in this genre. A good passage or complete text may need no change."
+    },
+    "important_limits": {
+      "items": {
+        "minLength": 1,
+        "type": "string"
+      },
+      "title": "Important Limits",
+      "type": "array",
+      "description": "Only limits in the supplied text that materially affect this listening experience. May be empty; do not invent problems or require a list of caveats in the script."
+    },
+    "research_requests": {
+      "items": {
+        "$ref": "#/$defs/ResearchNeed"
+      },
+      "title": "Research Requests",
+      "type": "array"
+    },
+    "duration_note": {
+      "description": "Evidence and uncertainty about duration; never invented timing.",
+      "minLength": 1,
+      "title": "Duration Note",
+      "type": "string"
+    },
+    "recommendation": {
+      "enum": [
+        "keep",
+        "revise",
+        "needs_material"
+      ],
+      "title": "Recommendation",
+      "type": "string",
+      "description": "Would you send this telling and its actual words to recording? A required scene edit or a genuine language error requires revise. Keep a finished episode that works."
+    }
+  },
+  "required": [
+    "reading_mode",
+    "listener_answer",
+    "assignment_results",
+    "effect_on_episode",
+    "revision_scope",
+    "findings",
+    "strengths",
+    "important_limits",
+    "research_requests",
+    "duration_note",
+    "recommendation"
+  ],
+  "title": "RevisionReading",
+  "type": "object"
+}

@@ -6,6 +6,7 @@ from pathlib import Path
 from uuid import uuid4
 
 import pytest
+
 from podgen import writing_cli
 from podgen.domain.contracts.common import RuntimeRef
 from podgen.research_writing_cli import main as research_main
@@ -15,7 +16,6 @@ from podgen.runtime.evaluation.reading_outcome import read_outcome
 from podgen.runtime.evaluation.reading_workflow import VERSION
 from podgen.runtime.models.contracts import WireReply
 from podgen.writing.prompts import load_reading_instructions
-
 from tests.author_responses import author_response
 from tests.independent_planner_provider import IndependentPlannerProvider
 from tests.test_editorial_independence import invoke, payload, prepare
@@ -115,7 +115,8 @@ class ReadingProvider:
                 preserve=["Существенное ограничение."],
             )
             if not reader:
-                finding["support_labels"] = [data["support"][-1].get("card_id", data["support"][-1]["label"])]
+                support = data.get("support", data.get("context"))[-1]
+                finding["support_labels"] = [support.get("card_id", support["label"])]
             need = self.fact_need and not reader
             result = dict(
                 reading_mode="script_only" if reader else "informed",

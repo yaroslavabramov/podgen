@@ -57,7 +57,9 @@ def execute_reading_stage(
     if verification.applies(stage, recheck_pin):
         from . import recheck_source
 
-        _, recheck = recheck_source.load(journal, command.run_id, stage, script_ref=script_ref, script=script)
+        _, recheck = recheck_source.load(
+            journal, command.run_id, stage, version=recheck_pin, script_ref=script_ref, script=script
+        )
     model = output_model(
         stage,
         reader_schema_version=manifest.get("reader_review_schema_version"),

@@ -80,7 +80,7 @@ def export_readings(journal, run_id, manifest, write_json, write_text):
         if "assignment_results" in review:
             from .recheck_source import load
 
-            _, comparison = load(journal, run_id, stage)
+            _, comparison = load(journal, run_id, stage, version=manifest["revision_verification_contract"])
             orders = {row["id"]: row for row in comparison["assignments"]}
             lines.extend(
                 [
@@ -93,7 +93,9 @@ def export_readings(journal, run_id, manifest, write_json, write_text):
             for result in review["assignment_results"]:
                 order = orders[result["assignment_id"]]
                 assignment = (
-                    order["requested_change"]
+                    order["action"]
+                    if "action" in order
+                    else order["requested_change"]
                     if "requested_change" in order
                     else comparison["scopes"][order["scope"]]["reason"]
                 )

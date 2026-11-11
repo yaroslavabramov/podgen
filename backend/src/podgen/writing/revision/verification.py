@@ -1,7 +1,9 @@
 """The editor revisits an assignment against the actual before and after."""
 
+import json
 from copy import deepcopy
 from difflib import SequenceMatcher
+from importlib.resources import files
 from typing import Literal
 
 from pydantic import Field
@@ -13,13 +15,14 @@ from .scopes import ReaderAssessmentV4
 
 KEY = "revision_verification_contract"
 VERSION = "editorial-recheck/1"
+TASK_VERSION = "editorial-recheck/2"
 STAGES = ("reader-review-1", "reader-review-2")
 
 
 def applies(stage, version):
-    if version not in (None, VERSION):
+    if version not in (None, VERSION, TASK_VERSION):
         raise ContractError("unknown_revision_verification_contract")
-    return version == VERSION and stage in STAGES
+    return version is not None and stage in STAGES
 
 
 class AssignmentResult(RoleOutput):
@@ -51,13 +54,18 @@ class RevisionReading(ReaderAssessmentV4):
                 raise ValueError("revision_verification_followup_mismatch")
 
 
-def schema():
-    from ..reader_schema import VERSION as READER_VERSION
+def schema(version=VERSION, *, reader_schema_version=None):
     from ..reader_schema import describe_reader
 
+    if version == VERSION:
+        # Published candidate runs retain every description and property order,
+        # independently of subsequent changes to the ordinary reader form.
+        return json.loads(files(__package__).joinpath("verification-v1.json").read_text(encoding="utf-8"))
+    if version != TASK_VERSION:
+        raise ContractError("unknown_revision_verification_contract")
     result = RevisionReading.model_json_schema()
-    extra = {name: result["properties"][name] for name in ("assignment_results", "effect_on_episode")}
-    describe_reader(result, READER_VERSION)
+    extra = {name: result["properties"].pop(name) for name in ("assignment_results", "effect_on_episode")}
+    describe_reader(result, reader_schema_version)
     props = result["properties"]
     result["properties"] = {
         "reading_mode": props.pop("reading_mode"),

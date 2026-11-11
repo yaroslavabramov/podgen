@@ -53,7 +53,7 @@ def response_schema(
         plan_review_schema_version, projection_version if input_contract == "editorial-role-packets/1" else V1
     )
     if verification.applies(stage, revision_verification_contract):
-        return verification.schema()
+        return verification.schema(revision_verification_contract, reader_schema_version=reader_schema_version)
 
     from podgen.writing.planning_choice import validate as validate_planning_contract
 

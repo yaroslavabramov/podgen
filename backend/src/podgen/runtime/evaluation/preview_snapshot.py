@@ -62,7 +62,7 @@ def load_preview_snapshot(journal, generation, run_id, stage, materials):
 
     comparison = None
     if verification.applies(stage, manifest.get(verification.KEY)):
-        script, comparison = recheck_source.load(journal, run_id, stage)
+        script, comparison = recheck_source.load(journal, run_id, stage, version=manifest[verification.KEY])
 
     from podgen.writing.planning_choice import KEY, SCENE_VERSION
 

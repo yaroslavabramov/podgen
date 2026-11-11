@@ -18,7 +18,6 @@ from podgen.writing.reader_schema import (
     VERSION,
     feedback_model,
 )
-
 from tests.schema_cases import without_descriptions
 from tests.source_excerpt_cases import data_and_profile, release
 
@@ -78,21 +77,29 @@ def test_new_release_pins_episode_descriptions_and_an_old_snapshot_replays_the_o
     materials, _, _, _, script, _, _, _, profile = data_and_profile()
     store, _, command, manifest = release(monkeypatch, materials, profile)
     assert manifest["reader_review_schema_version"] == COMPACT_VERSION
-    old = deepcopy(manifest)
+    # These historical releases used cold reads in every round. Keep their
+    # snapshot shape explicit now that production repeated reads use /2.
+    cold = deepcopy(manifest)
+    cold.pop("revision_verification_contract")
+    for stage in ("reader-review", "reader-review-1", "reader-review-2"):
+        cold["response_schemas"][stage] = response_schema(
+            stage, command.input_contract, reader_schema_version=COMPACT_VERSION
+        )
+    old = deepcopy(cold)
     old["reader_review_schema_version"] = V5
     for stage in ("reader-review", "reader-review-1", "reader-review-2"):
         old["response_schemas"][stage] = response_schema(
             stage, command.input_contract, reader_schema_version=V5
         )
         instructions = store.get(
-            command.project_id, ArtifactRef.model_validate(manifest["prompt_refs"][stage])
+            command.project_id, ArtifactRef.model_validate(manifest["prompt_refs"]["reader-review"])
         ).payload["template"]
         new_body = preview_request(
             command.run_id,
             stage,
             profile(stage),
             materials,
-            snapshot=PreviewSnapshot(manifest, instructions),
+            snapshot=PreviewSnapshot(cold, instructions),
             draft=script,
         )
         old_body = preview_request(

@@ -67,7 +67,15 @@ def read_outcome(journal, run_id):
                 from .recheck_source import verify_saved
 
                 verify_saved(
-                    journal, run_id, stage, previous, script, invocation, request["context"], output["output"]
+                    journal,
+                    run_id,
+                    stage,
+                    previous,
+                    script,
+                    invocation,
+                    request["context"],
+                    output["output"],
+                    version=manifest[verification.KEY],
                 )
             readings[origin] = output["output"]
         if record["decision"] != combine(readings):

@@ -6,6 +6,7 @@ from types import SimpleNamespace
 from uuid import uuid4
 
 import pytest
+
 from podgen.domain.contracts.common import ArtifactRef, RuntimeRef
 from podgen.runtime.evaluation.contracts import RunFailure, RunLimits, WritingRunCommand, command_payload
 from podgen.runtime.evaluation.input_budget_recovery import effective_limits
@@ -74,7 +75,8 @@ def test_released_production_is_one_catalog_and_old_missing_command_fields_keep_
     assert production.author_plan_handoff == "approved-story/1"
     assert production.planning_contract is None
     assert production.planning_ending_guidance == "story-resolution/5"
-    assert production.reader_schema == "listener-experience/13" and production.verification is None
+    assert production.reader_schema == "listener-experience/13"
+    assert production.verification == "editorial-recheck/2"
     base = resolve_behavior("narrative-rebuild/1")
     for fmt in ("solo", "dialogue"):
         draft = production.instructions("draft", fmt)
@@ -368,7 +370,6 @@ def test_production_reader_changes_only_descriptions_from_the_verified_archive_f
 
     from podgen.runtime.evaluation.preview import preview_request
     from podgen.runtime.evaluation.role_schema import response_schema
-
     from tests.schema_cases import without_descriptions
     from tests.test_v5_role_wire import fixture
 

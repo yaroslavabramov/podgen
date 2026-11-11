@@ -82,6 +82,8 @@ class BehaviorProfile:
 
     @property
     def verification(self):
+        if self.name == PRODUCTION:
+            return "editorial-recheck/2"
         return "editorial-recheck/1" if self.name in CANDIDATES else None
 
     def instructions(self, role, format):

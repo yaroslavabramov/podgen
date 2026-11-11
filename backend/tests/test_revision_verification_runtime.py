@@ -19,15 +19,31 @@ from tests.test_revision_verification import reconstruct
 
 
 class CheckingProvider(ReadingProvider):
+    def count(self, body):
+        # Production shares a stable response-format name across reading rounds.
+        # Count requests omit cache-layout metadata, so use the bound recheck form.
+        if (
+            self.pause == "reader-review-1"
+            and "assignment_results" in body["text"]["format"]["schema"]["properties"]
+        ):
+            raise Paused()
+        return super().count(body)
+
     def submit(self, body, *, client_request_id):
         reply = super().submit(body, client_request_id=client_request_id)
         stage = body["metadata"]["podgen_stage"]
-        if not stage.startswith("reader-review"):
+        if not stage.startswith(("reader-review", "fact-review")):
             return reply
         current = payload(body)
         envelope = json.loads(reply.body)
         content = envelope["output"][0]["content"][0]
         review = json.loads(content["text"])
+        if stage.startswith("fact-review"):
+            if "SourcedFactFinding" in body["text"]["format"]["schema"].get("$defs", {}):
+                for finding in review["findings"]:
+                    finding["source_read_ids"] = []
+            content["text"] = json.dumps(review, ensure_ascii=False)
+            return WireReply(json.dumps(envelope, ensure_ascii=False).encode())
         if "revision_check" in current:
             review.update(
                 reading_mode="informed",
@@ -60,7 +76,7 @@ class CheckingProvider(ReadingProvider):
         return WireReply(json.dumps(envelope, ensure_ascii=False).encode())
 
 
-@pytest.mark.parametrize("profile_name", ["editorial-candidate/1", "narrative-rebuild/1"])
+@pytest.mark.parametrize("profile_name", ["editorial-candidate/1", "narrative-rebuild/1", "production/1"])
 def test_pinned_second_editorial_reading_is_bound_to_each_real_revision_and_replays(
     own_dataset, tmp_path, monkeypatch, profile_name
 ):
@@ -68,19 +84,35 @@ def test_pinned_second_editorial_reading_is_bound_to_each_real_revision_and_repl
     repo, project, *_ = own_dataset
     for role, model in (("writer", "claude-opus-5-5"), ("reviewer", "gpt-6.1-terra")):
         ref = create_profile(
-            repo, project, model=model, context_limit=200000, output_limit=24576, reasoning_effort="medium"
+            repo,
+            project,
+            model=model,
+            provider="anthropic" if role == "writer" and profile_name == "production/1" else "openai",
+            context_limit=200000,
+            output_limit=24576,
+            reasoning_effort="medium",
         ).ref
         options[role + "_profile"] = ref.model_dump_json()
     options["behavior_profile"] = profile_name
     provider = CheckingProvider(("revise", "revise", "keep"), pause="reader-review-1")
     monkeypatch.setattr(writing_cli, "OpenAIProvider", lambda *args, **kwargs: provider)
+    monkeypatch.setattr(
+        "podgen.runtime.models.anthropic_provider.AnthropicProvider", lambda *args, **kwargs: provider
+    )
     with pytest.raises(Paused):
         invoke(prefix, "run", **options)
     journal = EvaluationJournal(repo, project)
     run = options["run_id"]
     manifest = journal.manifest(run)
-    candidate = profile_name == "editorial-candidate/1"
-    assert manifest.get(verification.KEY) == (verification.VERSION if candidate else None)
+    candidate = profile_name in ("editorial-candidate/1", "production/1")
+    pin = (
+        verification.TASK_VERSION
+        if profile_name == "production/1"
+        else verification.VERSION
+        if candidate
+        else None
+    )
+    assert manifest.get(verification.KEY) == pin
 
     def request(stage):
         return journal.request(journal.invocation(run, stage))
@@ -113,7 +145,7 @@ def test_pinned_second_editorial_reading_is_bound_to_each_real_revision_and_repl
     check_preview("reader-review-1", output("revise-1"))
     if candidate:
         with pytest.raises(Conflict, match="revision_verification_source_mismatch"):
-            recheck_source.load(journal, run, "reader-review-1", script=initial)
+            recheck_source.load(journal, run, "reader-review-1", version=pin, script=initial)
     provider.pause = None
     assert invoke(prefix, "resume", run_id=run, export_dir=tmp_path / "export") == 0
     for number in (1, 2):
@@ -125,6 +157,22 @@ def test_pinned_second_editorial_reading_is_bound_to_each_real_revision_and_repl
         assert "revision_check" not in payload(request(f"fact-review-{number}"))
         if candidate:
             assert reconstruct(view["revision_check"], current) == prior
+            if profile_name == "production/1":
+                writer_input = payload(request(f"revise-{number}"))
+                assert view["revision_check"]["revision_operation"] == writer_input["revision_operation"]
+                expected = [
+                    {
+                        key: value
+                        for key, value in task.items()
+                        if key in ("origin", "anchors", "problem", "action", "preserve")
+                    }
+                    for task in writer_input["revision_tasks"]
+                ]
+                assert [
+                    {key: value for key, value in task.items() if key != "id"}
+                    for task in view["revision_check"]["assignments"]
+                ] == expected
+                assert "revision_check" not in writer_input
             assert {row["assignment_id"] for row in output(stage)["assignment_results"]} == {
                 row["id"] for row in view["revision_check"]["assignments"]
             }
