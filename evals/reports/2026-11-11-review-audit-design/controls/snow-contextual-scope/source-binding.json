@@ -1,0 +1,657 @@
+{
+  "materials_source": "tmp/recheck-corrections/snow-pump/export/inputs.json",
+  "materials_sha256": "56fbac4b98090c49efb268b24c0d0e6a43150a4b9152d3813c30c9aae536d128",
+  "documents": [
+    {
+      "key": "D1",
+      "title": "Бриф: Джон Сноу и холера в Лондоне",
+      "source_path": "editorial-inputs/current/snow-pump/brief.md",
+      "sha256": "2520bfe38d4e0b1d92c5bfc5d9f3273552c09ed578f4ca183d093a2480df0cc6",
+      "purpose": "brief"
+    },
+    {
+      "key": "D2",
+      "title": "Исследовательское досье: Джон Сноу и вспышка холеры в Лондоне",
+      "source_path": "editorial-inputs/current/snow-pump/dossier-v5.md",
+      "sha256": "c2145a20e14f70cf6c1669e333bb10eac20fe9417f6888ea8791d183488a5ebc",
+      "purpose": "dossier"
+    },
+    {
+      "key": "D3",
+      "title": "John Snow. On the Mode of Communication of Cholera, 2-е издание, 1855",
+      "source_path": "sources/snow/snow-1855.txt",
+      "sha256": "42e641eb17a9a3295e4846c3b5b76da7596475bd80d30b31e0d46f44fa4a95ca",
+      "purpose": "primary"
+    },
+    {
+      "key": "D4",
+      "title": "Приход Сент-Джеймс, Вестминстер. Report on the cholera outbreak; доклады комиссии, Уайтхеда, Йорка и письмо Роджерса, 1855",
+      "source_path": "sources/snow/parish-1855-b21363870.txt",
+      "sha256": "b793e19dfb610899a4c355afe9ac258d8d9304b5a998b1e616ddf11f22e7c546",
+      "purpose": "primary"
+    }
+  ],
+  "cards": [
+    {
+      "card_id": "C14b82a922a73",
+      "label": "Решение",
+      "excerpts": [
+        {
+          "index": 0,
+          "document": "D3",
+          "start": 78797,
+          "end": 79046,
+          "text_sha256": "d9270cc63abe13213dc3bf08a793a9dc661c70e80262891179a8b0017c6bc187"
+        }
+      ]
+    },
+    {
+      "card_id": "C8f02286bc580",
+      "label": "Осмотр воды",
+      "excerpts": [
+        {
+          "index": 0,
+          "document": "D3",
+          "start": 75358,
+          "end": 76588,
+          "text_sha256": "b7badb54f8c30a2614915c4480805fba22c43a15f2bd3d5dcaaaa4daeb56f13d"
+        }
+      ]
+    },
+    {
+      "card_id": "C6e16f4eded9a",
+      "label": "Учёт смертей",
+      "excerpts": [
+        {
+          "index": 0,
+          "document": "D3",
+          "start": 76589,
+          "end": 77316,
+          "text_sha256": "33e8f53e9904ae6539610243e713aec35e22367c0c6e35ffd766ac55c3d2ab60"
+        },
+        {
+          "index": 1,
+          "document": "D3",
+          "start": 79047,
+          "end": 80204,
+          "text_sha256": "54a65591c897eaa452e407911822ee3d47b7916eb658eb97f10899a53d2379ca"
+        }
+      ]
+    },
+    {
+      "card_id": "Cc5ef8f053199",
+      "label": "Расспросы о воде",
+      "excerpts": [
+        {
+          "index": 0,
+          "document": "D3",
+          "start": 77317,
+          "end": 78566,
+          "text_sha256": "b2832329d97856f35c4d8e070a0c6f68b38bc9127dac2eaf976163c3d8f6ee22"
+        }
+      ]
+    },
+    {
+      "card_id": "Cf09c44d3d10b",
+      "label": "Работный дом",
+      "excerpts": [
+        {
+          "index": 0,
+          "document": "D3",
+          "start": 81650,
+          "end": 82261,
+          "text_sha256": "4b832207dd82edd0e5b95ea90d498d039661ce7ceae2f216421a96c7615aea96"
+        }
+      ]
+    },
+    {
+      "card_id": "Cc8ff1484b011",
+      "label": "Пивоварня",
+      "excerpts": [
+        {
+          "index": 0,
+          "document": "D3",
+          "start": 82262,
+          "end": 82960,
+          "text_sha256": "3a093af541e0d0b70e0122d239c58ef3d6138c824d2ea852aa75ccdeece3dd6e"
+        }
+      ]
+    },
+    {
+      "card_id": "Cb1f0e697faba",
+      "label": "Доставка воды",
+      "excerpts": [
+        {
+          "index": 0,
+          "document": "D3",
+          "start": 85375,
+          "end": 86780,
+          "text_sha256": "aab5637f1d00582410269b91a90a1b69129fe0ceb8553e6455c3fdce833e6008"
+        }
+      ]
+    },
+    {
+      "card_id": "C37abad3bffb1",
+      "label": "Карта",
+      "excerpts": [
+        {
+          "index": 0,
+          "document": "D3",
+          "start": 87074,
+          "end": 87455,
+          "text_sha256": "b23c034b1c5123ca06181d51497c03dca30e25c5d5872a8831d5f36f1d2938cb"
+        },
+        {
+          "index": 1,
+          "document": "D3",
+          "start": 88974,
+          "end": 89297,
+          "text_sha256": "a481426b8cb338041317382ca1b07d5714aa29401cb4a122a70511697b4258bd"
+        },
+        {
+          "index": 2,
+          "document": "D3",
+          "start": 89711,
+          "end": 90535,
+          "text_sha256": "a500fc38fb6379b1f6776c0b5363b7008da8c125e4a9bc8e9717058e1f76b205"
+        }
+      ]
+    },
+    {
+      "card_id": "Ca49628392361",
+      "label": "Таблица",
+      "excerpts": [
+        {
+          "index": 0,
+          "document": "D3",
+          "start": 93786,
+          "end": 93830,
+          "text_sha256": "051bf2e5bdaca00ee5b04bc12526b3426a0cc1263f8cf424426d34162e2e3b0d"
+        },
+        {
+          "index": 1,
+          "document": "D3",
+          "start": 93954,
+          "end": 94044,
+          "text_sha256": "728093f5175cca6a98468fda8077e8a9ba22ac4fcfd6cc54e018798ae6ad2a6e"
+        },
+        {
+          "index": 2,
+          "document": "D3",
+          "start": 94247,
+          "end": 94278,
+          "text_sha256": "42833fdd032c46984502691b15d6fb8873abb9a1506f784dc52328b19a742905"
+        },
+        {
+          "index": 3,
+          "document": "D3",
+          "start": 94800,
+          "end": 95214,
+          "text_sha256": "715149d6e3d28062694086b43cb8f995b21b40b732bfc5ada47b02df6c7d3da5"
+        },
+        {
+          "index": 4,
+          "document": "D3",
+          "start": 95911,
+          "end": 96099,
+          "text_sha256": "43aaa3efae3b1fa9d5597b69c38eab0cb7aa77c445233afae521a9bf5784748c"
+        }
+      ]
+    },
+    {
+      "card_id": "Cf17597a5a330",
+      "label": "Эффект закрытия",
+      "excerpts": [
+        {
+          "index": 0,
+          "document": "D3",
+          "start": 97696,
+          "end": 98095,
+          "text_sha256": "887b51af24a18208e6d9eaff3bdf843f935eca9c6a5395e5986d2df2f13ce0be"
+        },
+        {
+          "index": 1,
+          "document": "D3",
+          "start": 97224,
+          "end": 97473,
+          "text_sha256": "640594e5e078c1d8fac0555bcd1579c6aee645f0e16e1837b40aa59245b377b9"
+        }
+      ]
+    },
+    {
+      "card_id": "C36479ab5239d",
+      "label": "Позднее расследование",
+      "excerpts": [
+        {
+          "index": 0,
+          "document": "D4",
+          "start": 1078,
+          "end": 1585,
+          "text_sha256": "07c11942425bffa805f3e947fdefac522484c813eda5ae24212e862c1d85e112"
+        },
+        {
+          "index": 1,
+          "document": "D4",
+          "start": 1881,
+          "end": 2023,
+          "text_sha256": "36cd205637537a01815dcf0da7bb77dfa484860b80eac5a76f9f8239a603d4ab"
+        },
+        {
+          "index": 2,
+          "document": "D4",
+          "start": 250519,
+          "end": 250794,
+          "text_sha256": "cc82e60f24407933b3635aa3f28e58bf72dab70973ecae458410b94e988e9691"
+        },
+        {
+          "index": 3,
+          "document": "D4",
+          "start": 175418,
+          "end": 175963,
+          "text_sha256": "e5af75545dc02625e5a75777010f127208a9c4448dec400b8da3da5b01c49011"
+        },
+        {
+          "index": 4,
+          "document": "D4",
+          "start": 226188,
+          "end": 226375,
+          "text_sha256": "b035fda2b110b8aff3aec334e858f2c1e2dc8c457303602e10852dd890a4fafb"
+        },
+        {
+          "index": 5,
+          "document": "D4",
+          "start": 6167,
+          "end": 6669,
+          "text_sha256": "f0222e2d0d56e329fa26e0d12b63ca7847d833d8130d6bb2a0fa03716e7a0ff9"
+        },
+        {
+          "index": 6,
+          "document": "D4",
+          "start": 174100,
+          "end": 175871,
+          "text_sha256": "bbccae312adfd787b401c5af197d93e662e3eedfa226862ff44c1d5a53e31ad8"
+        },
+        {
+          "index": 7,
+          "document": "D4",
+          "start": 186669,
+          "end": 187623,
+          "text_sha256": "f3c6415fa17a7deb1a2181daad8b61860ea71e42f014073e5cfc30e0c01dee0b"
+        },
+        {
+          "index": 8,
+          "document": "D4",
+          "start": 237303,
+          "end": 237324,
+          "text_sha256": "9d36f189fc19891bf991c065412c4527991b3210bee094ff1c5f2354b8ca6b49"
+        }
+      ]
+    },
+    {
+      "card_id": "C8b2adbd3e180",
+      "label": "Ранняя физическая проверка",
+      "excerpts": [
+        {
+          "index": 0,
+          "document": "D3",
+          "start": 98096,
+          "end": 98456,
+          "text_sha256": "9fde4ad52f3a3dc1f7352258c452570574aee3eb0f278c80d24550011954cac7"
+        },
+        {
+          "index": 1,
+          "document": "D4",
+          "start": 130168,
+          "end": 130737,
+          "text_sha256": "9d2482099f5c62e9eb6da2b3f79e6b7571ea0b98461834807063450b02db99e9"
+        }
+      ]
+    },
+    {
+      "card_id": "Ce5cb095a3e6d",
+      "label": "Запись и мать",
+      "excerpts": [
+        {
+          "index": 0,
+          "document": "D4",
+          "start": 225235,
+          "end": 226149,
+          "text_sha256": "3c93c6767d182fd9813b2fa3797de9a533756dd12199448d981998e06ea68453"
+        },
+        {
+          "index": 1,
+          "document": "D4",
+          "start": 227349,
+          "end": 227500,
+          "text_sha256": "98d4400be54f81388188306faf6ee21eaba62af1c068401d26cfff2257812955"
+        }
+      ]
+    },
+    {
+      "card_id": "Cee554ab22bb8",
+      "label": "Осмотр Йорка",
+      "excerpts": [
+        {
+          "index": 0,
+          "document": "D4",
+          "start": 243806,
+          "end": 243935,
+          "text_sha256": "35f6f87a7488fc0be5a768a101bbb4d6ccdd311bc377abb0271665bbf707bd57"
+        },
+        {
+          "index": 1,
+          "document": "D4",
+          "start": 244581,
+          "end": 244849,
+          "text_sha256": "d0e692c8c2b99575f365440317d39dafbea959ee5dd68550cef7210268fa731b"
+        },
+        {
+          "index": 2,
+          "document": "D4",
+          "start": 245143,
+          "end": 245463,
+          "text_sha256": "b88c966b7aea574fa91237487f52c248351c16dded976f1186382b14d16aeb3a"
+        },
+        {
+          "index": 3,
+          "document": "D4",
+          "start": 248232,
+          "end": 248562,
+          "text_sha256": "94254ad41e76b92ecb87da1cef4f7c62a7bab60428d21eed183a61d78dedeb40"
+        },
+        {
+          "index": 4,
+          "document": "D4",
+          "start": 249267,
+          "end": 249652,
+          "text_sha256": "4b9469cefb4d53ba7fcaa52d5c05b4ffb57b64f4be3b0840dc95a29bfcc0ea61"
+        },
+        {
+          "index": 5,
+          "document": "D4",
+          "start": 248690,
+          "end": 248841,
+          "text_sha256": "fdcd32c76685f91834220a9f34a42be2244a53ce9c8142882352b856c1775c0e"
+        }
+      ]
+    },
+    {
+      "card_id": "Cd392f2fdcffb",
+      "label": "Возражение врача",
+      "excerpts": [
+        {
+          "index": 0,
+          "document": "D4",
+          "start": 230937,
+          "end": 231265,
+          "text_sha256": "8fbfa5658d7c3e53d103d0cf1c60731ab61b7672643e7420e7782d3b9a5e0c59"
+        },
+        {
+          "index": 1,
+          "document": "D4",
+          "start": 231601,
+          "end": 231924,
+          "text_sha256": "efb873564c082b43d3fd2baa23f4b22f4a6726fa72a617c0e743603aa84ff05f"
+        },
+        {
+          "index": 2,
+          "document": "D4",
+          "start": 231925,
+          "end": 232403,
+          "text_sha256": "d18894d92907cd3b4bc19d752bb4f3769ad61324ebd946374cb71d0ee032839f"
+        },
+        {
+          "index": 3,
+          "document": "D4",
+          "start": 232404,
+          "end": 232637,
+          "text_sha256": "8f017aa8ce024e08476c354086aec6c289f7f85900b77e31bcfca80cbebe2760"
+        },
+        {
+          "index": 4,
+          "document": "D4",
+          "start": 232837,
+          "end": 232954,
+          "text_sha256": "f50b7613676d200da867cdff3cfc7d8e812dc87ca2900a324a35f4b06abc6b64"
+        },
+        {
+          "index": 5,
+          "document": "D4",
+          "start": 131288,
+          "end": 132006,
+          "text_sha256": "38c8a6447959fc0c8a6f30c554712ca61332e9fe9202b85d54e91e609e515479"
+        },
+        {
+          "index": 6,
+          "document": "D4",
+          "start": 234747,
+          "end": 235179,
+          "text_sha256": "f6d3f590bdac180fd67e50094ca0b29c200cec227ca644f15b65d006e48e5ee1"
+        }
+      ]
+    },
+    {
+      "card_id": "C23d72f102d80",
+      "label": "Временная трудность",
+      "excerpts": [
+        {
+          "index": 0,
+          "document": "D4",
+          "start": 228324,
+          "end": 228866,
+          "text_sha256": "295282e921235dc936f79bea1895c6ece0b9e2ce816fa9e6ba03571c8cbf01a6"
+        },
+        {
+          "index": 1,
+          "document": "D4",
+          "start": 229474,
+          "end": 229990,
+          "text_sha256": "1e8d0fc0deda7d5665527c96179c9f2d20a3d0371ec25429e7b0675b10f702c8"
+        },
+        {
+          "index": 2,
+          "document": "D4",
+          "start": 236278,
+          "end": 237179,
+          "text_sha256": "bccc6b5473791e22ad27e130a84457670b8d78ebeb2fdb999041f80514060a3d"
+        },
+        {
+          "index": 3,
+          "document": "D4",
+          "start": 237206,
+          "end": 237302,
+          "text_sha256": "c22c78213194953d2c5acc1964ae06bf029f79dbc598b9026e52b4d5c85bffe9"
+        }
+      ]
+    },
+    {
+      "card_id": "C0e414a5f3c87",
+      "label": "Гипотеза передачи",
+      "excerpts": [
+        {
+          "index": 0,
+          "document": "D3",
+          "start": 618,
+          "end": 869,
+          "text_sha256": "bb42d7fa1139085ed8591e2328b43309b1e6854724c0e479bd5aefec2419afe1"
+        },
+        {
+          "index": 1,
+          "document": "D3",
+          "start": 31507,
+          "end": 31992,
+          "text_sha256": "82a5f990110a17eab00331e875f085691c0bd503be20735f43adbaf7fb6c7b45"
+        },
+        {
+          "index": 2,
+          "document": "D3",
+          "start": 32529,
+          "end": 32763,
+          "text_sha256": "3b75f42438797b73fc6be4e9d1903d168d53a495ae62e9703f855de61ebd88d6"
+        },
+        {
+          "index": 3,
+          "document": "D3",
+          "start": 45458,
+          "end": 46162,
+          "text_sha256": "3e0ba51a13df9f3171b46069ecb32daa39d04c237e20935adeb771a2e6b408c0"
+        }
+      ]
+    },
+    {
+      "card_id": "Ce70cf3d7c485",
+      "label": "Масштаб бедствия и отъезд",
+      "excerpts": [
+        {
+          "index": 0,
+          "document": "D3",
+          "start": 74217,
+          "end": 75357,
+          "text_sha256": "1ee00aec6bff0c1594922e1691632dff4e6f36f78a6fa5f0174590184c1c4bfc"
+        },
+        {
+          "index": 1,
+          "document": "D3",
+          "start": 92555,
+          "end": 93688,
+          "text_sha256": "cd7f5d93e572b7137001cbc5b8ad53756a9a69ede0a5823d3f5952cb9b3f2efb"
+        }
+      ]
+    },
+    {
+      "card_id": "C6d0974d6053c",
+      "label": "Семья напротив колонки",
+      "excerpts": [
+        {
+          "index": 0,
+          "document": "D4",
+          "start": 203997,
+          "end": 204405,
+          "text_sha256": "627d5465d7985b4ea31bdb4e3598221ec3eb2283abe6677969d85114e18df048"
+        }
+      ]
+    },
+    {
+      "card_id": "C30aadcc28389",
+      "label": "Вода в обычной жизни",
+      "excerpts": [
+        {
+          "index": 0,
+          "document": "D3",
+          "start": 80849,
+          "end": 81535,
+          "text_sha256": "2ef4c954580a38a1b96c20abdcbe67ca3220c0372eed310cb7ea18a346f5e8af"
+        },
+        {
+          "index": 1,
+          "document": "D4",
+          "start": 212209,
+          "end": 213427,
+          "text_sha256": "1a7c9ee3f07aa8899e9e300386658a619d88328e45675571a4f6cb151a5fe7e6"
+        }
+      ]
+    },
+    {
+      "card_id": "C6b9588fd309a",
+      "label": "Вода на рабочих местах",
+      "excerpts": [
+        {
+          "index": 0,
+          "document": "D3",
+          "start": 82964,
+          "end": 83761,
+          "text_sha256": "cdb62126dfc9bdfaf380023c1d91e5b4ecd7eeef5685a7e76fd8322c1e4699d5"
+        },
+        {
+          "index": 1,
+          "document": "D4",
+          "start": 188510,
+          "end": 189226,
+          "text_sha256": "8cc0a5b4ef5e78169324a27e5e15a14c8fb0796caa163de6abc559704ce7422d"
+        }
+      ]
+    },
+    {
+      "card_id": "C1c3feffbccc9",
+      "label": "Уайтхед проверяет собственное возражение",
+      "excerpts": [
+        {
+          "index": 0,
+          "document": "D4",
+          "start": 178580,
+          "end": 178759,
+          "text_sha256": "62a3c7cf6c7b77123d9a50aab451b7f63d00e69c9afd86b34b1ff050372b066f"
+        },
+        {
+          "index": 1,
+          "document": "D4",
+          "start": 192068,
+          "end": 193738,
+          "text_sha256": "0764ea86658c3ef1e157f299d38ef1e1ecb416388c638073608cdf8db36463c0"
+        },
+        {
+          "index": 2,
+          "document": "D4",
+          "start": 195854,
+          "end": 196456,
+          "text_sha256": "1c38b712c47be7297afc2fe5b825d2e5bce502a2f17c491032cf48ca8189f352"
+        },
+        {
+          "index": 3,
+          "document": "D4",
+          "start": 197612,
+          "end": 198672,
+          "text_sha256": "7337f0c602f1155ede68f19191fb669b911feb1a1de771ba8327cc3f1914f665"
+        },
+        {
+          "index": 4,
+          "document": "D4",
+          "start": 202979,
+          "end": 203354,
+          "text_sha256": "6be668c63339461c060ea3a64e0d7ecd46df4e5cbc07372ea847a5a1f261cff1"
+        }
+      ]
+    },
+    {
+      "card_id": "Cf9104355c42c",
+      "label": "Как менялись ответы при расспросах",
+      "excerpts": [
+        {
+          "index": 0,
+          "document": "D4",
+          "start": 205989,
+          "end": 207627,
+          "text_sha256": "9f183f1900166f544e95580a268420558fa0d49c6bf6c8e2dcf9737e1951106b"
+        }
+      ]
+    },
+    {
+      "card_id": "C898748577d02",
+      "label": "Погибшие, выздоровевшие и не заболевшие",
+      "excerpts": [
+        {
+          "index": 0,
+          "document": "D4",
+          "start": 175991,
+          "end": 176427,
+          "text_sha256": "dbe3418888a4ed68c0fc55acdc200df599b3572c543070510140b7ad1a9d04f9"
+        },
+        {
+          "index": 1,
+          "document": "D4",
+          "start": 183685,
+          "end": 187024,
+          "text_sha256": "796567e8000eba96fbfe860917fe9f85d6e229481052316f0d3ab8f7a8769408"
+        },
+        {
+          "index": 2,
+          "document": "D4",
+          "start": 187624,
+          "end": 188190,
+          "text_sha256": "dbe357cda67177f1d13efa8bc79a2902ed77c7eb5f4c41defe09260a57edff09"
+        }
+      ]
+    }
+  ],
+  "all_document_hashes_and_excerpt_offsets_verified": true
+}

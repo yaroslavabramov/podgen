@@ -1,0 +1,102 @@
+{
+  "materials_source": "evals/reports/2026-11-10-closing-content/controls/inputs/work/shared.json",
+  "materials_sha256": "d492cdf5d94c970e74ffff1d6bd642180fe151ba57aadcd7e98857ba5d996b04",
+  "documents": [
+    {
+      "key": "B",
+      "title": "Бриф учебного радио",
+      "purpose": "brief",
+      "source_path": "brief.md",
+      "sha256": "c378e71caa18eb6be45f3372a2370cb2f3365a20d5781f1c42e34298176c67f9"
+    },
+    {
+      "key": "D",
+      "title": "Одна вакансия на две пекарни",
+      "purpose": "dossier",
+      "source_path": "dossier.md",
+      "sha256": "c243af9a42aaaede2931ec78612abf6fe8eecefe994adcd6ebb233656932fcda"
+    },
+    {
+      "key": "H",
+      "title": "Записи о наборе продавцов в две пекарни",
+      "purpose": "primary",
+      "source_path": "sources/hiring.txt",
+      "sha256": "9fd04e4818d505ece613de02e10d64827860909d62a016b8cce7436c89acf13a"
+    },
+    {
+      "key": "I",
+      "title": "Разговор с Ильёй Носовым",
+      "purpose": "primary",
+      "source_path": "sources/ilya.txt",
+      "sha256": "bf2895a784b3fccef166bb6e51ccc92129a3dc80a103bd09dabd320aa60344c2"
+    }
+  ],
+  "cards": [
+    {
+      "card_id": "W1",
+      "label": "Две точки",
+      "excerpts": [
+        {
+          "index": 0,
+          "document": "H",
+          "start": 187,
+          "end": 437,
+          "text_sha256": "afdb60f9085e1916bf2469e459ade33f431e9f0c7a6f83469d3ebe6a50057538"
+        }
+      ]
+    },
+    {
+      "card_id": "W2",
+      "label": "Надежда на ответ",
+      "excerpts": [
+        {
+          "index": 0,
+          "document": "I",
+          "start": 164,
+          "end": 423,
+          "text_sha256": "9b1ed8086aa633e8cc7b11c3f784cb4be2cdd25e1cbe19b756416ec8cfa0c7d7"
+        }
+      ]
+    },
+    {
+      "card_id": "W3",
+      "label": "Разобрать почту",
+      "excerpts": [
+        {
+          "index": 0,
+          "document": "H",
+          "start": 439,
+          "end": 871,
+          "text_sha256": "26a70c3cdfecfde6cb5df7b96da3c1cbc97254a10f60db2434baa1a0dee4a01e"
+        }
+      ]
+    },
+    {
+      "card_id": "W4",
+      "label": "Ответ Ильи",
+      "excerpts": [
+        {
+          "index": 0,
+          "document": "I",
+          "start": 425,
+          "end": 621,
+          "text_sha256": "876c6180566ba8b5edf1ec182c431bb87569806458117351e789aa8ad69a172d"
+        }
+      ]
+    },
+    {
+      "card_id": "W5",
+      "label": "Встреча",
+      "excerpts": [
+        {
+          "index": 0,
+          "document": "H",
+          "start": 873,
+          "end": 992,
+          "text_sha256": "50f6cf73bc39ad87fa926f5e578f7e0cf67e0a1758212b7b183594bc32c703ef"
+        }
+      ]
+    }
+  ],
+  "all_document_hashes_and_excerpt_offsets_verified": true
+}

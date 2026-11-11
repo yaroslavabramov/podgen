@@ -1,0 +1,109 @@
+{
+  "materials_source": "evals/reports/2026-11-10-ending-comparison/controls/holdout/shared.json",
+  "materials_sha256": "31ac53a1c7ffa9dea5adc6621f4b1e0e5ab4aaeffa56b846abd1185d62b8bc5f",
+  "documents": [
+    {
+      "key": "B",
+      "title": "Заказ районного радио",
+      "purpose": "brief",
+      "source_path": "brief.md",
+      "sha256": "5408210bcbbf90e37cd6a517ed28e7245630d8b40e8cf4bb723322976bffa048"
+    },
+    {
+      "key": "D",
+      "title": "Досье вечерней выдачи",
+      "purpose": "dossier",
+      "source_path": "dossier.md",
+      "sha256": "4976644a625500f45b48a68d23f6d37e0aa6be9817a2dea8746812577cbf0858"
+    },
+    {
+      "key": "P1",
+      "title": "Библиотека на Вересковой. Записи заведующей, февраль–март 2025 года",
+      "purpose": "primary",
+      "source_path": "sources/desk-log.txt",
+      "sha256": "2d9405ccafd58df4f7f60c7cae660522b72c40851d0d3211c2c1c9f996a70ced"
+    },
+    {
+      "key": "P2",
+      "title": "Библиотека на Вересковой. Два письма Нади Лукиной",
+      "purpose": "primary",
+      "source_path": "sources/reader-mail.txt",
+      "sha256": "64d1e1ed293066cd736d19871e7894bd568e68e7de5e011a0966b9777e6fbb97"
+    }
+  ],
+  "cards": [
+    {
+      "card_id": "L1",
+      "label": "Письмо в отдел выдачи",
+      "excerpts": [
+        {
+          "index": 0,
+          "document": "P2",
+          "start": 146,
+          "end": 299,
+          "text_sha256": "d3f98f154f5723c0c31375e7c7ee7dedd8567ed89d960e5a784a51fa2629c5c0"
+        },
+        {
+          "index": 1,
+          "document": "P1",
+          "start": 118,
+          "end": 180,
+          "text_sha256": "b8fd7052c6078a8a232bd2b4b7af20c7cb47ca31dd492a6200c39b2837abdfe0"
+        }
+      ]
+    },
+    {
+      "card_id": "L2",
+      "label": "Смена по средам",
+      "excerpts": [
+        {
+          "index": 0,
+          "document": "P1",
+          "start": 107,
+          "end": 496,
+          "text_sha256": "3881b61e3c743ea58af803709c7f482e1693b3e3ca5a346ae775b8e46b8fcf64"
+        }
+      ]
+    },
+    {
+      "card_id": "L3",
+      "label": "Четыре среды",
+      "excerpts": [
+        {
+          "index": 0,
+          "document": "P1",
+          "start": 498,
+          "end": 777,
+          "text_sha256": "5b5c05f741ee985caa0a1a368709a36f6803fb88f5091f0525eaf4c9b17abc1b"
+        }
+      ]
+    },
+    {
+      "card_id": "L4",
+      "label": "После смены",
+      "excerpts": [
+        {
+          "index": 0,
+          "document": "P2",
+          "start": 301,
+          "end": 407,
+          "text_sha256": "e13a8e487d972b828268a5bd0d70a941f2d89d14a912a1561d2457772dd52d6e"
+        }
+      ]
+    },
+    {
+      "card_id": "L5",
+      "label": "Мартовское расписание",
+      "excerpts": [
+        {
+          "index": 0,
+          "document": "P1",
+          "start": 779,
+          "end": 903,
+          "text_sha256": "5078686ea6a8dd94973f5a545383d2710a936aeb7031062f665cc98231e434a3"
+        }
+      ]
+    }
+  ],
+  "all_document_hashes_and_excerpt_offsets_verified": true
+}
