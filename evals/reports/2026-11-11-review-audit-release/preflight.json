@@ -1,0 +1,36 @@
+{
+  "controls": {
+    "snow-contextual-scope/acceptable": {
+      "run_id": "6cb511ba-ca5a-496a-bced-97c0811e9adb",
+      "request_path": "tmp/review-audit-release/controls/snow-contextual-scope/acceptable/request.json",
+      "model": "gpt-6.1-terra",
+      "max_output_tokens": 24576,
+      "visible_bytes": {
+        "instructions": 10903,
+        "input": 150626,
+        "schema": 20035,
+        "tools": 2271,
+        "total": 183835
+      },
+      "instruction_matches_reviewed_prompt": true
+    },
+    "snow-contextual-scope/distorted": {
+      "run_id": "6f92c478-8ba6-4757-b130-ed9befc4c8d1",
+      "request_path": "tmp/review-audit-release/controls/snow-contextual-scope/distorted/request.json",
+      "model": "gpt-6.1-terra",
+      "max_output_tokens": 24576,
+      "visible_bytes": {
+        "instructions": 10903,
+        "input": 150759,
+        "schema": 20035,
+        "tools": 2271,
+        "total": 183968
+      },
+      "instruction_matches_reviewed_prompt": true
+    }
+  },
+  "paired_payload_difference": [
+    "script"
+  ],
+  "historical_requests_exact": 22
+}

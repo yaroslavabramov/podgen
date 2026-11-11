@@ -1,0 +1,15 @@
+{
+  "cases": {
+    "controls/snow-contextual-scope/distorted": {
+      "physical_responses": 12,
+      "estimated_usd": "0.2042424"
+    },
+    "controls/snow-contextual-scope/acceptable": {
+      "physical_responses": 12,
+      "estimated_usd": "0.2475864"
+    }
+  },
+  "rates_source": "evals/reports/2026-11-08-author-openings/pricing.json",
+  "status": "Estimate from archived provider usage and frozen published rates; not a billing invoice.",
+  "total_estimated_usd": "0.4518288"
+}

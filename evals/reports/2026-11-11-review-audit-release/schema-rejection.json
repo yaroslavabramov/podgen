@@ -1,0 +1,13 @@
+{
+  "run_id": "65ffb556-698f-4f0d-a2c0-9961331dfad9",
+  "error": {
+    "error": {
+      "message": "Invalid schema for response_format 'fact_review': context=('properties', 'audit'), $ref cannot have keywords {'description'}.",
+      "type": "invalid_request_error",
+      "param": "text.format.schema",
+      "code": "invalid_json_schema"
+    }
+  },
+  "generation_response_received": false,
+  "fix_commit": "44b84e7"
+}
