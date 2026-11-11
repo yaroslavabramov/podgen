@@ -53,7 +53,9 @@ def validate_preview_inputs(stage, *, fixed, inputs):
             raise ContractError("preview_plan_source_required")
 
 
-def validate_preview_snapshots(stage, materials, inputs, *, projection_version=CURRENT):
+def validate_preview_snapshots(
+    stage, materials, inputs, *, projection_version=CURRENT, revision_verification_contract=None
+):
     if base_stage(stage) == "fact-review" and inputs.get("approved_plan") is not None:
         if not is_scene_plan(inputs["approved_plan"]):
             raise ContractError("preview_incompatible_inputs")
@@ -94,7 +96,9 @@ def validate_preview_snapshots(stage, materials, inputs, *, projection_version=C
         if "revision_scope" in inputs["feedback"]:
             from podgen.writing.reader_schema import snapshot_model
 
-            model = snapshot_model(inputs["feedback"])
+            model = snapshot_model(
+                inputs["feedback"], revision_verification_contract=revision_verification_contract
+            )
         review = model.model_validate(inputs["feedback"])
         if stage != "anchor-repair" and review.reading_mode != "informed":
             raise ContractError("preview_review_access_mode_mismatch")
@@ -116,7 +120,9 @@ def validate_preview_snapshots(stage, materials, inputs, *, projection_version=C
             model = (
                 fact_snapshot_model(inputs[field])
                 if field == "fact_feedback"
-                else snapshot_model(inputs[field])
+                else snapshot_model(
+                    inputs[field], revision_verification_contract=revision_verification_contract
+                )
             )
             review = model.model_validate(inputs[field])
             review.validate_against(WriteOutput.model_validate(inputs["draft"]))

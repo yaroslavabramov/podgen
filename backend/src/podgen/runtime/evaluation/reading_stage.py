@@ -152,6 +152,7 @@ def execute_reading_stage(
         invocation = prepare_anchor_repair(
             journal, invocation, draft=script, draft_ref=script_ref, guard=guard
         )
+    replaying_completed = invocation["status"] == "completed"
     while True:
         prior = prior_attempt_usage(journal, invocation, profile)
         if invocation["status"] == "completed":
@@ -269,6 +270,25 @@ def execute_reading_stage(
     record = journal.output(invocation)
     if record["script_ref"] != script_ref or record["script_hash"] != digest(script):
         raise Conflict("independent_reading_binding_mismatch")
+    if replaying_completed and recheck is not None and recheck_pin == verification.TASK_VERSION:
+        try:
+            recheck_source.verify_saved(
+                journal,
+                command.run_id,
+                stage,
+                script_ref,
+                script,
+                invocation,
+                saved["context"],
+                record["output"],
+                version=recheck_pin,
+            )
+        except (ValidationError, ValueError, ContractError):
+            raise RunFailure(
+                "independent_reading_output_invalid",
+                run_id=command.run_id,
+                invocation_id=invocation["invocation_id"],
+            ) from None
     if revision:
         revision.verify(record)
     from .usage import attempt_usage

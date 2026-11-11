@@ -14,6 +14,7 @@ from podgen.writing.planning_versions import planning_snapshot
 from podgen.writing.projection_versions import manifest_version
 from podgen.writing.projections import CONTRACT, validate_model_content
 from podgen.writing.reading_views import reading_audience
+from podgen.writing.revision import verification
 from podgen.writing.revision.context import from_manifest as revision_context_from_manifest
 
 from . import source_tool_contract
@@ -55,7 +56,14 @@ def preview_request(
             raise ContractError("preview_claim_scope_plan_mismatch")
         inputs["approved_plan"] = snapshot.fact_plan
     validate_preview_inputs(stage, fixed=materials.fixed is not None, inputs=inputs)
-    validate_preview_snapshots(stage, materials, inputs, projection_version=projection)
+    verification_pin = snapshot.manifest.get(verification.KEY) if snapshot else behavior.verification
+    validate_preview_snapshots(
+        stage,
+        materials,
+        inputs,
+        projection_version=projection,
+        revision_verification_contract=verification_pin,
+    )
     validate_continuation_preview(stage, snapshot, inputs)
     inputs = {key: value for key, value in inputs.items() if value is not None}
     plan_review_version = (
@@ -110,8 +118,6 @@ def preview_request(
             fact_schema_version=fact_version,
         )
 
-    from podgen.writing.revision import verification
-
     from .reading_workflow import ALL_READING_STAGES, base_stage
 
     if stage in ALL_READING_STAGES:
@@ -120,7 +126,6 @@ def preview_request(
 
         base = base_stage(stage)
         recheck = None
-        verification_pin = snapshot.manifest.get(verification.KEY) if snapshot else behavior.verification
         if verification.applies(stage, verification_pin):
             if snapshot is None:
                 raise ContractError("preview_revision_verification_requires_saved_rewrite")
@@ -216,7 +221,9 @@ def preview_request(
         if "revision_scope" in inputs["feedback"]:
             from podgen.writing.reader_schema import snapshot_model
 
-            feedback_model = snapshot_model(inputs["feedback"])
+            feedback_model = snapshot_model(
+                inputs["feedback"], revision_verification_contract=verification_pin
+            )
         plan = AnchorRepairPlan.build(
             WriteOutput.model_validate(inputs["draft"]), feedback_model.model_validate(inputs["feedback"])
         )

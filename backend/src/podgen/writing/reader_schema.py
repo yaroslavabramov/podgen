@@ -151,12 +151,13 @@ def feedback_model(version):
     raise ContractError("unknown_reader_review_schema_version")
 
 
-def snapshot_model(value):
+def snapshot_model(value, *, revision_verification_contract=None):
     """A supplied snapshot selects its published shape; run output uses the manifest pin."""
     if "assignment_results" in value:
-        from .revision.verification import RevisionReading
+        from .revision.verification import VERSION
+        from .revision.verification import feedback_model as recheck_model
 
-        return RevisionReading
+        return recheck_model(revision_verification_contract or VERSION)
     if "revision_scope" not in value:
         return feedback_model(V1)
     scope = value["revision_scope"]

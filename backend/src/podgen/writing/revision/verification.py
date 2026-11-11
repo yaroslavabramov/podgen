@@ -6,7 +6,7 @@ from difflib import SequenceMatcher
 from importlib.resources import files
 from typing import Literal
 
-from pydantic import Field
+from pydantic import Field, model_validator
 
 from podgen.domain.errors import ContractError
 
@@ -52,6 +52,32 @@ class RevisionReading(ReaderAssessmentV4):
                 index is not None and index >= len(self.findings)
             ):
                 raise ValueError("revision_verification_followup_mismatch")
+
+
+class RequiredRevisionReading(RevisionReading):
+    """/2 assignments are required work; an open task cannot be optional polish."""
+
+    @model_validator(mode="after")
+    def consistent_required_tasks(self):
+        for row in self.assignment_results:
+            if row.outcome != "still_open":
+                continue
+            index = row.followup_finding
+            if index is None or index >= len(self.findings):
+                raise ValueError("revision_verification_followup_mismatch")
+            if self.recommendation == "keep":
+                raise ValueError("revision_verification_keep_has_open_task")
+            if self.findings[index].priority not in ("important", "blocking"):
+                raise ValueError("revision_verification_open_task_requires_required_finding")
+        return self
+
+
+def feedback_model(version=VERSION):
+    if version == VERSION:
+        return RevisionReading
+    if version == TASK_VERSION:
+        return RequiredRevisionReading
+    raise ContractError("unknown_revision_verification_contract")
 
 
 def schema(version=VERSION, *, reader_schema_version=None):

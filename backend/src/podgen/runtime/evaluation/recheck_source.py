@@ -66,7 +66,7 @@ def previous_reader_decision(journal, run_id, revision_stage, revision, before):
 
 
 def verify_saved(journal, run_id, stage, script_ref, script, invocation, context, output, *, version=VERSION):
-    from podgen.writing.revision.verification import RevisionReading
+    from podgen.writing.revision.verification import feedback_model
 
     _, expected = load(journal, run_id, stage, version=version, script_ref=script_ref, script=script)
     sent = request_payload(journal.request(invocation))
@@ -74,4 +74,9 @@ def verify_saved(journal, run_id, stage, script_ref, script, invocation, context
         contract=version, comparison_hash=digest(expected)
     ):
         raise Conflict("revision_verification_binding_mismatch")
-    RevisionReading.model_validate(output).verify_assignments(expected)
+    parsed = feedback_model(version).model_validate(output)
+    parsed.verify_assignments(expected)
+    if version == TASK_VERSION:
+        from podgen.writing.roles import WriteOutput
+
+        parsed.validate_against(WriteOutput.model_validate(script))
