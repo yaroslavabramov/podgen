@@ -24,6 +24,10 @@ class FactFeedback(EditorialFeedback):
 
 
 def feedback_model(version=None):
+    if version == "fact-revision/5":
+        from .reading_audit.schemas import AuditedFact
+
+        return AuditedFact
     if version is None:
         return FactFeedback
     from .fact_context import READ_SCHEMA_VERSION, SCHEMA_VERSION
@@ -41,6 +45,8 @@ def feedback_model(version=None):
 
 
 def snapshot_model(value):
+    if "audit" in value:
+        return feedback_model("fact-revision/5")
     from .revision.contracts import FACT_V1, FACT_VERSION
 
     if "revision_scope" not in value:
@@ -56,6 +62,11 @@ def snapshot_model(value):
 
 
 def describe_schema(schema, stage, version):
+    if stage == "fact-review" and version == "fact-revision/5":
+        from .reading_audit.descriptions import describe_fact
+
+        describe_fact(schema)
+        return schema
     from .fact_context import READ_SCHEMA_VERSION, SCHEMA_VERSION
     from .revision.contracts import FACT_VERSION
 

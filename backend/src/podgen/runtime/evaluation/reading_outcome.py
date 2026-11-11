@@ -34,6 +34,12 @@ def read_outcome(journal, run_id):
     from .editorial_continuation.source import KEY, offset, seed
     from .reading_rewrite_verification import verify_rewrite
 
+    audit_materials = None
+    if manifest.get("reading_audit_contract") is not None:
+        from .reading_audit.replay import load_materials
+
+        audit_materials = load_materials(journal, manifest)
+
     start = 1 if KEY in manifest else 0
     previous = manifest["command"].get("initial_script_ref") or outcome["output_refs"]["draft"]
     if start:
@@ -72,7 +78,22 @@ def read_outcome(journal, run_id):
                 or request["context"]["script_hash"] != digest(script)
             ):
                 raise Conflict("independent_round_reading_mismatch")
-            if verification.applies(stage, manifest.get(verification.KEY)):
+            if manifest.get("reading_audit_contract") is not None:
+                from .reading_audit.replay import verify_outcome_reading
+
+                verify_outcome_reading(
+                    journal,
+                    run_id,
+                    stage,
+                    manifest,
+                    script,
+                    previous,
+                    invocation,
+                    request["context"],
+                    output,
+                    audit_materials,
+                )
+            elif verification.applies(stage, manifest.get(verification.KEY)):
                 from .recheck_source import verify_saved
 
                 verify_saved(

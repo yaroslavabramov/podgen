@@ -50,6 +50,11 @@ FINDING_FIELDS = {
 
 
 def describe_reader(schema, version):
+    if version == "listener-experience/14":
+        from .reading_audit.descriptions import describe_reader as describe_audit
+
+        describe_audit(schema)
+        return
     if version is None:
         return
     if version not in (
@@ -121,6 +126,10 @@ def describe_reader(schema, version):
 
 
 def feedback_model(version):
+    if version == "listener-experience/14":
+        from .reading_audit.schemas import AuditedReader
+
+        return AuditedReader
     from .roles import EditorialFeedback
 
     if version in (None, V1):
@@ -153,6 +162,10 @@ def feedback_model(version):
 
 def snapshot_model(value, *, revision_verification_contract=None):
     """A supplied snapshot selects its published shape; run output uses the manifest pin."""
+    if "audit" in value:
+        if revision_verification_contract not in (None, "editorial-recheck/3"):
+            raise ContractError("reading_audit_snapshot_contract_mismatch")
+        return feedback_model("listener-experience/14")
     if "assignment_results" in value:
         from .revision.verification import VERSION
         from .revision.verification import feedback_model as recheck_model

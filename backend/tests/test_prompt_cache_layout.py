@@ -22,7 +22,13 @@ from podgen.writing.projection_versions import V8, V9
 from podgen.writing.reading_views import reading_payload
 
 from tests.revision_cases import composition, scope
-from tests.source_excerpt_cases import Captured, CaptureGateway, data_and_profile, release
+from tests.source_excerpt_cases import (
+    Captured,
+    CaptureGateway,
+    data_and_profile,
+    release,
+    release_before_reading_audit,
+)
 
 
 def parts(body):
@@ -36,14 +42,25 @@ def cached_prefix(body):
     return blocks[: end + 1]
 
 
-def test_repeated_readings_have_exact_role_format_and_full_static_prefix_before_changing_script():
+def test_historical_cold_readings_keep_role_format_and_full_static_prefix(monkeypatch):
     materials, plan, _, _, script, _, _, _, profile = data_and_profile()
     later = deepcopy(script)
     later["utterances"][-1]["text"] += " A new closing thought."
-    run_id = uuid4()
+    store, _, command, manifest = release_before_reading_audit(monkeypatch, materials, profile)
+    manifest.pop("revision_verification_contract")
+    run_id = command.run_id
     for base in ("reader-review", "fact-review"):
-        first = preview_request(run_id, base, profile(base), materials, draft=script)
-        second = preview_request(run_id, base + "-2", profile(base + "-2"), materials, draft=later)
+        from podgen.domain.contracts.common import ArtifactRef
+
+        manifest["response_schemas"][base + "-2"] = deepcopy(manifest["response_schemas"][base])
+        instructions = store.get(
+            command.project_id, ArtifactRef.model_validate(manifest["prompt_refs"][base])
+        ).payload["template"]
+        snapshot = PreviewSnapshot(manifest, instructions)
+        first = preview_request(run_id, base, profile(base), materials, snapshot=snapshot, draft=script)
+        second = preview_request(
+            run_id, base + "-2", profile(base + "-2"), materials, snapshot=snapshot, draft=later
+        )
         assert first["instructions"] == second["instructions"]
         assert first["text"]["format"] == second["text"]["format"]
         assert cached_prefix(first) == cached_prefix(second)

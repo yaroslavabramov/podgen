@@ -50,7 +50,13 @@ class BehaviorProfile:
     def fact_schema(self):
         from podgen.writing.revision.contracts import FACT_VERSION
 
-        return "fact-revision/4" if self.name == PRODUCTION else FACT_VERSION
+        return "fact-revision/5" if self.name == PRODUCTION else FACT_VERSION
+
+    @property
+    def reading_audit(self):
+        from podgen.writing.reading_audit import VERSION
+
+        return VERSION if self.name == PRODUCTION else None
 
     @property
     def prompt_cache_layout(self):
@@ -83,13 +89,19 @@ class BehaviorProfile:
     @property
     def verification(self):
         if self.name == PRODUCTION:
-            return "editorial-recheck/2"
+            return "editorial-recheck/3"
         return "editorial-recheck/1" if self.name in CANDIDATES else None
 
     def instructions(self, role, format):
         if role in ("anchor-repair", "plan-target-repair"):
             entry = self.resources["repairs"][role]
-        elif role in ("reader-review", "fact-review", "dual-revise", "revision-verification"):
+        elif role in (
+            "reader-review",
+            "fact-review",
+            "dual-revise",
+            "revision-verification",
+            "fact-verification",
+        ):
             key = f"reader-review-{self.editorial_pass}" if role == "reader-review" else role
             entry = self.resources["readings"][key]
         else:
@@ -193,7 +205,7 @@ def resolve_behavior(name=None, editorial_pass=1):
         "planning-duration-context/1" if modern else None,
         "plan-material-selection/2" if modern else None,
         "script-edit-assignment/3" if name == PRODUCTION else "script-edit-assignment/1" if modern else None,
-        "listener-experience/13"
+        "listener-experience/14"
         if name == PRODUCTION
         else "listener-experience/6"
         if modern

@@ -17,12 +17,14 @@ from podgen.runtime.evaluation.request_payload import request_payload
 from podgen.runtime.evaluation.service import WritingEvaluation
 
 from tests.editorial_continuation_cases import EditorialProvider
+from tests.source_excerpt_cases import pin_before_reading_audit
 from tests.test_editorial_independence import invoke
 from tests.test_independent_readings import setup_review
 from tests.test_own_plan import own_dataset as own_dataset
 
 
 def exhausted(own_dataset, tmp_path, monkeypatch, revisions=2):
+    pin_before_reading_audit(monkeypatch)
     prefix, options, _ = setup_review(own_dataset, tmp_path, monkeypatch)
     repo, project, *_ = own_dataset
     for role, model in (("writer", "claude-opus-5-5"), ("reviewer", "gpt-6.1-terra")):

@@ -52,9 +52,12 @@ def execute_reading_stage(
 ):
     references = run_references(materials, manifest)
     base = base_stage(stage)
+    from .reading_audit.source import prepare as prepare_audit
+
+    audit = prepare_audit(journal, command.run_id, stage, manifest, materials, script, script_ref)
     recheck_pin = manifest.get(verification.KEY)
     recheck = None
-    if verification.applies(stage, recheck_pin):
+    if audit is None and verification.applies(stage, recheck_pin):
         from . import recheck_source
 
         _, recheck = recheck_source.load(
@@ -100,6 +103,8 @@ def execute_reading_stage(
         context[CATALOG_KEY] = references.as_payload()
     if recheck is not None:
         context["revision_verification"] = dict(contract=recheck_pin, comparison_hash=digest(recheck))
+    if audit is not None:
+        context["reading_audit"] = audit.binding
     if revision:
         context.update(revision.context)
     from podgen.writing.scene_plan import is_scene_plan
@@ -136,6 +141,7 @@ def execute_reading_stage(
             author_source_excerpts=source_passages.from_manifest(manifest),
             revision_context_contract=revision_context_from_manifest(manifest),
             revision_comparison=recheck,
+            reading_audit_context=audit.view if audit is not None else None,
             craft_reference=pinned_reference(manifest),
             **(revision.inputs if revision else {}),
         )
@@ -188,7 +194,11 @@ def execute_reading_stage(
             wire_output = parsed.model_dump(mode="json")
             if references is not None:
                 parsed = model.model_validate(references.translate(wire_output, inbound=True))
-            if base == "fact-review" and source_tool_contract.from_manifest(manifest) is not None:
+            if (
+                audit is None
+                and base == "fact-review"
+                and source_tool_contract.from_manifest(manifest) is not None
+            ):
                 from podgen.writing.source_tools import resolve_review_reads
 
                 from .source_tool_trace import successful_read_passages
@@ -201,13 +211,20 @@ def execute_reading_stage(
                     )
                 )
             revised = None
+            audit_report = None
             if revision:
                 output, composition, revised = revision.apply(wire_output)
             elif base in ("reader-review", "fact-review"):
                 parsed.validate_against(WriteOutput.model_validate(script))
                 if recheck is not None:
                     parsed.verify_assignments(recheck)
-                expected = "script_only" if base == "reader-review" and recheck is None else "informed"
+                expected = (
+                    "script_only"
+                    if base == "reader-review"
+                    and recheck is None
+                    and (audit is None or audit.view["phase"] == "first")
+                    else "informed"
+                )
                 if parsed.reading_mode != expected:
                     raise ValueError("reading_access_mode_mismatch")
                 if base == "fact-review" and any(
@@ -217,6 +234,11 @@ def execute_reading_stage(
                     raise ValueError("fact_finding_unknown_support_label")
                 if parsed.recommendation == "needs_material" and not parsed.research_requests:
                     raise ValueError("needs_material_requires_anchored_question")
+                if audit is not None:
+                    from .reading_audit.lifecycle import finalize
+
+                    normalized, audit_report = finalize(journal, invocation, parsed, audit, materials, script)
+                    parsed = model.model_validate(normalized)
             elif {row.speaker for row in parsed.utterances} != set(materials.speaker_labels):
                 raise ValueError("speaker_labels_mismatch")
         except (ValidationError, ValueError, ContractError) as error:
@@ -226,6 +248,9 @@ def execute_reading_stage(
                 base in ("reader-review", "fact-review")
                 and invocation["operation_kind"] == "role"
                 and repair_review_anchors
+                and not (
+                    audit is not None and isinstance(error, ContractError) and error.code.startswith("audit_")
+                )
             ):
                 invocation = prepare_anchor_repair(
                     journal, invocation, draft=script, draft_ref=script_ref, guard=guard
@@ -259,8 +284,10 @@ def execute_reading_stage(
             semantic_acceptance=False,
             production_ready=False,
         )
-        if references is not None:
+        if references is not None or audit_report is not None:
             record["wire_output"] = wire_output
+        if audit_report is not None:
+            record["reading_audit"] = audit_report
         if revision:
             record.update(revision=revised, composition=composition, wire_output=wire_output)
         ref = journal.record(record, record_id=uuid5(invocation["invocation_id"], "output"))
@@ -270,6 +297,21 @@ def execute_reading_stage(
     record = journal.output(invocation)
     if record["script_ref"] != script_ref or record["script_hash"] != digest(script):
         raise Conflict("independent_reading_binding_mismatch")
+    if replaying_completed and audit is not None:
+        from .reading_audit.lifecycle import verify_saved as verify_audit
+
+        verify_audit(
+            journal,
+            command.run_id,
+            stage,
+            manifest,
+            materials,
+            script,
+            script_ref,
+            invocation,
+            saved["context"],
+            record,
+        )
     if replaying_completed and recheck is not None and recheck_pin == verification.TASK_VERSION:
         try:
             recheck_source.verify_saved(

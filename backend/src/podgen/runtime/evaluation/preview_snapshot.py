@@ -18,6 +18,7 @@ class PreviewSnapshot:
     revision_comparison: dict | None = None
     fact_plan: dict | None = None
     continuation_inputs: dict | None = None
+    reading_audit_context: dict | None = None
 
 
 def load_preview_snapshot(journal, generation, run_id, stage, materials):
@@ -62,7 +63,9 @@ def load_preview_snapshot(journal, generation, run_id, stage, materials):
     from .planning_continuation.preview import attach
 
     comparison = None
-    if verification.applies(stage, manifest.get(verification.KEY)):
+    if not manifest.get("reading_audit_contract") and verification.applies(
+        stage, manifest.get(verification.KEY)
+    ):
         script, comparison = recheck_source.load(journal, run_id, stage, version=manifest[verification.KEY])
 
     from podgen.writing.planning_choice import KEY, SCENE_VERSION
@@ -82,5 +85,12 @@ def load_preview_snapshot(journal, generation, run_id, stage, materials):
         manifest, instructions, script, composition, fact_plan=fact_plan, revision_comparison=comparison
     )
     from .editorial_continuation.preview import attach as attach_editorial
+    from .reading_audit.preview import attach as attach_audit
 
-    return attach_editorial(attach(snapshot, journal, run_id, stage, materials), journal, run_id, stage)
+    return attach_audit(
+        attach_editorial(attach(snapshot, journal, run_id, stage, materials), journal, run_id, stage),
+        journal,
+        run_id,
+        stage,
+        materials,
+    )

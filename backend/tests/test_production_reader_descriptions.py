@@ -18,6 +18,7 @@ from podgen.writing.reader_schema import (
     VERSION,
     feedback_model,
 )
+
 from tests.schema_cases import without_descriptions
 from tests.source_excerpt_cases import data_and_profile, release
 
@@ -49,7 +50,7 @@ def test_production_reader_changes_only_field_descriptions_in_all_rounds():
 
 
 def test_other_profiles_and_other_roles_keep_their_previous_schemas():
-    assert resolve_behavior("production/1").reader_schema == COMPACT_VERSION
+    assert resolve_behavior("production/1").reader_schema == "listener-experience/14"
     assert resolve_behavior("existing/1").reader_schema == VERSION
     for name in (
         "narrative-rebuild/1",
@@ -76,11 +77,14 @@ def test_other_profiles_and_other_roles_keep_their_previous_schemas():
 def test_new_release_pins_episode_descriptions_and_an_old_snapshot_replays_the_old_tasks(monkeypatch):
     materials, _, _, _, script, _, _, _, profile = data_and_profile()
     store, _, command, manifest = release(monkeypatch, materials, profile)
-    assert manifest["reader_review_schema_version"] == COMPACT_VERSION
+    assert manifest["reader_review_schema_version"] == "listener-experience/14"
     # These historical releases used cold reads in every round. Keep their
     # snapshot shape explicit now that production repeated reads use /2.
     cold = deepcopy(manifest)
     cold.pop("revision_verification_contract")
+    cold.pop("reading_audit_contract")
+    cold["reader_review_schema_version"] = COMPACT_VERSION
+    cold["fact_review_schema_version"] = "fact-revision/4"
     for stage in ("reader-review", "reader-review-1", "reader-review-2"):
         cold["response_schemas"][stage] = response_schema(
             stage, command.input_contract, reader_schema_version=COMPACT_VERSION
@@ -124,9 +128,10 @@ def test_new_release_pins_episode_descriptions_and_an_old_snapshot_replays_the_o
             )
             == old_body
         )
-    assert (
-        preview_request(uuid4(), "reader-review", profile("reader-review"), materials, draft=script)["text"][
-            "format"
-        ]["schema"]
-        == manifest["response_schemas"]["reader-review"]
+    from podgen.writing.revision.verification import bind_assignments
+
+    assert preview_request(uuid4(), "reader-review", profile("reader-review"), materials, draft=script)[
+        "text"
+    ]["format"]["schema"] == bind_assignments(
+        manifest["response_schemas"]["reader-review"], {"assignments": []}
     )

@@ -3,7 +3,6 @@
 from copy import deepcopy
 
 import pytest
-
 from podgen.domain.contracts.common import ArtifactRef
 from podgen.domain.errors import ContractError
 from podgen.runtime.evaluation import reading_stage
@@ -15,8 +14,16 @@ from podgen.writing import fact_context
 from podgen.writing.model_references import bind_schema, run_references
 from podgen.writing.projections import evidence_view
 from podgen.writing.revision.contracts import FACT_VERSION
+
 from tests.revision_cases import scope
-from tests.source_excerpt_cases import Captured, CaptureGateway, data_and_profile, release
+from tests.source_excerpt_cases import (
+    Captured,
+    CaptureGateway,
+    data_and_profile,
+)
+from tests.source_excerpt_cases import (
+    release_before_reading_audit as release,
+)
 
 
 def test_actual_fact_rounds_match_preview_and_cache_all_evidence_before_script(monkeypatch):

@@ -9,6 +9,8 @@ from podgen.runtime.evaluation.journal import EvaluationJournal
 from podgen.runtime.evaluation.profiles import create_profile
 from podgen.runtime.evaluation.reading_outcome import read_outcome
 from podgen.runtime.models.contracts import WireReply
+
+from tests.source_excerpt_cases import pin_before_reading_audit
 from tests.test_editorial_independence import invoke, payload
 from tests.test_independent_readings import ReadingProvider, setup_review
 from tests.test_own_plan import own_dataset as own_dataset
@@ -41,6 +43,7 @@ class RepairedRecheckProvider(RequiredTaskProvider):
 def test_repaired_production_recheck_completes_and_replays_without_new_calls(
     own_dataset, tmp_path, monkeypatch
 ):
+    pin_before_reading_audit(monkeypatch)
     prefix, options, _ = setup_review(own_dataset, tmp_path, monkeypatch)
     repo, project, *_ = own_dataset
     for role, model, provider_name in (

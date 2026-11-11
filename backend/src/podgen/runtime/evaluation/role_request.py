@@ -50,6 +50,7 @@ def compile_reading_request(
     *,
     reference_catalog=None,
     revision_comparison=None,
+    reading_audit_context=None,
     prompt_cache_layout=None,
     source_tool_contract=None,
     **inputs,
@@ -59,6 +60,12 @@ def compile_reading_request(
     from .reading_workflow import base_stage
 
     payload = reading_payload(base_stage(stage), materials, prompt_cache_layout=prompt_cache_layout, **inputs)
+    if reading_audit_context is not None:
+        from podgen.writing.reading_audit.input import attach
+        from podgen.writing.revision.verification import bind_assignments
+
+        payload = attach(payload, reading_audit_context, fact=base_stage(stage) == "fact-review")
+        schema = bind_assignments(schema, reading_audit_context)
     if revision_comparison is not None:
         from podgen.writing.revision.verification import STAGES, bind_assignments
 

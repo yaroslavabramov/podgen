@@ -43,6 +43,16 @@ def output_model(
     planning_output_contract=None,
     revision_verification_contract=None,
 ):
+    from podgen.writing.reading_audit import FACT_SCHEMA, READER_SCHEMA, RECHECK_SCHEMA
+    from podgen.writing.reading_audit.registry import model as audit_model
+
+    base = base_stage(stage)
+    if base in ("reader-review", "fact-review") and (
+        reader_schema_version == READER_SCHEMA
+        or fact_schema_version == FACT_SCHEMA
+        or revision_verification_contract == RECHECK_SCHEMA
+    ):
+        return audit_model(stage)
     from podgen.writing.revision.verification import applies, feedback_model
 
     if applies(stage, revision_verification_contract):

@@ -1,9 +1,7 @@
 """A scene commissioned by the reader survives the real author wire and edit application."""
 
-import json
 from copy import copy, deepcopy
 from dataclasses import replace
-from pathlib import Path
 from uuid import uuid4
 
 import pytest
@@ -16,8 +14,8 @@ from podgen.writing.editorial_contract import EditorialInput
 from podgen.writing.reader_schema import feedback_model
 from podgen.writing.roles import WriteOutput
 
+from tests.reading_audit_cases import report
 from tests.revision_cases import composition, scope
-from tests.schema_cases import without_descriptions
 from tests.test_editorial_independence import payload
 from tests.test_v5_role_wire import fixture
 
@@ -72,13 +70,18 @@ def test_complete_scene_can_be_cut_reordered_and_replayed_through_the_author_wir
         uuid4(), "reader-review", profile, materials, behavior_profile="production/1", draft=script
     )
     reader_schema = reader_request["text"]["format"]["schema"]
-    archive = Path(__file__).resolve().parents[2] / (
-        "evals/reports/2026-11-08-snow-narrative-rebuild/calls/20-reader-review/podgen-request.json"
-    )
-    historical_schema = json.loads(archive.read_text())["text"]["format"]["schema"]
-    assert json.dumps(without_descriptions(reader_schema)) == json.dumps(
-        without_descriptions(historical_schema)
-    )
+    assert "audit" in reader_schema["properties"]
+    for assessment, factual in ((reader, False), (fact, True)):
+        audited = report(script, fact=factual, required=bool(assessment["findings"]))
+        for field in (
+            "audit",
+            "finding_links",
+            "assignment_results",
+            "previous_dispositions",
+            "late_findings",
+            "effect_on_episode",
+        ):
+            assessment[field] = audited[field]
     Draft202012Validator(reader_schema).validate(reader)
     feedback_model(behavior.reader_schema).model_validate(reader).validate_against(
         WriteOutput.model_validate(script)

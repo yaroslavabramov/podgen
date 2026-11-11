@@ -4,7 +4,6 @@ import json
 from copy import deepcopy
 
 import pytest
-
 from podgen.domain.canonical import digest
 from podgen.domain.contracts.common import RuntimeRef
 from podgen.domain.errors import Conflict
@@ -18,7 +17,9 @@ from podgen.runtime.evaluation.wire_budget import PRODUCTION_INPUT_BUDGET, check
 from podgen.writing.projections import CONTRACT
 from podgen.writing.reader_schema import COMPACT_VERSION
 from podgen.writing.revision import task_verification, verification
-from tests.source_excerpt_cases import Captured, CaptureGateway, release
+
+from tests.source_excerpt_cases import Captured, CaptureGateway
+from tests.source_excerpt_cases import release_before_reading_audit as release
 from tests.test_required_revision_assignment import case
 from tests.test_revision_verification import reconstruct
 

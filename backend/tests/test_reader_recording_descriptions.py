@@ -21,7 +21,8 @@ from podgen.writing.reader_schema import (
 )
 
 from tests.schema_cases import without_descriptions
-from tests.source_excerpt_cases import data_and_profile, release
+from tests.source_excerpt_cases import data_and_profile
+from tests.source_excerpt_cases import release_before_reading_audit as release
 
 HISTORICAL = [
     "cd3cb34dff240906a91da99a41f9d0100e8153036c813f4a8bea29f89d725cf9",

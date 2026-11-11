@@ -4,14 +4,15 @@ import json
 from copy import deepcopy
 
 import pytest
-from pydantic import ValidationError
-
 from podgen import writing_cli
 from podgen.runtime.evaluation.export import export_run
 from podgen.runtime.evaluation.journal import EvaluationJournal
 from podgen.runtime.evaluation.profiles import create_profile
 from podgen.runtime.evaluation.reading_outcome import read_outcome
 from podgen.runtime.models.contracts import WireReply
+from pydantic import ValidationError
+
+from tests.source_excerpt_cases import pin_before_reading_audit
 from tests.test_editorial_independence import invoke, payload
 from tests.test_independent_readings import setup_review
 from tests.test_own_plan import own_dataset as own_dataset
@@ -65,6 +66,7 @@ class RequiredTaskProvider(CheckingProvider):
 def test_normal_cycle_rejects_open_required_task_before_false_finalization(
     own_dataset, tmp_path, monkeypatch, invalid_from_provider
 ):
+    pin_before_reading_audit(monkeypatch)
     prefix, options, _ = setup_review(own_dataset, tmp_path, monkeypatch)
     repo, project, *_ = own_dataset
     for role, model, provider_name in (

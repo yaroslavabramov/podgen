@@ -18,7 +18,15 @@ from podgen.writing.projection_versions import V8, V9
 from podgen.writing.projections import CONTRACT
 
 from tests.revision_cases import composition, scope
-from tests.source_excerpt_cases import Captured, CaptureGateway, assert_sources, data_and_profile, release
+from tests.source_excerpt_cases import (
+    Captured,
+    CaptureGateway,
+    assert_sources,
+    data_and_profile,
+)
+from tests.source_excerpt_cases import (
+    release_before_reading_audit as release,
+)
 from tests.test_editorial_independence import payload
 
 

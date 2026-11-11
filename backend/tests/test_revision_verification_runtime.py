@@ -3,7 +3,6 @@
 import json
 
 import pytest
-
 from podgen import writing_cli
 from podgen.domain.errors import Conflict
 from podgen.runtime.evaluation import recheck_source
@@ -12,6 +11,8 @@ from podgen.runtime.evaluation.profiles import create_profile
 from podgen.runtime.evaluation.reading_outcome import read_outcome
 from podgen.runtime.models.contracts import WireReply
 from podgen.writing.revision import verification
+
+from tests.source_excerpt_cases import pin_before_reading_audit
 from tests.test_editorial_independence import invoke, payload
 from tests.test_independent_readings import Paused, ReadingProvider, setup_review
 from tests.test_own_plan import own_dataset as own_dataset
@@ -80,6 +81,8 @@ class CheckingProvider(ReadingProvider):
 def test_pinned_second_editorial_reading_is_bound_to_each_real_revision_and_replays(
     own_dataset, tmp_path, monkeypatch, profile_name
 ):
+    if profile_name == "production/1":
+        pin_before_reading_audit(monkeypatch)
     prefix, options, initial = setup_review(own_dataset, tmp_path, monkeypatch)
     repo, project, *_ = own_dataset
     for role, model in (("writer", "claude-opus-5-5"), ("reviewer", "gpt-6.1-terra")):

@@ -6,7 +6,6 @@ from types import SimpleNamespace
 from uuid import uuid4
 
 import pytest
-
 from podgen.domain.contracts.common import ArtifactRef, RuntimeRef
 from podgen.runtime.evaluation.contracts import RunFailure, RunLimits, WritingRunCommand, command_payload
 from podgen.runtime.evaluation.input_budget_recovery import effective_limits
@@ -75,8 +74,8 @@ def test_released_production_is_one_catalog_and_old_missing_command_fields_keep_
     assert production.author_plan_handoff == "approved-story/1"
     assert production.planning_contract is None
     assert production.planning_ending_guidance == "story-resolution/5"
-    assert production.reader_schema == "listener-experience/13"
-    assert production.verification == "editorial-recheck/2"
+    assert production.reader_schema == "listener-experience/14"
+    assert production.verification == "editorial-recheck/3"
     base = resolve_behavior("narrative-rebuild/1")
     for fmt in ("solo", "dialogue"):
         draft = production.instructions("draft", fmt)
@@ -365,11 +364,12 @@ def test_ordinary_cli_run_and_historical_resume_build_the_expected_commands(monk
     assert fresh.review_anchor_policy == "strict"
 
 
-def test_production_reader_changes_only_descriptions_from_the_verified_archive_format():
+def test_production_reader_adds_audit_and_preserves_the_verified_archive_format():
     from pathlib import Path
 
     from podgen.runtime.evaluation.preview import preview_request
     from podgen.runtime.evaluation.role_schema import response_schema
+
     from tests.schema_cases import without_descriptions
     from tests.test_v5_role_wire import fixture
 
@@ -391,12 +391,14 @@ def test_production_reader_changes_only_descriptions_from_the_verified_archive_f
         reasoning=dict(effort="medium"), text=dict(verbosity="high"), store=False, background=False
     )
     current = preview_request(uuid4(), "reader-review", profile, materials, draft=script)
-    assert resolve_behavior().reader_schema == "listener-experience/13"
+    assert resolve_behavior().reader_schema == "listener-experience/14"
     historical = response_schema(
         "reader-review", "editorial-role-packets/1", reader_schema_version="listener-experience/5"
     )
     assert historical == saved["text"]["format"]["schema"]
     assert current["text"]["format"] != saved["text"]["format"]
-    assert json.dumps(without_descriptions(current["text"]["format"])) == json.dumps(
-        without_descriptions(saved["text"]["format"])
+    assert "audit" in current["text"]["format"]["schema"]["properties"]
+    compact = response_schema(
+        "reader-review", "editorial-role-packets/1", reader_schema_version="listener-experience/13"
     )
+    assert without_descriptions(compact) == without_descriptions(saved["text"]["format"]["schema"])

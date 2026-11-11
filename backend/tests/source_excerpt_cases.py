@@ -153,6 +153,34 @@ def release(monkeypatch, materials, profile):
     return store, journal, command, manifest
 
 
+def pin_before_reading_audit(monkeypatch):
+    """Create an explicit historical /13, /4, /2 release with its original prompt assets."""
+    import json
+    from dataclasses import replace
+    from pathlib import Path
+
+    from podgen.writing.behavior import BehaviorProfile, resolve_behavior
+
+    resources = json.loads(
+        (Path(__file__).parent / "fixtures/production-before-reading-audit.json").read_text()
+    )
+    behavior = replace(
+        resolve_behavior("production/1"),
+        reader_schema="listener-experience/13",
+        resources={**resolve_behavior("production/1").resources, **resources},
+    )
+    monkeypatch.setattr(BehaviorProfile, "reading_audit", property(lambda self: None))
+    monkeypatch.setattr(BehaviorProfile, "fact_schema", property(lambda self: "fact-revision/4"))
+    monkeypatch.setattr(BehaviorProfile, "verification", property(lambda self: "editorial-recheck/2"))
+    monkeypatch.setattr(manifests, "resolve_behavior", lambda *args, **kwargs: behavior)
+
+
+def release_before_reading_audit(monkeypatch, materials, profile):
+    with monkeypatch.context() as historical:
+        pin_before_reading_audit(historical)
+        return release(monkeypatch, materials, profile)
+
+
 def assert_sources(body, materials, selected):
     actual = {card["card_id"]: card for card in payload(body)["support"]}
     refs = preview_references(materials, V9)

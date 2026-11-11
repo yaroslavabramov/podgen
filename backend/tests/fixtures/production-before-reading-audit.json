@@ -1,0 +1,58 @@
+{
+  "formats": {
+    "solo": {
+      "plan-review": {
+        "version": "whole-episode-a/sha256:96daa0797fb55058db3c843ff4b98a9032e03c325c22b2add6dc4e15ff4a6ef1",
+        "sha256": "96daa0797fb55058db3c843ff4b98a9032e03c325c22b2add6dc4e15ff4a6ef1"
+      },
+      "draft": {
+        "version": "whole-episode-a/sha256:781f333980cf17be1d6c4a7f567be95e80a3b36c59db038d0a19e10d85478274",
+        "sha256": "781f333980cf17be1d6c4a7f567be95e80a3b36c59db038d0a19e10d85478274"
+      },
+      "plan": {
+        "version": "whole-episode-a/sha256:3b0181ec6868f9c9517c24524a008a0b3c3814aafc0648ab3f8cbb8e72aea4b2",
+        "sha256": "3b0181ec6868f9c9517c24524a008a0b3c3814aafc0648ab3f8cbb8e72aea4b2"
+      },
+      "plan-revise": {
+        "version": "whole-episode-a/sha256:fae80e2c76066c2c03de3e148dd8deefec80bd5feec218d2e1b2014ca095ec8e",
+        "sha256": "fae80e2c76066c2c03de3e148dd8deefec80bd5feec218d2e1b2014ca095ec8e"
+      }
+    },
+    "dialogue": {
+      "plan-review": {
+        "version": "whole-episode-a/sha256:9598b84eca52020aba01de63019cad6fb86115ef6621ae8b1c90ab9c2df801bf",
+        "sha256": "9598b84eca52020aba01de63019cad6fb86115ef6621ae8b1c90ab9c2df801bf"
+      },
+      "draft": {
+        "version": "whole-episode-a/sha256:429483dfe1562930a440e34d3c23295c9b38fe3111ea1eaba6db5e9ddfd6b830",
+        "sha256": "429483dfe1562930a440e34d3c23295c9b38fe3111ea1eaba6db5e9ddfd6b830"
+      },
+      "plan": {
+        "version": "whole-episode-a/sha256:3b0181ec6868f9c9517c24524a008a0b3c3814aafc0648ab3f8cbb8e72aea4b2",
+        "sha256": "3b0181ec6868f9c9517c24524a008a0b3c3814aafc0648ab3f8cbb8e72aea4b2"
+      },
+      "plan-revise": {
+        "version": "whole-episode-a/sha256:fae80e2c76066c2c03de3e148dd8deefec80bd5feec218d2e1b2014ca095ec8e",
+        "sha256": "fae80e2c76066c2c03de3e148dd8deefec80bd5feec218d2e1b2014ca095ec8e"
+      }
+    }
+  },
+  "readings": {
+    "reader-review-1": {
+      "version": "reader-review/sha256:51752e323aff6ff6b285a0445b5a828a670b19baab7352ce44e2a4164f4ebcda",
+      "sha256": "51752e323aff6ff6b285a0445b5a828a670b19baab7352ce44e2a4164f4ebcda"
+    },
+    "dual-revise": {
+      "version": "dual-revise/sha256:3366fdee5b18c00565b6b595997045bed73561a09100436a2bd9af8519eb2f1e",
+      "sha256": "3366fdee5b18c00565b6b595997045bed73561a09100436a2bd9af8519eb2f1e"
+    },
+    "fact-review": {
+      "version": "fact-review/sha256:62b7066f83b9aa7b486fc1e5825b56c01ae1725d5d2ad449252e3c2b18cdd4f2",
+      "sha256": "62b7066f83b9aa7b486fc1e5825b56c01ae1725d5d2ad449252e3c2b18cdd4f2"
+    },
+    "revision-verification": {
+      "version": "revision-verification/sha256:38df9c99e8642fde657263cdae2c87744f3dd0dca36efad10fb679879f110239",
+      "sha256": "38df9c99e8642fde657263cdae2c87744f3dd0dca36efad10fb679879f110239"
+    }
+  }
+}

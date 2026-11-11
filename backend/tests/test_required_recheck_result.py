@@ -5,8 +5,6 @@ from copy import deepcopy
 from hashlib import sha256
 
 import pytest
-from pydantic import ValidationError
-
 from podgen.domain.canonical import digest
 from podgen.domain.contracts.common import RuntimeRef
 from podgen.runtime.evaluation import reading_stage, recheck_source
@@ -18,8 +16,11 @@ from podgen.runtime.evaluation.workflow import output_model
 from podgen.writing.reader_schema import COMPACT_VERSION, feedback_model, snapshot_model
 from podgen.writing.revision import verification as checks
 from podgen.writing.roles import WriteOutput
+from pydantic import ValidationError
+
 from tests.revision_cases import scope
-from tests.source_excerpt_cases import Captured, CaptureGateway, release
+from tests.source_excerpt_cases import Captured, CaptureGateway
+from tests.source_excerpt_cases import release_before_reading_audit as release
 from tests.test_production_recheck import complete, previous_review
 from tests.test_required_revision_assignment import case
 
@@ -137,7 +138,7 @@ def test_preview_uses_the_pinned_version_for_incoming_reader_feedback(monkeypatc
     else:
         with pytest.raises(ValidationError, match="keep_has_open_task"):
             preview_request(command.run_id, "revise-2", profile("revise-2"), materials, **kwargs)
-        with pytest.raises(ValidationError, match="keep_has_open_task"):
+        with pytest.raises(ValidationError, match="audit"):
             preview_request(
                 command.run_id,
                 "revise-2",

@@ -70,6 +70,8 @@ def create_manifest(repo, generation, command, journal, materials):
             role = "dual-revise" if base == "revise" else base
             if base == "reader-review" and stage != base and behavior.verification:
                 role = "revision-verification"
+            if base == "fact-review" and stage != base and behavior.reading_audit:
+                role = "fact-verification"
         else:
             role = prompt_stage(stage)
         prompt = behavior.instructions(role, materials.format)
@@ -166,6 +168,8 @@ def create_manifest(repo, generation, command, journal, materials):
             manifest["reading_audience"] = behavior.audience(materials.packet.assignment)
         manifest["reader_review_schema_version"] = reader_version
         manifest["review_workflow"] = VERSION
+        if behavior.reading_audit:
+            manifest["reading_audit_contract"] = behavior.reading_audit
         manifest["limitations"][1] = (
             "independent model readings; not evidence of human listening or production approval"
         )

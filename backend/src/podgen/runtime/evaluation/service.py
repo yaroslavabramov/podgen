@@ -226,6 +226,9 @@ class WritingEvaluation:
             from podgen.writing.planning_duration import from_manifest as duration_from_manifest
 
             duration_from_manifest(manifest)
+            from podgen.writing.reading_audit.registry import from_manifest as audit_from_manifest
+
+            audit_from_manifest(manifest)
             from podgen.writing.planning_choice import from_manifest as planning_from_manifest
 
             planning_contract = planning_from_manifest(manifest)

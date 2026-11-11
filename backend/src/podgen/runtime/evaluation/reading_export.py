@@ -73,13 +73,13 @@ def export_readings(journal, run_id, manifest, write_json, write_text):
             if ru
             else ("Listener reading" if base_stage(stage) == "reader-review" else "Fact review")
         )
-        if "assignment_results" in review:
+        if "assignment_results" in review and "audit" not in review:
             title = "Редакторская перечитка" if ru else "Review of the revision"
         from .editorial_continuation.source import offset
 
         title += (" · версия " if ru else " · version ") + str(offset(manifest) + index + 1)
         lines.extend(["## " + title, "", review["recommendation"], "", review["listener_answer"], ""])
-        if "assignment_results" in review:
+        if "assignment_results" in review and "audit" not in review:
             from .recheck_source import load
 
             _, comparison = load(journal, run_id, stage, version=manifest["revision_verification_contract"])
@@ -104,6 +104,10 @@ def export_readings(journal, run_id, manifest, write_json, write_text):
                 lines.extend(
                     [f"**{order['id']} · {result['outcome']}**", "", assignment, "", result["judgment"], ""]
                 )
+        if "audit" in review:
+            from podgen.writing.reading_audit.report import render
+
+            lines.extend(render(review))
         if "revision_scope" in review:
             scope = review["revision_scope"]
             lines.extend(

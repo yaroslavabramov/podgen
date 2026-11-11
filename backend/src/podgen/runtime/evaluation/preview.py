@@ -128,8 +128,25 @@ def preview_request(
         from .role_request import compile_reading_request
 
         base = base_stage(stage)
+        audit_context = snapshot.reading_audit_context if snapshot else None
+        if (
+            snapshot is None
+            and behavior.reading_audit
+            and stage == base
+            and base in ("reader-review", "fact-review")
+        ):
+            from podgen.writing.reading_audit.input import initial_context
+
+            audit_context = initial_context(fact=base == "fact-review")
+        if (
+            snapshot
+            and snapshot.manifest.get("reading_audit_contract")
+            and base in ("reader-review", "fact-review")
+        ):
+            if audit_context is None or snapshot.script != inputs["draft"]:
+                raise ContractError("preview_reading_audit_source_mismatch")
         recheck = None
-        if verification.applies(stage, verification_pin):
+        if audit_context is None and verification.applies(stage, verification_pin):
             if snapshot is None:
                 raise ContractError("preview_revision_verification_requires_saved_rewrite")
             if snapshot.script != inputs["draft"] or snapshot.revision_comparison is None:
@@ -142,6 +159,8 @@ def preview_request(
             role = "dual-revise" if base == "revise" else base
             if stage != base and base == "reader-review" and behavior.verification:
                 role = "revision-verification"
+            if stage != base and base == "fact-review" and behavior.reading_audit:
+                role = "fact-verification"
             instructions = behavior.instructions(role, materials.format).body
         readings = None
         revision = None
@@ -178,6 +197,7 @@ def preview_request(
             craft_reference=reference,
             revision_context_contract=revision_context,
             revision_comparison=recheck,
+            reading_audit_context=audit_context,
             audience=reading_audience(materials.packet.assignment, snapshot.manifest)
             if snapshot
             else behavior.audience(materials.packet.assignment),

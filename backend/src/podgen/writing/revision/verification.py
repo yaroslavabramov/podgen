@@ -20,8 +20,10 @@ STAGES = ("reader-review-1", "reader-review-2")
 
 
 def applies(stage, version):
-    if version not in (None, VERSION, TASK_VERSION):
+    if version not in (None, VERSION, TASK_VERSION, "editorial-recheck/3"):
         raise ContractError("unknown_revision_verification_contract")
+    if version == "editorial-recheck/3":
+        return stage in (*STAGES, "fact-review-1", "fact-review-2")
     return version is not None and stage in STAGES
 
 
@@ -73,6 +75,10 @@ class RequiredRevisionReading(RevisionReading):
 
 
 def feedback_model(version=VERSION):
+    if version == "editorial-recheck/3":
+        from ..reading_audit.schemas import AuditedReader
+
+        return AuditedReader
     if version == VERSION:
         return RevisionReading
     if version == TASK_VERSION:
@@ -81,6 +87,10 @@ def feedback_model(version=VERSION):
 
 
 def schema(version=VERSION, *, reader_schema_version=None):
+    if version == "editorial-recheck/3":
+        from ..reading_audit.registry import schema as audit_schema
+
+        return audit_schema("reader-review-1")
     from ..reader_schema import describe_reader
 
     if version == VERSION:

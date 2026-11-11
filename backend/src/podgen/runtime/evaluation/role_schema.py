@@ -43,6 +43,15 @@ def response_schema(
     plan_review_schema_version=None,
     planning_ending_guidance=None,
 ):
+    from podgen.writing.reading_audit import FACT_SCHEMA, READER_SCHEMA, RECHECK_SCHEMA
+    from podgen.writing.reading_audit.registry import schema as audit_schema
+
+    if base_stage(stage) in ("reader-review", "fact-review") and (
+        reader_schema_version == READER_SCHEMA
+        or fact_schema_version == FACT_SCHEMA
+        or revision_verification_contract == RECHECK_SCHEMA
+    ):
+        return audit_schema(stage)
     from podgen.writing.planning_choice import SCENE_VERSION
     from podgen.writing.revision import verification
 
@@ -53,7 +62,9 @@ def response_schema(
         plan_review_schema_version, projection_version if input_contract == "editorial-role-packets/1" else V1
     )
     if verification.applies(stage, revision_verification_contract):
-        return verification.schema(revision_verification_contract, reader_schema_version=reader_schema_version)
+        return verification.schema(
+            revision_verification_contract, reader_schema_version=reader_schema_version
+        )
 
     from podgen.writing.planning_choice import validate as validate_planning_contract
 

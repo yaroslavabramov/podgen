@@ -105,6 +105,7 @@ def semantic_request(journal, run_id, stage, invocation, context, script, output
     repaired, _ = apply_anchor_repair(
         journal, invocation, json.dumps(completed["repair_choices"], ensure_ascii=False), draft=script
     )
-    if repaired != output:
+    expected_repaired = completed["wire_output"] if "reading_audit" in completed else output
+    if repaired != expected_repaired:
         raise Conflict("revision_verification_repaired_output_mismatch")
     return original[2]

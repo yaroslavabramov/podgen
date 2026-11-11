@@ -78,7 +78,9 @@ def validate_preview_snapshots(
             raise ContractError("preview_speaker_assignment_mismatch")
     if inputs.get("plan_review") is not None:
         review = PlanReviewOutput.model_validate(inputs["plan_review"])
-        candidate = planning_snapshot(candidate_view(inputs["candidate"], projection_version=projection_version))
+        candidate = planning_snapshot(
+            candidate_view(inputs["candidate"], projection_version=projection_version)
+        )
         if stage == "plan-target-repair":
             review.validate_context(candidate, material_locators=materials.material_catalog)
         else:
@@ -127,7 +129,11 @@ def validate_preview_snapshots(
             review = model.model_validate(inputs[field])
             review.validate_against(WriteOutput.model_validate(inputs["draft"]))
             expected_mode = (
-                "informed" if field == "reader_feedback" and "assignment_results" in inputs[field] else mode
+                ("script_only" if inputs[field]["effect_on_episode"] is None else "informed")
+                if field == "reader_feedback" and "audit" in inputs[field]
+                else "informed"
+                if field == "reader_feedback" and "assignment_results" in inputs[field]
+                else mode
             )
             if review.reading_mode != expected_mode:
                 raise ContractError("preview_review_access_mode_mismatch")

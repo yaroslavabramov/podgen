@@ -23,7 +23,8 @@ def from_manifest(manifest):
     value = validate(manifest.get(KEY), manifest_version(manifest))
     if value is not None and (
         manifest.get("behavior_profile") != "production/1"
-        or manifest.get("fact_review_schema_version") not in (SCHEMA_VERSION, READ_SCHEMA_VERSION)
+        or manifest.get("fact_review_schema_version")
+        not in (SCHEMA_VERSION, READ_SCHEMA_VERSION, "fact-revision/5")
     ):
         raise ContractError("unsupported_fact_review_context")
     return value
