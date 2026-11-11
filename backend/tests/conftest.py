@@ -2,12 +2,11 @@ import os
 from uuid import uuid4
 
 import pytest
-from sqlalchemy import text
-
 from podgen.domain.contracts.common import CodeProducer
 from podgen.persistence.database import Database, query
 from podgen.persistence.objects import FileObjectStore
 from podgen.persistence.repository import Repository
+from sqlalchemy import text
 
 
 @pytest.fixture(scope="session")
@@ -21,7 +20,7 @@ def database():
     with db.transaction() as tx:
         assert (
             tx.execute(text("SELECT version_num FROM alembic_version")).scalar_one()
-            == "0020_search_privacy"
+            == "0021_technical_recovery"
         )
     yield db
     db.engine.dispose()

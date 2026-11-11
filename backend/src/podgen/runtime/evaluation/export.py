@@ -56,7 +56,7 @@ def _projection(invocation):
 def _export_attempt(journal, invocation, base, write_json, directory):
     request_ref = RuntimeRef(record_kind="tool_execution", record_id=invocation["request_record_id"])
     request = journal.read(request_ref)
-    if invocation["attempt_kind"] == "total_input_retry":
+    if invocation["attempt_kind"] in ("total_input_retry", "technical_retry"):
         write_json(base / "request-record.json", request)
     _write(
         directory / base / "request.json",

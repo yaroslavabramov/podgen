@@ -239,7 +239,9 @@ def test_normal_full_three_stage_entry_and_idempotency(repo, setup_writer, tmp_p
         ("poll-id", "provider_response_id_mismatch"),
     ],
 )
-def test_faults_are_archived_and_never_resubmitted(repo, setup_writer, fault, code):
+def test_faults_are_archived_and_only_technical_failure_can_get_a_linked_replacement(
+    repo, setup_writer, fault, code
+):
     command, loader, _ = setup_writer
     if fault == "poll-id":
         profile = create_profile(
@@ -262,7 +264,7 @@ def test_faults_are_archived_and_never_resubmitted(repo, setup_writer, fault, co
     assert journal.events(invocation)
     with pytest.raises(RunFailure):
         run(repo, command, loader, provider)
-    assert len(provider.requests) == 1
+    assert len(provider.requests) == (2 if fault == "timeout" else 1)
 
 
 def test_wrong_feedback_anchor_stops_before_revision(repo, setup_writer):

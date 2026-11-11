@@ -95,7 +95,12 @@ def resume_authorization(journal, root):
 def lineage(journal, root):
     """Operational parents supply receipts only; independent editorial repairs use their own origin."""
     result, seen = [root], {root["invocation_id"]}
-    while root["attempt_kind"] in ("credit_retry", "input_budget_retry", "total_input_retry"):
+    while root["attempt_kind"] in (
+        "credit_retry",
+        "input_budget_retry",
+        "total_input_retry",
+        "technical_retry",
+    ):
         root = next(
             (
                 row
@@ -133,6 +138,10 @@ def continuation(journal, root):
                 "refusal_event_ref"
             ) != receipt.model_dump(mode="json"):
                 raise Conflict("source_tool_resume_authorization_mismatch")
+        elif child["attempt_kind"] == "technical_retry":
+            from .technical_recovery import validate_retry
+
+            validate_retry(journal, child, parent)
         elif child["attempt_kind"] == "total_input_retry":
             from .total_input_recovery import effective_ceiling
 

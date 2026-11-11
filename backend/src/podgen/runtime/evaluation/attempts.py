@@ -5,6 +5,7 @@ from uuid import uuid5
 from podgen.domain.errors import Conflict
 
 from .reading_workflow import is_reading
+from .technical_recovery_policy import MAX_STAGE_REPLACEMENTS, STATES
 
 
 def validate_lineage(rows, stage):
@@ -50,6 +51,14 @@ def validate_lineage(rows, stage):
                 )
             elif row["attempt_kind"] == "credit_retry":
                 valid = valid and parent["operation_kind"] == row["operation_kind"]
+            elif row["attempt_kind"] == "technical_retry":
+                valid = (
+                    valid
+                    and parent["operation_kind"] == row["operation_kind"]
+                    and parent["status"] in STATES
+                    and sum(r["attempt_kind"] == "technical_retry" for r in previous.values())
+                    < MAX_STAGE_REPLACEMENTS
+                )
             else:
                 valid = False
         if not valid:
@@ -66,6 +75,8 @@ def attempt_identity(run_id, stage, index, kind, parent):
         return uuid5(parent["invocation_id"], "total-input-budget-retry:1")
     if kind == "input_budget_retry":
         return uuid5(parent["invocation_id"], "input-budget-retry:1")
+    if kind == "technical_retry":
+        return uuid5(parent["invocation_id"], "technical-recovery:1")
     return uuid5(
         parent["invocation_id"],
         "plan-target-repair:1" if kind == "plan_target_repair" else "credit-refusal-retry:1",
@@ -96,6 +107,12 @@ def validate_preparation(rows, stage, index, kind, operation, parent_id):
         elif kind in ("input_budget_retry", "total_input_retry"):
             valid = (
                 operation == parent["operation_kind"] == "role" and parent["status"] == "validation_failed"
+            )
+        elif kind == "technical_retry":
+            valid = (
+                operation == parent["operation_kind"]
+                and parent["status"] in STATES
+                and sum(row["attempt_kind"] == "technical_retry" for row in rows) < MAX_STAGE_REPLACEMENTS
             )
         else:
             valid = (

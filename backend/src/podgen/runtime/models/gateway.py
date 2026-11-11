@@ -44,6 +44,10 @@ class ModelGateway:
         ) from None
 
     def invoke(self, invocation, profile, *, limits, totals, guard):
+        from podgen.runtime.evaluation.technical_recovery import validate_stage
+
+        if invocation.get("attempt_index", 0):
+            validate_stage(self.journal, invocation)
         if invocation["status"] == "completed":
             return json.dumps(self.journal.output(invocation)["output"], ensure_ascii=False)
         from podgen.runtime.evaluation.source_tool_contract import applies, from_manifest
@@ -166,6 +170,13 @@ class ModelGateway:
             raw = j.last_response(invocation)
             if raw is None:
                 self._fail(invocation, "submission_acknowledgement_unknown", status="outcome_unknown")
+        return self._receive(invocation, profile, body, provider, raw, guard, full_response=full_response)
+
+    def _receive(
+        self, invocation, profile, body, provider, raw, guard, *, full_response=False, reconciled=False
+    ):
+        """Validate a submitted response identically on initial receipt and reconciliation."""
+        j = self.journal
         deadline = time.monotonic() + float(profile.timeout_policy.get("poll_deadline_seconds", 1800))
         while True:
             try:
@@ -208,7 +219,7 @@ class ModelGateway:
                     "cancelled": "provider_cancelled",
                 }.get(status, "provider_unknown_status")
                 self._fail(invocation, code)
-            if not profile.generation_parameters.get("store"):
+            if not reconciled and not profile.generation_parameters.get("store"):
                 self._fail(invocation, "response_not_retrievable", status="outcome_unknown")
             if time.monotonic() >= deadline:
                 j.transition(invocation, "waiting", provider_id=response_id)

@@ -3,6 +3,7 @@
 from datetime import datetime, timezone
 
 from podgen.domain.canonical import digest
+from podgen.domain.contracts.common import ArtifactRef
 from podgen.domain.errors import AccessDenied, Conflict, ContractError
 from podgen.persistence.repository import Repository
 from podgen.runtime.models.gateway import ModelGateway
@@ -309,6 +310,31 @@ class WritingEvaluation:
                 max_total_input_tokens=max_total_input_tokens,
                 guard=guard,
             )
+            if existing and not any(
+                target is not None
+                for target in (
+                    retry_credit_refusal,
+                    repair_plan_targets,
+                    retry_input_budget,
+                    retry_total_input_budget,
+                )
+            ):
+                from .profiles import load_profile
+                from .technical_recovery import resume_current
+
+                try:
+                    resume_current(
+                        journal,
+                        command,
+                        gateway=gateway,
+                        guard=guard,
+                        load_profile=lambda ref, stage: load_profile(
+                            self.generation, command.project_id, ArtifactRef.model_validate(ref), stage
+                        ),
+                    )
+                except (RunFailure, ContractError) as error:
+                    journal.status(command.run_id, "needs_attention", error.code)
+                    raise
             from .total_input_recovery import effective_ceiling
 
             gateway.total_input_ceiling = effective_ceiling(journal, command.run_id)

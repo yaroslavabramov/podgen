@@ -197,7 +197,7 @@ def test_planning_blocks_preserve_outputs_and_never_start_writer(
         ("plan-review", "invalid-json"),
     ],
 )
-def test_planning_faults_never_retry_or_start_writer(own_dataset, stage, fault):
+def test_planning_faults_only_replace_technical_attempts_and_never_start_writer(own_dataset, stage, fault):
     command = command_for(own_dataset)
     provider = OwnPlanProvider(
         decisions=("accept", "accept") if fault == "accept-blocked" else ("revise", "accept"),
@@ -208,7 +208,7 @@ def test_planning_faults_never_retry_or_start_writer(own_dataset, stage, fault):
         with pytest.raises(RunFailure):
             execute(own_dataset, command, provider)
     stages = [r["metadata"]["podgen_stage"] for r in provider.requests]
-    assert stages.count(stage) == 1
+    assert stages.count(stage) == (2 if fault == "timeout" else 1)
     assert "draft" not in stages
 
 
@@ -285,7 +285,7 @@ def test_all_planning_calls_charge_the_same_run_budget(own_dataset):
     assert len(provider.counts) == 3
 
 
-def test_lost_planning_acknowledgement_never_resubmits(own_dataset):
+def test_lost_planning_acknowledgement_resumes_through_a_linked_replacement(own_dataset):
     command = command_for(own_dataset)
     provider = OwnPlanProvider()
 
@@ -297,9 +297,13 @@ def test_lost_planning_acknowledgement_never_resubmits(own_dataset):
     with pytest.raises(KeyboardInterrupt):
         execute(own_dataset, command, provider)
     provider.on_submit = None
-    with pytest.raises(RunFailure, match="submission_acknowledgement_unknown"):
-        execute(own_dataset, command, provider)
-    assert len(provider.requests) == 3
+    assert execute(own_dataset, command, provider)["status"] == "completed_unaccepted"
+    journal = EvaluationJournal(own_dataset[0], command.project_id)
+    attempts = journal.attempts(command.run_id, "plan-revise")
+    assert [row["status"] for row in attempts] == ["submitting", "completed"]
+    assert [row["attempt_kind"] for row in attempts] == ["role", "technical_retry"]
+    assert sum(r["metadata"]["podgen_stage"] == "plan-revise" for r in provider.requests) == 2
+    assert sum(r["metadata"]["podgen_stage"] == "plan" for r in provider.requests) == 1
 
 
 def test_live_access_is_rechecked_after_planning_count(own_dataset):

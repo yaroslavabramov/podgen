@@ -82,3 +82,5 @@ Inline limit — 16 MiB; `create_from_stream` принимает полный JS
 ## Поиск по источникам
 
 Новые production-выпуски используют локальные multilingual encoder/reranker и project-scoped PostgreSQL FTS/pgvector. После установки зависимостей и миграций подготовьте общие модели: `uv run --directory backend python -m podgen.retrieval prepare` из корня репозитория. [Установка, pins, обычный run/preview/resume и адресные проверки](../docs/podcast-production/source-search.md).
+
+Обычный `resume` восстанавливает технически оборвавшуюся стадию в том же запуске: сначала получает известный ответ, затем при необходимости создаёт связанную попытку. Максимум две технические замены на стадию; сохранённые тексты, рецензии, чтения источников и неизвестный расход сохраняются. [Контракт и проверки восстановления](../docs/podcast-production/technical-recovery.md).
