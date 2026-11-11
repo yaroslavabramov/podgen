@@ -60,5 +60,48 @@
   "schema_sha256": {
     "fact-review": "e9d65a295430193b0f31a4c5c6f6dfafece03be8b6050159512710b673201339",
     "fact-review-1": "e9d65a295430193b0f31a4c5c6f6dfafece03be8b6050159512710b673201339"
-  }
+  },
+  "baseline_control_review": {
+    "acceptable": {
+      "path": "tmp/review-audit-release/controls/snow-contextual-scope/acceptable/review.json",
+      "sha256": "7e83c9f81b3191e3b4c2f55ec657773b4495162ab9aa7e7b000d08804b5ff557",
+      "mandatory_finding_utterances": [
+        [
+          25
+        ]
+      ]
+    },
+    "distorted": {
+      "path": "tmp/review-audit-release/controls/snow-contextual-scope/distorted/review.json",
+      "sha256": "0f5eded80c9795ef0a4b4556100640005f87a6e28eb35bf27d0f5c1232b21801",
+      "mandatory_finding_utterances": [
+        [
+          33
+        ]
+      ]
+    }
+  },
+  "baseline_observed_limits": [
+    "The two independent initial audits distinguish the original contextual ending from the explicit worldwide-priority variant at the finding level. The distorted version receives a supported diagnosis of an unestablished worldwide assertion; no opposite historical chronology is invented.",
+    "The acceptable audit requires a repair to the unchanged servant passage after imposing a specific prior belief. The distorted audit has no such finding and records the broader documented account under D10. This does not establish stable interpretation of the disputed connective.",
+    "Acceptable coverage 31–33 points only to D14, which assesses drainage and diagnosis at 31–32. Neither its meaning nor memory records the final temporal contrast. Lack of a finding therefore does not establish explicit contextual approval preserved for later review.",
+    "These are initial audits, not a native recheck of one audit. They do not demonstrate decision retention, reviewer convergence or stabilization from the audit fields."
+  ],
+  "rationale": [
+    "The full frozen instructions already require contextual scope, distinguish genuine ambiguity from an imaginable reading, and justify mandatory status separately. There is no direct conflict to remove. The missing operation is testing a proposed added assertion against a plausible evidence-grounded contextual reading before classifying it as unsupported. The rewritten claim paragraph supplies that operation while retaining mandatory repair for an actual residual defect or material ambiguity.",
+    "The audit instructions permit related claim types in one check and require range coverage, but did not explicitly require substantive conclusions or factual contrasts to be assessed in their own right. The schema and validator can accept a range linked to decisions about premises alone. The approved audit paragraph records conclusions and contrasts throughout the episode, including its ending, with meaning, scope, evidence rationale and memory in existing ClaimCheck fields, so subsequent dispositions can address the actual conclusion."
+  ],
+  "preserved_policies": [
+    "Source investigation, factual precision, necessary inference, scenic reconstruction, genuine ambiguity, unsupported independent assertions and repair severity remain unchanged.",
+    "Retained evidence applicability and bounded repeat investigation remain unchanged; no fresh full audit is required merely because another round begins.",
+    "No examples, new response fields, semantic server gates, reader instructions, author tasks, models or revision limits are introduced."
+  ],
+  "qualification_needed": [
+    "Read complete candidate audit outputs: the acceptable ending needs an explicit decision assessing its contextual conclusion, not only covered indices or absence of a finding.",
+    "The explicit worldwide variant must retain its demonstrated required defect; a narrower reading must not erase words that actually assert global scope.",
+    "Read the interpretation and evidence for the unchanged servant connective in both outputs; count justified decisions rather than finding counts alone.",
+    "Use a native revision/recheck to inspect retention or justified reassessment of the actual prior conclusion decision and any newly mandatory findings. Independent initial calls cannot establish this.",
+    "This is an untested instruction proposal. Any improvement in stability remains to be demonstrated on complete native outputs and independent stories."
+  ],
+  "proposal_status": "The intermediate instruction files from proposal commit 6e7ae6e were removed after their rationale was retained here. The approved complete instructions and before/after comparisons are in this release directory; the proposal remains available in Git history."
 }
