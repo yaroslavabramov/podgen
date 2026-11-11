@@ -8,5 +8,18 @@
   "preserved_body_sha256": "65cb74a97b438717fadd08e92947f4f1b736ceb70f14468765a4320527b996fe",
   "contract": "editorial-recheck/2",
   "production_changed": false,
-  "api_calls": 0
+  "api_calls": 0,
+  "approved_activation_scope": [
+    "reader-review-1",
+    "reader-review-2"
+  ],
+  "previous_reader_decision_fields": [
+    "recommendation",
+    "listener_answer",
+    "strengths",
+    "important_limits",
+    "revision_scope"
+  ],
+  "revision_operation": "verbatim author revision_operation",
+  "real_payload_schema_review": "pending coordinator readiness message"
 }
