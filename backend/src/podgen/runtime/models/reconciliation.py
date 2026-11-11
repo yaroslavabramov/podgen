@@ -19,7 +19,7 @@ def _archived_completion(journal, invocation):
 def retrieve(gateway, invocation, profile, *, guard, full_response=False):
     identity = invocation.get("provider_response_id")
     journal = gateway.journal
-    reply = _archived_completion(journal, invocation) if not identity else None
+    reply = _archived_completion(journal, invocation)
     if not identity and reply is None:
         return False
     guard()
@@ -28,8 +28,9 @@ def retrieve(gateway, invocation, profile, *, guard, full_response=False):
         "reconciliation_intent",
         data=dict(response_id=identity, previous_status=invocation["status"]),
     )
-    provider = gateway.provider_factory(profile)
-    if identity:
+    provider = None
+    if reply is None and identity:
+        provider = gateway.provider_factory(profile)
         try:
             reply = provider.retrieve(identity)
         except ProviderFault as fault:
@@ -40,7 +41,6 @@ def retrieve(gateway, invocation, profile, *, guard, full_response=False):
                 raise RunFailure(
                     fault.code, run_id=invocation["run_id"], invocation_id=invocation["invocation_id"]
                 ) from None
-    reply = reply or _archived_completion(journal, invocation)
     if reply is None:
         return False
     body = journal.request(invocation)

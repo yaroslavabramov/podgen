@@ -114,7 +114,7 @@ class ModelGateway:
             check_visible(body, contract, max_visible_bytes=local_limits["visible_bytes"])
         except ContractError as error:
             self._fail(invocation, error.code, status="validation_failed")
-        provider = self.provider_factory(profile)
+        provider = self.provider_factory(profile) if invocation["status"] in ("prepared", "counted") else None
         if invocation["status"] == "prepared":
             guard()
             count_body = {key: value for key, value in body.items() if key in COUNT_FIELDS}
@@ -231,6 +231,8 @@ class ModelGateway:
             guard()
             self.sleep(self.poll_seconds)
             try:
+                if provider is None:
+                    provider = self.provider_factory(profile)
                 reply = provider.retrieve(response_id)
             except ProviderFault as fault:
                 # A failed read must not turn a known submitted generation into an unsent failure.

@@ -8,6 +8,7 @@ import httpx
 import pytest
 from podgen.domain.contracts.common import BlobRef, RuntimeRef
 from podgen.domain.errors import Conflict
+from podgen.runtime.evaluation import model_turns
 from podgen.runtime.evaluation.contracts import RunFailure
 from podgen.runtime.evaluation.technical_recovery import (
     authorize_technical_recovery,
@@ -238,18 +239,60 @@ def test_ordinary_recovery_skips_absent_optional_stages_and_reuses_existing_chil
     assert len(journal.roots) == 2 and len(provider.sent) == 1
 
 
-def test_completed_archive_is_reused_after_lost_projection_update():
+@pytest.mark.parametrize("known_id", [False, True])
+def test_completed_archive_is_reused_after_lost_projection_update_without_provider_access(known_id):
     journal, provider, profile, limits, gateway = plain()
     with pytest.raises(RunFailure):
         invoke(gateway, journal.root, profile, limits)
     journal.event(journal.root, "provider_response", reply=WireReply(json.dumps(provider.response).encode()))
+    if known_id:
+        journal.transition(journal.root, "outcome_unknown", provider_id="resp_known")
+    provider.retrieve_error = "provider_http_503"
+    gateway.provider_factory = lambda _: pytest.fail("A complete archive must not require a provider")
     row = recover(journal, gateway, profile, journal.root.copy())
     assert row["status"] == "response_completed"
     assert invoke(gateway, row, profile, limits) == '{"answer":"done"}'
     assert len(provider.sent) == len(journal.roots) == 1 and not provider.reads
 
 
-def test_known_completed_tool_response_reconciles_in_place_without_repeating_reads(monkeypatch):
+@pytest.mark.parametrize(
+    "field,value,code",
+    [
+        ("id", "resp_another", "provider_response_id_mismatch"),
+        ("model", "other-model", "provider_model_revision_mismatch"),
+        ("metadata", {"other": "operation"}, "provider_response_metadata_mismatch"),
+    ],
+)
+def test_wrong_local_completion_is_rejected_without_provider_or_releasing_reservation(field, value, code):
+    journal, provider, profile, limits, gateway = plain()
+    with pytest.raises(RunFailure):
+        invoke(gateway, journal.root, profile, limits)
+    journal.transition(journal.root, "outcome_unknown", provider_id="resp_known")
+    response = dict(provider.response, **{field: value})
+    journal.event(journal.root, "provider_response", reply=WireReply(json.dumps(response).encode()))
+    paid = attempt_usage(journal, journal.root, profile.output_limit)
+    gateway.provider_factory = lambda _: pytest.fail("Invalid local bindings must be rejected locally")
+    with pytest.raises(RunFailure, match=code):
+        recover(journal, gateway, profile, journal.root.copy())
+    assert attempt_usage(journal, journal.root, profile.output_limit) == paid == dict(input=100, output=1000)
+    assert journal.root["status"] == "outcome_unknown" and len(journal.roots) == 1
+    assert not provider.reads and len(provider.sent) == 1
+
+
+@pytest.mark.parametrize("archived", [b'{"status":"in_progress"}', b"{broken-json"])
+def test_incomplete_local_archive_still_retrieves_known_response(archived):
+    journal, provider, profile, limits, gateway = plain()
+    with pytest.raises(RunFailure):
+        invoke(gateway, journal.root, profile, limits)
+    journal.transition(journal.root, "outcome_unknown", provider_id="resp_known")
+    journal.event(journal.root, "provider_response", reply=WireReply(archived))
+    restored = recover(journal, gateway, profile, journal.root.copy())
+    assert restored["status"] == "response_completed"
+    assert provider.reads == ["resp_known"] and len(provider.sent) == len(journal.roots) == 1
+
+
+@pytest.mark.parametrize("archived", [False, True])
+def test_known_completed_tool_response_reconciles_in_place_without_repeating_reads(monkeypatch, archived):
     journal, profile, limits, corpus, server, original = prepare(monkeypatch, "unknown")
     journal.snapshot["stages"] = [journal.root["stage"]]
     journal.records[journal.root["request_record_id"]]["context"] = dict(profile_ref={"saved": "profile"})
@@ -260,6 +303,8 @@ def test_known_completed_tool_response_reconciles_in_place_without_repeating_rea
         nonlocal known
         if request.method == "GET":
             reads.append(str(request.url))
+            if archived:
+                return httpx.Response(503, json={"error": {"message": "Unavailable"}})
             return httpx.Response(200, json=dict(known, status="completed", output=[call(2)]))
         body = json.loads(request.content)
         if (
@@ -285,10 +330,22 @@ def test_known_completed_tool_response_reconciles_in_place_without_repeating_rea
         )
         with pytest.raises(RunFailure, match="response_not_retrievable"):
             invoke(gateway, journal.root, profile, limits)
+        if archived:
+            turn = model_turns.rows(journal, journal.root)[-1]
+            model_turns.TurnJournal(journal, journal.root, turn["turn_index"]).event(
+                turn,
+                "provider_response",
+                reply=WireReply(json.dumps(dict(known, status="completed", output=[call(2)])).encode()),
+                data=dict(provider_response_id=known["id"]),
+            )
+            factory = gateway.provider_factory
+            gateway.provider_factory = lambda _: pytest.fail("A completed tool turn is available locally")
         restored = recover(journal, gateway, profile, journal.root.copy())
+        if archived:
+            gateway.provider_factory = factory
         assert restored["status"] == "tool_running"
         assert invoke(gateway, restored, profile, limits) == '{"answer":"done"}'
-    assert len(journal.roots) == 1 and len(reads) == 1
+    assert len(journal.roots) == 1 and len(reads) == (0 if archived else 1)
     assert [int(body["metadata"]["podgen_source_turn"]) for body in server.sent] == [0, 1, 2]
     assert [options["read_id"] for _, _, options in corpus.calls] == ["E1", "E2"]
 
