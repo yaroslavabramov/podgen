@@ -27,6 +27,34 @@
         "total": 183968
       },
       "instruction_matches_reviewed_prompt": true
+    },
+    "round-2/snow-contextual-scope/acceptable": {
+      "run_id": "24ca0abc-8f85-407b-ad28-43557143078a",
+      "request_path": "tmp/review-audit-release/round-2/controls/snow-contextual-scope/acceptable/request.json",
+      "model": "gpt-6.1-terra",
+      "max_output_tokens": 24576,
+      "visible_bytes": {
+        "instructions": 11606,
+        "input": 150626,
+        "schema": 20035,
+        "tools": 2271,
+        "total": 184538
+      },
+      "instruction_matches_reviewed_prompt": true
+    },
+    "round-2/snow-contextual-scope/distorted": {
+      "run_id": "ab9cbeef-1be0-4e31-9e70-f01923d24b89",
+      "request_path": "tmp/review-audit-release/round-2/controls/snow-contextual-scope/distorted/request.json",
+      "model": "gpt-6.1-terra",
+      "max_output_tokens": 24576,
+      "visible_bytes": {
+        "instructions": 11606,
+        "input": 150759,
+        "schema": 20035,
+        "tools": 2271,
+        "total": 184671
+      },
+      "instruction_matches_reviewed_prompt": true
     }
   },
   "paired_payload_difference": [
