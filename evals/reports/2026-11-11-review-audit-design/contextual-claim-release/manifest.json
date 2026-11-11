@@ -1,0 +1,64 @@
+{
+  "status": "activated after complete instruction read; native behavioral qualification pending",
+  "api_calls": 0,
+  "proposal_commit": "6e7ae6e",
+  "roles": [
+    {
+      "role": "fact-first",
+      "production_key": "fact-review",
+      "before_sha256": "95bf845d3066c572e65416b23e860b68603d667955a70ad2cc76d4a714559c1a",
+      "approved_sha256": "69c4930ddaabc289b26a37a475464a2e31292966a9a60c286de0535959488da1",
+      "asset": "backend/src/podgen/writing/behavior/assets/69c4930ddaabc289b26a37a475464a2e31292966a9a60c286de0535959488da1.md",
+      "paragraph_replacements": [
+        {
+          "section": "## Establish the claim before checking it",
+          "before": "Read the connected passage and the conversation around it. Establish who or what the statement concerns, its time and scope, whose knowledge or explanation is being reported, and what the listener would reasonably understand. Resolve references, conversational shorthand and attribution from that context. Read exceptions and qualifications already present in the script with the claim they affect. In `listener_answer`, describe the factual account this episode conveys. Record individual contextual claims and their decisions in `audit.claim_checks`. A possible isolated literal reading is a reason to inspect the passage, not yet a factual finding. Do not broaden a claim to all places or times unless the connected speech actually conveys that scope. A temporal contrast establishes the difference relevant to its passage, rather than an inventory of every observation behind an earlier decision. Require more history only when the contextual account would otherwise be false.",
+          "after": "Read the connected passage and the conversation around it. Establish who or what the statement concerns, its time and extent, whose knowledge or explanation is reported, and what the listener would reasonably understand. Resolve references, conversational shorthand, attribution and existing qualifications from that context. Do not broaden a claim to all places or times unless the connected speech actually conveys that scope. In `listener_answer`, describe the factual account the episode conveys. Before classifying wording as an added factual assertion, compare the proposed interpretation with a plausible reading grounded in the surrounding account and inspected evidence. Establish which proposition the speech actually asserts. When that context supports an adequate reading, a required finding must explain what factual defect remains or which words still leave a materially misleading alternative plausible. A temporal contrast establishes the difference relevant to its passage; require additional history when the resulting contextual account would otherwise be false. Record the established meaning and its assessment in `audit.claim_checks`."
+        },
+        {
+          "section": "## Record the complete factual audit",
+          "before": "In `audit.claim_checks`, record supported claims as well as contradicted, unsupported and unchecked claims, at the contextual meaning established from the speech. A check may assess several related claim types. The first audit covers the full contextual account, not only suspicious sentences; a recheck maintains that coverage by carrying forward applicable decisions and checking what requires fresh assessment.",
+          "after": "In `audit.claim_checks`, record supported claims as well as contradicted, unsupported and unchecked claims at their established contextual meaning. A check may assess several related claim types. Record substantive conclusions and factual contrasts as decisions in their own right, including any that close the episode. Anchor each decision to the words expressing that conclusion or contrast. State the conclusion or contrast itself in `contextual_meaning`, its extent and attribution in `context_scope`, and how the inspected evidence establishes its verdict in `rationale`. Preserve its meaning, scope and verdict in `memory_summary`, and link its coverage entry to this decision. Assess supporting premises in their applicable decisions. The first audit covers the full contextual account, including its conclusions; a recheck maintains that coverage by carrying forward applicable decisions and checking what requires fresh assessment."
+        }
+      ],
+      "word_delta": 88
+    },
+    {
+      "role": "fact-recheck",
+      "production_key": "fact-verification",
+      "before_sha256": "74716d788f82662be0d3c6b936a8c19f2d6a1430c14ba44c81e4db674673aefd",
+      "approved_sha256": "26fe13222ad4e8b0ed4fa618bcfa5a55557f9601560b08620d9af4968f30e380",
+      "asset": "backend/src/podgen/writing/behavior/assets/26fe13222ad4e8b0ed4fa618bcfa5a55557f9601560b08620d9af4968f30e380.md",
+      "paragraph_replacements": [
+        {
+          "section": "## Establish the claim before checking it",
+          "before": "Read the connected passage and the conversation around it. Establish who or what the statement concerns, its time and scope, whose knowledge or explanation is being reported, and what the listener would reasonably understand. Resolve references, conversational shorthand and attribution from that context. Read exceptions and qualifications already present in the script with the claim they affect. In `listener_answer`, describe the factual account this episode conveys. Record individual contextual claims and their decisions in `audit.claim_checks`. A possible isolated literal reading is a reason to inspect the passage, not yet a factual finding. Do not broaden a claim to all places or times unless the connected speech actually conveys that scope. A temporal contrast establishes the difference relevant to its passage, rather than an inventory of every observation behind an earlier decision. Require more history only when the contextual account would otherwise be false.",
+          "after": "Read the connected passage and the conversation around it. Establish who or what the statement concerns, its time and extent, whose knowledge or explanation is reported, and what the listener would reasonably understand. Resolve references, conversational shorthand, attribution and existing qualifications from that context. Do not broaden a claim to all places or times unless the connected speech actually conveys that scope. In `listener_answer`, describe the factual account the episode conveys. Before classifying wording as an added factual assertion, compare the proposed interpretation with a plausible reading grounded in the surrounding account and inspected evidence. Establish which proposition the speech actually asserts. When that context supports an adequate reading, a required finding must explain what factual defect remains or which words still leave a materially misleading alternative plausible. A temporal contrast establishes the difference relevant to its passage; require additional history when the resulting contextual account would otherwise be false. Record the established meaning and its assessment in `audit.claim_checks`."
+        },
+        {
+          "section": "## Record the complete factual audit",
+          "before": "In `audit.claim_checks`, record supported claims as well as contradicted, unsupported and unchecked claims, at the contextual meaning established from the speech. A check may assess several related claim types. The first audit covers the full contextual account, not only suspicious sentences; a recheck maintains that coverage by carrying forward applicable decisions and checking what requires fresh assessment.",
+          "after": "In `audit.claim_checks`, record supported claims as well as contradicted, unsupported and unchecked claims at their established contextual meaning. A check may assess several related claim types. Record substantive conclusions and factual contrasts as decisions in their own right, including any that close the episode. Anchor each decision to the words expressing that conclusion or contrast. State the conclusion or contrast itself in `contextual_meaning`, its extent and attribution in `context_scope`, and how the inspected evidence establishes its verdict in `rationale`. Preserve its meaning, scope and verdict in `memory_summary`, and link its coverage entry to this decision. Assess supporting premises in their applicable decisions. The first audit covers the full contextual account, including its conclusions; a recheck maintains that coverage by carrying forward applicable decisions and checking what requires fresh assessment."
+        }
+      ],
+      "word_delta": 88
+    }
+  ],
+  "changes": "Exactly two complete paragraphs in each fact instruction; no response schema or other role changes.",
+  "qualification": "Previous initial Snow controls distinguish the global assertion but do not establish stable interpretation or retained positive decisions. Native candidate outputs and rechecks remain to be assessed by the coordinating chat.",
+  "read_full_prompts": true,
+  "approved_adjustments": [
+    "Preserve the exact explicit instruction against broadening a claim to all places or times.",
+    "Record substantive conclusions and factual contrasts throughout the episode as decisions in their own right."
+  ],
+  "verification": [
+    "Exactly two complete paragraphs replaced in each fact instruction; all other paragraphs byte-identical.",
+    "Both fact assets resolve to the recorded full after-text for solo and dialogue.",
+    "Only fact-review and fact-verification production entries changed; all other production resources match the previous release.",
+    "No schema, descriptions, model, role ordering or revision-limit code changed."
+  ],
+  "schema_sha256": {
+    "fact-review": "e9d65a295430193b0f31a4c5c6f6dfafece03be8b6050159512710b673201339",
+    "fact-review-1": "e9d65a295430193b0f31a4c5c6f6dfafece03be8b6050159512710b673201339"
+  }
+}
