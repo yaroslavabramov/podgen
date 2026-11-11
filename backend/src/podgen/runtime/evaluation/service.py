@@ -50,6 +50,7 @@ class WritingEvaluation:
                 command.plan_mode == "fixed-plan"
                 and command.fixed_plan_input_ref is None
                 and command.initial_script_ref is None
+                and command.editorial_parent_run_id is None
             ):
                 raise ContractError("fixed_editorial_input_required")
             return load_editorial_materials(
@@ -80,6 +81,8 @@ class WritingEvaluation:
             raise AccessDenied()
         if stop_after_plan and command.plan_mode != "own-plan":
             raise ContractError("stop_after_plan_requires_own_plan")
+        if stop_after_plan and command.editorial_parent_run_id is not None:
+            raise ContractError("editorial_continuation_has_no_planning")
         journal = EvaluationJournal(self.repo, command.project_id)
         with journal.lock(command.run_id):
             existing = journal.run(command.run_id)
@@ -112,6 +115,10 @@ class WritingEvaluation:
                     terminal = author_material.saved_result(journal, command)
                 if command.planning_parent_run_id is not None:
                     from .planning_continuation.source import verify
+
+                    verify(journal, command, manifest, self._materials(command))
+                if command.editorial_parent_run_id is not None:
+                    from .editorial_continuation.source import verify
 
                     verify(journal, command, manifest, self._materials(command))
                 if terminal is None and independent(command):
@@ -285,7 +292,9 @@ class WritingEvaluation:
             gateway = ModelGateway(journal, factory, source_corpus=corpus, **self.gateway_options)
             outputs = {}
             records = {}
-            totals = {"input": 0, "output": 0}
+            totals = dict(
+                manifest.get("editorial_continuation", {}).get("inherited_usage", {"input": 0, "output": 0})
+            )
 
             def guard():
                 current = self._materials(command)
@@ -343,7 +352,11 @@ class WritingEvaluation:
             journal.status(command.run_id, "running")
             try:
                 own_plan = None
-                if command.plan_mode == "own-plan":
+                if command.editorial_parent_run_id is not None:
+                    from .editorial_continuation.source import own_plan as inherited_plan
+
+                    own_plan = inherited_plan(journal, manifest)
+                elif command.plan_mode == "own-plan":
                     own_plan = execute_planning(
                         journal=journal,
                         gateway=gateway,

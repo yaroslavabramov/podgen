@@ -75,7 +75,9 @@ def export_readings(journal, run_id, manifest, write_json, write_text):
         )
         if "assignment_results" in review:
             title = "Редакторская перечитка" if ru else "Review of the revision"
-        title += (" · версия " if ru else " · version ") + str(index + 1)
+        from .editorial_continuation.source import offset
+
+        title += (" · версия " if ru else " · version ") + str(offset(manifest) + index + 1)
         lines.extend(["## " + title, "", review["recommendation"], "", review["listener_answer"], ""])
         if "assignment_results" in review:
             from .recheck_source import load

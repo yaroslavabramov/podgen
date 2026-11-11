@@ -279,5 +279,9 @@ def export_run(repo, project, run_id, directory):
                     plan_review_ref=proof["plan_review_ref"],
                     planning_clearance_ref=clearance_ref(run_id).model_dump(mode="json"),
                 )
+    if manifest.get("editorial_continuation"):
+        from .editorial_continuation.export import export as export_editorial
+
+        result.update(export_editorial(journal, run_id, manifest, write_json))
     write_json(Path("run.json"), result)
     return result

@@ -156,6 +156,9 @@ def parser(*, research=False):
 
     add_commands(sub, research=research)
     continuation = add_command(sub)
+    from podgen.runtime.evaluation.editorial_continuation.cli import add_command as add_editorial_continuation
+
+    add_editorial_continuation(sub)
     for action in (run, sub.choices["resume"], continuation):
         action.add_argument(
             "--stop-after-plan",
@@ -248,6 +251,13 @@ def main(argv=None, *, research=False):
             command = WritingRunCommand.model_validate(
                 {"input_contract": "legacy-author-materials/1", "review_mode": "informed-v1", **data}
             )
+        elif args.command == "continue-editorial":
+            from podgen.runtime.evaluation.editorial_continuation.cli import command_for, prepare
+
+            command = command_for(args, journal)
+            if args.preview_only:
+                print(json.dumps(prepare(repo, command, args.export_dir), ensure_ascii=False))
+                return 0
         elif args.command == "continue-planning":
             from podgen.runtime.evaluation.planning_continuation.cli import command_for, prepare
 

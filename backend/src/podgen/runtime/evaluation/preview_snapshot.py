@@ -17,6 +17,7 @@ class PreviewSnapshot:
     planning_inputs: dict | None = None
     revision_comparison: dict | None = None
     fact_plan: dict | None = None
+    continuation_inputs: dict | None = None
 
 
 def load_preview_snapshot(journal, generation, run_id, stage, materials):
@@ -70,9 +71,16 @@ def load_preview_snapshot(journal, generation, run_id, stage, materials):
     if base_stage(stage) == "fact-review" and manifest.get(KEY) == SCENE_VERSION:
         from .planning import verify_clearance
 
-        proof = verify_clearance(journal, run_id)
-        fact_plan = journal.read(RuntimeRef.model_validate(proof["candidate_plan_ref"]))["output"]
+        if manifest.get("editorial_continuation"):
+            from .editorial_continuation.source import own_plan
+
+            fact_plan = own_plan(journal, manifest)["accepted_plan"]
+        else:
+            proof = verify_clearance(journal, run_id)
+            fact_plan = journal.read(RuntimeRef.model_validate(proof["candidate_plan_ref"]))["output"]
     snapshot = PreviewSnapshot(
         manifest, instructions, script, composition, fact_plan=fact_plan, revision_comparison=comparison
     )
-    return attach(snapshot, journal, run_id, stage, materials)
+    from .editorial_continuation.preview import attach as attach_editorial
+
+    return attach_editorial(attach(snapshot, journal, run_id, stage, materials), journal, run_id, stage)

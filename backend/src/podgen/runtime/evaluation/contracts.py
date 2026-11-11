@@ -56,6 +56,9 @@ class WritingRunCommand(Contract):
     initial_script_ref: RuntimeRef | None = None
     planning_parent_run_id: UUID | None = None
     planning_continuation_limit: PositiveInt | None = None
+    editorial_parent_run_id: UUID | None = None
+    editorial_additional_input_tokens: int | None = Field(default=None, ge=0)
+    editorial_additional_output_tokens: int | None = Field(default=None, ge=0)
     repeat_index: int = Field(default=0, ge=0)
     review_anchor_policy: Literal["strict", "bounded-selection-v1"] = "strict"
     limits: RunLimits = Field(default_factory=RunLimits)
@@ -93,6 +96,23 @@ class WritingRunCommand(Contract):
 
     @model_validator(mode="after")
     def planning_profiles(self):
+        if self.editorial_parent_run_id is None:
+            if (
+                self.editorial_additional_input_tokens is not None
+                or self.editorial_additional_output_tokens is not None
+            ):
+                raise ValueError("editorial_continuation_required")
+        elif (
+            self.editorial_parent_run_id == self.run_id
+            or self.editorial_additional_input_tokens is None
+            or self.editorial_additional_output_tokens is None
+            or self.max_script_revisions != 1
+            or self.input_contract != "editorial-role-packets/1"
+            or self.review_mode != "independent-readings/1"
+            or self.planning_parent_run_id is not None
+            or self.initial_script_ref is not None
+        ):
+            raise ValueError("invalid_editorial_continuation")
         if (self.planning_parent_run_id is None) != (self.planning_continuation_limit is None):
             raise ValueError("planning_continuation_requires_parent_and_limit")
         if self.planning_parent_run_id is not None and (
@@ -149,6 +169,13 @@ def command_payload(command):
     if command.planning_parent_run_id is None:
         payload.pop("planning_parent_run_id")
         payload.pop("planning_continuation_limit")
+    if command.editorial_parent_run_id is None:
+        for field in (
+            "editorial_parent_run_id",
+            "editorial_additional_input_tokens",
+            "editorial_additional_output_tokens",
+        ):
+            payload.pop(field)
     if command.review_mode == "informed-v1":
         for field in ("review_mode", "max_script_revisions", "initial_script_ref"):
             payload.pop(field)

@@ -48,6 +48,9 @@ class Journal:
         self.saved = manifest
         return manifest
 
+    def manifest(self, run_id):
+        return self.saved
+
     def invocation(self, run_id, name):
         return self.rows.get(name)
 

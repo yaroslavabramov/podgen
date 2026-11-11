@@ -55,8 +55,13 @@ def prepare(
                 **{prompt_cache.KEY: prompt_cache_layout},
             )
     context = revision_context_from_manifest(manifest) if snapshot else revision_context_contract
+    from .editorial_continuation.source import offset
+
     selection = script_revision.operation(
-        script, readings, int(stage.rsplit("-", 1)[1]) - 1, revision_context_contract=context
+        script,
+        readings,
+        int(stage.rsplit("-", 1)[1]) - 1 + offset(manifest),
+        revision_context_contract=context,
     )
     return RevisionPreview(
         script_revision.bound_schema(manifest, selection),

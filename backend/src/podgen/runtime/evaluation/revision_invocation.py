@@ -99,10 +99,12 @@ def prepare(journal, stage, manifest, *, script, script_ref, readings, reading_r
             or record["script_hash"] != digest(script)
         ):
             raise Conflict("revision_readings_binding_mismatch")
+    from .editorial_continuation.source import offset
+
     selection = script_revision.operation(
         script,
         readings,
-        int(stage.rsplit("-", 1)[1]) - 1,
+        int(stage.rsplit("-", 1)[1]) - 1 + offset(manifest),
         revision_context_contract=revision_context_from_manifest(manifest),
     )
     return RevisionInvocation(

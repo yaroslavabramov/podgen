@@ -53,7 +53,34 @@ def execute_reading_cycle(
         totals=totals,
         guard=guard,
     )
-    if command.initial_script_ref is not None:
+    from .editorial_continuation.source import KEY, offset, seed
+
+    continuing = KEY in manifest
+
+    def rewrite(index, script, script_ref, readings, refs):
+        stage = round_stage("revise", index)
+        guard()
+        result = execute_reading_stage(
+            stage,
+            **common,
+            script=script,
+            script_ref=script_ref,
+            readings=readings,
+            reading_refs=refs,
+            decision=combine(readings),
+            approved_plan=own_plan["accepted_plan"] if own_plan else None,
+        )
+        outputs[stage], records[stage] = result.output, result.ref.model_dump(mode="json")
+        totals["input"] += result.input_tokens
+        totals["output"] += result.output_tokens_or_reservation
+        return result.output, records[stage]
+
+    if continuing:
+        totals.update(manifest[KEY]["inherited_usage"])
+        script, script_ref, readings, refs = seed(journal, manifest)
+        outputs["draft"], records["draft"] = script, script_ref
+        script, script_ref = rewrite(1, script, script_ref, readings, refs)
+    elif command.initial_script_ref is not None:
         script = load_script(
             journal.repo, command.project_id, command.initial_script_ref, materials.speaker_labels
         )
@@ -68,7 +95,7 @@ def execute_reading_cycle(
         totals["input"] += initial.input_tokens
         totals["output"] += initial.output_tokens_or_reservation
     rounds = []
-    for index in range(command.max_script_revisions + 1):
+    for index in range(1 if continuing else 0, command.max_script_revisions + 1):
         readings, refs = {}, {}
         for origin, base in (("reader", "reader-review"), ("fact", "fact-review")):
             guard()
@@ -96,6 +123,8 @@ def execute_reading_cycle(
             reading_refs=refs,
             decision=decision,
         )
+        if continuing:
+            round_record["global_revision_index"] = offset(manifest) + index
         ref = journal.record(round_record, record_id=uuid5(command.run_id, f"reading-round:{index}"))
         rounds.append(ref.model_dump(mode="json"))
         terminal = decision["recommendation"] != "revise" or index == command.max_script_revisions
@@ -118,21 +147,14 @@ def execute_reading_cycle(
                 semantic_acceptance=False,
                 production_ready=False,
             )
+            if continuing:
+                from .editorial_continuation.budget import split_usage
+
+                outcome.update(
+                    revisions_completed=offset(manifest) + index,
+                    max_total_revisions=manifest[KEY]["max_total_revisions"],
+                    usage_ledger=split_usage(manifest, totals),
+                )
             journal.record(outcome, record_id=outcome_ref(command.run_id).record_id)
             return outcome
-        stage = round_stage("revise", index + 1)
-        guard()
-        result = execute_reading_stage(
-            stage,
-            **common,
-            script=script,
-            script_ref=script_ref,
-            readings=readings,
-            reading_refs=refs,
-            decision=decision,
-            approved_plan=own_plan["accepted_plan"] if own_plan else None,
-        )
-        script, script_ref = result.output, result.ref.model_dump(mode="json")
-        outputs[stage], records[stage] = script, script_ref
-        totals["input"] += result.input_tokens
-        totals["output"] += result.output_tokens_or_reservation
+        script, script_ref = rewrite(index + 1, script, script_ref, readings, refs)

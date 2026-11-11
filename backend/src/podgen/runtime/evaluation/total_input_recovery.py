@@ -23,7 +23,12 @@ def _charged_before(journal, target, rows):
     from .usage import refused_without_generation
 
     tools = from_manifest(journal.manifest(target["run_id"]))
-    charged = 0
+    charged = (
+        journal.manifest(target["run_id"])
+        .get("editorial_continuation", {})
+        .get("inherited_usage", {})
+        .get("input", 0)
+    )
     for row in rows:
         if row["operation_kind"] == "role" and applies(row["stage"], tools):
             charged += usage(journal, row, 0)["input"]

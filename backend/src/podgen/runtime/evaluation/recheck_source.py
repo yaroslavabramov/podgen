@@ -43,7 +43,14 @@ def load(journal, run_id, stage, *, version=VERSION, script_ref=None, script=Non
 def previous_reader_decision(journal, run_id, revision_stage, revision, before):
     number = int(revision_stage.rsplit("-", 1)[1]) - 1
     stage = "reader-review" if number == 0 else f"reader-review-{number}"
-    invocation = journal.invocation(run_id, stage)
+    source_run, seed_ref = run_id, None
+    if number == 0:
+        from .editorial_continuation.source import previous_reader_source
+
+        inherited = previous_reader_source(journal, run_id)
+        if inherited is not None:
+            source_run, stage, seed_ref = inherited
+    invocation = journal.invocation(source_run, stage)
     if invocation is None or invocation["status"] != "completed":
         raise Conflict("revision_verification_previous_reader_missing")
     expected_ref = RuntimeRef(
@@ -53,10 +60,11 @@ def previous_reader_decision(journal, run_id, revision_stage, revision, before):
     request = journal.read(RuntimeRef.model_validate(record["request_ref"]))
     if (
         revision["reading_refs"]["reader"] != expected_ref
+        or seed_ref is not None and seed_ref != expected_ref
         or record["script_ref"] != revision["script_ref"]
         or record["script_hash"] != digest(before)
         or record["stage"] != stage
-        or record["run_id"] != str(run_id)
+        or record["run_id"] != str(source_run)
         or record["request_ref"]["record_id"] != str(invocation["request_record_id"])
         or request["context"]["script_ref"] != revision["script_ref"]
         or request["context"]["script_hash"] != digest(before)

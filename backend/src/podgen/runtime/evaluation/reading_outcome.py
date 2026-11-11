@@ -31,8 +31,15 @@ def read_outcome(journal, run_id):
         or outcome.get("run_id") != str(run_id)
     ):
         raise Conflict("invalid_independent_outcome")
+    from .editorial_continuation.source import KEY, offset, seed
+    from .reading_rewrite_verification import verify_rewrite
+
+    start = 1 if KEY in manifest else 0
     previous = manifest["command"].get("initial_script_ref") or outcome["output_refs"]["draft"]
-    for index, round_ref in enumerate(outcome["rounds"]):
+    if start:
+        original, previous, readings, refs = seed(journal, manifest)
+        previous = verify_rewrite(journal, run_id, 1, previous, original, readings, refs, manifest)
+    for index, round_ref in enumerate(outcome["rounds"], start=start):
         record = journal.read(RuntimeRef.model_validate(round_ref))
         script = journal.read(RuntimeRef.model_validate(record["script_ref"]))["output"]
         if (
@@ -40,6 +47,8 @@ def read_outcome(journal, run_id):
             or record["index"] != index
             or record["script_ref"] != previous
             or record["script_hash"] != digest(script)
+            or start
+            and record.get("global_revision_index") != offset(manifest) + index
         ):
             raise Conflict("independent_round_script_mismatch")
         readings = {}
@@ -80,44 +89,18 @@ def read_outcome(journal, run_id):
             readings[origin] = output["output"]
         if record["decision"] != combine(readings):
             raise Conflict("independent_round_decision_mismatch")
-        if index < len(outcome["rounds"]) - 1:
-            rewrite = journal.invocation(run_id, round_stage("revise", index + 1))
-            if (
-                record["decision"]["recommendation"] != "revise"
-                or not rewrite
-                or rewrite["status"] != "completed"
-            ):
-                raise Conflict("independent_round_rewrite_missing")
-            rewritten = journal.output(rewrite)
-            if rewritten["script_ref"] != previous or rewritten["reading_refs"] != record["reading_refs"]:
-                raise Conflict("independent_round_rewrite_mismatch")
-            from .script_revision import enabled, verify_record
-
-            if enabled(manifest):
-                from podgen.writing.revision.context import from_manifest as revision_context_from_manifest
-
-                from .revision_invocation import source_state
-
-                verify_record(
-                    rewritten,
-                    script=script,
-                    composition=source_state(journal, previous, script),
-                    readings=readings,
-                    speakers={row["speaker"] for row in script["utterances"]},
-                    version=index,
-                    revision_context_contract=revision_context_from_manifest(manifest),
-                    unresolved_questions=journal.read(
-                        RuntimeRef(record_kind="tool_execution", record_id=rewrite["request_record_id"])
-                    )["context"]["unresolved_questions"],
-                )
-            previous = RuntimeRef(
-                record_kind="tool_execution", record_id=rewrite["output_record_id"]
-            ).model_dump(mode="json")
-    if not outcome["rounds"] or len(outcome["rounds"]) > manifest["command"]["max_script_revisions"] + 1:
+        if index < start + len(outcome["rounds"]) - 1:
+            previous = verify_rewrite(
+                journal, run_id, index + 1, previous, script, readings, record["reading_refs"], manifest
+            )
+    if (
+        not outcome["rounds"]
+        or len(outcome["rounds"]) > manifest["command"]["max_script_revisions"] + 1 - start
+    ):
         raise Conflict("independent_round_limit_mismatch")
     expected_status = record["decision"]["recommendation"]
     if expected_status == "revise":
-        if len(outcome["rounds"]) != manifest["command"]["max_script_revisions"] + 1:
+        if len(outcome["rounds"]) != manifest["command"]["max_script_revisions"] + 1 - start:
             raise Conflict("independent_round_limit_mismatch")
         expected_status = "revision_limit_exhausted"
     if (
@@ -128,12 +111,21 @@ def read_outcome(journal, run_id):
         or outcome["reading_refs"] != record["reading_refs"]
     ):
         raise Conflict("independent_final_script_mismatch")
+    if start:
+        from .editorial_continuation.budget import split_usage
+
+        if (
+            outcome.get("revisions_completed") != offset(manifest) + index
+            or outcome.get("max_total_revisions") != manifest[KEY]["max_total_revisions"]
+            or outcome.get("usage_ledger") != split_usage(manifest, outcome["token_usage_or_reservation"])
+        ):
+            raise Conflict("editorial_continuation_outcome_mismatch")
     return outcome
 
 
 def outcome_result(outcome, command):
     kept = outcome["status"] == "keep"
-    return dict(
+    result = dict(
         run_id=str(command.run_id),
         case_id=command.case_id,
         status="completed_unaccepted" if kept else "needs_attention",
@@ -146,3 +138,11 @@ def outcome_result(outcome, command):
         semantic_acceptance=False,
         production_ready=False,
     )
+    result.update(
+        {
+            key: outcome[key]
+            for key in ("revisions_completed", "max_total_revisions", "usage_ledger")
+            if key in outcome
+        }
+    )
+    return result

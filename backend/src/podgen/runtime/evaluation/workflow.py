@@ -8,6 +8,10 @@ from .reading_workflow import base_stage, independent, reading_stages
 
 
 def stages_for(command):
+    if command.editorial_parent_run_id is not None:
+        from .editorial_continuation.source import STAGES as continuation_stages
+
+        return continuation_stages
     if command.planning_parent_run_id is not None:
         writing = reading_stages(command.max_script_revisions) if independent(command) else STAGES
         return ("plan-revise", "plan-review-revised", *writing)

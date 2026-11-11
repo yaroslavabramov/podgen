@@ -28,8 +28,11 @@ from .workflow import prompt_stage
 def preview_request(
     run_id, stage, profile, materials, *, snapshot=None, behavior_profile=None, editorial_pass=None, **inputs
 ):
+    from .editorial_continuation.preview import resolve as resolve_editorial_inputs
     from .planning_continuation.preview import validate as validate_continuation_preview
     from .preview_inputs import validate_preview_inputs, validate_preview_snapshots
+
+    inputs = resolve_editorial_inputs(snapshot, inputs)
 
     if snapshot and (
         behavior_profile is not None
