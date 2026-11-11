@@ -13,6 +13,8 @@ from podgen.writing.planning_duration import from_manifest as duration_from_mani
 from podgen.writing.planning_versions import planning_snapshot
 from podgen.writing.projection_versions import manifest_version
 from podgen.writing.projections import CONTRACT, validate_model_content
+from podgen.writing.reading_audit.consistency import VERSION as CONSISTENCY_VERSION
+from podgen.writing.reading_audit.consistency import from_manifest as consistency_from_manifest
 from podgen.writing.reading_views import reading_audience
 from podgen.writing.revision import verification
 from podgen.writing.revision.context import from_manifest as revision_context_from_manifest
@@ -119,6 +121,11 @@ def preview_request(
                 else {}
             ),
             fact_schema_version=fact_version,
+            reading_audit_consistency_contract=consistency_from_manifest(snapshot.manifest)
+            if snapshot
+            else CONSISTENCY_VERSION
+            if behavior.reading_audit
+            else None,
         )
 
     from .reading_workflow import ALL_READING_STAGES, base_stage
@@ -203,7 +210,16 @@ def preview_request(
             else behavior.audience(materials.packet.assignment),
             script=inputs["draft"],
             readings=readings,
-            decision=combine(readings) if readings else None,
+            decision=combine(
+                readings,
+                consistency_contract=consistency_from_manifest(snapshot.manifest)
+                if snapshot
+                else CONSISTENCY_VERSION
+                if behavior.reading_audit
+                else None,
+            )
+            if readings
+            else None,
             approved_plan=inputs.get("approved_plan"),
             **(revision.inputs if revision else {}),
         )

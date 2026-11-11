@@ -257,6 +257,7 @@ class WritingEvaluation:
                         planning_ending_guidance=ending_version,
                         reader_schema_version=manifest.get("reader_review_schema_version"),
                         fact_schema_version=manifest.get("fact_review_schema_version"),
+                        reading_audit_consistency_contract=manifest.get("reading_audit_consistency_contract"),
                         revision_verification_contract=manifest.get("revision_verification_contract"),
                     ),
                     references,

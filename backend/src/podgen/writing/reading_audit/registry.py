@@ -7,6 +7,9 @@ from .schemas import AuditedFact, AuditedReader
 
 
 def from_manifest(manifest):
+    from .consistency import from_manifest as consistency_from_manifest
+
+    consistency_from_manifest(manifest)
     value = manifest.get(KEY)
     if value is not None and (
         value != VERSION
@@ -32,9 +35,12 @@ def model(stage):
     raise ContractError("unknown_reading_audit_role")
 
 
-def schema(stage):
+def schema(stage, *, consistency_contract=None):
     result = model(stage).model_json_schema()
     from .descriptions import describe_fact, describe_reader
 
     (describe_fact if model(stage) is AuditedFact else describe_reader)(result)
+    from .consistency import describe
+
+    describe(result, consistency_contract)
     return result

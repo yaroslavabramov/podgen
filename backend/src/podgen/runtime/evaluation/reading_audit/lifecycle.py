@@ -38,7 +38,7 @@ def finalize(journal, invocation, parsed, audit, materials, script):
     fact = base_stage(invocation["stage"]) == "fact-review"
     parsed.validate_against(WriteOutput.model_validate(script))
     output = parsed.model_dump(mode="json")
-    validate(output, script, audit.view, fact=fact)
+    validate(output, script, audit.view, fact=fact, consistency_contract=audit.consistency_contract)
     retained = {}
     if fact:
         corpus = SourceCorpus(materials)

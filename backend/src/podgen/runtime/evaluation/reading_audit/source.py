@@ -9,6 +9,7 @@ from podgen.domain.contracts.common import RuntimeRef
 from podgen.domain.errors import Conflict
 from podgen.writing.projections import indexed_draft
 from podgen.writing.reading_audit import VERSION
+from podgen.writing.reading_audit.consistency import from_manifest as consistency_from_manifest
 from podgen.writing.reading_audit.input import initial_context
 from podgen.writing.reading_audit.registry import from_manifest
 from podgen.writing.reading_audit.validation import decisions
@@ -25,11 +26,13 @@ class AuditContext:
     binding: dict
     previous_evidence: dict
     snapshot_index: dict
+    consistency_contract: str | None = None
 
 
 def prepare(journal, run_id, stage, manifest, materials, script, script_ref):
     if from_manifest(manifest) is None or base_stage(stage) not in ("reader-review", "fact-review"):
         return None
+    consistency = consistency_from_manifest(manifest)
     fact = base_stage(stage) == "fact-review"
     binding = dict(
         contract=VERSION,
@@ -38,6 +41,8 @@ def prepare(journal, run_id, stage, manifest, materials, script, script_ref):
         script_hash=digest(script),
         materials_hash=manifest["materials_hash"],
     )
+    if consistency is not None:
+        binding["consistency_contract"] = consistency
     snapshot_index = {row["key"]: row for row in snapshots(materials)} if fact else {}
     if fact:
         binding["source_snapshots"] = [
@@ -148,4 +153,4 @@ def prepare(journal, run_id, stage, manifest, materials, script, script_ref):
         ]
     binding["memory_view_hash"] = digest(view)
     binding["previous_evidence_hash"] = digest(previous_evidence)
-    return AuditContext(view, binding, previous_evidence, snapshot_index)
+    return AuditContext(view, binding, previous_evidence, snapshot_index, consistency)

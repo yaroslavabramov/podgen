@@ -4,6 +4,7 @@ from uuid import uuid5
 
 from podgen.domain.canonical import digest
 from podgen.domain.contracts.common import RuntimeRef
+from podgen.writing.reading_audit.consistency import from_manifest as consistency_from_manifest
 
 from .contracts import RunFailure
 from .reading_stage import execute_reading_stage
@@ -16,7 +17,11 @@ def outcome_ref(run_id):
     return RuntimeRef(record_kind="tool_execution", record_id=uuid5(run_id, "independent-reading-outcome"))
 
 
-def combine(readings):
+def combine(readings, *, consistency_contract=None):
+    from podgen.writing.reading_audit.consistency import validate
+
+    for review in readings.values():
+        validate(review, consistency_contract)
     if any(r["research_requests"] or r["recommendation"] == "needs_material" for r in readings.values()):
         return dict(recommendation="needs_material", reason="necessary_material_requested")
     if any(
@@ -67,7 +72,7 @@ def execute_reading_cycle(
             script_ref=script_ref,
             readings=readings,
             reading_refs=refs,
-            decision=combine(readings),
+            decision=combine(readings, consistency_contract=consistency_from_manifest(manifest)),
             approved_plan=own_plan["accepted_plan"] if own_plan else None,
         )
         outputs[stage], records[stage] = result.output, result.ref.model_dump(mode="json")
@@ -112,7 +117,7 @@ def execute_reading_cycle(
             outputs[stage], records[stage] = result.output, refs[origin]
             totals["input"] += result.input_tokens
             totals["output"] += result.output_tokens_or_reservation
-        decision = combine(readings)
+        decision = combine(readings, consistency_contract=consistency_from_manifest(manifest))
         round_record = dict(
             contract="independent-reading-round/1",
             review_workflow=VERSION,

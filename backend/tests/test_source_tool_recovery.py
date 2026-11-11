@@ -97,6 +97,7 @@ def test_second_turn_recovery_preserves_paid_history_and_evidence(monkeypatch, m
             command = SimpleNamespace(
                 run_id=original["run_id"],
                 planning_parent_run_id=None,
+                editorial_parent_run_id=None,
                 plan_mode="fixed-plan",
                 review_mode=None,
             )
@@ -211,6 +212,7 @@ def test_input_allowance_is_not_inherited_by_credit_retry_on_later_turn(monkeypa
         command = SimpleNamespace(
             run_id=journal.root["run_id"],
             planning_parent_run_id=None,
+            editorial_parent_run_id=None,
             plan_mode="fixed-plan",
             review_mode=None,
         )
@@ -250,6 +252,7 @@ def test_next_turn_needs_its_own_explicit_input_allowance(monkeypatch):
         command = SimpleNamespace(
             run_id=journal.root["run_id"],
             planning_parent_run_id=None,
+            editorial_parent_run_id=None,
             plan_mode="fixed-plan",
             review_mode=None,
         )
@@ -294,6 +297,7 @@ def test_credit_retry_of_same_turn_keeps_exact_input_allowance(monkeypatch):
         command = SimpleNamespace(
             run_id=journal.root["run_id"],
             planning_parent_run_id=None,
+            editorial_parent_run_id=None,
             plan_mode="fixed-plan",
             review_mode=None,
         )

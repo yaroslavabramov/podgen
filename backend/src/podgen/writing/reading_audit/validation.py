@@ -15,7 +15,10 @@ def decisions(output):
     return output["audit"].get("claim_checks", output["audit"].get("judgments", []))
 
 
-def validate(output, script, context, *, fact):
+def validate(output, script, context, *, fact, consistency_contract=None):
+    from .consistency import validate as validate_consistency
+
+    validate_consistency(output, consistency_contract)
     _require(
         (output["effect_on_episode"] is None) == (context["phase"] == "first"), "audit_effect_phase_mismatch"
     )

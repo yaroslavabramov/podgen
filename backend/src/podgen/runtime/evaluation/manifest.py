@@ -16,6 +16,8 @@ from podgen.writing.plan_review_descriptions import PRESERVE_KEY
 from podgen.writing.planning_choice import KEY as PLANNING_KEY
 from podgen.writing.planning_duration import KEY as DURATION_KEY
 from podgen.writing.reader_schema import V2 as LEGACY_READER_SCHEMA_VERSION
+from podgen.writing.reading_audit.consistency import KEY as CONSISTENCY_KEY
+from podgen.writing.reading_audit.consistency import VERSION as CONSISTENCY_VERSION
 from podgen.writing.revision.contracts import VERSION as REVISION_VERSION
 
 from . import source_tool_contract
@@ -104,6 +106,7 @@ def create_manifest(repo, generation, command, journal, materials):
                 ),
                 reader_schema_version=reader_version if independent(command) else None,
                 fact_schema_version=behavior.fact_schema if revised else None,
+                reading_audit_consistency_contract=CONSISTENCY_VERSION if behavior.reading_audit else None,
             ),
             references,
         )
@@ -170,6 +173,7 @@ def create_manifest(repo, generation, command, journal, materials):
         manifest["review_workflow"] = VERSION
         if behavior.reading_audit:
             manifest["reading_audit_contract"] = behavior.reading_audit
+            manifest[CONSISTENCY_KEY] = CONSISTENCY_VERSION
         manifest["limitations"][1] = (
             "independent model readings; not evidence of human listening or production approval"
         )

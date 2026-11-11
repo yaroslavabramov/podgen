@@ -42,6 +42,7 @@ def response_schema(
     revision_verification_contract=None,
     plan_review_schema_version=None,
     planning_ending_guidance=None,
+    reading_audit_consistency_contract=None,
 ):
     from podgen.writing.reading_audit import FACT_SCHEMA, READER_SCHEMA, RECHECK_SCHEMA
     from podgen.writing.reading_audit.registry import schema as audit_schema
@@ -51,7 +52,7 @@ def response_schema(
         or fact_schema_version == FACT_SCHEMA
         or revision_verification_contract == RECHECK_SCHEMA
     ):
-        return audit_schema(stage)
+        return audit_schema(stage, consistency_contract=reading_audit_consistency_contract)
     from podgen.writing.planning_choice import SCENE_VERSION
     from podgen.writing.revision import verification
 

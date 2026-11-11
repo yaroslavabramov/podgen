@@ -2,6 +2,7 @@
 
 from podgen.domain.contracts.common import RuntimeRef
 from podgen.domain.errors import Conflict
+from podgen.writing.reading_audit.consistency import from_manifest as consistency_from_manifest
 
 from .reading_workflow import round_stage
 
@@ -12,7 +13,12 @@ def verify_rewrite(journal, run_id, index, previous, script, readings, reading_r
     from .script_revision import enabled, verify_record
 
     rewrite = journal.invocation(run_id, round_stage("revise", index))
-    if combine(readings)["recommendation"] != "revise" or not rewrite or rewrite["status"] != "completed":
+    if (
+        combine(readings, consistency_contract=consistency_from_manifest(manifest))["recommendation"]
+        != "revise"
+        or not rewrite
+        or rewrite["status"] != "completed"
+    ):
         raise Conflict("independent_round_rewrite_missing")
     rewritten = journal.output(rewrite)
     if rewritten["script_ref"] != previous or rewritten["reading_refs"] != reading_refs:

@@ -4,6 +4,7 @@ from podgen.domain.canonical import digest
 from podgen.domain.contracts.common import RuntimeRef
 from podgen.domain.errors import Conflict
 from podgen.persistence.database import one
+from podgen.writing.reading_audit.consistency import from_manifest as consistency_from_manifest
 from podgen.writing.revision import verification
 
 from .reading_cycle import combine, outcome_ref
@@ -108,7 +109,7 @@ def read_outcome(journal, run_id):
                     version=manifest[verification.KEY],
                 )
             readings[origin] = output["output"]
-        if record["decision"] != combine(readings):
+        if record["decision"] != combine(readings, consistency_contract=consistency_from_manifest(manifest)):
             raise Conflict("independent_round_decision_mismatch")
         if index < start + len(outcome["rounds"]) - 1:
             previous = verify_rewrite(
