@@ -1,0 +1,17 @@
+{
+  "invocation_id": "4c8f79ab-f134-5fb0-8e05-a20f33767a5f",
+  "failure_evidence": {
+    "record_kind": "tool_execution",
+    "record_id": "04e74999-29d2-4717-8f9f-60ab36ac35b6"
+  },
+  "measured": {
+    "instructions": 15908,
+    "input": 233494,
+    "schema": 20408,
+    "tools": 2271,
+    "total": 272081
+  },
+  "input_tokens": 53666,
+  "new_visible_bytes": 327680,
+  "unchanged_input_limit": 65536
+}

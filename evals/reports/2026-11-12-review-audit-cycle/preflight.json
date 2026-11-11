@@ -1,0 +1,24 @@
+{
+  "fact_instructions_unchanged": true,
+  "reader_instructions_unchanged": true,
+  "script_unchanged": true,
+  "schema_changes": [
+    "/format/schema/properties/finding_links/description"
+  ],
+  "payload_changes": [],
+  "reader_visible": {
+    "instructions": 9324,
+    "input": 24051,
+    "schema": 18686,
+    "total": 52061
+  },
+  "fact_visible": {
+    "instructions": 11606,
+    "input": 150626,
+    "schema": 20389,
+    "tools": 2271,
+    "total": 184892
+  },
+  "model": "gpt-6.1-terra",
+  "max_output_tokens": 24576
+}

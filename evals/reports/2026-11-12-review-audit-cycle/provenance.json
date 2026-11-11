@@ -1,0 +1,14 @@
+{
+  "parent_run_id": "3d4acc00-14db-454a-90c2-9d164b3c0bf5",
+  "script_stage": "revise-2",
+  "script_ref": {
+    "record_kind": "tool_execution",
+    "record_id": "71748096-eb69-595f-9e1f-afba5ef7ea81"
+  },
+  "clearance_ref": {
+    "record_kind": "tool_execution",
+    "record_id": "c324707d-1ac8-568c-9534-ae0eee05fa50"
+  },
+  "models_unchanged": true,
+  "max_script_revisions": 2
+}
