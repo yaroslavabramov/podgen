@@ -194,6 +194,16 @@
           "default": null,
           "title": "Issue"
         },
+        "timing_uncertainties": {
+          "items": {
+            "additionalProperties": {
+              "$ref": "#/$defs/JsonValue"
+            },
+            "type": "object"
+          },
+          "title": "Timing Uncertainties",
+          "type": "array"
+        },
         "clip_blob": {
           "anyOf": [
             {
@@ -283,7 +293,8 @@
     "contract": {
       "enum": [
         "literal-fidelity-candidates/1",
-        "literal-fidelity-candidates/2"
+        "literal-fidelity-candidates/2",
+        "literal-fidelity-candidates/3"
       ],
       "title": "Contract",
       "type": "string"
@@ -332,6 +343,15 @@
       },
       "title": "Recognition Uncertainties",
       "type": "array"
+    },
+    "localization_status": {
+      "default": "uncertain",
+      "enum": [
+        "uncertain",
+        "mapped"
+      ],
+      "title": "Localization Status",
+      "type": "string"
     },
     "edit_distance_diagnostic": {
       "minimum": 0,

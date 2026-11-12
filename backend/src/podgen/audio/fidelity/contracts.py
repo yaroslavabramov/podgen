@@ -29,17 +29,21 @@ class Candidate(Contract):
     recognized_tokens: list[dict[str, JsonValue]] | None = None
     expected_context: list[dict[str, JsonValue]] | None = None
     issue: dict[str, JsonValue] | None = None
+    timing_uncertainties: list[dict[str, JsonValue]] = Field(default_factory=list)
     clip_blob: BlobRef | None = None
     extraction: dict[str, JsonValue] | None = None
 
 
 class CandidateReport(Contract):
-    contract: Literal["literal-fidelity-candidates/1", "literal-fidelity-candidates/2"]
+    contract: Literal[
+        "literal-fidelity-candidates/1", "literal-fidelity-candidates/2", "literal-fidelity-candidates/3"
+    ]
     normalization_contract: Literal["literal-ru-case-punctuation-yo/1", "literal-ru-case-punctuation-yo/2"]
     expected_tokens: list[dict[str, JsonValue]]
     recognized_tokens: list[dict[str, JsonValue]]
     candidates: list[Candidate]
     recognition_uncertainties: list[dict[str, JsonValue]]
+    localization_status: Literal["uncertain", "mapped"] = "uncertain"
     edit_distance_diagnostic: int = Field(ge=0)
     expected_token_count: int = Field(ge=0)
     audio_review_status: Literal["pending"]

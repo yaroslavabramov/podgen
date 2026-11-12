@@ -131,11 +131,15 @@ def test_zero_length_timestamps_remain_raw_but_use_neighbor_anchors_and_source_c
         "Текст рядом", [dict(text="Текст", start=0, end=0), dict(text="рядом", start=1, end=2)]
     )
     result = report("Текст рядом", parsed)
-    candidate = next(c for c in result["candidates"] if c["issue"]["kind"] == "zero_length_segment_timestamp")
+    assert result["recognition_uncertainties"][0]["kind"] == "zero_length_segment_timestamp"
+    assert not result["candidates"]
+    result = report("Другое рядом", parsed)
+    candidate = result["candidates"][0]
+    assert candidate["timing_uncertainties"][0]["kind"] == "zero_length_segment_timestamp"
     assert parsed.segments[0].start == parsed.segments[0].end == 0
     assert candidate["audio_range"]["basis"] == "neighbor_anchors_or_full_audio_edges"
-    assert candidate["expected_context"][0]["text"] == "Текст рядом" and candidate["script_selectors"]
-    assert candidate["expected_tokens"][0]["text"] == "Текст"
+    assert candidate["expected_context"][0]["text"] == "Другое рядом" and candidate["script_selectors"]
+    assert candidate["expected_tokens"][0]["text"] == "Другое"
 
 
 def test_timestamp_discrepancy_retains_expected_text_context_even_across_replacement():
@@ -153,4 +157,23 @@ def test_timestamp_discrepancy_retains_expected_text_context_even_across_replace
     candidate = next(c for c in result["candidates"] if c["kind"] == "recognition_uncertainty")
     assert candidate["expected_tokens"][0]["text"] == "3.5"
     assert candidate["expected_context"][0]["text"] == "Нужны 3.5 недели" and candidate["script_selectors"]
-    assert result["contract"].endswith("/2")
+    assert result["contract"].endswith("/3")
+
+
+def test_zero_segment_in_text_mismatch_uses_whole_opcode_without_extra_audio_cases():
+    parsed = recognition(
+        "Не 3.5 недели",
+        [
+            dict(text="Не", start=0, end=0.2),
+            dict(text="35", start=0.3, end=0.3),
+            dict(text="недели", start=0.7, end=1),
+        ],
+    )
+    result = report("Не 3.5 недели", parsed)
+    assert len(result["candidates"]) == 1
+    issue = next(
+        i for i in result["recognition_uncertainties"] if i["kind"] == "zero_length_segment_timestamp"
+    )
+    assert issue["transcript_token_range"] == [1, 2]
+    assert result["candidates"][0]["recognized_token_range"] == [1, 2]
+    assert result["candidates"][0]["audio_range"]["end_frame"] < 120000

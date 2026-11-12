@@ -31,13 +31,15 @@ def map_timing(recognized, transcript_tokens, sample_rate, frames):
         if tag == "equal":
             for left, right in zip(range(i1, i2), range(j1, j2), strict=True):
                 token = timed[right]
-                text_alignment.setdefault(token["segment_index"], []).append(left)
+                text_alignment.setdefault(token["segment_index"], []).append((left, left + 1))
                 if (
                     token["segment_index"] not in invalid
                     and 0 <= token["start_frame"] <= token["end_frame"] <= frames
                 ):
                     mapping[left] = token
         else:
+            for token in timed[j1:j2]:
+                text_alignment.setdefault(token["segment_index"], []).append((i1, i2))
             issues.append(
                 dict(
                     kind="transcript_segment_text_mismatch",
@@ -50,7 +52,7 @@ def map_timing(recognized, transcript_tokens, sample_rate, frames):
     for issue in issues:
         indexes = text_alignment.get(issue.get("segment_index"), [])
         if indexes:
-            issue["transcript_token_range"] = [min(indexes), max(indexes) + 1]
+            issue["transcript_token_range"] = [min(a for a, b in indexes), max(b for a, b in indexes)]
     if abs(recognized.duration - frames / sample_rate) > 0.25:
         issues.append(
             dict(
