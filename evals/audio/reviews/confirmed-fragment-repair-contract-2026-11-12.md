@@ -2,11 +2,11 @@
 
 Прочитаны все появившиеся `repair/` модули, включая service/submission/attempts/verification/export/localization, CLI и связанная поддержка `AssemblyConfigV2`/`SynthesisPart`. Это рабочие, ещё не зафиксированные разработчиком файлы. Код не менялся, API и тесты не запускались. Выводы ниже получены чтением, не выполнением сценариев.
 
-## Находка
+## Закрытие находок
 
-**[P2] Связь stop reason только через nullable result ref оставляет устаревшую причину после новой отправки.** Основной сценарий прежней P2 исправлен: service сохраняет immutable dispatch для `credential_missing`/`budget_exhausted`, finish — outcome подготовки verification, CLI использует возвращённое состояние для exit code. Export выводит `latest_operation`, `last_delivery_state` и отдельный `current_stop_reason`.
+Обе P2 о stop reason **закрыты чтением исправлений**. Service сохраняет immutable dispatch для `credential_missing`/`budget_exhausted`, finish — outcome подготовки verification, CLI использует возвращённое состояние для exit code. Export выводит `latest_operation`, `last_delivery_state` и отдельный `current_stop_reason`.
 
-Однако `repair/export.py:108–110` считает dispatch актуальным только по равенству `result_ref`. До появления результата обе ссылки `null`. Сценарий по коду: первый run без ключа сохраняет dispatch `credential_missing`, result ref null, requests=0; после появления ключа следующий run сохраняет submit intent, но процесс обрывается до receipt/нового dispatch. Последующий **export без resume** увидит delivery `outcome_unknown`, requests=1 и прежний dispatch с null ref. Он выставит `operation_applies_to_current_result=true` и `current_stop_reason=credential_missing`, хотя текущая отправка уже была выполнена. Нужно дополнительно связать dispatch с текущей attempt/delivery identity или хотя бы проверять сохранённый счётчик submit intents. Исторический `latest_operation` можно показывать отдельно, но нельзя маркировать его stop reason текущим.
+Последний corner с `null == null` закрыт `dispatch.delivery_stamp`: сохраняются exact attempt/submit/processing refs и delivery state. `export.py:109–114` требует совпадения и result ref, и текущего delivery stamp. После старого `credential_missing`, новой отправки и обрыва до receipt прежний stamp `not_submitted` уже не соответствует новой attempt/submit identity и `outcome_unknown`. Поэтому старый stop reason остаётся историческим `latest_operation`, но не считается текущим. Связанные импорты и вызовы прочитаны; сценарий здесь не запускался.
 
 Предыдущая P2 о неверной стороне стыка **закрыта чтением исправления**: `localization.bind_fragment` переводит heard spans из окна в master frames с floor/ceil, проверяет sample rate и границы, требует одного владельца по точной frame map и совпадения с выбранным part index. Свидетельство в другой части и случай через несколько частей отклоняются. Время используется для выбора целого фрагмента, не для обрезки аудио.
 
@@ -33,6 +33,8 @@
 
 Результат остаётся `verification_required`; next steps явно требуют new master ASR, actual-audio review и join review. Export использует отдельные каталоги для result versions и `current.json`, чтобы старая успешная версия не подменяла текущий результат после failed reprocess. Новую запись этот тракт не объявляет исправленной/принятой до её проверки.
 
-При повторном чтении `export.py` подтверждено: `current.json` строится только из последней processing последней attempt; `active_outcome` читается по её exact result ref. Если последняя processing не дала result, текущий pointer пуст и старый успешный outcome не подставляется. Исторические masters сохраняются в `results/<result UUID>/replacement-master`; existence и exact equality архивного outcome проверяются отдельно. Эта часть исправления принята. Остаточная находка выше относится к pre-result dispatch, а не к выбору старого master.
+При повторном чтении `export.py` подтверждено: `current.json` строится только из последней processing последней attempt; `active_outcome` читается по её exact result ref. Если последняя processing не дала result, текущий pointer пуст и старый успешный outcome не подставляется. Исторические masters сохраняются в `results/<result UUID>/replacement-master`; existence и exact equality архивного outcome проверяются отдельно. Эта часть исправления принята.
+
+Итог: в прочитанной версии открытых actionable находок по этому ревью не осталось. Это завершение code review, не результат live repair/акустическая квалификация. Собственные тесты и API не запускались.
 
 Успешных acoustic reviewer results для Snow этим ревью не установлено. Поэтому ни один его ASR diff не получил разрешение на repair от этого чтения.
