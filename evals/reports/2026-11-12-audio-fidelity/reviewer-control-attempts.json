@@ -1,0 +1,66 @@
+{
+  "contract": "audio-reviewer-control-observation/1",
+  "completed_model_reviews": 0,
+  "status": "provider_unavailable",
+  "attempts": [
+    {
+      "directory": "tmp/audio-fidelity-controls-2026-11-12/date-exact",
+      "submitted": {
+        "submitted_at": "2026-11-12T11:01:53.849687+00:00",
+        "wire_sha256": "950e24f29c4183fcbba58cbbfe69e8fca2a1d72a7e1b2f7755f5c8a359f0a385"
+      },
+      "model": "gemini-3.8-flash",
+      "prompt_sha256": "204057d959905c41cc88d035772ec930d82f2a836a5e89e85f8f9705453d831c",
+      "http_status": 503,
+      "complete": true,
+      "error": {
+        "error": {
+          "message": "gemini-3.8-flash is currently experiencing high demand, spikes in demand are usually temporary. Please try again later.",
+          "code": "service_unavailable"
+        }
+      },
+      "retry_after": "30",
+      "receipt_date": "Thu, 12 Nov 2026 11:01:55 GMT"
+    },
+    {
+      "directory": "tmp/audio-fidelity-controls-2026-11-12/date-exact-after-503",
+      "submitted": {
+        "submitted_at": "2026-11-12T11:02:48.433781+00:00",
+        "wire_sha256": "950e24f29c4183fcbba58cbbfe69e8fca2a1d72a7e1b2f7755f5c8a359f0a385"
+      },
+      "model": "gemini-3.8-flash",
+      "prompt_sha256": "204057d959905c41cc88d035772ec930d82f2a836a5e89e85f8f9705453d831c",
+      "http_status": 503,
+      "complete": true,
+      "error": {
+        "error": {
+          "message": "gemini-3.8-flash is currently experiencing high demand, spikes in demand are usually temporary. Please try again later.",
+          "code": "service_unavailable"
+        }
+      },
+      "retry_after": "30",
+      "receipt_date": "Thu, 12 Nov 2026 11:02:50 GMT"
+    },
+    {
+      "directory": "tmp/audio-fidelity-controls-2026-11-12/date-exact-after-503-after-503",
+      "submitted": {
+        "submitted_at": "2026-11-12T11:08:15.365901+00:00",
+        "wire_sha256": "950e24f29c4183fcbba58cbbfe69e8fca2a1d72a7e1b2f7755f5c8a359f0a385"
+      },
+      "model": "gemini-3.8-flash",
+      "prompt_sha256": "204057d959905c41cc88d035772ec930d82f2a836a5e89e85f8f9705453d831c",
+      "http_status": 503,
+      "complete": true,
+      "error": {
+        "error": {
+          "message": "gemini-3.8-flash is currently experiencing high demand, spikes in demand are usually temporary. Please try again later.",
+          "code": "service_unavailable"
+        }
+      },
+      "retry_after": "30",
+      "receipt_date": "Thu, 12 Nov 2026 11:08:17 GMT"
+    }
+  ],
+  "altered_reference_submitted": false,
+  "control_passed": false
+}

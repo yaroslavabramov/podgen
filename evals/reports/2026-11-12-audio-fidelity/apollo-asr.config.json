@@ -1,0 +1,29 @@
+{
+  "contract": "audio-fidelity-evaluation/1",
+  "audit_id": "07631301-485f-4252-9767-1f9b0563bc07",
+  "comparison_run_id": "618738c7-53d1-42dc-9fa9-62e943cb92ba",
+  "result_ref": {
+    "record_kind": "tool_execution",
+    "record_id": "6841c873-1647-5884-baba-eb0bee7fbc78"
+  },
+  "recognition": {
+    "provider": "fish",
+    "model_id": "transcribe-1-pro",
+    "language": "ru",
+    "ignore_timestamps": false,
+    "diarize": false,
+    "tag_audio_events": false,
+    "request_timeout_seconds": 900
+  },
+  "credential_env": "FISH_API_KEY",
+  "price": {
+    "usd_per_audio_minute": "0.006",
+    "source_url": "https://docs.fish.audio/developer-guide/models-pricing/pricing-and-rate-limits",
+    "checked_at": "2026-11-12"
+  },
+  "max_requests": 1,
+  "max_cost_usd": "0.25",
+  "reservation_usd": "0.10",
+  "clip_margin_seconds": 1.5,
+  "max_review_clip_seconds": 45
+}
