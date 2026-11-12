@@ -3,14 +3,14 @@ from datetime import datetime, timezone
 from podgen.domain.canonical import digest
 from podgen.domain.errors import ContractError
 
-from .contracts import Approval, prefix
+from .contracts import Approval, ApprovalV2, contextual, prefix
 
 
 def approve(journal, proposal_id, value):
-    approval = Approval.model_validate(value)
     with journal.lock():
         key = prefix(proposal_id)
         proposal = verify_proposal(journal, proposal_id)
+        approval = (ApprovalV2 if contextual(proposal["payload"]) else Approval).model_validate(value)
         if proposal["proposal_hash"] != approval.proposal_hash:
             raise ContractError("local_replacement_approval_hash_mismatch")
         saved = journal.get(key + ":approval")
@@ -46,4 +46,6 @@ def authorized(journal, proposal_id):
         or approval["approval"]["proposal_hash"] != proposal["proposal_hash"]
     ):
         raise ContractError("local_replacement_requires_explicit_exact_proposal_approval")
-    return proposal, Approval.model_validate(approval["approval"])
+    return proposal, (ApprovalV2 if contextual(proposal["payload"]) else Approval).model_validate(
+        approval["approval"]
+    )

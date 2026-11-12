@@ -10,7 +10,8 @@ from podgen.runtime.evaluation.audio.immutable_export import write_json as immut
 from ..exchange_history import attempts
 from .approval import verify_proposal
 from .attempts import ledger, state
-from .contracts import prefix
+from .contracts import contextual, prefix
+from .localization_export import export as export_localization
 from .subject import resolve
 
 
@@ -60,17 +61,29 @@ def export_proposal(journal, proposal_id, folder):
         cost_or_reservation_usd=str(cost),
         production_ready=False,
     )
+    if contextual(payload) and approved and rows and state(journal, rows[-1]["key"]) == "synthesized":
+        status["localization"] = export_localization(journal, proposal_id, folder)
+        status["delivery_state"] = status["localization"]["state"]
     write_json(folder / "status.json", status)
     region = payload["frame_range"]
     start, end = (
         region["start_frame"] / region["sample_rate_hz"],
         region["end_frame"] / region["sample_rate_hz"],
     )
+    synthesis_preview = ""
+    if contextual(payload):
+        spoken = "\n".join(row["text"] for row in payload["synthesis_input"]["utterances"])
+        synthesis_preview = (
+            "<h2>Текст для озвучивания с соседними предложениями</h2>"
+            f"<pre>{html.escape(spoken)}</pre>"
+            "<p>Будет озвучен весь этот текст. В запись вставится только выбранный фрагмент выше.</p>"
+        )
     page = (
         '<!doctype html><html lang="ru"><meta charset="utf-8"><title>Замена фрагмента</title>'
         "<style>body{max-width:850px;margin:40px auto;font:18px system-ui}audio{width:100%}pre{white-space:pre-wrap}</style>"
         f"<h1>Предложенный фрагмент: {start:.3f}–{end:.3f} с</h1><pre>{html.escape(payload['text'])}</pre>"
-        '<p>С соседним контекстом</p><audio controls src="context.wav"></audio>'
+        + synthesis_preview
+        + '<p>С соседним контекстом</p><audio controls src="context.wav"></audio>'
         '<p>Точный диапазон замены</p><audio controls src="selected.wav"></audio>'
         f"<p>Одобрено: {'да' if approved else 'нет'}. До точного одобрения генерации нет.</p></html>"
     )
@@ -93,14 +106,23 @@ def export_master(journal, ref, folder):
     write_bytes(folder / "master.wav", journal.bytes(key, result["master_pcm_blob"]))
     write_bytes(folder / "timeline.json", journal.bytes(key, result["timeline_blob"]))
     rows = []
+    for i, audition in enumerate(result.get("auditions", []), 1):
+        filename = f"replacement-{i}-context.wav"
+        write_bytes(folder / filename, journal.bytes(key, audition["audio_blob"]))
+        rows.append(f'<p>Замена {i} с соседней речью</p><audio controls src="{filename}"></audio>')
+    diagnostic_rows = []
     for i, join in enumerate(result["joins"], 1):
         filename = f"join-{i}-{join['side']}.wav"
         write_bytes(folder / filename, journal.bytes(key, join["audio_blob"]))
-        rows.append(f'<p>Стык {i}: {join["side"]}</p><audio controls src="{filename}"></audio>')
+        diagnostic_rows.append(f'<p>Стык {i}: {join["side"]}</p><audio controls src="{filename}"></audio>')
     (folder / "index.html").write_text(
         '<!doctype html><html lang="ru"><meta charset="utf-8"><title>Новая версия</title>'
         "<style>body{max-width:850px;margin:40px auto;font:18px system-ui}audio{width:100%}</style>"
-        '<h1>Новая версия записи</h1><audio controls src="master.wav"></audio>' + "".join(rows) + "</html>"
+        '<h1>Новая версия записи</h1><audio controls src="master.wav"></audio>'
+        + "".join(rows)
+        + "<details><summary>Диагностика отдельных стыков</summary>"
+        + "".join(diagnostic_rows)
+        + "</details></html>"
     )
     return dict(
         master_ref=ref,

@@ -6,12 +6,18 @@ from uuid import uuid4
 from podgen import audio_local_replacement_cli as cli
 from podgen.audio.assembly.pcm import read
 from podgen.domain.contracts.common import BlobRef
-from podgen.runtime.evaluation.audio.local_replacement.contracts import ProposalConfig, prefix
+from podgen.runtime.evaluation.audio.local_replacement.contracts import ProposalConfigV2, prefix
 from tests.audio_cases import response, signal
+from tests.audio_local_replacement_fixtures import Recognition
 
 
 def assert_native_local_replacement(journal, project, parent_ref, fidelity, folder, monkeypatch):
-    config = ProposalConfig(
+    config = ProposalConfigV2(
+        localization=dict(
+            price=dict(
+                usd_per_audio_minute="0.006", source_url="https://fixture.invalid", checked_at="2026-11-13"
+            )
+        ),
         proposal_id=uuid4(),
         comparison_run_id=journal.run_id,
         parent_subject=dict(kind="assembly", ref=parent_ref.model_dump(mode="json")),
@@ -39,13 +45,13 @@ def assert_native_local_replacement(journal, project, parent_ref, fidelity, fold
     class Synthesis:
         def submit(self, request, credential):
             calls.append(request)
-            assert all(
-                row["text"] in proposal["payload"]["text"]
-                for row in proposal["payload"]["synthesis_input"]["utterances"]
-            )
+            assert request.body == proposal["payload"]["request"]["body"]
             return response(request.provider, signal(seconds=2))
 
     monkeypatch.setattr(cli, "HttpSynthesisTransport", lambda **kwargs: Synthesis())
+    recognition = Recognition(proposal["payload"]["synthesis_input"]["utterances"])
+    monkeypatch.setattr(cli, "RawAudioTransport", lambda **kwargs: recognition)
+    monkeypatch.setenv("FISH_API_KEY", "fake-asr")
     monkeypatch.setenv(proposal["payload"]["profile"]["credential_env"], "fake-short-tts")
     args = ["--proposal-id", str(config.proposal_id), "--export-dir", str(output)]
     assert cli.main([*common, "synthesize", *args]) == 2 and not calls
@@ -63,12 +69,17 @@ def assert_native_local_replacement(journal, project, parent_ref, fidelity, fold
                 "1",
                 "--max-cost-usd",
                 "1",
+                "--asr-reservation-usd",
+                "0.01",
+                "--asr-max-cost-usd",
+                "0.01",
             ]
         )
         == 0
     )
     assert cli.main([*common, "synthesize", *args]) == 0 and len(calls) == 1
     assert cli.main([*common, "resume", *args]) == 0 and len(calls) == 1
+    assert len(recognition.calls) == 1
     master_dir = folder / "local-master"
     assert (
         cli.main(
@@ -87,6 +98,8 @@ def assert_native_local_replacement(journal, project, parent_ref, fidelity, fold
     assert pcm[: edit["new_start_frame"] * stride] == old[: edit["start_frame"] * stride]
     assert pcm[edit["new_end_frame"] * stride :] == old[edit["end_frame"] * stride :]
     assert len(result["joins"]) == 2
+    assert len(result["auditions"]) == 1
+    assert (master_dir / "replacement-1-context.wav").exists()
     ref = journal.ref("local-master:" + result["version_id"] + ":result")
     following = config.model_copy(
         update=dict(

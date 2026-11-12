@@ -1,15 +1,13 @@
-from uuid import uuid5
-
 from podgen.audio.media.processing import tools
 from podgen.audio.media.recognition import clip
-from podgen.audio.synthesis.contracts import SynthesisInput, SynthesisUtterance
 from podgen.audio.synthesis.registry import adapter
 from podgen.audio.synthesis.transport import encode_request
 from podgen.domain.canonical import canonical_bytes, digest
 from podgen.domain.errors import Conflict, ContractError
 
 from ..contracts import VoiceCandidate
-from .contracts import prefix
+from .context import compile_context
+from .contracts import ProposalConfigV2, prefix
 from .subject import load
 
 
@@ -22,6 +20,8 @@ def prepare(journal, config):
         if existing["payload"]["configuration_hash"] != digest(raw):
             raise Conflict("local_replacement_proposal_changed_create_revision")
         return existing
+    if not isinstance(config, ProposalConfigV2):
+        raise ContractError("local_replacement_legacy_prepare_requires_contextual_revision")
     if config.parent_proposal_ref:
         previous = journal.base.read(config.parent_proposal_ref)
         old_id = previous["payload"]["configuration"]["proposal_id"]
@@ -46,18 +46,10 @@ def prepare(journal, config):
         raise ContractError("local_replacement_invalid_frame_range")
     profile = VoiceCandidate.model_validate(parent["profile"])
     source = parent["source"]["source"]
-    short = SynthesisInput(
-        utterances=[
-            SynthesisUtterance(
-                utterance_id=uuid5(config.proposal_id, "sentence:" + str(i)),
-                speaker=item["speaker"],
-                text=item["text"],
-            )
-            for i, item in enumerate(selectors)
-        ],
-        direction=source["direction"],
-        output_language=profile.synthesis.output_language,
-        speaker_voices=source.get("speaker_voices", {}),
+    if profile.synthesis.output_language != config.localization.recognition.language:
+        raise ContractError("local_replacement_output_language_unsupported_by_localization")
+    short, context_selection = compile_context(
+        config.proposal_id, source, selectors, profile.synthesis.output_language
     )
     request = adapter(profile.synthesis.provider).prepare(profile.synthesis, short)
     context_start, context_end = (
@@ -67,7 +59,7 @@ def prepare(journal, config):
     preview, extraction = clip(audio, context_start, context_end)
     selected, selected_extraction = clip(audio, start, end)
     value = dict(
-        contract="audio-local-replacement-draft/1",
+        contract="audio-local-replacement-draft/2",
         configuration=raw,
         configuration_hash=digest(raw),
         parent_subject=config.parent_subject.model_dump(mode="json"),
@@ -100,6 +92,8 @@ def prepare(journal, config):
         tool_versions=tools(),
         production_ready=False,
     )
+    value["context_selection"] = context_selection
+    value["localization"] = config.localization.model_dump(mode="json")
     proposal = dict(
         contract="audio-local-replacement-proposal-record/1", proposal_hash=digest(value), payload=value
     )

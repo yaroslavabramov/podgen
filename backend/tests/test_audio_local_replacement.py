@@ -12,9 +12,10 @@ from podgen.runtime.evaluation.audio.exchange_history import attempts
 from podgen.runtime.evaluation.audio.local_replacement.apply import apply
 from podgen.runtime.evaluation.audio.local_replacement.approval import approve
 from podgen.runtime.evaluation.audio.local_replacement.contracts import prefix
+from podgen.runtime.evaluation.audio.local_replacement.export import export_master
 from podgen.runtime.evaluation.audio.local_replacement.prepare import prepare
 from podgen.runtime.evaluation.audio.local_replacement.service import reprocess, synthesize
-from tests.audio_local_replacement_fixtures import Synthesis, allow, fixture
+from tests.audio_local_replacement_fixtures import Synthesis, allow, fixture, localize
 
 
 def test_prepare_selects_full_sentence_short_request_and_requires_exact_human_approval(monkeypatch):
@@ -22,8 +23,10 @@ def test_prepare_selects_full_sentence_short_request_and_requires_exact_human_ap
     proposal = prepare(j, config)
     p = proposal["payload"]
     assert p["text"] == "Второй текст."
-    assert p["synthesis_input"]["utterances"][0]["text"] == "Второй текст."
-    assert p["request"]["body"]["input"][0]["content"][0]["text"] == "Второй текст."
+    assert p["synthesis_input"]["utterances"][0]["text"] == "Первый текст. Второй текст. Третий текст."
+    assert (
+        p["request"]["body"]["input"][0]["content"][0]["text"] == "Первый текст. Второй текст. Третий текст."
+    )
     assert p["profile"]["synthesis"]["voice_id"] == "fixture-gemini"
     assert p["error_source"] == "human"
     transport = Synthesis()
@@ -39,6 +42,7 @@ def test_prepare_selects_full_sentence_short_request_and_requires_exact_human_ap
                 reason="wrong range",
                 reservation_per_request_usd="0.50",
                 max_cost_usd="1",
+                localization_budget=dict(reservation_per_request_usd="0.01", max_cost_usd="0.01"),
             ),
         )
     assert not transport.calls
@@ -64,7 +68,7 @@ def test_revision_shift_expand_preserves_original_and_does_not_inherit_approval(
         synthesize(j, revised.proposal_id, Synthesis())
 
 
-def test_apply_preserves_outside_pcm_and_shifts_timeline_then_repairs_new_group(monkeypatch):
+def test_apply_preserves_outside_pcm_and_shifts_timeline_then_repairs_new_group(monkeypatch, tmp_path):
     j, config, original = fixture(monkeypatch)
     proposal = prepare(j, config)
     allow(j, config)
@@ -72,6 +76,7 @@ def test_apply_preserves_outside_pcm_and_shifts_timeline_then_repairs_new_group(
     speech = Synthesis()
     assert synthesize(j, config.proposal_id, speech) == "synthesized"
     assert synthesize(j, config.proposal_id, speech) == "synthesized" and len(speech.calls) == 1
+    assert localize(j, config, monkeypatch)[0] == "extraction_ready"
     ref = RuntimeRef.model_validate(apply(j, [config.proposal_id]))
     result = j.base.read(ref)
     master = j.base.read_blob(ref, BlobRef.model_validate(result["master_pcm_blob"]))
@@ -95,6 +100,9 @@ def test_apply_preserves_outside_pcm_and_shifts_timeline_then_repairs_new_group(
             assert after["start_frame"] == before["start_frame"] + edit["delta_frames"]
     assert not any(a <= word["start_frame"] < edit["new_end_frame"] for word in timeline["word_segments"])
     assert len(result["joins"]) == 2 and not result["splice_proof"]["global_normalization"]
+    export_master(j, ref.model_dump(mode="json"), tmp_path)
+    page = (tmp_path / "index.html").read_text()
+    assert page.index("replacement-1-context.wav") < page.index("<details>") < page.index("join-1-start.wav")
     follow = config.model_copy(
         update=dict(
             proposal_id=uuid4(),
@@ -110,6 +118,7 @@ def test_apply_preserves_outside_pcm_and_shifts_timeline_then_repairs_new_group(
         apply(j, [config.proposal_id], parent_subject=follow.parent_subject)
     allow(j, follow)
     assert synthesize(j, follow.proposal_id, Synthesis(seconds=1)) == "synthesized"
+    assert localize(j, follow, monkeypatch, seconds=1)[0] == "extraction_ready"
     second = j.base.read(RuntimeRef.model_validate(apply(j, [follow.proposal_id])))
     assert second["parent_subject"] == follow.parent_subject.model_dump(mode="json")
     assert second["parent_audio_sha256"] == result["master_pcm_blob"]["sha256"]
@@ -164,10 +173,11 @@ def test_known_rejection_retry_and_budget_preserve_history(monkeypatch):
 def test_batch_apply_two_approved_ranges_and_reversed_replay_are_one_version(monkeypatch):
     j, c, old = fixture(monkeypatch)
     first = c.model_copy(update=dict(proposal_id=uuid4(), approximate_seconds=0.5))
-    last = c.model_copy(update=dict(proposal_id=uuid4(), approximate_seconds=6.5))
+    last = c.model_copy(update=dict(proposal_id=uuid4(), approximate_seconds=6.5, context_seconds=6))
     for config in (first, last):
         allow(j, config)
         assert synthesize(j, config.proposal_id, Synthesis(seconds=1)) == "synthesized"
+        assert localize(j, config, monkeypatch, seconds=1)[0] == "extraction_ready"
     ref = apply(j, [last.proposal_id, first.proposal_id])
     assert apply(j, [first.proposal_id, last.proposal_id]) == ref
     result = j.base.read(RuntimeRef.model_validate(ref))
@@ -183,7 +193,15 @@ def test_batch_apply_two_approved_ranges_and_reversed_replay_are_one_version(mon
                 pcm[row["master_start_frame"] * stride : row["master_end_frame"] * stride]
                 == original[row["source_start_frame"] * stride : row["source_end_frame"] * stride]
             )
+    assert sorted(edit["context_seconds"] for edit in result["edits"]) == [4, 6]
     assert len(result["edits"]) == 2 and len(result["joins"]) == 4
+    for row in result["frame_map"]:
+        if row["kind"] == "replacement_audio":
+            inserted = j.base.read(RuntimeRef.model_validate(row["source_audio_ref"]))
+            assert inserted["sample_rate_hz"] == 48000
+            assert inserted["sample_frames"] == row["source_end_frame"]
+            assert inserted["audio_blob"] == row["source_audio_blob"]
+            assert row["provenance_ref"] != row["source_audio_ref"]
     assert result["frame_map"][-1]["master_end_frame"] == frames
 
 

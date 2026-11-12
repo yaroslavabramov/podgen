@@ -40,7 +40,9 @@ def render(audio, parent_params, normalization):
                 str(converted),
             ]
         )
-        measured = measure(converted)
+        measured = measure(converted, require_loudness=False)
+        if not math.isfinite(float(measured["input_tp"])):
+            raise ContractError("local_replacement_no_finite_true_peak")
         ceiling = float(normalization.get("target_true_peak_dbtp", -1))
         requested = float(normalization.get("applied_gain_db", 0))
         gain = min(requested, ceiling - float(measured["input_tp"]) - 0.1)
@@ -65,8 +67,12 @@ def render(audio, parent_params, normalization):
             ]
         )
         result = target.read_bytes()
-        final = measure(target)
-        if float(final["input_tp"]) > ceiling + 0.05 or read(result)[0] != parent_params:
+        final = measure(target, require_loudness=False)
+        if (
+            not math.isfinite(float(final["input_tp"]))
+            or float(final["input_tp"]) > ceiling + 0.05
+            or read(result)[0] != parent_params
+        ):
             raise ContractError("local_replacement_render_format_or_peak_mismatch")
     return result, dict(
         contract="audio-local-insert-transform/1",

@@ -4,8 +4,10 @@ from uuid import UUID
 
 from pydantic import Field, model_validator
 
+from podgen.audio.recognition.contracts import RecognitionProfile
 from podgen.domain.contracts.common import Contract, DecimalString, RuntimeRef, Text
 
+from ..fidelity.contracts import RecognitionPrice
 from ..subject_contracts import AudioSubject
 
 
@@ -48,3 +50,41 @@ class Approval(Contract):
 
 def prefix(proposal_id):
     return "local-replacement:" + str(proposal_id)
+
+
+class LocalizationProfile(Contract):
+    recognition: RecognitionProfile = Field(default_factory=RecognitionProfile)
+    credential_env: Text = "FISH_API_KEY"
+    price: RecognitionPrice
+
+    @model_validator(mode="after")
+    def nonnegative_price(self):
+        if Decimal(self.price.usd_per_audio_minute) < 0:
+            raise ValueError("local_replacement_invalid_asr_price")
+        return self
+
+
+class ProposalConfigV2(ProposalConfig):
+    contract: Literal["audio-local-replacement-proposal/2"] = "audio-local-replacement-proposal/2"
+    localization: LocalizationProfile
+
+
+class LocalizationBudget(Contract):
+    reservation_per_request_usd: DecimalString
+    max_cost_usd: DecimalString
+    max_requests: int = Field(default=1, ge=1, le=3)
+    request_timeout_seconds: float = Field(default=900, ge=1, le=1800)
+
+    @model_validator(mode="after")
+    def valid_budget(self):
+        if not 0 < Decimal(self.reservation_per_request_usd) <= Decimal(self.max_cost_usd):
+            raise ValueError("local_replacement_invalid_localization_budget")
+        return self
+
+
+class ApprovalV2(Approval):
+    localization_budget: LocalizationBudget
+
+
+def contextual(payload):
+    return payload["contract"] == "audio-local-replacement-draft/2"

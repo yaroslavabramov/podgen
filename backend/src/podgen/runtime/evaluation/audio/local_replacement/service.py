@@ -14,7 +14,7 @@ from ..subject_contracts import AudioSubject
 from ..subjects import audio_subject
 from .approval import authorized
 from .attempts import ledger, state
-from .contracts import prefix
+from .contracts import contextual, prefix
 from .processing import process
 
 
@@ -32,6 +32,8 @@ def synthesize(journal, proposal_id, transport, *, retry_reason=None):
         else:
             key = rows[-1]["key"] if rows else root + ":attempt:1"
         current = state(journal, key)
+        if current == "prepared" and not contextual(payload):
+            return "legacy_proposal_requires_contextual_revision"
         if current == "prepared":
             count, cost = ledger(journal, root)
             if count >= approval.max_requests or cost + Decimal(

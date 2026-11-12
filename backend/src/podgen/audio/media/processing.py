@@ -39,7 +39,7 @@ def probe(path):
     return audio[0]
 
 
-def measure(path):
+def measure(path, *, require_loudness=True):
     result = run(
         [
             "ffmpeg",
@@ -58,7 +58,7 @@ def measure(path):
     )
     log = result.stderr.decode()
     metrics = json.JSONDecoder().raw_decode(log[log.rfind("{") :])[0]
-    if metrics["input_i"] in ("-inf", "inf"):
+    if require_loudness and metrics["input_i"] in ("-inf", "inf"):
         raise ContractError("audio_signal_silent")
     return metrics
 

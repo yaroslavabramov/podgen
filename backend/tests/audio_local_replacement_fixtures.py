@@ -5,7 +5,7 @@ from uuid import uuid4
 from podgen.domain.canonical import digest
 from podgen.runtime.evaluation.audio.assembly.contracts import prefix as assembly_prefix
 from podgen.runtime.evaluation.audio.local_replacement.approval import approve
-from podgen.runtime.evaluation.audio.local_replacement.contracts import ProposalConfig
+from podgen.runtime.evaluation.audio.local_replacement.contracts import ProposalConfigV2
 from podgen.runtime.evaluation.audio.local_replacement.prepare import prepare
 from tests.audio_cases import MemoryJournal, profile, response, signal
 
@@ -78,7 +78,12 @@ def fixture(monkeypatch):
             output=dict(text=text, duration=9, segments=segments, request_id="fixture"),
         ),
     )
-    config = ProposalConfig(
+    config = ProposalConfigV2(
+        localization=dict(
+            price=dict(
+                usd_per_audio_minute="0.006", source_url="https://fixture.invalid", checked_at="2026-11-13"
+            )
+        ),
         proposal_id=uuid4(),
         comparison_run_id=journal.run_id,
         parent_subject=dict(kind="assembly", ref=ref.model_dump(mode="json")),
@@ -99,6 +104,9 @@ def allow(journal, config, **changes):
         max_cost_usd="1",
         max_requests=2,
     )
+    approval["localization_budget"] = dict(
+        reservation_per_request_usd="0.01", max_cost_usd="0.03", max_requests=3
+    )
     approval.update(changes)
     return approve(journal, config.proposal_id, approval)
 
@@ -112,3 +120,40 @@ class Synthesis:
         if self.lost:
             raise RuntimeError("Lost acknowledgement")
         return self.receipt or response("gemini", signal(seconds=self.seconds))
+
+
+class Recognition:
+    def __init__(self, utterances, seconds=2, receipt=None, lost=False):
+        import json
+
+        from podgen.audio.fidelity.tokens import expected_tokens
+        from podgen.audio.http import HttpReceipt
+
+        words = expected_tokens(utterances)
+        step = seconds / (len(words) + 1)
+        value = dict(
+            text=" ".join(row["text"] for row in words),
+            duration=seconds,
+            segments=[
+                dict(text=row["text"], start=(i + 0.2) * step, end=(i + 0.7) * step)
+                for i, row in enumerate(words)
+            ],
+            request_id="fixture-asr",
+        )
+        self.receipt = receipt or HttpReceipt(200, {}, json.dumps(value).encode(), 1)
+        self.calls, self.lost = [], lost
+
+    def submit(self, request, wire, credential):
+        self.calls.append((request, wire, credential))
+        if self.lost:
+            raise RuntimeError("Lost ASR acknowledgement")
+        return self.receipt
+
+
+def localize(journal, config, monkeypatch, seconds=2, **kwargs):
+    from podgen.runtime.evaluation.audio.local_replacement import localization
+
+    monkeypatch.setenv("FISH_API_KEY", "fixture-asr-key")
+    proposal = prepare(journal, config)
+    transport = Recognition(proposal["payload"]["synthesis_input"]["utterances"], seconds, **kwargs)
+    return localization.run(journal, config.proposal_id, transport), transport
