@@ -1,0 +1,34 @@
+[
+  {
+    "direction": "server",
+    "type": "session.created"
+  },
+  {
+    "direction": "client",
+    "type": "session.update"
+  },
+  {
+    "direction": "server",
+    "type": "session.updated"
+  },
+  {
+    "direction": "client",
+    "type": "conversation.item.create"
+  },
+  {
+    "direction": "server",
+    "type": "conversation.item.added"
+  },
+  {
+    "direction": "server",
+    "type": "conversation.item.done"
+  },
+  {
+    "direction": "client",
+    "type": "input_audio_buffer.append"
+  },
+  {
+    "direction": "client",
+    "type": "input_audio_buffer.commit"
+  }
+]

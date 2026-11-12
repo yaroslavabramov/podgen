@@ -1,0 +1,31 @@
+{
+  "stage": "transcribe",
+  "control": "word-boundary",
+  "model": "gpt-realtime-2.1",
+  "source_wire_sha256": "9101e2ec048eeeadbd59171ba5ec0557e1edc139e4cdd764d6b95621a4d5d255",
+  "audio_projection": {
+    "contract": "review-pcm16-mono24k/1",
+    "source_wav_sha256": "95cbefc8ea292f7b9f51da17a6624622708b8d316380b5eae0e3558c0c0e1bd5",
+    "source_pcm_sha256": "6e184aef3588635624b92b0e277faad857d77d7f9d73f680d59aad29d1087195",
+    "source_sample_width_bytes": 3,
+    "source_sample_rate_hz": 48000,
+    "source_sample_frames": 1200000,
+    "source_all_zero": false,
+    "transport_wav_sha256": "4f1bf103df44cbc6e3a217038e19c37b262e374d9cae7b734f55c60bda11837c",
+    "transport_pcm_sha256": "49cf7daa04a4471308711c680c23012bcfa5bfce3f643d7afa6408045c627b9d",
+    "transport_sample_width_bytes": 2,
+    "transport_sample_rate_hz": 24000,
+    "transport_sample_frames": 600000,
+    "channels": 1,
+    "resampler": "ffmpeg_swr",
+    "dither": "none",
+    "gain_applied": false,
+    "source_range": {
+      "start_frame": 0,
+      "end_frame": 1200000
+    },
+    "duration_rounding": "within_one_transport_sample",
+    "edits": "none"
+  },
+  "wire_sha256": "14c4a192b08488795f46d9e7fa528ffbdb90b27657ab3acd728f1f10bf8fb5c3"
+}

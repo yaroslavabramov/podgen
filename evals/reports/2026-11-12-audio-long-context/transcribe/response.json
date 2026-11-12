@@ -1,0 +1,57 @@
+{
+  "object": "realtime.response",
+  "id": "resp_EjSzi8kMGfgw7prO8BogD",
+  "status": "completed",
+  "status_details": null,
+  "output": [
+    {
+      "id": "item_EjSziW4ua40pBR2b74td5",
+      "type": "message",
+      "status": "completed",
+      "role": "assistant",
+      "content": [
+        {
+          "type": "output_text",
+          "text": "например, просочиться через землю в колодец. Получается путь от одного больного к чужой кружке. Увидеть это вещество снова он не мог. Он сам признавал, что под микроскопом его не распознать и судить о нем можно только потому, что оно делает. Следующие два дня он снова смотрит на воду. Мелких белых хлопьев в ней то больше, то меньше, снова допускает, что в начале вспышки вода могла быть еще грязнее, но хлопья..."
+        }
+      ],
+      "phase": "final_answer"
+    }
+  ],
+  "conversation_id": "conv_EjSze4FiUAByl0kUCEYdu",
+  "output_modalities": [
+    "text"
+  ],
+  "max_output_tokens": 4096,
+  "audio": {
+    "output": {
+      "format": {
+        "type": "audio/pcm",
+        "rate": 24000
+      },
+      "voice": "marin"
+    }
+  },
+  "usage": {
+    "total_tokens": 550,
+    "input_tokens": 362,
+    "output_tokens": 188,
+    "input_token_details": {
+      "text_tokens": 112,
+      "audio_tokens": 250,
+      "image_tokens": 0,
+      "cached_tokens": 0,
+      "cached_tokens_details": {
+        "text_tokens": 0,
+        "audio_tokens": 0,
+        "image_tokens": 0
+      }
+    },
+    "output_token_details": {
+      "text_tokens": 188,
+      "audio_tokens": 0,
+      "reasoning_tokens": 72
+    }
+  },
+  "metadata": null
+}

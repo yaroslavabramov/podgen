@@ -1,0 +1,25 @@
+{
+  "decision": "longer_context_did_not_resolve_this_case",
+  "audio_seconds": 25,
+  "previous_audio_seconds": 3.4,
+  "controls": "Blind requests identical except PCM. Comparison identical except frozen transcript. Same prompts/model/settings.",
+  "transcription_target": "потому",
+  "comparison_verdict": "differs",
+  "assessment": "Still argues from written lexical meaning, not evidence of differing sound. One observation, not proof context never helps.",
+  "failed_upload": "ConnectionClosedError before commit acknowledgement and before response.create. Separate retry with identical wire, original attempt retained. No usage returned for failed upload.",
+  "known_usage_cost_usd": "0.022468",
+  "runs": [
+    {
+      "stage": "transcribe",
+      "response_id": "resp_EjSzi8kMGfgw7prO8BogD",
+      "estimated_cost_usd": "0.01296",
+      "events_sha256": "03abc3e133973c85aa10c9cc5d8e2c3c41d2b8d7f441fbe9e14585272baef422"
+    },
+    {
+      "stage": "compare",
+      "response_id": "resp_EjT031YYfMs5FIy6tej7B",
+      "estimated_cost_usd": "0.009508",
+      "events_sha256": "c149405f930de7ec2e41511ad7cbde1bbec5e99fe63157a0a0c36f9d0159d21a"
+    }
+  ]
+}

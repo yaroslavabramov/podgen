@@ -1,0 +1,8 @@
+{
+  "stage": "compare",
+  "control": "word-boundary",
+  "model": "gpt-realtime-2.1",
+  "transcript_sha256": "a9fc84e8c25c490dbbe0190df2af3f629b27cf4c9c4c7e6f2f4fd9df8518ed92",
+  "transcription_response_id": "resp_EjSzi8kMGfgw7prO8BogD",
+  "wire_sha256": "672e98ebba3dd24a64dcdd1e55101ccdedd0e79d51e6a417f48eefe0583473ee"
+}
