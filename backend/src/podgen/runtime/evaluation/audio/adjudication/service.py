@@ -4,6 +4,8 @@ from decimal import Decimal
 from podgen.domain.errors import ContractError
 
 from .attempts import exchange_state, history
+from .contracts import ReviewConfigV2
+from .fallback import run_windows, superseded
 from .prepare import prepare
 from .processing import process
 from .submission import submit
@@ -17,6 +19,14 @@ def ledger(journal, manifest):
                 continue
             count += 1
             successful = [r["result"] for r in attempt["processing"] if r["result"]]
+            event = journal.get("audio-review:" + manifest["configuration"]["review_id"] + ":provider-switch")
+            if (
+                event
+                and event["reason"] == "outcome_unknown"
+                and event["source_attempt_ref"]
+                == journal.ref(attempt["key"] + ":prepared").model_dump(mode="json")
+            ):
+                successful = []
             cost += Decimal(
                 successful[-1]["cost"]["usd"] if successful else attempt["intent"]["reservation_usd"]
             )
@@ -26,6 +36,8 @@ def ledger(journal, manifest):
 def run(journal, config, transport, *, retry_window=None, reason=None):
     with journal.lock():
         manifest = prepare(journal, config)
+        if isinstance(config, ReviewConfigV2):
+            return run_windows(journal, config, manifest, transport, ledger, retry_window, reason)
         if retry_window is not None and (
             not reason or not reason.strip() or not 1 <= retry_window <= len(manifest["windows"])
         ):
@@ -82,6 +94,8 @@ def reprocess(journal, config, reason):
         manifest = prepare(journal, config)
         for window in manifest["windows"]:
             for row in history(journal, window["key"]):
+                if isinstance(config, ReviewConfigV2) and superseded(journal, config, row["key"]):
+                    continue
                 receipt = row["receipt"]
                 if (
                     receipt

@@ -3,6 +3,7 @@ from pathlib import Path
 
 from podgen.audio.fidelity.adjudication.contracts import WindowResolution
 from podgen.audio.fidelity.adjudication.gemini import prepare as request_for
+from podgen.audio.fidelity.adjudication.openai import prepare as fallback_request_for
 from podgen.audio.fidelity.adjudication.payload import VERSION as PAYLOAD_VERSION
 from podgen.audio.fidelity.adjudication.payload import case_payload, window_segments
 from podgen.audio.fidelity.adjudication.windows import group
@@ -14,7 +15,7 @@ from podgen.domain.errors import Conflict, ContractError
 from ..fidelity.contracts import prefix as fidelity_prefix
 from ..fidelity.processing import revisions
 from ..fidelity.snapshots import schema_blob
-from .contracts import ReviewConfig, prefix
+from .contracts import ReviewConfigV2, prefix
 
 
 def subject(journal, config):
@@ -93,6 +94,19 @@ def prepare(journal, config):
             request=request,
             wire_blob=journal.blob(wire, "application/json"),
         )
+        if isinstance(config, ReviewConfigV2):
+            fallback_request, fallback_wire = fallback_request_for(
+                prompt_bytes.decode("utf-8"), payload, clip_audio, config.fallback.reviewer
+            )
+            value.update(
+                contract="audio-review-window/2",
+                providers=dict(
+                    gemini=dict(request=request, wire_blob=value["wire_blob"]),
+                    openai=dict(
+                        request=fallback_request, wire_blob=journal.blob(fallback_wire, "application/json")
+                    ),
+                ),
+            )
         journal.put(window_key, value)
         windows.append(
             dict(
@@ -102,7 +116,9 @@ def prepare(journal, config):
             )
         )
     value = dict(
-        contract="audio-review-manifest/1",
+        contract="audio-review-manifest/2"
+        if isinstance(config, ReviewConfigV2)
+        else "audio-review-manifest/1",
         configuration=raw,
         configuration_hash=digest(raw),
         source_candidate_result_ref=config.candidate_result_ref.model_dump(mode="json"),
@@ -116,7 +132,7 @@ def prepare(journal, config):
         playback_audio_sha256=manifest["playback_audio_blob"]["sha256"],
         prompt_blob=journal.blob(prompt_bytes, "text/plain"),
         prompt_sha256=config.prompt_sha256,
-        config_schema_blob=schema_blob(journal, ReviewConfig),
+        config_schema_blob=schema_blob(journal, type(config)),
         response_schema_blob=schema_blob(journal, WindowResolution),
         windows=windows,
         case_aliases={alias: original for original, alias in aliases.items()},

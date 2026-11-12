@@ -6,15 +6,15 @@ import os
 from pathlib import Path
 from uuid import UUID
 
-from podgen.audio.http import RawAudioTransport
 from podgen.domain.errors import ContractError
 from podgen.persistence.database import Database
 from podgen.persistence.objects import FileObjectStore
 from podgen.persistence.repository import Repository
-from podgen.runtime.evaluation.audio.adjudication.contracts import ReviewConfig
+from podgen.runtime.evaluation.audio.adjudication.contracts import parse_config
 from podgen.runtime.evaluation.audio.adjudication.export import bind, export
 from podgen.runtime.evaluation.audio.adjudication.prepare import prepare
 from podgen.runtime.evaluation.audio.adjudication.service import reprocess, run
+from podgen.runtime.evaluation.audio.adjudication.transport import ReviewerTransport
 from podgen.runtime.evaluation.audio.journal import AudioJournal
 
 
@@ -42,7 +42,7 @@ def main(argv=None):
         from dotenv import load_dotenv
 
         load_dotenv(args.env_file, override=False)
-    config = ReviewConfig.model_validate_json(args.config.read_text())
+    config = parse_config(args.config.read_text())
     db = Database(os.environ["PODGEN_DATABASE_URL"])
     journal = AudioJournal(
         Repository(db, FileObjectStore(args.objects), args.actor, purpose="evaluation"),
@@ -57,11 +57,7 @@ def main(argv=None):
             run(
                 journal,
                 config,
-                RawAudioTransport(
-                    timeout_seconds=config.reviewer.request_timeout_seconds,
-                    auth_header="x-goog-api-key",
-                    auth_prefix="",
-                ),
+                ReviewerTransport(config),
                 retry_window=getattr(args, "window_number", None),
                 reason=getattr(args, "reason", None),
             )

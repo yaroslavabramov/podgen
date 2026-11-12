@@ -7,7 +7,9 @@ from podgen.domain.errors import ContractError
 
 from ..export_directory import bind_directory, write_json
 from .attempts import history, state
-from .contracts import prefix
+from .contracts import ReviewConfigV2, prefix
+from .fallback import active_provider, superseded, switch_key
+from .providers import settings
 from .service import ledger
 
 
@@ -44,6 +46,11 @@ def export(journal, config, folder):
     decisions, windows = [], []
     count, current_cost = ledger(journal, manifest)
     provider_halt = None
+    provider = active_provider(journal, config) if isinstance(config, ReviewConfigV2) else "gemini"
+    profile = settings(config, provider)
+    event = journal.get(switch_key(config)) if isinstance(config, ReviewConfigV2) else None
+    if isinstance(config, ReviewConfigV2):
+        write_json(folder / "private/provider-switch.json", event)
     for index, ref in enumerate(manifest["windows"], 1):
         where = folder / "private" / f"window-{index}"
         window = journal.get(ref["key"])
@@ -54,6 +61,8 @@ def export(journal, config, folder):
             ("wire_blob", "wire-request.json"),
         ):
             (where / filename).write_bytes(journal.bytes(ref["key"], window[field]))
+        for name, request in window.get("providers", {}).items():
+            (where / f"{name}-wire-request.json").write_bytes(journal.bytes(ref["key"], request["wire_blob"]))
         attempts = history(journal, ref["key"])
         write_json(where / "attempts.json", attempts)
         for attempt in attempts:
@@ -65,7 +74,12 @@ def export(journal, config, folder):
                 (place / "raw-http-response.bin").write_bytes(
                     journal.bytes(attempt["key"] + ":receipt", attempt["receipt"]["raw_response_blob"])
                 )
-        processed = attempts[-1]["processing"] if attempts else []
+        replaced = bool(
+            attempts
+            and isinstance(config, ReviewConfigV2)
+            and superseded(journal, config, attempts[-1]["key"])
+        )
+        processed = attempts[-1]["processing"] if attempts and not replaced else []
         if processed and processed[-1]["result"]:
             for decision in processed[-1]["result"]["decisions"]:
                 decisions.append(
@@ -77,16 +91,16 @@ def export(journal, config, folder):
                         sample_rate_hz=window["extraction"]["sample_rate_hz"],
                     )
                 )
-        current_state = state(journal, ref["key"])
+        current_state = "prepared" if replaced else state(journal, ref["key"])
         blocked_reason = None
         if current_state == "prepared":
             if provider_halt:
                 blocked_reason = "stopped_after_provider_failure"
             elif count >= config.max_requests or current_cost + Decimal(
-                config.reservation_per_request_usd
+                profile.reservation_per_request_usd
             ) > Decimal(config.max_cost_usd):
                 blocked_reason = "budget_exhausted"
-            elif not os.environ.get(config.credential_env):
+            elif not os.environ.get(profile.credential_env):
                 blocked_reason = "credential_missing"
         elif current_state in ("provider_rejected", "outcome_unknown", "response_invalid"):
             provider_halt = dict(window_ref=ref["ref"], status=current_state)
@@ -129,11 +143,16 @@ def export(journal, config, folder):
         all_cases_resolved=complete,
         requests_submitted=submitted,
         cost_or_reservation_usd=str(cost),
-        required_reservation_usd=str(Decimal(config.reservation_per_request_usd) * len(manifest["windows"])),
+        required_reservation_usd=str(Decimal(profile.reservation_per_request_usd) * len(manifest["windows"])),
         provider_halt=provider_halt,
         coverage_scope=manifest["coverage_scope"],
         whole_recording_review="not_performed",
         production_ready=False,
+        **(
+            dict(active_provider=provider, provider_switch=event)
+            if isinstance(config, ReviewConfigV2)
+            else {}
+        ),
     )
     write_json(folder / "status.json", status)
     return status

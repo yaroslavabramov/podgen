@@ -51,7 +51,7 @@ def assert_native_repair(journal, project, parent_ref, part_refs, fidelity, fold
     ]
     path = folder / "repair-review.json"
     path.write_text(review.model_dump_json())
-    monkeypatch.setattr(audio_adjudication_cli, "RawAudioTransport", lambda **kwargs: ConfirmedReviewer())
+    monkeypatch.setattr(audio_adjudication_cli, "ReviewerTransport", lambda config: ConfirmedReviewer())
     monkeypatch.setenv("JEMINI_API_KEY", "fixture-review")
     assert (
         audio_adjudication_cli.main(

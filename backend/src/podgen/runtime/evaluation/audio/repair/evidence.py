@@ -2,8 +2,9 @@ from podgen.audio.fidelity.adjudication.contracts import WindowResolution
 from podgen.domain.errors import ContractError
 
 from ..adjudication.attempts import history
-from ..adjudication.contracts import ReviewConfig
 from ..adjudication.contracts import prefix as review_prefix
+from ..adjudication.contracts import validate_config
+from ..adjudication.fallback import superseded
 from ..adjudication.prepare import subject as review_subject
 from .localization import bind_fragment
 from .parent import index
@@ -14,7 +15,7 @@ def verify(journal, config, part):
     review = journal.get(review_prefix(config.review_id) + ":manifest")
     if not review:
         raise ContractError("repair_requires_registered_audio_review")
-    review_config = ReviewConfig.model_validate(review["configuration"])
+    review_config = validate_config(review["configuration"])
     fidelity, candidates, _ = review_subject(journal, review_config)
     subject_ref = fidelity.get("subject_ref", fidelity.get("subject_result_ref"))
     if (
@@ -30,6 +31,8 @@ def verify(journal, config, part):
         raise ContractError("repair_candidate_not_in_reviewed_source")
     for item in review["windows"]:
         rows = history(journal, item["key"])
+        if rows and superseded(journal, review_config, rows[-1]["key"]):
+            continue
         latest = rows[-1]["processing"][-1] if rows and rows[-1]["processing"] else None
         if (
             not latest

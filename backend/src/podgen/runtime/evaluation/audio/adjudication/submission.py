@@ -1,9 +1,12 @@
 from datetime import datetime, timezone
 
 from .contracts import prefix
+from .providers import request_for, settings
 
 
-def submit(journal, config, window, key, rows, reason, retry, credential, transport):
+def submit(journal, config, window, key, rows, reason, retry, credential, transport, provider=None):
+    profile = settings(config, provider)
+    provenance = dict(provider=provider) if provider else {}
     if journal.get(key + ":prepared") is None:
         journal.put(
             key + ":prepared",
@@ -16,6 +19,7 @@ def submit(journal, config, window, key, rows, reason, retry, credential, transp
                 parent_attempt_ref=journal.ref(rows[-1]["key"] + ":prepared").model_dump(mode="json")
                 if rows and retry
                 else None,
+                **provenance,
             ),
         )
     journal.put(
@@ -26,10 +30,11 @@ def submit(journal, config, window, key, rows, reason, retry, credential, transp
             attempt_ref=journal.ref(key + ":prepared").model_dump(mode="json"),
             window_ref=window["ref"],
             submitted_at=datetime.now(timezone.utc).isoformat(),
-            reservation_usd=config.reservation_per_request_usd,
+            reservation_usd=profile.reservation_per_request_usd,
+            **provenance,
         ),
     )
-    request = journal.get(window["key"])
+    request = request_for(journal.get(window["key"]), provider)
     response = transport.submit(
         request["request"], journal.bytes(window["key"], request["wire_blob"]), credential
     )
@@ -46,5 +51,6 @@ def submit(journal, config, window, key, rows, reason, retry, credential, transp
             elapsed_ms=response.elapsed_ms,
             complete=response.complete,
             error=response.error,
+            **provenance,
         ),
     )

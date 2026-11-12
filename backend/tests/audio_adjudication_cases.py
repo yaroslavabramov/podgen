@@ -44,7 +44,7 @@ def assert_persisted_adjudication(journal, project, asr_config, folder, monkeypa
     ]
     common = ["--config", str(path), "--export-dir", str(output)]
     transport = Reviewer()
-    monkeypatch.setattr(audio_adjudication_cli, "RawAudioTransport", lambda **kwargs: transport)
+    monkeypatch.setattr(audio_adjudication_cli, "ReviewerTransport", lambda config: transport)
     monkeypatch.setenv("JEMINI_API_KEY", "fixture-review-secret")
     assert audio_adjudication_cli.main([*args, "prepare", *common]) == 0 and not transport.calls
     assert audio_adjudication_cli.main([*args, "run", *common]) == 0
@@ -54,8 +54,8 @@ def assert_persisted_adjudication(journal, project, asr_config, folder, monkeypa
     assert audio_adjudication_cli.main([*args, "resume", *common]) == 0
     monkeypatch.setattr(
         audio_adjudication_cli,
-        "RawAudioTransport",
-        lambda **kwargs: pytest.fail("offline path constructed transport"),
+        "ReviewerTransport",
+        lambda config: pytest.fail("offline path constructed transport"),
     )
     assert (
         audio_adjudication_cli.main([*args, "reprocess", *common, "--reason", "Verify frozen response again"])
@@ -66,3 +66,6 @@ def assert_persisted_adjudication(journal, project, asr_config, folder, monkeypa
     assert result["whole_recording_review"] == "not_performed" and not result["production_ready"]
     assert (output / "private/prompt.md").read_bytes() == prompt.read_bytes()
     assert "fixture-review-secret" not in "".join(p.read_text() for p in output.rglob("*.json"))
+    from tests.audio_adjudication_fallback_cases import assert_persisted_fallback
+
+    assert_persisted_fallback(journal, config, args, folder, monkeypatch)
