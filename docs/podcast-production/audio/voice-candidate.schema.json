@@ -1,0 +1,142 @@
+{
+  "$defs": {
+    "JsonValue": {},
+    "PriceRate": {
+      "additionalProperties": false,
+      "properties": {
+        "unit": {
+          "enum": [
+            "characters",
+            "utf8_bytes",
+            "input_tokens",
+            "audio_tokens"
+          ],
+          "title": "Unit",
+          "type": "string"
+        },
+        "usd_per_million": {
+          "pattern": "^-?(0|[1-9][0-9]*)(\\.[0-9]+)?$",
+          "title": "Usd Per Million",
+          "type": "string"
+        },
+        "source_url": {
+          "minLength": 1,
+          "title": "Source Url",
+          "type": "string"
+        },
+        "checked_at": {
+          "minLength": 1,
+          "title": "Checked At",
+          "type": "string"
+        }
+      },
+      "required": [
+        "unit",
+        "usd_per_million",
+        "source_url",
+        "checked_at"
+      ],
+      "title": "PriceRate",
+      "type": "object"
+    },
+    "SynthesisProfile": {
+      "additionalProperties": false,
+      "properties": {
+        "provider": {
+          "enum": [
+            "elevenlabs",
+            "gemini",
+            "inworld",
+            "fish",
+            "minimax"
+          ],
+          "title": "Provider",
+          "type": "string"
+        },
+        "model_id": {
+          "minLength": 1,
+          "title": "Model Id",
+          "type": "string"
+        },
+        "voice_id": {
+          "minLength": 1,
+          "title": "Voice Id",
+          "type": "string"
+        },
+        "output_language": {
+          "const": "ru",
+          "default": "ru",
+          "title": "Output Language",
+          "type": "string"
+        },
+        "sample_rate_hz": {
+          "default": 24000,
+          "exclusiveMinimum": 0,
+          "title": "Sample Rate Hz",
+          "type": "integer"
+        },
+        "output_format": {
+          "default": "wav",
+          "enum": [
+            "wav",
+            "pcm_s16le",
+            "flac"
+          ],
+          "title": "Output Format",
+          "type": "string"
+        },
+        "options": {
+          "additionalProperties": {
+            "$ref": "#/$defs/JsonValue"
+          },
+          "title": "Options",
+          "type": "object"
+        }
+      },
+      "required": [
+        "provider",
+        "model_id",
+        "voice_id"
+      ],
+      "title": "SynthesisProfile",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "profile_id": {
+      "minLength": 1,
+      "title": "Profile Id",
+      "type": "string"
+    },
+    "synthesis": {
+      "$ref": "#/$defs/SynthesisProfile"
+    },
+    "credential_env": {
+      "minLength": 1,
+      "title": "Credential Env",
+      "type": "string"
+    },
+    "rates": {
+      "items": {
+        "$ref": "#/$defs/PriceRate"
+      },
+      "title": "Rates",
+      "type": "array"
+    },
+    "reservation_usd": {
+      "pattern": "^-?(0|[1-9][0-9]*)(\\.[0-9]+)?$",
+      "title": "Reservation Usd",
+      "type": "string"
+    }
+  },
+  "required": [
+    "profile_id",
+    "synthesis",
+    "credential_env",
+    "rates",
+    "reservation_usd"
+  ],
+  "title": "VoiceCandidate",
+  "type": "object"
+}
