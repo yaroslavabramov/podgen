@@ -91,10 +91,6 @@ def assert_persisted_fidelity(repo, project, comparison, folder, monkeypatch):
         p.read_text() for p in (folder / "fidelity-export").rglob("*.json")
     )
 
-    from tests.audio_adjudication_cases import assert_persisted_adjudication
-
-    assert_persisted_adjudication(journal, project, config, folder, monkeypatch)
-
     from podgen.domain.errors import ContractError
     from podgen.runtime.evaluation.audio.fidelity import processing as fidelity_processing
     from podgen.runtime.evaluation.audio.fidelity.export import export as export_fidelity

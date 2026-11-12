@@ -15,7 +15,7 @@ def prepare_sources(journal, config):
         else [synthesis_part(journal, b) for b in config.bindings]
     )
     if config.contract == "audio-evaluation-assembly/2":
-        from ..repair.replacement import validate_replacements
+        from .legacy_repair import validate_replacements
 
         validate_replacements(journal, config)
     first = parts[0]

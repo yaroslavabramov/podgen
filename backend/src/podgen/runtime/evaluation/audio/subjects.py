@@ -47,13 +47,17 @@ def comparison_result(journal, result_ref):
 
 def synthesis_part(journal, binding):
     if binding.kind == "repair_part":
-        from .repair.subject import resolve
+        from .assembly.legacy_repair import resolve
 
         return resolve(journal, binding.ref)
     return comparison_result(journal, binding.ref)
 
 
 def audio_subject(journal, binding):
+    if binding.kind == "local_master":
+        from .local_replacement.subject import resolve
+
+        return resolve(journal, binding.ref)
     if binding.kind == "assembly":
         from .assembly.subject import resolve
 

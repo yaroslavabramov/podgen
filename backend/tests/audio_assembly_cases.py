@@ -112,6 +112,10 @@ def assert_native_assembly(repo, project, comparison, script, folder, monkeypatc
     path = folder / "assembled-fidelity.json"
     path.write_text(fidelity.model_dump_json())
 
+    from podgen.audio.fidelity.tokens import tokens
+
+    all_words = tokens(" ".join(u["text"] for u in script["utterances"]))
+
     class ASR:
         calls = 0
 
@@ -122,9 +126,16 @@ def assert_native_assembly(repo, project, comparison, script, folder, monkeypatc
                 {},
                 json.dumps(
                     dict(
-                        text="Проверка",
+                        text=" ".join(u["text"] for u in script["utterances"]),
                         duration=10,
-                        segments=[dict(text="Проверка", start=1, end=2)],
+                        segments=[
+                            dict(
+                                text=token["text"],
+                                start=0.05 + i * 9.8 / len(all_words),
+                                end=0.05 + (i + 0.8) * 9.8 / len(all_words),
+                            )
+                            for i, token in enumerate(all_words)
+                        ],
                         request_id="assembly-fixture",
                     )
                 ).encode(),
@@ -162,6 +173,6 @@ def assert_native_assembly(repo, project, comparison, script, folder, monkeypatc
     with pytest.raises(ContractError, match="outside_comparison"):
         prepare_asr(journal, FidelityConfig.model_validate(old))
 
-    from tests.audio_repair_cases import assert_native_repair
+    from tests.audio_local_replacement_cases import assert_native_local_replacement
 
-    assert_native_repair(journal, project, ref, part_refs, fidelity, folder, monkeypatch)
+    assert_native_local_replacement(journal, project, ref, fidelity, folder, monkeypatch)

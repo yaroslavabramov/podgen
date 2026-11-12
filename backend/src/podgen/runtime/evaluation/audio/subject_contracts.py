@@ -4,7 +4,7 @@ from podgen.domain.contracts.common import Contract, RuntimeRef
 
 
 class AudioSubject(Contract):
-    kind: Literal["comparison_result", "assembly"]
+    kind: Literal["comparison_result", "assembly", "local_master"]
     ref: RuntimeRef
 
 
