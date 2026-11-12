@@ -1,6 +1,6 @@
 # 05. Производство и проверка аудио
 
-Спецификация целевого продукта, 4 ноября 2026. Вход — проверенная точная [ScriptRevision](03-story-and-writing.md); выход — целостное аудио, транскрипт и проверка реально получившегося звука. Общие версии — [00](00-system-contract.md), допуск к выпуску — [04](04-verification-and-evaluation.md), исполнение — [06](06-platform-and-runtime.md).
+Спецификация целевого продукта, обновлена 13 ноября 2026. Вход — проверенная точная [ScriptRevision](03-story-and-writing.md); выход — целостное аудио, транскрипт и проверка реально получившегося звука. Общие версии — [00](00-system-contract.md), допуск к выпуску — [04](04-verification-and-evaluation.md), исполнение — [06](06-platform-and-runtime.md).
 
 ## 1. Ответственность и путь выпуска
 
@@ -19,6 +19,8 @@ accepted ScriptRevision → PerformancePlan → render units → AudioSegment ca
 Для испытаний текста оценщики могут использовать закрытые нейтральные читки из корпуса 04, в том числе специально подготовленных слабых вариантов. Такие записи доступны только оценщикам. Выпускаемое аудио проходит обычный путь от проверенного текста до AudioQAReport.
 
 Рабочая единица драматургии — сцена/связный разговор, техническая единица запроса — render unit. Их границы могут различаться. Один ведущий получает контекст мысли; несколько ведущих — обмен репликами с намерением, а не набор независимо начитанных предложений. Качество всех стыков и целой сцены проверяется после сборки.
+
+Текущий пользовательский ремонт: человек указывает версию и примерное время → система предлагает одно-два предложения, точный диапазон и контекстный preview → человек подтверждает **этот proposal** → короткий TTS тем же голосом/настройками → новая версия master и два join previews. ASR, TonePerfect и LLM opinions не являются обязательной браковкой, разрешением или предварительным условием этого пути. Полный контракт — §16; приёмка и два случая Snow — §18.
 
 ## 2. Профили исполнения
 
@@ -116,8 +118,8 @@ AudioSegment = {
 2. Сохранить render intent и полный provider request. Submit через runtime 06; provider ID/stream/ошибка сохраняются отдельно.
 3. Получить весь audio в staging object, проверить checksum, container, decode termination и диапазоны длительности. Не доверять HTTP 200 с оборванным stream.
 4. Сохранить исходные bytes; декодировать PCM без удаления пауз и изменения темпа. Native sample rate известен; дальнейший resampling не добавляет исходной детализации.
-5. Сохранить AudioSegment и diagnostic alignment. Запустить segment transcript/QA по фактическому PCM.
-6. Выбрать допущенный take по качеству и соответствию scene intent; selection record привязан к exact ref. Неопределённый результат не попадает в монтаж.
+5. Сохранить AudioSegment, diagnostic alignment и выполненные технические measurements. Recognition для индексации остаётся отдельной операцией; локальный repair не ждёт полного ASR или listening-judge.
+6. Selection record привязан к exact take/ref. Неполный или недекодированный результат не попадает в монтаж; сборка complete PCM сама по себе не означает принятие качества. Для локальной замены оно проверяется по §16.
 
 Неуспешная unit не заменяется тишиной, повтором предыдущего фрагмента или другим голосом. Пауза — явное режиссёрское решение в плане, а не fallback. Продолжение соседних независимых сцен допустимо, но master остаётся незавершённым.
 
@@ -174,15 +176,15 @@ Transcript = {
 
 Для scope=segment заполнен только audio_segment_ref; для master — только audio_master_ref. Transcript не содержит AudioQAReport ref. QA позже ссылается на transcript, поэтому зависимость не циклическая. Sequence words монотонен внутри speaker track; допустимое перекрытие speakers явно размечается. Все интервалы находятся в пределах реального количества frames.
 
-Первый recognizer запускается **без ожидаемого сценария в prompt/hints**, чтобы не подсказывать пропущенное слово. Начальный независимый от TTS путь — локальный faster-whisper с pinned `large-v3` weights/runtime profile; его word timestamps и VAD доступны, но не являются доказательством правильного текста. [faster-whisper: usage](https://github.com/SYSTRAN/faster-whisper#usage). Новый recognizer можно квалифицировать через тот же adapter. Language, decoding parameters и model hash фиксируются.
+Если recognition нужна для локализации, recognizer получает **звук без ожидаемого сценария в prompt/hints**. Language, decoding parameters и model/profile hash фиксируются; raw text/segments сохраняются. Word timestamps и VAD — гипотезы локализации, не доказательство правильного текста. Для human repair используется сохранённая recognition либо timeline конкретного local_master; новый полный ASR перед каждой заменой не нужен.
 
-Распознаётся вся итоговая запись; разбиение длинного master использует перекрывающиеся окна и точную mapping к исходному timeline. Слияние результатов не теряет слова на границах. VAD не выбрасывает интервалы из аудита: первоначально full-waveform pass без фильтра, затем speech/silence анализ; каждый исключённый interval имеет причину. Услышанная лишняя фраза не удаляется из transcript ради сходства с текстом.
+При построении полной recognition-карты охватывается вся итоговая запись; разбиение длинного master использует перекрывающиеся окна и точную mapping к исходному timeline. Слияние результатов не теряет слова на границах. VAD не выбрасывает интервалы из аудита: первоначально full-waveform pass без фильтра, затем speech/silence анализ; каждый исключённый interval имеет причину. Услышанная лишняя фраза не удаляется из transcript ради сходства с текстом.
 
-Сравнение выполняется между recognized words и expected spoken forms, с ограниченным набором equivalent normalization rules. WER/число расхождений — диагностика. Числа, единицы, отрицания, имена, даты, цитаты и speaker attribution проверяются отдельно. Если ASR ошибся, повторное распознавание независимым профилем и qualified perceptual reviewer, получающий реальное аудио, разрешают discrepancy; низкая уверенность ASR не доказывает дефект TTS, высокая — его отсутствие. В обычном production это автоматический reviewer. Человек участвует в development/qualification либо явном исключении; скрытого обязательного ручного прослушивания каждого выпуска нет.
+ASR и ограниченные equivalent normalization rules помогают найти место сценария и предложить временные границы; WER, confidence и текстовые расхождения остаются диагностикой. Совпадение не доказывает правильность произношения, несовпадение — дефект записи. Числа, отрицания, имена и формы слов не переписываются ради совпадения. Человеческого указания места и подтверждения точного proposal достаточно для локального ремонта: повторное ASR, TonePerfect или LLM adjudication перед ним не требуются. Неуверенная локализация показывается явно; границу можно сдвинуть/расширить до подтверждения, а не вычислить по среднему времени слова.
 
 После установления фактических слов aligner уточняет word/utterance boundaries. Forced alignment получает audio+текст и ищет соответствие; он не проверяет, что отсутствующее слово было сказано, и не является вторым независимым recognizer. ElevenLabs Forced Alignment документирован именно для audio/text synchronization и не предоставляет diarization; его adapter используется только в квалифицированном режиме. [ElevenLabs: forced alignment](https://elevenlabs.io/docs/overview/capabilities/forced-alignment).
 
-Provider character alignment служит дополнительной гипотезой: проверяются actual text, counts, ranges, normalized text mapping и drift. При расхождении нельзя распределить таймкоды пропорционально числу слов. Неустановленный range остаётся unresolved и блокирует финальный transcript; допустимый caption timing error задаётся отдельно по UI qualification.
+Provider character alignment служит дополнительной гипотезой: проверяются actual text, counts, ranges, normalized text mapping и drift. При расхождении нельзя распределить таймкоды пропорционально числу слов. Неустановленный range остаётся unresolved для точного transcript/captions; допустимый caption timing error задаётся отдельно по UI qualification. Это не запрет на человеческий ремонт по явно выбранному и подтверждённому диапазону.
 
 Speaker identity проверяется по выбранным voice exemplars, ожидаемому turn order и фактическому звучанию. Diarization label сам по себе не доказывает, что реплику прочитал нужный ведущий. При overlapping speech или неразличимых голосах повторяется сцена/выбирается квалифицированная пара; уверенный label из provider response не подменяет прослушивание.
 
@@ -194,6 +196,7 @@ AudioQAReport = {
   audio_segment_ref|null, audio_master_ref|null, policy_ref,
   measurement_records: [{subject_ref, processing_profile_ref, measurement_blob}],
   listening_passes: [{invocation_id, model_profile_ref, audio_ranges[], assessment_blob}],
+  human_auditions: [{actor_id, audio_ranges[], assessment_blob}],
   coverage_report: {expected_ranges[], processed_ranges[], uncovered_ranges[], exclusions[]},
   findings: [{finding_id, category, severity:critical|major|minor|advisory,
     blocking, policy_rule_id, sample_ranges[], script_selectors[],
@@ -213,20 +216,22 @@ Application service может применить dispositions через append
 | Проверка | Исполнение и критерий |
 |---|---|
 | Полнота медиа | Decode всего файла; все planned units есть ровно в нужных местах; actual sample counts и ordering сверены |
-| Сохранность речи | Все ожидаемые utterances и слышимые speech intervals сопоставлены; неразрешённая вставка/пропуск/подмена блокирует |
-| Критические токены | Отдельная проверка цифр, отрицаний, единиц, имён, дат и цитат, а не только aggregate WER |
-| Произношение | Словарь + реальное аудио; ударения/омонимы/языковые переключения проверяет qualified listening assessor |
+| Сохранность речи | Подтверждённые человеком вставка/пропуск/подмена сохраняются как дефекты до решения; ASR mismatch и score сами по себе не блокируют |
+| Критические токены | Цифры, отрицания, единицы, имена, даты и цитаты сохраняются в тексте/привязках; сомнение не превращается в автоматический retake |
+| Произношение | Словарь и прослушивание конкретного места; безударная редукция/омофония не доказывает ошибку по написанию |
 | Голоса | Voice identity, speaker attribution и отсутствие необъяснённого drift на всём выпуске |
 | Сигнал | Loudness/true peak/clipping/каналы/decoder integrity; правила привязаны к delivery profile |
 | Стыки и ритм | Проверяются все joins и цельные сцены: нет обрезанных слов, двойных вдохов, внезапной смены тембра и случайных пауз |
-| Длинное прослушивание | Полное покрытие master последовательными контекстными окнами; усталость, монотонность, темп и разговорность; отдельный full-episode benchmark |
+| Длинное прослушивание | Qualification benchmark естественности/темпа/утомляемости; записывается реально прослушанное покрытие, не предполагаемый полный pass |
 | Транскрипт | Words, speakers, boundaries и seek отражают final playback; unresolved intervals отсутствуют |
 
-Listening assessor получает audio окна, цель сцены, соседний контекст, voice exemplars и вопрос качества. В fidelity pass ожидаемый текст предъявляется после unprompted recognition, вместе с discrepancy candidates. Для интонации/естественности он получает текст как контекст, но обязан ссылаться на слышимый диапазон и эффект для слушателя. Нельзя оценить «звучит хорошо» по одному ScriptRevision. Prompt, clips, model/profile и coverage receipts сохраняются как model-visible input по 06.
+Прослушивание оценивает реальное аудио, соседний контекст и эффект для слушателя. Для пользовательского локального ремонта решение принимает человек: сначала approve proposal, затем прослушивание исправленного места и обоих стыков. Не требуется предварительный или повторный listening-judge вызов. Если в отдельной qualification применён автоматический assessor, его prompt, clips, profile, ошибки и фактическое покрытие сохраняются по 06; его мнение не подменяет человеческое решение в этом flow.
 
-Проверка охватывает весь master, включая начало/конец и границы окон. Длинные audit passes используют сохранённый state наблюдений и повторное прослушивание переходов; sampling отдельных красивых фрагментов не считается coverage. Модельная оценка усталости/естественности ограничена и калибруется на полном человеческом прослушивании в development/qualification 04. На каждой генерации выполняется квалифицированный автоматический QA; неразрешённый дефект → repair/needs_attention, не обязательный человек на каждом выпуске.
+Технические проверки охватывают весь master, включая начало/конец и все edits. Локальное прослушивание не объявляется полным master listening. Естественность, темп и усталость проверяются на полном человеческом benchmark в qualification 04; обязательного платного автоматического аудиорецензента на каждом выпуске нет. Успех локального ремонта показывает только проверенный участок, его оба перехода и корректность новой версии.
 
-Все fidelity defects блокируют до явного решения: исправить звук, подтвердить ошибку recognizer или вернуть смысловую правку в 03/04. Intentional breath/nonverbal event допустим только в рамках performance policy, с записью и без изменения утверждений; неожиданная произнесённая фраза не считается harmless filler. Cosmetic minor finding может быть nonblocking с основанием policy. Severity и blocking не сливаются в одну усреднённую оценку.
+Подтверждённый человеком дефект требует явного решения: исправить звук либо вернуть смысловую правку в 03/04. Непроверенная ASR-гипотеза или автоматический флаг не становятся таким дефектом. Intentional breath/nonverbal event допустим только в рамках performance policy, с записью и без изменения утверждений; неожиданная произнесённая фраза не считается harmless filler. Cosmetic minor finding может быть nonblocking с основанием policy. Severity и blocking не сливаются в одну усреднённую оценку.
+
+Автоматический технический контроль выявляет повреждённый/неполный файл, невозможный формат и измеримые сбои сигнала. Наличие речи, тишина и VAD не устанавливают осмысленность: «ыыыааа» может содержать голос. Детектор такой деградации — отдельная работа с реальными положительными/отрицательными fixtures и измеренными ложными тревогами; до этого обещания его обнаружения и обязательной браковки нет.
 
 ## 9. Исправления и повторное использование
 
@@ -237,18 +242,20 @@ Reuse не определяется одним текстом. Если изме
 | Дефект | Ремонт |
 |---|---|
 | Неверное ударение/произношение | Новая lexicon/profile decision, retake всей достаточной фразы/обмена, соседние joins и QA |
-| Пропуск, повтор, лишняя фраза | Retake unit с контекстом; если повторяется — другой квалифицированный rendering mode/profile |
+| Подтверждённый пропуск, повтор, лишняя фраза | Proposal на одно-два предложения, approve exact range/text, retake с тем же voice/settings и проверкой обоих joins |
 | Плохой стык | Расширить unit до устойчивой границы/соседнего обмена; не накрывать ошибку тишиной |
 | Верный текст, неверная убедительность/сарказм | Изменить performance direction; при изменении смысла — 03/04 |
 | Длительность за допуском | Редакционное решение о структуре/подаче; новая ScriptRevision при изменении слов |
 | Неверная исходная формулировка | 02/03 исправляют содержание, 04 перепроверяет, затем новый план/звук |
 | Недоступный voice/provider | Явная ошибка или заранее квалифицированный replacement; новый voice binding требует consistency review всего ведущего |
 
-После любого repair собирается новый master, затем новый final transcript и полный master QA. Прежние segment measurements можно использовать как исходные observations, но новый montage не получает допуск только по сумме отдельных хороших segments. ShowNotes timestamps пересоздаются по новому transcript и проверяются в04.
+После локальной замены создаются новый immutable master и карта изменения времени. Таймкоды до диапазона сохраняются, после — сдвигаются на измеренную delta; пересекающие замену captions/chapters/word alignment пересчитываются либо явно остаются unresolved. Старый transcript/QA не переименовывается в новый. Полный ASR и автоматический reviewer не являются предварительным условием замены; корректность вставки и устранение отмеченного места проверяются прослушиванием по §16. Release/ShowNotes связываются с новой точной версией по 04/06.
 
 ## 10. Исполнение, ошибки и остановка
 
 Operational stages: `planning → rendering → checking_segments → assembling → transcribing → checking_master → complete`; это audio job projection в06, не отдельная конкурирующая EpisodeRun machine. `complete` означает сохранённый audio результат; ready определяется комплектом 04/06. Failed/cancelled/needs_attention и checkpoints видны пользователю без фиктивного прогресса.
+
+Локальный пользовательский flow отдельно показывает `proposal → approved → rendering → local_master` с `listening_status=not_reviewed`; полный ASR и perceptual reviewer не вставляются в него скрытыми обязательными этапами. Принятие прослушанного результата и release eligibility записываются отдельно от завершения сборки.
 
 | Событие | Реакция |
 |---|---|
@@ -256,7 +263,7 @@ Operational stages: `planning → rendering → checking_segments → assembling
 | Потерян ответ после submit | outcome_unknown, retrieve если поддержано; replacement invocation с lineage, late reply fenced |
 | Partial stream/повреждённый codec | Diagnostic bytes сохраняются, сегмент не допущен; повтор от неизменных входов |
 | Unsupported language/tag/dictionary | Typed failure до запуска/после capability detection; не игнорировать параметр |
-| Quality repair повторяет тот же дефект | Проверить payload, provider capabilities и контекст; изменить причину, затем иной квалифицированный режим |
+| Локальный дубль не подходит | Сохранить результат; человек прослушивает место/стыки и выбирает новый take либо revised proposal. Диапазон/текст/voice не менять под старым approval |
 | Cancel во время FFmpeg/TTS | Остановить subprocess/cancel provider где возможно; после epoch change late output не создаёт release |
 | Source/script approval отозван | Остановить adoption, сохранить диагностический прогресс, вернуть задачу редактору |
 
@@ -270,23 +277,19 @@ Operational stages: `planning → rendering → checking_segments → assembling
 |---|---|---|
 | `read_performance_material` | script/scene/voice alias, selector, detail | Полный текст, направление, exact profile + safe qualification projection, только разрешённые published/project-local audition и context audio |
 | `save_performance_plan` | scene directions, bindings, pronunciations, boundaries | Полный plan или точные validation issues; backend IDs/refs |
-| `listen_audio` | audio alias, frame range, context margin | Actual audio + exact timeline/ref; delivery receipt после передачи модели |
-| `submit_audio_review` | findings, ranges, observed effect, recommended actions | AudioQAReport proposal; approval принимает policy04/06 |
-| `request_audio_repair` | finding aliases, proposed action, rationale | Repair task proposal; semantic changes маршрутизируются редактору |
+| `request_audio_repair` | exact audio version, примерное время, пользовательское описание | Proposal с текстом/диапазоном/контекстным preview; без TTS до exact approval; semantic changes маршрутизируются редактору |
 
 Tools используют `ToolResult/ToolError` из06. Ошибки: `stale_revision`, `unqualified_voice`, `unsupported_audio_capability`, `normalization_requires_editorial_change`, `render_capacity_exceeded`, `incomplete_audio`, `unresolved_audio_discrepancy`, `invalid_audio_range`. Модель не запускает FFmpeg command string и не выбирает filesystem path; media commands строит typed application layer.
 
 ```text
-DIRECTOR: исполни проверенный текст так, чтобы слушатель понял переход мысли.
-Сохраняй слова/оговорки/роли. Выбери direction и границы обменов в пределах
-capability profile. Неоднозначное произношение обозначь; смысловую правку
-верни редактору. Сохрани plan с точными script selectors.
-AUDIO REVIEWER: оцени присланное аудио, не воображаемое звучание текста.
-Назови слышимый дефект, диапазон и эффект. Отделяй recognizer mismatch
-от подтверждённой ошибки речи. Если диапазон не прослушан, не оценивай его.
+DIRECTOR: Perform the verified script so the listener understands the transition.
+Preserve words, qualifications and speaker roles. Choose direction and exchange
+boundaries within the capability profile. Flag unresolved pronunciation; return
+semantic changes to the editor. Save the plan with exact script selectors.
+Use output_language from the user payload for textual output fields.
 ```
 
-Учебный пример: в сценарии `u17` написано «Тест длился 12 недель, не 20». Plan сохраняет spoken form «Тест длился двенадцать недель, не двадцать» с mapping обоих чисел и неизменным отрицанием. Если TTS произнёс «двадцать недель», агрегатный WER может быть мал, но fidelity finding блокирует unit. Forced aligner, успешно расставивший времена для ожидаемого текста, не снимает finding. Retake должен реально произнести правильное число; новый final master/transcript/QA связываются exact refs.
+Учебный пример: в сценарии `u17` написано «Тест длился 12 недель, не 20». Plan сохраняет spoken form «Тест длился двенадцать недель, не двадцать» с mapping обоих чисел и неизменным отрицанием. Если человек услышал «двадцать недель», агрегатный WER может быть мал, но это подтверждённый дефект для локального ремонта. Forced aligner, успешно расставивший времена для ожидаемого текста, не снимает finding. Retake должен реально произнести правильное число; новый final master/transcript/QA связываются exact refs.
 
 Второй пример: одинокая реплика вопроса звучит завершённым монологом, ответ другого ведущего стартует с чужим темпом. Вместо искусственного короткого gap синтезируется весь обмен в одном допустимом contextual unit; после монтажа проверяются оба перехода и естественность сцены. Это экспериментально проверяемый способ ремонта, не гарантия конкретного provider.
 
@@ -319,7 +322,7 @@ Qualification corpus содержит реальные RU/EN сценарии о
 
 Автоматические метрики калибруются по human annotations: fidelity defect recall/false alarms, критические токены, boundary error, speaker confusion, full waveform coverage, loudness/peak, repair success. Не задаётся универсальный WER/ASR confidence как разрешение на выпуск. Точное отсутствие неразрешённых fidelity findings и валидные refs — структурные условия; естественность/понятность оцениваются независимо. Полный held-out episode benchmark из04 остаётся финальной проверкой.
 
-Реализация по порядку: (1) plan/mapping/profile contracts и golden Unicode/normalization fixtures; (2) provider adapter+fault harness и качественный контекстный рендер; (3) PCM montage/delivery с измеряемыми maps; (4) независимое recognition/alignment и critical-token audit; (5) segment/full-master listening QA+targeted repair; (6) exact release/transcript/show-notes integration и длинные qualification cases. Завершение модуля — полноценный проверенный выпуск с естественным звуком и воспроизводимой связью текста/аудио, а не первая успешно синтезированная реплика.
+Реализация по порядку: (1) plan/mapping/profile contracts и golden Unicode/normalization fixtures; (2) provider adapter+fault harness и качественный контекстный рендер; (3) PCM montage/delivery с измеряемыми maps; (4) сохранённое recognition/alignment для локализации; (5) человеческий timestamp → approved local repair → прослушивание места и двух joins; (6) exact release/transcript/show-notes integration и длинные qualification cases. Завершение модуля — полноценный проверенный выпуск с естественным звуком и воспроизводимой связью текста/аудио, а не первая успешно синтезированная реплика.
 
 ## 14. Реализованный путь первичного сравнения голосов
 
@@ -380,11 +383,11 @@ ASR `text` и все `segments` сохраняются дословно, вме�
 
 Candidates/5 использует `kaldialign==0.12.0` для edit alignment script↔ASR поверх прежних числовых comparison units. `merge_compounds` разрешает только буквенные literal units; цифры, числовые units и символы получают несклеиваемые метки. `по тому`↔`потому` — явное правило записи `literal-alphabetic-compound-equivalence/1`, не доказанное совпадение произношения. Raw tokens, char offsets, utterance selectors и полные ranges сохраняются; compound opcode — `equivalent`, не 1:1 `equal`. Report и processing revision фиксируют engine/version/options и оба правила equivalence. Transcript↔segments timing не меняется. [Старые schemas /1–4](audio/fidelity-candidates.schema.json), manifest/wire/results остаются прежними; только явный локальный `reprocess` создаёт новую revision без API.
 
-Слой normalization/3 сохраняет математические/валютные/единичные символы (включая ±, <, >, %) как смысловые tokens. Нулевой timestamp остаётся в raw ASR и diagnostics, не используется как надёжный anchor и не создаёт отдельный audio case при совпадающих словах. Платные cases создаются для source/transcript и transcript/segments различий; проблемы локализации прикрепляются к затронутому case. Segment без equal-match связывается с полным соответствующим mismatch-opcode без пропорционального времени. Для всех uncertainty cases через текстовый alignment сохраняются expected tokens/selectors и ближайшие полные исходные реплики; это не акустическое подтверждение. Case IDs определяются содержимым кандидата, а не его порядком. Старые results/schemas/IDs не переписываются; новый локальный `reprocess` явно фиксирует новую версию и schemas.
+Слой normalization/3 сохраняет математические/валютные/единичные символы (включая ±, <, >, %) как смысловые tokens. Нулевой timestamp остаётся в raw ASR и diagnostics, не используется как надёжный anchor и не создаёт отдельный audio case при совпадающих словах. Диагностические candidates создаются для source/transcript и transcript/segments различий; проблемы локализации прикрепляются к затронутому case. Segment без equal-match связывается с полным соответствующим mismatch-opcode без пропорционального времени. Для всех uncertainty cases через текстовый alignment сохраняются expected tokens/selectors и ближайшие полные исходные реплики; это не акустическое подтверждение. Case IDs определяются содержимым кандидата, а не его порядком. Старые results/schemas/IDs не переписываются; новый локальный `reprocess` явно фиксирует новую версию и schemas.
 
 Нормализация `/3` сравнивает однозначные целые числовые выражения отдельными units поверх неизменных raw tokens. Поддерживается явная грамматика cardinal counts, согласованные перечисленные родительные формы и календарный день перед названием месяца; source/recognized spans и принятые equivalences сохраняются полностью. Не используются stemming/fuzzy matching или бесконтекстная эквивалентность всех чисел. Пунктуация/переносы между числами не склеивают список; ведущие нули, дроби, знаки, единицы, отрицания и неоднозначные/неполные формы остаются видимыми. `сто ноль`, `двадцать ноль`, ноль после scale, `миллион тысяча` не превращаются в число. Текстовый alignment equivalent span не распределяет акустическое время пропорционально словам; исходные ASR segments/диагностика не переписываются.
 
-Клип вырезается по точным PCM frames без изменения payload; сохраняются frame range/hash и исходная привязка. Окно длиннее max_review_clip_seconds (не более 45 секунд), в том числе полностью немаппящийся длинный участок, остаётся `inconclusive` без фиктивного короткого клипа. Совпадение текста и нулевой diagnostic count не снимают необходимость проверки аудио. Confirmation/dismissal выполняет отдельный следующий этап с фактическим звуком; этот CLI не исправляет сценарий и не отправляет TTS.
+Клип вырезается по точным PCM frames без изменения payload; сохраняются frame range/hash и исходная привязка. Окно длиннее max_review_clip_seconds (не более 45 секунд), в том числе полностью немаппящийся длинный участок, остаётся `inconclusive` без фиктивного короткого клипа. Совпадение текста и нулевой diagnostic count не доказывают правильность звука. Этот CLI даёт диагностику и локализацию, не обязательную браковку или разрешение на ремонт; он не исправляет сценарий и не отправляет TTS.
 
 ```sh
 python -m podgen.audio_fidelity_cli --project PROJECT --actor ACTOR --objects OBJECTS \
@@ -395,40 +398,39 @@ python -m podgen.audio_fidelity_cli --project PROJECT --actor ACTOR --objects OB
 
 Экспорт fidelity различает current processing и last successful result. Полные результаты/клипы лежат в immutable `results/<result-id>/`; `current.json`, `candidates.json` и status явно указывают актуальную revision. После failed reprocess или новой неуспешной доставки current report равен null, а предыдущий успешный результат доступен только как last successful с exact ref/path. Старые файлы остаются в истории; новый receipt не получает чужой старый результат. Каждый immutable JSON/WAV атомарно публикуется через temp+rename и независимо verify/create при resume; JSON не считается признаком полноты каталога. Валидные файлы не переписываются, изменённые вызывают conflict.
 
-## 16. Evaluation: actual-audio adjudication
+## 16. Локальный ремонт по указанию человека
 
-`python -m podgen.audio_adjudication_cli` проверяет exact candidate-result ref зарегистрированного fidelity audit. [Config /1](audio/fidelity-adjudication.schema.json) фиксирует reviewer, prompt path/SHA, cases, размер окон, число запросов, цены и бюджет. Профиль /1 — только `gemini-3.8-flash`, max_output_tokens=8192 по умолчанию, явный thinking level, без temperature и fallback. Полный согласованный English prompt передаётся неизменной top-level `system_instruction`; язык объяснений задаёт `output_language=ru` в user payload. Вход и structured output следуют [официальному audio contract](https://aistudio.google.com/docs/audio#inline-audio) и [structured output contract](https://aistudio.google.com/docs/structured-output).
+### Proposal и точное подтверждение
 
-Перекрывающиеся случаи группируются в один реальный WAV до 45 секунд; максимум случаев в окне ограничен конфигом. Это не усреднение результатов: модель отвечает отдельно на каждый короткий ID `C1`, `C2`, … . Immutable alias map связывает его с исходным candidate UUID. Модель получает measured duration, точные исходные подстроки `expected_words`, before/after anchors, operation для insert/delete, raw ASR excerpt/anchors и segment text с явно локальными секундами, compact localization diagnostics. Полные refs/hash/offsets/token dictionaries хранятся в provenance; никакое исходное смысловое поле при persistence не обрезается. Проекция использует сохранённые token offsets, а не пересчитывает их по новой версии normalizer.
+Вход — exact immutable audio version/ref/hash и примерное время (`03:40`, секунды либо frame этого master), при желании описание услышанного. Это запрос **подготовить предложение**, не разрешение TTS. Система использует исходный сценарий, frozen synthesis profiles и сохранённые alignment/ASR timestamps как подсказку. Выбирает одно-два целых предложения и точный полуинтервал `[start_frame,end_frame)` между словами, по возможности в паузах. Слова/числа не переписывает. Неуверенная локализация не скрывается: человек может уточнить выбор исходных предложений/границы до approval; смысловая правка сценария остаётся отдельной редакционной операцией. Пропорциональные таймкоды не выдаются за найденную границу.
 
-Проекция `compact-source-clause-review-packet/3` отдельно сохраняет source/ASR anchors для insert/delete, включая переход между предложениями; отсутствующая сторона на краю источника явна. Общий список ASR segments передаётся один раз на window. Производные локальные секунды округлены до миллисекунд; показываемая длительность консервативно округлена вниз, чтобы не выходить за WAV. Raw timestamps и exact frames не меняются. Уже prepared payload/wire прежней версии не перезаписываются.
+Immutable proposal содержит:
 
-Manifest/window records сохраняют exact candidate/source/script refs/hash, decoded/playback identity, реальные WAV с frame extraction proof, полный model-visible payload, wire body, English prompt и schema snapshots. Перед сетью проверяется экспортный каталог, затем сохраняются prepared attempt и submit intent; raw receipt записывается до parsing. Gemini key существует только в transport headers. Каждое окно имеет собственные attempts и локальные processing revisions. Один явный provider refusal, неизвестный исход или invalid model response останавливает остальные окна этого провайдера; они остаются prepared с видимой причиной блокировки. `resume` не повторяет прежнюю неудачную отправку.
+- parent audio version/ref/hash, script ref/hash/selectors и source lineage;
+- original timestamp, точные frames/rate и производные секунды;
+- полный replacement text, тот же speaker/voice/model/settings fingerprint, поддержанный непроизносимый соседний context;
+- preview исходного диапазона с предыдущим/следующим контекстом, exact preview range/hash;
+- reservation/budget и идентичность подготовленного render request; proposal id/revision/hash.
 
-[Response schema](audio/fidelity-adjudication-response.schema.json) требует exact case set без дублей, совместимость status/reason, непустые услышанные слова/диапазоны для confirmed/dismissed и интервалы строго внутри фактического WAV. Объяснение не заменяет услышанную опору. Для inconclusive разрешён пустой heard_spans, без выдуманной речи. Это структурная проверка evidence, не semantic blacklist и не попытка угадать звук по ASR. В persistence решение получает исходный candidate UUID, exact window/result refs и source-frame offset; исходный ответ с короткими IDs остаётся неизменным.
+Человек прослушивает preview и подтверждает exact proposal hash. Approval сохраняет actor, дату и parent/proposal identity. Любая правка текста, диапазона, профиля или существенного контекста создаёт новый proposal; прежний approval неприменим к этой новой revision. «Да» на приблизительное время без предъявленного proposal недостаточно. Дополнительный вердикт ASR, TonePerfect или LLM не требуется.
 
-```sh
-python -m podgen.audio_adjudication_cli --project PROJECT --actor ACTOR --objects OBJECTS \
-  --env-file .env prepare --config review.json --export-dir review-export
-```
+Revised proposal сохраняет ссылку на прежний и получает новый hash: approval старого proposal нельзя использовать для нового диапазона или текста. Старые immutable proposal/approval сохраняются в истории. Если предыдущая вставка содержала два предложения без внутренних timestamps, следующий proposal выбирает их как одну точную timing-группу: границы внутри неё не выдумываются.
 
-`run`/`resume` запускают только ещё не отправленные окна. Явный `retry --window-number N --reason TEXT` создаёт отдельную ограниченную paid attempt для failed/unknown окна с parent/reason; прежние receipts и reservations остаются в ledger. `reprocess --reason TEXT` перечитывает полные успешные receipts без сети/ключа. Budget учитывает все submit intents, включая прежние отказы; отсутствие usage остаётся reservation, известные token counts — estimate, не invoice. `export` сохраняет prompt/schema, aliases, каждый payload/WAV/wire/receipt и все processing versions.
+### Рендер и новая версия
 
-Итог `candidates_dismissed` относится только к переданным cases. `whole_recording_review=not_performed` и `production_ready=false` сохраняются всегда. Confirmed defect разрешает следующий отдельный repair-план; ASR hypothesis или inconclusive такого разрешения не дают. Недоступный сервис оставляет проверку pending и не вызывает скрытой смены модели.
+До платного submit проверяются approval, exact parent ref/hash и фактические bytes, неизменность proposal/request и budget. TTS получает только выбранный текст и тот же voice/model/style/settings; подмена голоса или «повтор всей шестиминутной части» не являются допустимым fallback. Если прежний профиль недоступен либо выбранные speakers не поддержаны, возвращается конкретная несовместимость. Новый художественный take — отдельное явное действие, не цикл по автоматическим оценкам.
 
-[Config /2](audio/fidelity-adjudication-v2.schema.json) отдельно задаёт явную policy `gemini-to-openai-on-availability/1`, fallback-профиль `gpt-audio-1.5`, env credential, цены input text/audio и output text, reservation каждого провайдера. Старые /1 config/hash/manifest/wire не меняются. До сети для каждого окна сохраняются оба полных запроса: Gemini Interactions и OpenAI Chat Completions с WAV input и `modalities=["text"]`. Neutral role prompt неизменен; отдельная English system instruction содержит JSON schema. Structured Outputs для этой модели не поддерживаются, поэтому `response_format`/strict schema не отправляются; ответ проверяется прежним `WindowResolution` локально. Формат и цены: [OpenAI model documentation](https://developers.openai.com/api/docs/models/gpt-audio-1.5), [audio Chat Completions](https://developers.openai.com/api/docs/guides/audio-chat-completions).
+Intent/receipt/raw output/decoded PCM сохраняются по 06. Повтор команды не создаёт второй оплаченный intent или вторую версию. Unknown outcome не пересылается молча; поздний ответ сохраняется, но не принимает устаревшую работу. Перед вклейкой повторно проверяется тот же явный parent ref/hash и исходный blob: ремонт одной версии нельзя применить к другой. Создать новую ветку от конкретного старого immutable master разрешено; глобальный latest/current pointer для этого инструмента не требуется.
 
-Первый HTTP 408/429/5xx либо неизвестный исход Gemini создаёт immutable run-level provider switch. Это один переход для текущего и оставшихся окон; повторных отправок Gemini нет. Valid acoustic verdict и invalid model response HTTP200 переход не вызывают; 400/401/403 также останавливают run. Ошибка OpenAI останавливает дальнейшие окна без автоматического retry/switchback. Общие request/cost limits учитывают обе стороны; unknown сохраняет исходный reservation. При неполном usage cost остаётся reservation; при полном OpenAI usage text/audio считаются раздельно. Bearer key и Google key маршрутизируются разными transport profiles, с собственными timeout. Attempts/raw receipts/cost/provenance обоих провайдеров сохраняются отдельно. Resume не дублирует intent; поздний ответ вытесненной Gemini attempt не становится принятым результатом и не разрешает repair.
+Новый master строится как `old[0:start] + replacement + old[end:N]` в одном canonical PCM format. При необходимости конвертируется только replacement с явным processing profile; исходник и PCM вне объявленной области edit сохраняются. Переход/trim, затрагивающий соседние samples, должен входить в утверждённый диапазон; нельзя скрыто съесть слово crossfade-ом или перемасштабировать весь master. Original и все производные версии остаются immutable; parent/version lineage и один результат выбранной операции публикуются атомарно.
 
-Техническая работоспособность fallback не подтверждает акустическое качество. Контроли `gpt-audio-1.5` от 2026-11-12 выявили reference/ASR bias и выдуманную речь на тишине; профиль пока не квалифицирован для полного Snow review. PCM16 диагностический вариант проблему не устранил; production adapter сохраняет исходное аудио без такой конвертации.
+`delta_frames = replacement_frames − (end − start)`, `new_total = old_total + delta_frames`. Frame map явно показывает неизменный prefix, replaced interval и suffix с новым offset. Старые timestamps после splice сдвигаются на delta; данные внутри/на пересечении заменённого диапазона не наследуются как будто звук прежний. Если word alignment нового фрагмента не установлен, это unresolved, а не выдуманный фактический transcript из TTS input.
 
-[Config /3](audio/fidelity-adjudication-v3.schema.json) выбирает fallback `gpt-realtime-2.1`: reasoning medium, output limit 4096, text output, единственный forced function `submit_audio_review` с прежней response schema. Отдельная версия сохраняет точный replay /1 и /2. Полный neutral prompt сохраняется; добавляется только прежняя проверенная инструкция вернуть результат через этот function. Commentary messages сохраняются, но решением является ровно один completed вызов ожидаемого function; чужие/дублированные вызовы отвергаются. API и цены: [Realtime model](https://developers.openai.com/api/docs/models/gpt-realtime-2.1), [WebSocket protocol](https://developers.openai.com/api/docs/guides/voice-websockets).
+Два независимо approved proposals одного parent можно применить совместно: ranges не пересекаются, каждый render связан со своим approval/hash, одна атомарная новая версия содержит обе вставки. Coordinates исходных ranges относятся к общему старому master; timeline использует накопленную сумму delta. Если один render отсутствует/неполон, передан другой parent/hash либо исходные bytes не совпадают, частичная вклейка под видом всего набора не принимается. Для каждой вставки выдаются собственные левый/правый join previews.
 
-Исходный WAV остаётся неизменным. Отдельная PCM16 mono24k projection использует deterministic ffmpeg/swr resampling без gain, dither и монтажных изменений; source/transport WAV и PCM hashes, rates, frames, полный source range и rounding до одного transport sample сохраняются. Обязательная `zero_pcm_policy=inconclusive-audio-unavailable/1` проверяет **все исходные decoded PCM samples до quantization**: только точный цифровой ноль даёт локальный `inconclusive/audio_unavailable` без API, intent и reservation. Ненулевой исходник, полностью потерянный при quantization, даёт явную preparation error. Порогов громкости и смысловых gates нет.
+Результат содержит новый master, replacement audio, измеренные frames/duration, новую timeline map и **два preview из нового master**: левый и правый стык с контекстом. Обязательно прослушать исправленное место и оба перехода: не обрезаны слова/вдохи, нет повторов, щелчков, странной паузы, скачка громкости, тембра, темпа или подачи. Одинаковый voice не гарантирует непрерывное звучание. До такого прослушивания `listening_status=not_reviewed`, не accepted; human verdict сохраняется отдельно от immutable master. Для края записи показывается реальный край вместо выдуманного второго соседа.
 
-Realtime transport делает один origin-bound WebSocket connect с Bearer auth, без redirect/reconnect. Общий deadline охватывает handshake, sends, все acknowledgements и response; cleanup не продлевает его. VAD отключён; audio append/commit отправляются после подтверждения text item.done, response.create — только после audio buffer committed. Intent записывается до сети. Отдельный `audio-review-websocket-receipt/1` хранит фактический handshake status (101 при upgrade), headers, полные raw client/server events, response.done, complete/error; это не HTTP200. Timeout/обрыв сохраняет partial events и unknown с reservation, resume не повторяет отправку. После completed response тот же локальный `WindowResolution` проверяет function arguments, case set и диапазоны. Input text/audio и весь output (включая reasoning) считаются по frozen ставкам; cached tokens консервативно стоят полную цену.
-
-Контроли Realtime с реальным аудио (exact, altered reference и swapped recording) прошли; на all-zero PCM модель также выдумывала речь. Этот провал остаётся в control reports и объясняет только точный технический zero preflight. Контроли не означают полный master pass: ограничения coverage и `production_ready=false` сохраняются.
+Legacy listening-judge и TonePerfect эксперименты не являются продуктовыми шагами. Их исторические результаты не дают разрешения TTS и не запрещают человеческий ремонт. Автоматический детектор бессмыслицы не входит в этот контракт; технические проверки сигнала описаны в §8.
 
 ## 17. Evaluation: сборка полного listening master
 
@@ -449,22 +451,34 @@ python -m podgen.audio_assembly_cli --project PROJECT --actor ACTOR --objects OB
 
 ASR [audio-fidelity-evaluation/2](audio/fidelity-evaluation-v2.schema.json) имеет явный `subject={kind:assembly,ref:...}`; `result_ref` comparison ему не подделывается. Resolver проверяет зарегистрированный assembly manifest/result, членство, source/hash и full source coverage. В ASR идёт **итоговый master PCM48 после gain/resample**, тот же hash, что у файла проигрывателя; FLAC transport вновь побитно сверяется с ним. `audio_variant=assembled_final_playback_pcm`, `decoded_ref=null` и настоящий assembly subject ref явно сохраняются. Source/full script не режется. Существующий fidelity `/1` и его config/hash остаются прежними: Apollo проверял decoded PCM до gain, что честно отражено в его сохранённых records.
 
-## 18. Evaluation: повтор целого дубля после подтверждённого дефекта
+## 18. Приёмка локального ремонта и предложения для Snow
 
-Реализован verbatim retake: весь исходный synthesis fragment генерируется повторно с тем же запросом. Описание ошибки сохраняется в provenance, но конкретная коррекция исполнения синтезатору сейчас не передаётся. Направленная коррекция — отдельный [proposal](../../evals/audio/proposals/directed-repair-v1/README.md) со статусом `needs_evidence`; применение lexical correction через Gemini metadata требует короткой capability-проверки, а не слепого полного рендера.
+Пока UI нет, предусмотрен `python -m podgen.audio_local_replacement_cli` на `AudioJournal`, runtime `audio/local_replacement`: подготовить/revise proposal → approve exact hash → render → apply/export новой версии → прослушать replacement и обе стороны splice. Исторические assembly/repair-part bindings разрешают чтение прежних источников, а не запуск снятого whole-request repair. Новый `local_master` subject адресует конкретную производную версию. Команды и состояния разделяют подготовку, пользовательский approval, фактический submit и принятие качества; успешный decode не заменяет audition.
 
-`python -m podgen.audio_repair_cli` использует [audio-confirmed-fragment-repair/1](audio/confirmed-fragment-repair.schema.json). Обязательны exact parent subject/part, зарегистрированные review/result/candidate refs, reason и собственный budget. Разрешение даёт только последний валидированный `confirmed/audible_mismatch` с heard spans на том же audio subject/hash и исходнике. Candidate kind сам по себе ничего не разрешает и не запрещает: representation conflict может выявить реальный mismatch только после actual-audio review.
+Общие CLI args: `--project --actor --run-id --objects`, при submit — `--env-file`; у каждой команды свой `--export-dir`. `prepare --config` и `revise --proposal-id` сохраняют текст, `selected.wav`, `context.wav`, exact hash и полный frozen request; сеть не вызывается. `revise` умеет `--shift-sentences`, `--sentence-count`, `--approximate-seconds` и создаёт новый proposal ID. `approve` принимает `--proposal-hash`, `--reason`, `--reservation-usd`, `--max-cost-usd`, `--max-requests`; сам TTS не запускает. Только после этого `synthesize`/`resume` может отправить ещё не отправленный approved request. `retry --reason` разрешён для известного provider rejection в прежнем budget; `reprocess --reason` обрабатывает сохранённый успешный receipt без сети.
 
-Выбор части проверяется через реальные window offsets, heard spans и точную master frame map. Свидетельство должно однозначно относиться к выбранному whole fragment; неверная сторона стыка и spanning/неоднозначное свидетельство отклоняются. Source IDs дополнительно проверяются, но одного их пересечения недостаточно. Эти model timestamps служат выбору полной исходной unit, **не** границами вырезания/вклейки.
+`apply` принимает один или несколько повторённых `--proposal-id`; optional `--parent-subject` проверяет явно ожидаемую базу. Экспорт новой версии содержит `master.wav`, `timeline.json`, `result.json` с edits/frame map и отдельные `join-*-start.wav`/`join-*-end.wav`; `index.html` даёт прослушивание. `export`/`export-master` восстанавливают assets по immutable proposal/master refs, не генерируют звук повторно.
 
-Повторно отправляется весь прежний frozen synthesis request: model/voice/style/text/options и wire body побайтно совпадают с исходным. Новые speech instructions и сценарные правки отсутствуют. Перед каждым submit снова проверяется актуальное confirmation. Подготовленные попытки, intent, raw receipt, original output, decoded PCM, parent/reason/cost и repair depth сохраняются отдельно; `resume` не повторяет failed/unknown доставку. Явный `retry --reason` ограничен запросами/бюджетом; depth quality retakes не превышает трёх. Reservation не ниже frozen исходного request envelope. `reprocess --reason` обрабатывает сохранённый полный успешный receipt без сети.
+| Сценарий | Проверяемый результат |
+|---|---|
+| Есть только timestamp/proposal, approval отсутствует | Ноль TTS submits и charged intents |
+| После approval изменены range/text/profile/context | Новый proposal; старый hash отклонён до TTS |
+| До submit/apply передан другой parent/hash либо испорчен исходный blob | Нет оплаты/вклейки на неверной базе; late response сохранён. Явная ветка от прежнего immutable master допустима |
+| Две одновременные команды / resume после сбоя | Один logical render и одна adopted версия; unknown не дублируется |
+| Replacement короче/длиннее исходного | Точная delta/map/новая duration; suffix сохранён и сдвинут, intersecting annotations пересмотрены |
+| Два proposals на одном parent применяются совместно | Non-overlapping ranges, оба approvals и renders проверены; одна новая версия и две пары join previews, без частичной adoption |
+| Новая версия создана | Старый master доступен побайтно прежним; новая версия имеет собственный ref/hash |
+| Оба join previews | Извлечены из итогового нового master; exact hashes/ranges; качество обеих сторон реально прослушано |
+| ASR/reviewer недоступен или не согласен | Approved human repair работает без его verdict; неподтверждённый флаг не запускает retake |
+| Повторяющееся «ыыыааа» при наличии VAD speech | Нет обещанного semantic detector pass; для отдельного детектора нужны реальные размеченные fixtures |
 
-Успешная repair part — отдельный `audio-evaluation-repair-part/1`, не поддельный comparison result. [Assembly /2](audio/assembly-v2.schema.json) принимает явные `comparison_result`/`repair_part` bindings, exact parent subject и проверяет сохранение исходного числа/порядка целых fragments. Изменившуюся часть можно заменить только repair result для соответствующего parent/fragment; неизменённые источники остаются exact прежними refs. Новая сборка применяет один общий gain, сохраняет старый master и извлекает новые join windows.
+Два дефекта Snow уже подтверждены пользователем. 13 ноября 2026 продуктовый CLI подготовил ниже два proposals с `context_seconds=3`, без API/TTS. На этапе этого prepare у обоих `approved=false`, `requests_submitted=0`. Это предложения для exact approval, не выполненный repair; стыки новой записи ещё не существуют и не прослушаны. Original master SHA-256 `fd37ecb9fb4eeeeb810ceefa3855ce5cf30117055f09704a5c402e11e7b4f4c2`, PCM24 mono48k, 737.84 s. Диапазоны извлечены из сохранённых источников, не из новой ASR-проверки.
 
-После render CLI локально создаёт новую assembly и **prepare** новой полной ASR-проверки final master48. Новых ASR/reviewer запросов автоматически не делает: сохранённый `verification.json` запускается существующим fidelity CLI с отдельным budget, затем требуется actual-audio adjudication новых cases и join review. Старый QA не переносится. Итог остаётся `verification_required`, `production_ready=false`.
+| Human timestamp / target | Replacement text, дословный source sentence | Предложенный replace range | Preview с соседями |
+|---|---|---|---|
+| `03:40`, «обычной» | В обычной округе колонки он насчитал семьдесят три смерти. | `[10549200,10715776)` frames; `219.775000–223.245333 s` | `[10405200,10859776)` frames; `216.775000–226.245333 s` |
+| `07:32`, «услышал» | Когда он услышал, что всё валят на колонку, то сказал знакомому врачу, что тщательное расследование эту версию опровергнет. | `[21662656,22012066)` frames; `451.305333–458.584708 s` | `[21518656,22156066)` frames; `448.305333–461.584708 s` |
 
-Обязательный targeted recheck исходного дефекта пока не реализован: если он исчезнет из нового ASR diff, текущий путь не гарантирует отдельную проверку именно этого места на новом аудио. Такой recheck независимо от нового diff описан в proposal; подготовку полного ASR нельзя выдавать за уже выполненную проверку устранения исходной ошибки.
+Полные proposals/preview: `tmp/audio-local-replacement-2026-11-13/{ordinary-district,heard-verb}/export/`. Proposal hashes: `ordinary-district` — `362d95da42d98979f66c1e4e4bfb733ebb5d0e086c551e857901a8597290ef11`; `heard-verb` — `b6ed9b2d230e060e526c206947b6646e5ae8fc190ef90ac0c174ddcaefde290a`. Для диапазонов authoritative целые frames; секунды округлены только для показа.
 
-Экспорт привязан к repair manifest до оплаты. Каждый успешный processing result имеет собственный `results/<result-id>/` с outcome, verification config и replacement master. `current.json`/status указывают только на актуальный result: отсутствие его outcome не подменяется более старой сборкой. Старые версии не удаляются и не подменяются. Причина текущего dispatch (`credential_missing`, `budget_exhausted`, verification preparation failure) сохранена отдельно от последней доставки и привязана к attempt/submit/processing/result, поэтому прежняя остановка не маскирует новый unknown.
-
-`prepare`, `run`, `resume`, `retry --reason`, `reprocess --reason`, `export` используют стандартные `--project --actor --objects --config --export-dir`. Этот путь не объявляет дефект исправленным по одному успешному TTS/PCM и не создаёт canonical AcceptanceRecord.
+Источник — сохранённый master assembly result `ee9f1b35-4487-548d-a798-4fe3d8c09f65` и ScriptRevision runtime ref `532cc562-3ab2-5eaa-8d07-e392a39fe951`, hash `0f30c6758d1c4ad197cea57a69d59c6d4998a0780fc2a69f0df3480e3fa3d7c7`. Эти данные не зависят от снятого экспериментального сервиса. Пользователь подтвердил оба дефекта; автоматический review/uncertain не меняет человеческий статус. После новой генерации нужно заново прослушать сами исправленные слова и **оба** стыка каждого предложения. Предсказать диапазоны правого стыка в новой записи до измерения replacement нельзя: они вычисляются по его фактическому числу frames.

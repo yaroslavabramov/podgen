@@ -314,6 +314,8 @@ EpisodeSpec имеет один canonical schema в 00. API принимает �
 
 UI прогресса показывает проверяемые этапы/причины: «дополняем источник для числа», «проверяем текст», «перезаписываем две реплики», последнее событие и preview. Процент от числа calls не считается готовностью. Estimate длительности не выдаётся за измеренную длительность audio. На результате — playback, синхронный transcript, источники/оговорки, версия, export, revision; raw research доступен дополнительно, не обязательным ритуалом.
 
+Локальная аудиоправка из 05 §16 проходит через один application service: пока без UI — CLI, затем тот же контракт API. Timestamp запрашивает proposal, а не TTS. Ответ содержит exact parent/version/hash, одно-два source sentences, frames/rate, voice/settings identity и audio preview с соседями. Approval отдельной командой закрепляет конкретный proposal hash. Revised proposal требует нового approval; submit и adoption проверяют тот же явный parent ref/hash и его bytes. Ветка от старого immutable master допустима; локальный инструмент не требует глобального latest pointer. ASR/LLM/TonePerfect verdict не является admission condition. Результат — новая версия, сдвинутая timeline и оба join previews; `assembled` не выдаётся за уже прослушанное качество.
+
 Отмена — не rollback сохранённого. Workflow отменяет pending tasks/provider jobs где поддержано, останавливает media subprocess, сохраняет checkpoints. Длинные Activities heartbeat + heartbeat timeout нужны для доставки отмены; grace period не отменяет fencing поздних результатов. [Temporal: cancellation](https://docs.temporal.io/develop/python/workflows/cancellation). UI держит cancel_requested до подтверждения. Внешняя публикация/рассылка не следует автоматически из ready/export; будущая публикация — отдельная явно вызванная команда конкретного release.
 
 ## 11. Invalidation и reuse
@@ -377,6 +379,10 @@ Workflows закреплены за deployment version до завершения
 
 Технические метрики: queue age, activity errors, provider unknown outcomes, checkpoint age, CAS conflicts, duplicate adoption, missing blobs, index lag, stale eligibility, deletion backlog. Качество: recall/evidence validity/factual severity/narrative quality/audio defects по 04/05. Количество notes не показатель качества.
 
+Runbook локального ремонта: сохранить proposal и исходный preview → записать actor approval exact hash → повторно сверить parent/request/budget → один durable TTS intent → сохранить receipt/decoded result → повторно сверить тот же parent ref/hash и blob перед splice → atomically опубликовать новую immutable version/map и оба join previews. Crash/resume не повторяет оплату или adoption; unknown остаётся unknown до явного reconciliation. Несовпадение parent/hash сохраняет результат отдельно и не вклеивает его в другую версию. Original master и старые версии доступны; replacement, все edits, shifted ranges и ещё не выполненный audition видны в экспорте. Секреты в previews/logs не попадают.
+
+Автоматические signal checks и отчёт о повреждении не означают распознавание бессмыслицы. Не включать VAD либо экспериментальный quality score как скрытый detector/gate. Новый такой detector требует реального корпуса дефектов, negatives и qualification; текущий человеческий repair от него не зависит.
+
 Стартовые targets для испытаний: control API p95 <1 с без provider latency; подтверждённое событие в UI ≤5 с; прекращение выдачи новых задач после cancel ≤5 с; committed artifact не теряется при worker crash. Эти значения требуют измерения. Полная latency тестируется отдельно для поддержанных 15/30/60/90-минутных language/format cases, без универсального обещания скорости.
 
 ## 14. Приёмочные сценарии
@@ -388,6 +394,10 @@ Workflows закреплены за deployment version до завершения
 | Provider завершился, сеть оборвалась | Unknown outcome виден; retrieve/replacement не дал два adopted результата |
 | Researchers/editor race | Оба результата сохранены; CAS допускает одну интеграцию на head |
 | Cancel до позднего TTS ответа | cancelled без нового ready; поздний ответ лишь diagnostic |
+| Timestamp либо proposal без approval | Контекстный preview есть, TTS submit отсутствует |
+| Proposal изменён после approval | Старое подтверждение неприменимо; до оплаты требуется новый exact approval |
+| В submit/apply подставлен другой parent или изменились source bytes | Parent/hash conflict, нет вклейки в чужую версию; original/response сохранены, явная ветка от старого master разрешена |
+| Local replacement длиннее/короче прежнего диапазона | Exact delta/map, один adopted master, suffix сохранён и сдвинут; оба joins требуют audition |
 | Новый dossier во время writer task | Старый manifest закреплён; обновление через explicit handoff |
 | Новый источник в supplied-only | Outside-scope отказ, corpus/context не расширен |
 | Read tool завершился, next call отменён | Нет ложного receipt доставки модели |

@@ -144,10 +144,10 @@ flowchart LR
 
 1. Реализовать profiles/lexicon/PerformancePlan, typed spoken mappings, scene/render-unit segmentation и capacity checks после всех normalizations/tags. Первые adapter candidates и их актуальные ограничения — в 05; повторно проверить capabilities при закреплении deployment profile.
 2. Реализовать полное получение/decode сегментов, contextual rendering, take selection, PCM montage, normalizing/encoding и измеряемую mapping между master frames и playback. Нет silence fallback или таймкодов по числу слов.
-3. Подключить независимое unprompted ASR, discrepancy resolution, alignment и speaker checks; затем segment и full-master perceptual QA. Forced alignment не используется как доказательство произнесённого слова.
-4. Реализовать targeted repair, content-based reuse с новым exact binding при новой ScriptRevision, пересборку master/transcript/QA и передачу semantic changes в WP-05/06.
+3. Использовать сохранённые ASR/alignment для локализации и привязки сценария, с явной uncertainty. Forced alignment не доказывает произнесённое слово. ASR mismatch, TonePerfect и LLM opinions не являются обязательной браковкой или условием человеческого ремонта. Технические проверки обнаруживают повреждённый файл/сигнал; VAD не является детектором бессмыслицы.
+4. Реализовать human timestamp → immutable proposal на одно-два предложения с exact parent/range/text/profile и контекстным preview → approval точного hash → same-voice/settings TTS → новая immutable master version, delta/frame map и оба join previews. Правка proposal отменяет применимость старого approval; другой parent/hash или несовпавшие source bytes отклоняются до submit и вклейки; явная ветка от старой immutable версии допустима. Original сохраняется; исправленное место и обе стороны стыка прослушиваются человеком. Semantic changes возвращаются в WP-05/06; transcript/chapters обновляются по новой временной карте.
 
-**Выход:** целое аудио с фактическим Transcript, AudioQAReport и измерениями. **Приёмка:** пропуск отрицания, неверное имя, дополнительная реплика, обрыв stream и плохой стык обнаруживаются/исправляются; последний сегмент и все окна проверены; sound quality подтверждена полным слепым прослушиванием. AC-12/13, EXP-05. На M1 это реальный выпуск в evaluation, без production-ready обхода qualification.
+**Выход:** целое аудио с версиями/измерениями и работающий локальный ремонт без обязательного аудиорецензента. **Приёмка:** человек может указать пропуск/неверное слово/плохую подачу по времени, согласовать точный proposal и получить исправление с двумя прослушиваемыми стыками. До approval — ноль TTS; stale/revised proposal не разрешает неправильную замену; короткий/длинный replacement корректно сдвигает suffix. Обрыв stream и повреждённый файл выявляются технически. Sound quality профиля и полного выпуска квалифицируется слепым прослушиванием отдельно. AC-12/13, EXP-05. Автоматический детектор «ыыыааа» не обещается без реальных fixtures и оценки ложных тревог.
 
 ### WP-08. Редактор и самостоятельное исследование
 
@@ -203,6 +203,8 @@ flowchart LR
 2. Реализовать deletion/retention workflow для originals, derived text/media, previews/indexes/caches, exports и provider copies; сохранить честное состояние незавершённого purge. После restore tombstones применяются до доступа.
 3. Настроить backup/PITR/object version consistency, workflow deployment versioning/replay и reconciliation. Проверить аварийное восстановление с продолжением выпуска, а не только доступностью API.
 4. Прогнать конкурирующие длинные episodes, cancel storms, provider outage, исчерпание capacity, malformed media и cross-project attempts. Метрики отдельно показывают reliability и качество продукта.
+
+Для локального ремонта отдельно проверить crash после approval/submit/нового master, idempotent resume, competing edits на одном parent и сохранность original. В журналах различать подготовленный proposal, approval, платный intent, unknown receipt, assembled version и ещё не выполненное прослушивание обоих стыков. Подробный runbook — 05 §16/18 и 06 §13.
 
 **Выход:** воспроизводимый deployment, restore/delete/load отчёты и runbooks с наблюдаемыми признаками успеха. **Приёмка:** нет утечки данных, возврата удалённого после backup, orphan accepted release или бесконтрольного восстановления отменённой работы. AC-14/17/20. Initial targets 06 остаются гипотезами до измерения.
 
@@ -280,9 +282,9 @@ B сравнивается с A и A2. Если B опережает тольк�
 ### EXP-05. Исполнение и слушательское качество
 
 - **Гипотеза:** contextual rendering и измеряемый montage дают естественный диалог с сохранением проверенного текста.
-- **Варианты/вход:** одинаковые scripts/voices где возможно; isolated utterances, multi-turn units, сцены в пределах provider capability; candidate TTS/ASR/alignment/perceptual profiles отдельно.
+- **Варианты/вход:** одинаковые scripts/voices где возможно; isolated utterances, multi-turn units, сцены в пределах provider capability; локальная замена двух подтверждённых человеком мест Snow из 05 §18. Candidate TTS/ASR/alignment/perceptual profiles исследуются отдельно от разрешения human repair.
 - **Измерение:** fidelity, критические токены, произношение, speaker identity, стыки, timing, усталость и полное blind listening. Playback loudness выравнивается для честного сравнения.
-- **Решение:** приятный голос с критическими пропусками не квалифицируется. Повторяющийся стык меняет границу/context mode; плохая сцена не чинится тишиной. Если ни один provider не проходит, менять synthesis/performance подход, не ослаблять fidelity.
+- **Решение:** приятный голос с подтверждёнными критическими пропусками не квалифицируется. Локальный retake считается проверенным после прослушивания исправленного места и **обоих** стыков, а не после successful TTS/ASR или низкого WER. Неподходящий стык требует revised proposal/нового согласованного take; плохая сцена не чинится тишиной. Если ни один provider не проходит, менять synthesis/performance подход, не ослаблять fidelity.
 
 ### EXP-06. Способность проверяющих найти ошибку
 
@@ -322,8 +324,8 @@ B сравнивается с A и A2. Если B опережает тольк�
 | AC-09 | После исправления даты остаётся хороший callback. В следующей версии автор убирает placeholder и ссылку на зарегистрированный blocking ResearchRequest | Повторные фактчек и холодное чтение сохраняют полезный возврат и проверяют последствия исправления для финала. Проекция зарегистрированных запросов и редакторских решений продолжает блокировать допуск текста и TTS. Редактор вправе закрыть запрос, если проверка всего произносимого текста подтверждает удаление зависимого утверждения, включая перефразировки | 05, 06, 08, 10 |
 | AC-10 | Вступление цепляет ложным личным воспоминанием ведущего. Другой вариант честно выражает неизвестное | Неподтверждённый опыт исправлен или удалён, степень уверенности слышна в самой реплике. Независимая проверка пропускает корректный вариант с неопределённостью | 05, 13 |
 | AC-11 | 90-минутный русский диалог теряет центр в середине, длинный акт достигает предела одного вывода. Следом автор дробит реплику и переставляет акты | Первый save возвращает ScriptRevision без ChangeSet. Повтор `append_blocks` оставляет один экземпляр каждого блока на ожидаемой базе. Проверяющий проходит весь `spoken_view` по порядку, отдельно сопоставляет обещание открытия, развитие в середине и ответ в финале. Состояние слушателя обновляется после перестановки, а capacity и качество готового текста отражаются раздельно | 06, 08, 13 |
-| AC-12 | TTS пропустил «не», прочитал ремарку или перепутал ведущего | Дефект слышим в fixture и обнаружен; retake действительно исправил звук; нет silence fallback | 07 |
-| AC-13 | Ререндер середины меняет длительность и neighboring context | Новый master/transcript/QA; chapter frames и playback mapping актуальны; reuse имеет exact new bindings | 07, 10 |
+| AC-12 | Человек указывает время слышимого дефекта, затем сдвигает proposal | Показаны одно-два source sentences, exact range и preview; до exact approval нет TTS. Revised proposal не наследует approval; исправленные слова реально прослушаны; нет silence fallback | 07 |
+| AC-13 | В apply подставлен другой parent/hash; replacement другой длины | Нет splice на чужую базу; новая immutable version с точной delta/map, оригинал сохранён, captions/chapters обновлены либо unresolved. Оба join previews из нового master прослушаны; same voice/settings сохранены | 07, 10 |
 | AC-14 | Crash вокруг upload/commit/outbox/integration/acceptance | Committed результат сохранён, retries идемпотентны, нет broken refs/duplicate acts | 09, 12 |
 | AC-15 | Cancel, reconnect UI и явный resume | Epoch блокирует late adoption; UI не повторяет mutation; resume создаёт новый run с честной историей | 09, 11 |
 | AC-16 | Правка текста или policy во время release assembly | Смешанный bundle отвергнут; old release исторический, current_ready вычислен для нового intent | 10, 11 |
@@ -366,7 +368,7 @@ Canary monitoring выявляет model/provider drift и несовмести�
 
 Работа завершена только когда одновременно выполнены следующие условия:
 
-- Полный пользовательский путь работает автономно в целевой матрице; обычный выпуск не требует ручного research/editor/audio approval.
+- Исследовательский/редакторский путь работает автономно в целевой матрице. Обычный выпуск не требует прохождения неподтверждённого автоматического audio judge. Явно вызванный человеком локальный ремонт содержит approval точного proposal и прослушивание места/обоих стыков; эти действия не маскируются под автоматический pass.
 - Frozen quality criteria подтверждены полными независимыми проверками текста и прослушивания; выбранный способ обоснован сравнением, все существенные провалы разобраны.
 - Прошли AC-01–20 и обязательные suites владельцев 01–06; нет наблюдаемого ложного ready, потерянного committed смысла или смешивания версий.
 - Каждая поставляемая версия воспроизводима по artifacts/configs/trace в пределах возможностей провайдера; изменения/отзыв/удаление корректно отражаются в текущей eligibility.
