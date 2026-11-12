@@ -3,13 +3,13 @@
   "precondition": "Independent listener confirms the complete target phrase is audible in the supplied window, including year 1970. Until then these are proposed outcomes, not validated ground truth.",
   "proposed_results": [
     {
-      "case_id": "C71",
+      "case_id": "C1",
       "status": "dismissed",
       "reason_code": "asr_error",
       "must_hear_year": 1970
     },
     {
-      "case_id": "C28",
+      "case_id": "C2",
       "status": "confirmed",
       "reason_code": "audible_mismatch",
       "must_hear_year": 1970,

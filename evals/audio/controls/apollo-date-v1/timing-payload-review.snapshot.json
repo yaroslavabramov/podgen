@@ -1,0 +1,31 @@
+{
+  "code_base": "cb520f6",
+  "review_mode": "read_only_no_tests_no_api",
+  "adjudication_modules": "working_tree_not_yet_integrated",
+  "files_sha256": {
+    "backend/src/podgen/audio/fidelity/timing.py": "a66600b446ce8c878fa80513b88bf56557a74638789e3ce5320656d89f47dccc",
+    "backend/src/podgen/audio/fidelity/candidates.py": "5233e054297a47f57af4cb441e4a36abcf80853f02cda0fc968b01c91d7a8c9f",
+    "backend/src/podgen/audio/fidelity/context.py": "3d7993284c35e96f1e9f7562dc7596454ecd8a9ce9ca454c03304adab672498f",
+    "backend/src/podgen/audio/fidelity/adjudication/payload.py": "1dcd6675322971c591e7121ab05f474406905e420b921053303b8b870623e7f9",
+    "backend/src/podgen/audio/fidelity/adjudication/contracts.py": "ad94bcf378b67cf16f4a9a2b37e4b107d3be1f6d5abe30af9071b08373b53164",
+    "backend/src/podgen/audio/fidelity/adjudication/windows.py": "cd5f716420ab9441688e4c0c3bc0911a442ce916a5f9c4262fd029e005e5496d"
+  },
+  "observed_export": {
+    "contract": "literal-fidelity-candidates/2",
+    "candidates": 49,
+    "timing_diagnostics": 27,
+    "word_and_segment_cases": 22
+  },
+  "compact_example": {
+    "status": "projection_example_not_submitted",
+    "audio_start_in_master_seconds": 263.26,
+    "duration_seconds": 4.12,
+    "original_case_ids": [
+      "9ca959ad-9427-58e8-901f-4aab0571c99f",
+      "5124edc0-bb4b-5bab-be53-534cf5d330d4"
+    ],
+    "source_utterance_index": 11,
+    "source_char_start": 15,
+    "source_char_end": 29
+  }
+}

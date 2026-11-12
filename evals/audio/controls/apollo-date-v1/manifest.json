@@ -77,5 +77,13 @@
     "independent_unprompted": true,
     "human_gold": false,
     "does_not_replace_synthetic_control_hypothesis": true
+  },
+  "case_aliases": {
+    "C1": "3ab614bd-819d-5a6b-bf11-23972f8cacce",
+    "C2": "102ba6c5-49f9-56e4-963d-5f0224026ace"
+  },
+  "legacy_case_labels": {
+    "C71": "C1",
+    "C28": "C2"
   }
 }
