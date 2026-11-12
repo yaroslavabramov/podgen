@@ -1,0 +1,14 @@
+{
+  "player": "http://127.0.0.1:8766/snow-full/",
+  "browser_verified": {
+    "master_duration_seconds": 737.84,
+    "join_duration_seconds": 20,
+    "master_plays": true,
+    "join_plays": true,
+    "other_player_paused_on_play": true,
+    "media_errors": []
+  },
+  "master_sha256": "fd37ecb9fb4eeeeb810ceefa3855ce5cf30117055f09704a5c402e11e7b4f4c2",
+  "subjective_listening": "not_performed_by_root",
+  "spoken_fidelity": "pending_independent_recognition_and_actual_audio_review"
+}

@@ -1,0 +1,88 @@
+{
+  "contract": "full-snow-synthesis-observation/1",
+  "run_id": "96690deb-d771-4ca9-9116-56b6ec347cef",
+  "source_fixture": "evals/audio/fixtures/snow-accepted-v1/source.json",
+  "model": "gemini-3.8-flash-tts",
+  "voice": "ru-ru-concierge-1",
+  "style": "",
+  "source_utterances_exact_in_wire_requests": true,
+  "utterance_count": 34,
+  "words_split_on_whitespace": 1883,
+  "requests_submitted": 2,
+  "parts": [
+    {
+      "fragment_id": "snow-part-01",
+      "cell_id": "9ceaa2e3-1a74-58c4-91af-960544e6428a",
+      "result_ref": {
+        "record_kind": "tool_execution",
+        "record_id": "043608ea-f873-5d75-941f-876f425d660a"
+      },
+      "source_ref": {
+        "record_kind": "tool_execution",
+        "record_id": "9f015aa0-ad34-57af-9241-f3f2f9b1c2ad"
+      },
+      "duration_seconds": 372.24,
+      "sample_frames": 8933760,
+      "sample_rate_hz": 24000,
+      "decoded_audio_sha256": "606aef16f1f2b23ec4d1f11af21cb719c4a09a23521d5a3ff7c566b38858b66f",
+      "normalized_part_audio_sha256": "4a9daa8daec18a419ad4d3f3d4d0bda7dbe7eb0b7c3135220eafda234e573a60",
+      "cost": {
+        "status": "measured_usage_estimate",
+        "usage": {
+          "input_tokens": 1674,
+          "audio_tokens": 9306
+        },
+        "basis": "provider_reported",
+        "usd": "0",
+        "reservation_usd": "0.25",
+        "invoice_verified": false,
+        "provider_reported_headers": {}
+      },
+      "receipt_ref": {
+        "record_kind": "tool_execution",
+        "record_id": "f23e10e2-6540-5990-a12d-fb2d636d87ff"
+      }
+    },
+    {
+      "fragment_id": "snow-part-02",
+      "cell_id": "690806ae-e899-5a3f-bd04-6f905c88229c",
+      "result_ref": {
+        "record_kind": "tool_execution",
+        "record_id": "269eb68a-7835-5211-a79d-11db5818a174"
+      },
+      "source_ref": {
+        "record_kind": "tool_execution",
+        "record_id": "59d8959a-aa80-54af-a195-58db5e8e0a06"
+      },
+      "duration_seconds": 365.6,
+      "sample_frames": 8774400,
+      "sample_rate_hz": 24000,
+      "decoded_audio_sha256": "0546b69c348b60f1234849dfa8509fa8d1a7cd4e5dd9af258c696f7b318b6776",
+      "normalized_part_audio_sha256": "6ce41a0f3f651ddb61a06d17a2a23489e27aac8a3bd7da20d920c1377ee5edbb",
+      "cost": {
+        "status": "measured_usage_estimate",
+        "usage": {
+          "input_tokens": 1662,
+          "audio_tokens": 9140
+        },
+        "basis": "provider_reported",
+        "usd": "0",
+        "reservation_usd": "0.25",
+        "invoice_verified": false,
+        "provider_reported_headers": {}
+      },
+      "receipt_ref": {
+        "record_kind": "tool_execution",
+        "record_id": "e0fd17c6-1c5f-5646-91b8-714ec516f970"
+      }
+    }
+  ],
+  "sum_duration_seconds": 737.84,
+  "recorded_api_cost_usd": "0",
+  "billing_basis": "user_free_tier_configuration_not_invoice",
+  "paid_tier_equivalent_usd": "0.167682",
+  "assembly_status": "completed_exact_frame_master",
+  "asr_status": "completed_one_request_final_master",
+  "acoustic_review_status": "blocked_reviewer_503",
+  "artifacts_directory": "/Users/yaroslavabramov/side/podgen/tmp/audio-full-snow-2026-11-12/export"
+}

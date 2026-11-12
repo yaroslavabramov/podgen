@@ -1,0 +1,44 @@
+[
+  {
+    "source_start_frame": 0,
+    "source_end_frame": 8933760,
+    "master_start_frame": 0,
+    "master_end_frame": 17867520,
+    "source_audio_sha256": "606aef16f1f2b23ec4d1f11af21cb719c4a09a23521d5a3ff7c566b38858b66f",
+    "source_pcm_sha256": "c8ed2593d0e112b633c5c3d1725ca255107ecab401fd42e2dbfd621930abf99c",
+    "source_result_ref": {
+      "record_kind": "tool_execution",
+      "record_id": "043608ea-f873-5d75-941f-876f425d660a"
+    },
+    "source_ref": {
+      "record_kind": "tool_execution",
+      "record_id": "9f015aa0-ad34-57af-9241-f3f2f9b1c2ad"
+    },
+    "assembly_start_frame": 0,
+    "assembly_end_frame": 8933760,
+    "source_sample_rate_hz": 24000,
+    "master_sample_rate_hz": 48000,
+    "boundary_conversion": "nearest_frame_with_measured_final_endpoint"
+  },
+  {
+    "source_start_frame": 0,
+    "source_end_frame": 8774400,
+    "master_start_frame": 17867520,
+    "master_end_frame": 35416320,
+    "source_audio_sha256": "0546b69c348b60f1234849dfa8509fa8d1a7cd4e5dd9af258c696f7b318b6776",
+    "source_pcm_sha256": "f02297df0ee53114645c5ef172e3b45a9c4c191281c9b65227fbad05b409068e",
+    "source_result_ref": {
+      "record_kind": "tool_execution",
+      "record_id": "269eb68a-7835-5211-a79d-11db5818a174"
+    },
+    "source_ref": {
+      "record_kind": "tool_execution",
+      "record_id": "59d8959a-aa80-54af-a195-58db5e8e0a06"
+    },
+    "assembly_start_frame": 8933760,
+    "assembly_end_frame": 17708160,
+    "source_sample_rate_hz": 24000,
+    "master_sample_rate_hz": 48000,
+    "boundary_conversion": "nearest_frame_with_measured_final_endpoint"
+  }
+]

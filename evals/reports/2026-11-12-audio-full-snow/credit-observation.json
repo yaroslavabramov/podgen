@@ -1,0 +1,13 @@
+{
+  "provider": "fish",
+  "credit_before_apollo": "0.848650",
+  "credit_after_snow": "0.737550",
+  "decrease_usd": "0.111100",
+  "cumulative_top_up": "0",
+  "scope": "Combined interval covering Apollo and Snow recognition, not per-request invoice. Apollo immediately-after balance was unchanged; provider accounting is asynchronous.",
+  "audio_duration_based_estimate_usd": {
+    "apollo": "0.037216",
+    "snow": "0.073784",
+    "total": "0.111000"
+  }
+}

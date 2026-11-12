@@ -1,0 +1,209 @@
+{
+  "contract": "audio-evaluation-assembly-result/1",
+  "assembly_id": "a0e181a1-be9d-42dd-a474-b3a5ad2a168f",
+  "comparison_run_id": "96690deb-d771-4ca9-9116-56b6ec347cef",
+  "manifest_ref": {
+    "record_kind": "tool_execution",
+    "record_id": "6d796179-d4ba-5898-b247-51b09929ae98"
+  },
+  "configuration_hash": "8444669d90c999419973ab478d8a40dee7bad36065ea8fb60059ba3686c6a3e0",
+  "source_ref": {
+    "record_kind": "tool_execution",
+    "record_id": "63bd1d99-9edc-5aba-a92d-4d197a6ffde6"
+  },
+  "source_script_ref": {
+    "record_kind": "tool_execution",
+    "record_id": "532cc562-3ab2-5eaa-8d07-e392a39fe951"
+  },
+  "source_script_hash": "0f30c6758d1c4ad197cea57a69d59c6d4998a0780fc2a69f0df3480e3fa3d7c7",
+  "assembly_pcm_blob": {
+    "storage_key": "d24132ce-d2c3-4084-bf89-9905b7d765a7/d7497d523226558befa9f85c5e47b6ea59d4ee23a0dd03c4fa862d698f43fec0-7fc478ab21f20dde",
+    "sha256": "d7497d523226558befa9f85c5e47b6ea59d4ee23a0dd03c4fa862d698f43fec0",
+    "byte_length": 70832684,
+    "media_type": "audio/wav"
+  },
+  "master_pcm_blob": {
+    "storage_key": "d24132ce-d2c3-4084-bf89-9905b7d765a7/fd37ecb9fb4eeeeb810ceefa3855ce5cf30117055f09704a5c402e11e7b4f4c2-7fc478ab21f20dde",
+    "sha256": "fd37ecb9fb4eeeeb810ceefa3855ce5cf30117055f09704a5c402e11e7b4f4c2",
+    "byte_length": 106249062,
+    "media_type": "audio/wav"
+  },
+  "playback_audio_blob": {
+    "storage_key": "d24132ce-d2c3-4084-bf89-9905b7d765a7/fd37ecb9fb4eeeeb810ceefa3855ce5cf30117055f09704a5c402e11e7b4f4c2-7fc478ab21f20dde",
+    "sha256": "fd37ecb9fb4eeeeb810ceefa3855ce5cf30117055f09704a5c402e11e7b4f4c2",
+    "byte_length": 106249062,
+    "media_type": "audio/wav"
+  },
+  "pcm_assembly": {
+    "contract": "exact-concatenated-pcm/1",
+    "sample_rate_hz": 24000,
+    "channels": 1,
+    "sample_width_bytes": 4,
+    "sample_frames": 17708160,
+    "pcm_sha256": "01c1503868870355d439eff9622d7f811a9848d72907c6e551d8eeecda1531cc",
+    "parts": [
+      {
+        "source_start_frame": 0,
+        "source_end_frame": 8933760,
+        "master_start_frame": 0,
+        "master_end_frame": 8933760,
+        "source_audio_sha256": "606aef16f1f2b23ec4d1f11af21cb719c4a09a23521d5a3ff7c566b38858b66f",
+        "source_pcm_sha256": "c8ed2593d0e112b633c5c3d1725ca255107ecab401fd42e2dbfd621930abf99c"
+      },
+      {
+        "source_start_frame": 0,
+        "source_end_frame": 8774400,
+        "master_start_frame": 8933760,
+        "master_end_frame": 17708160,
+        "source_audio_sha256": "0546b69c348b60f1234849dfa8509fa8d1a7cd4e5dd9af258c696f7b318b6776",
+        "source_pcm_sha256": "f02297df0ee53114645c5ef172e3b45a9c4c191281c9b65227fbad05b409068e"
+      }
+    ],
+    "operations": [
+      "concatenate_full_parts"
+    ],
+    "cuts": false,
+    "crossfades": false,
+    "inserted_silence": false,
+    "tempo_changed": false
+  },
+  "assembly_metrics": {
+    "contract": "ffmpeg-lossless-comparison/1",
+    "source_codec": "pcm_s32le",
+    "sample_rate_hz": 24000,
+    "channels": 1,
+    "sample_frames": 17708160,
+    "duration_seconds": 737.84,
+    "full_decode": true,
+    "source_bits_per_sample": 32,
+    "full_scale_samples": 0,
+    "integrated_lufs": -21.35,
+    "true_peak_dbtp": -1.27,
+    "loudness_range_lu": 5.8
+  },
+  "metrics": {
+    "contract": "ffmpeg-lossless-comparison/1",
+    "source_codec": "pcm_s24le",
+    "sample_rate_hz": 48000,
+    "channels": 1,
+    "sample_frames": 35416320,
+    "duration_seconds": 737.84,
+    "full_decode": true,
+    "source_bits_per_sample": 24,
+    "full_scale_samples": 0,
+    "integrated_lufs": -22.21,
+    "true_peak_dbtp": -2.12,
+    "loudness_range_lu": 5.7
+  },
+  "frame_map": [
+    {
+      "source_start_frame": 0,
+      "source_end_frame": 8933760,
+      "master_start_frame": 0,
+      "master_end_frame": 17867520,
+      "source_audio_sha256": "606aef16f1f2b23ec4d1f11af21cb719c4a09a23521d5a3ff7c566b38858b66f",
+      "source_pcm_sha256": "c8ed2593d0e112b633c5c3d1725ca255107ecab401fd42e2dbfd621930abf99c",
+      "source_result_ref": {
+        "record_kind": "tool_execution",
+        "record_id": "043608ea-f873-5d75-941f-876f425d660a"
+      },
+      "source_ref": {
+        "record_kind": "tool_execution",
+        "record_id": "9f015aa0-ad34-57af-9241-f3f2f9b1c2ad"
+      },
+      "assembly_start_frame": 0,
+      "assembly_end_frame": 8933760,
+      "source_sample_rate_hz": 24000,
+      "master_sample_rate_hz": 48000,
+      "boundary_conversion": "nearest_frame_with_measured_final_endpoint"
+    },
+    {
+      "source_start_frame": 0,
+      "source_end_frame": 8774400,
+      "master_start_frame": 17867520,
+      "master_end_frame": 35416320,
+      "source_audio_sha256": "0546b69c348b60f1234849dfa8509fa8d1a7cd4e5dd9af258c696f7b318b6776",
+      "source_pcm_sha256": "f02297df0ee53114645c5ef172e3b45a9c4c191281c9b65227fbad05b409068e",
+      "source_result_ref": {
+        "record_kind": "tool_execution",
+        "record_id": "269eb68a-7835-5211-a79d-11db5818a174"
+      },
+      "source_ref": {
+        "record_kind": "tool_execution",
+        "record_id": "59d8959a-aa80-54af-a195-58db5e8e0a06"
+      },
+      "assembly_start_frame": 8933760,
+      "assembly_end_frame": 17708160,
+      "source_sample_rate_hz": 24000,
+      "master_sample_rate_hz": 48000,
+      "boundary_conversion": "nearest_frame_with_measured_final_endpoint"
+    }
+  ],
+  "joins": [
+    {
+      "join_index": 1,
+      "at_master_frame": 17867520,
+      "at_assembly_frame": 8933760,
+      "left_part_result_ref": {
+        "record_kind": "tool_execution",
+        "record_id": "043608ea-f873-5d75-941f-876f425d660a"
+      },
+      "right_part_result_ref": {
+        "record_kind": "tool_execution",
+        "record_id": "269eb68a-7835-5211-a79d-11db5818a174"
+      },
+      "assembly_range": {
+        "start_frame": 8693760,
+        "end_frame": 9173760
+      },
+      "master_extraction": {
+        "start_frame": 17387520,
+        "end_frame": 18347520,
+        "sample_frames": 960000,
+        "sample_rate_hz": 48000,
+        "pcm_sha256": "ba66bdd0a7af5a30ae2d18dc4e6b356f5bce4d32058d3d212db72c9f808dcd21",
+        "extraction": "exact_pcm_frames"
+      },
+      "audio_blob": {
+        "storage_key": "d24132ce-d2c3-4084-bf89-9905b7d765a7/7998784b2fe0a168842c6a30fbaf4720718e33b7d340e4dbe520f814421629ae-7fc478ab21f20dde",
+        "sha256": "7998784b2fe0a168842c6a30fbaf4720718e33b7d340e4dbe520f814421629ae",
+        "byte_length": 2880044,
+        "media_type": "audio/wav"
+      },
+      "review_status": "pending_actual_audio_review"
+    }
+  ],
+  "normalization": {
+    "contract": "ffmpeg-lossless-comparison/1",
+    "target_lufs": -22.2,
+    "target_true_peak_dbtp": -1.0,
+    "integrated_lufs": -22.21,
+    "true_peak_dbtp": -2.12,
+    "normalization_type": "linear",
+    "applied_gain_db": -0.8499999999999979,
+    "sample_rate_hz": 48000,
+    "channels": 1,
+    "codec": "pcm_s24le",
+    "preferred_lufs": -22.2,
+    "headroom_db": 0.3,
+    "per_part_gain_applied": false
+  },
+  "playback_timebase": {
+    "source_sample_rate_hz": 24000,
+    "source_frames": 17708160,
+    "playback_sample_rate_hz": 48000,
+    "playback_frames": 35416320,
+    "conversion": "uniform_sample_rate_conversion",
+    "boundary_rounding": "nearest_frame"
+  },
+  "coverage": {
+    "full_script": true,
+    "utterances": 34,
+    "duplicates": [],
+    "gaps": [],
+    "basis": "source_selections_and_complete_pcm_parts",
+    "spoken_word_fidelity": "pending"
+  },
+  "acoustic_verdict": "pending",
+  "production_ready": false
+}

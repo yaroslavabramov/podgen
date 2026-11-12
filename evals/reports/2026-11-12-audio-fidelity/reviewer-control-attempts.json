@@ -59,6 +59,26 @@
       },
       "retry_after": "30",
       "receipt_date": "Thu, 12 Nov 2026 11:08:17 GMT"
+    },
+    {
+      "directory": "tmp/audio-fidelity-controls-2026-11-12/date-exact-after-503-after-503-after-503",
+      "submitted": {
+        "submitted_at": "2026-11-12T11:39:07.164414+00:00",
+        "wire_sha256": "950e24f29c4183fcbba58cbbfe69e8fca2a1d72a7e1b2f7755f5c8a359f0a385"
+      },
+      "model": "gemini-3.8-flash",
+      "prompt_sha256": "204057d959905c41cc88d035772ec930d82f2a836a5e89e85f8f9705453d831c",
+      "http_status": 503,
+      "complete": true,
+      "error": {
+        "error": {
+          "message": "gemini-3.8-flash is currently experiencing high demand, spikes in demand are usually temporary. Please try again later.",
+          "code": "service_unavailable"
+        }
+      },
+      "retry_after": "30",
+      "receipt_date": "Thu, 12 Nov 2026 11:39:09 GMT",
+      "reason": "Single availability recheck more than 30 minutes after third explicit 503."
     }
   ],
   "altered_reference_submitted": false,
