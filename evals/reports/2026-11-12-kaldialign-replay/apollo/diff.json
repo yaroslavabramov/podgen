@@ -1,0 +1,72 @@
+{
+  "topic": "apollo",
+  "old_candidates": 19,
+  "new_candidates": 18,
+  "old_equivalences": 3,
+  "new_equivalence_count": 4,
+  "source_and_recognition_tokens_unchanged": true,
+  "all_old_numeric_equivalences_preserved": true,
+  "removed_or_regrouped": [
+    {
+      "expected": "на вес",
+      "expected_range": [
+        757,
+        759
+      ],
+      "kind": "script_discrepancy",
+      "operation": "replace",
+      "recognized": "навес",
+      "recognized_range": [
+        752,
+        753
+      ]
+    }
+  ],
+  "added_or_regrouped": [],
+  "new_equivalences": [
+    {
+      "rule": "literal-alphabetic-compound-equivalence/1",
+      "expected_token_range": [
+        757,
+        759
+      ],
+      "recognized_token_range": [
+        752,
+        753
+      ],
+      "expected_tokens": [
+        {
+          "index": 757,
+          "separator_before": " ",
+          "text": "на",
+          "normalized": "на",
+          "char_start": 421,
+          "char_end": 423,
+          "utterance_index": 13,
+          "utterance_id": "9e81e2ad-6d9e-5a69-a661-8807ae3f71ad"
+        },
+        {
+          "index": 758,
+          "separator_before": " ",
+          "text": "вес",
+          "normalized": "вес",
+          "char_start": 424,
+          "char_end": 427,
+          "utterance_index": 13,
+          "utterance_id": "9e81e2ad-6d9e-5a69-a661-8807ae3f71ad"
+        }
+      ],
+      "recognized_tokens": [
+        {
+          "index": 752,
+          "separator_before": " ",
+          "text": "навес",
+          "normalized": "навес",
+          "char_start": 4964,
+          "char_end": 4969
+        }
+      ],
+      "joined_form": "навес"
+    }
+  ]
+}

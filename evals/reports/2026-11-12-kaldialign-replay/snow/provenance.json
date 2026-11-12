@@ -1,0 +1,30 @@
+{
+  "topic": "snow",
+  "source_script_hash": "0f30c6758d1c4ad197cea57a69d59c6d4998a0780fc2a69f0df3480e3fa3d7c7",
+  "audio_sha256": "fd37ecb9fb4eeeeb810ceefa3855ce5cf30117055f09704a5c402e11e7b4f4c2",
+  "recognition_sha256": "838be62726a3ba4cd1b2fc48eeb5cc9cf0d77e7e92e9d926ceff8b3f1981305a",
+  "baseline_generated_sha256": "9ee26712bde73e54740789b243dffb6439927efd0d25e656f756b62b753fbefc",
+  "new_result_sha256": "388904883b6dd789bd9a3271393114a744141ed7268d880acfbbbdd4872ca1a8",
+  "new_result_ref": {
+    "record_kind": "tool_execution",
+    "record_id": "f683d2fa-f673-5199-a187-de0dc0b39cce"
+  },
+  "new_result_path": "/Users/yaroslavabramov/side/podgen/tmp/kaldialign-replay-2026-11-12/snow/export/results/f683d2fa-f673-5199-a187-de0dc0b39cce/candidates.json",
+  "baseline_result_path": "/Users/yaroslavabramov/side/podgen/tmp/kaldialign-replay-2026-11-12/snow/baseline-generated.json",
+  "alignment": {
+    "contract": "kaldialign-text-alignment/1",
+    "engine": "kaldialign",
+    "engine_version": "0.12.0",
+    "merge_compounds": "alphabetic_literal_units_only",
+    "sclite_mode": false,
+    "integer_rule": "literal-ru-integer-surface-equivalence/1",
+    "compound_rule": "literal-alphabetic-compound-equivalence/1"
+  },
+  "old_candidates": 41,
+  "new_candidates": 40,
+  "remaining_candidates_ids_ranges_timing_selectors_unchanged": true,
+  "old_numeric_equivalences_preserved": true,
+  "new_provider_requests": 0,
+  "production_ready": false,
+  "audio_review_status": "pending"
+}
