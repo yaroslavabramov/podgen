@@ -7,7 +7,7 @@
       "audio_sha256": "d2eb9f3e1038ca42b7af5f6de98f23773b100af163036880cadcfca95fcde33a",
       "reference_text": "Здесь тесно: мастерские, лавки, комнаты, которые портные и рабочие снимают с семьями на неделю.",
       "timestamp": "00:08",
-      "human_status": "Ещё не проверено",
+      "human_status": "Пользователь прослушал: ошибок нет",
       "target_rows": [
         {
           "index": 10,
@@ -250,7 +250,9 @@
           ],
           "score_scope": "supported_sounds"
         }
-      ]
+      ],
+      "human_assessment": "confirmed_no_audio_error",
+      "human_feedback_ref": "human-feedback.json"
     },
     {
       "case_id": "snow-02",
@@ -258,7 +260,7 @@
       "audio_sha256": "2e8dc8cd5adfe27da65e93103420c3d1c246b3c62f5083068a07a2aa9082bcbe",
       "reference_text": "Воду в домах держат в баках, а они нередко стоят без крышек рядом с грязными задворками, так что доверяют им далеко не все.",
       "timestamp": "00:15",
-      "human_status": "Ещё не проверено",
+      "human_status": "Пользователь прослушал: ошибок нет",
       "target_rows": [
         {
           "index": 6,
@@ -480,7 +482,9 @@
           ],
           "score_scope": "supported_sounds"
         }
-      ]
+      ],
+      "human_assessment": "confirmed_no_audio_error",
+      "human_feedback_ref": "human-feedback.json"
     },
     {
       "case_id": "snow-03",
@@ -488,7 +492,7 @@
       "audio_sha256": "4ba972e41985b2f9245ce3bcebfec1432e8816765a74622bd8a114f4e8330cad",
       "reference_text": "Их смерти Сноу относит к той холере, которая и раньше понемногу встречалась в округе.",
       "timestamp": "03:07",
-      "human_status": "Ещё не проверено",
+      "human_status": "Пользователь прослушал: ошибок нет",
       "target_rows": [
         {
           "index": 2,
@@ -809,7 +813,9 @@
           ]
         }
       ],
-      "other_flagged_words": []
+      "other_flagged_words": [],
+      "human_assessment": "confirmed_no_audio_error",
+      "human_feedback_ref": "human-feedback.json"
     },
     {
       "case_id": "snow-04",
@@ -817,7 +823,7 @@
       "audio_sha256": "c886b17d1717867150aeb5ecba1ee0afec93179bfe82779e7027d21bb2176c1e",
       "reference_text": "На Поланд-стрит стоит работный дом.",
       "timestamp": "04:15",
-      "human_status": "Ещё не проверено",
+      "human_status": "Пользователь прослушал: ошибок нет",
       "target_rows": [
         {
           "index": 1,
@@ -1105,7 +1111,9 @@
           "sounds_heard": 0.82
         }
       ],
-      "other_flagged_words": []
+      "other_flagged_words": [],
+      "human_assessment": "confirmed_no_audio_error",
+      "human_feedback_ref": "human-feedback.json"
     },
     {
       "case_id": "snow-05",
@@ -1113,7 +1121,7 @@
       "audio_sha256": "dda54dc84bbfb660f28ecb4ea3c71a41fbfdb0bb27284fb3a9e10ab11320de2a",
       "reference_text": "Он рассказывает им, что показали адреса из реестра и расспросы родных: особенной вспышки холеры в этой части Лондона не было нигде, кроме как среди тех, кто привык пить воду этой колонки.",
       "timestamp": "04:56",
-      "human_status": "Ещё не проверено",
+      "human_status": "Пользователь прослушал: ошибок нет",
       "target_rows": [
         {
           "index": 11,
@@ -1334,7 +1342,9 @@
           ]
         }
       ],
-      "other_flagged_words": []
+      "other_flagged_words": [],
+      "human_assessment": "confirmed_no_audio_error",
+      "human_feedback_ref": "human-feedback.json"
     },
     {
       "case_id": "snow-06",
@@ -1342,7 +1352,7 @@
       "audio_sha256": "1e949e0b8f5c0e789fc57488c2f62292d0e0d8d5a87fade859fc506ce17ac128",
       "reference_text": "Хорошо бы на этом и закончить: сняли ручку, и эпидемия отступила.",
       "timestamp": "05:10",
-      "human_status": "Ещё не проверено",
+      "human_status": "Пользователь прослушал: ошибок нет",
       "target_rows": [
         {
           "index": 8,
@@ -1405,7 +1415,9 @@
           ]
         }
       ],
-      "other_flagged_words": []
+      "other_flagged_words": [],
+      "human_assessment": "confirmed_no_audio_error",
+      "human_feedback_ref": "human-feedback.json"
     },
     {
       "case_id": "snow-07",
@@ -1413,7 +1425,7 @@
       "audio_sha256": "16865ac43f52c01bcb52214f63761e708179e4279b1a62c0591231b4359c83ae",
       "reference_text": "По оценке Сноу, меньше чем за шесть дней с самых пострадавших улиц уехали больше трёх четвертей жителей.",
       "timestamp": "05:49",
-      "human_status": "Ещё не проверено",
+      "human_status": "Пользователь прослушал: ошибок нет",
       "target_rows": [
         {
           "index": 8,
@@ -1479,7 +1491,9 @@
           "sounds_heard": 1.0
         }
       ],
-      "other_flagged_words": []
+      "other_flagged_words": [],
+      "human_assessment": "confirmed_no_audio_error",
+      "human_feedback_ref": "human-feedback.json"
     },
     {
       "case_id": "snow-08",
@@ -1487,7 +1501,7 @@
       "audio_sha256": "93ccfde40674e3a1857b2887f25104a6cd9a34f07b21bcab6e63e260be053b5d",
       "reference_text": "Бутыль, о которой идёт речь, набрали в четверг, тридцать первого августа.",
       "timestamp": "06:51",
-      "human_status": "Ещё не проверено",
+      "human_status": "Пользователь прослушал: ошибок нет",
       "target_rows": [
         {
           "index": 0,
@@ -1872,7 +1886,9 @@
             }
           ]
         }
-      ]
+      ],
+      "human_assessment": "confirmed_no_audio_error",
+      "human_feedback_ref": "human-feedback.json"
     },
     {
       "case_id": "snow-09",
@@ -1880,7 +1896,7 @@
       "audio_sha256": "c35165ed1b3d46b51830dfc48715913045ae90fe33c3bb70b4b2aa426f0d678b",
       "reference_text": "Потом она вернулась домой, в Ислингтон, где холеры тоже не было, и умерла от холеры.",
       "timestamp": "07:06",
-      "human_status": "Ещё не проверено",
+      "human_status": "Пользователь прослушал: ошибок нет",
       "target_rows": [
         {
           "index": 5,
@@ -2121,7 +2137,9 @@
           ]
         }
       ],
-      "other_flagged_words": []
+      "other_flagged_words": [],
+      "human_assessment": "confirmed_no_audio_error",
+      "human_feedback_ref": "human-feedback.json"
     },
     {
       "case_id": "snow-10",
@@ -2129,7 +2147,7 @@
       "audio_sha256": "aacaf8707ffd65d440d47e8e1d345d7d0c7f77f68ece978af1834c58b9ed02fa",
       "reference_text": "К одним и тем же семьям возвращается по четыре-пять раз, потому что задним числом понимает, о чём забыл спросить.",
       "timestamp": "08:09",
-      "human_status": "Ещё не проверено",
+      "human_status": "Пользователь прослушал: ошибок нет",
       "target_rows": [
         {
           "index": 0,
@@ -2796,7 +2814,9 @@
             }
           ]
         }
-      ]
+      ],
+      "human_assessment": "confirmed_no_audio_error",
+      "human_feedback_ref": "human-feedback.json"
     },
     {
       "case_id": "snow-11",
@@ -2804,7 +2824,7 @@
       "audio_sha256": "23818e2f2bcb8e41c09d0e6c21b55cb2dced3ed68b566e8cb073dfa77fe7f83d",
       "reference_text": "Выходит, в его подсчёте среди пивших заболела больше чем половина, а среди остальных — примерно каждый пятнадцатый.",
       "timestamp": "09:39",
-      "human_status": "Ещё не проверено",
+      "human_status": "Пользователь прослушал: ошибок нет",
       "target_rows": [
         {
           "index": 6,
@@ -3025,7 +3045,9 @@
           ]
         }
       ],
-      "other_flagged_words": []
+      "other_flagged_words": [],
+      "human_assessment": "confirmed_no_audio_error",
+      "human_feedback_ref": "human-feedback.json"
     },
     {
       "case_id": "snow-12",
@@ -3033,7 +3055,7 @@
       "audio_sha256": "1ff49ef2726bfee7d5f499706790de9689b85778f4ca985b0b66bb31ef3a2134",
       "reference_text": "Колодец вскрывали, и смотритель работ сообщил Сноу, что в кладке нет ни дыр, ни трещин.",
       "timestamp": "09:59",
-      "human_status": "Ещё не проверено",
+      "human_status": "Пользователь прослушал: ошибок нет",
       "target_rows": [
         {
           "index": 2,
@@ -3098,7 +3120,9 @@
           ]
         }
       ],
-      "other_flagged_words": []
+      "other_flagged_words": [],
+      "human_assessment": "confirmed_no_audio_error",
+      "human_feedback_ref": "human-feedback.json"
     },
     {
       "case_id": "snow-13",
@@ -3106,7 +3130,7 @@
       "audio_sha256": "307c1b358bc6d512e31f614ccc3a2ccb345005bb29ccb95e685bd43ea7255168",
       "reference_text": "О её смерти Уайтхед знал и дату записал.",
       "timestamp": "10:25",
-      "human_status": "Ещё не проверено",
+      "human_status": "Пользователь прослушал: ошибок нет",
       "target_rows": [
         {
           "index": 5,
@@ -3232,7 +3256,9 @@
             }
           ]
         }
-      ]
+      ],
+      "human_assessment": "confirmed_no_audio_error",
+      "human_feedback_ref": "human-feedback.json"
     },
     {
       "case_id": "snow-14",
@@ -3240,7 +3266,7 @@
       "audio_sha256": "67e76f63cfb1de2facecd4488a4b1c09ec45111ee1d3463c117f2fc5de969ae5",
       "reference_text": "Йорк заключает, что жидкость из стоков долго и постоянно просачивалась в колодец.",
       "timestamp": "11:21",
-      "human_status": "Ещё не проверено",
+      "human_status": "Пользователь прослушал: ошибок нет",
       "target_rows": [
         {
           "index": 3,
@@ -3769,7 +3795,9 @@
           ],
           "score_scope": "supported_sounds"
         }
-      ]
+      ],
+      "human_assessment": "confirmed_no_audio_error",
+      "human_feedback_ref": "human-feedback.json"
     },
     {
       "case_id": "snow-15",
@@ -3777,7 +3805,7 @@
       "audio_sha256": "0354d57be2b82faed8b8e4d337678e3157274b953290ac7332e91ad180bbef23",
       "reference_text": "Врач, который лечил девочку, записей не вёл и восстанавливал подробности по памяти.",
       "timestamp": "11:42",
-      "human_status": "Ещё не проверено",
+      "human_status": "Пользователь прослушал: ошибок нет",
       "target_rows": [
         {
           "index": 4,
@@ -3950,7 +3978,9 @@
           ]
         }
       ],
-      "other_flagged_words": []
+      "other_flagged_words": [],
+      "human_assessment": "confirmed_no_audio_error",
+      "human_feedback_ref": "human-feedback.json"
     },
     {
       "case_id": "snow-16",
@@ -3958,7 +3988,7 @@
       "audio_sha256": "e4bf376e2a40e4a650e5b0b6a4ded6a7af4f2020907dfd9f7af82efc0fac96db",
       "reference_text": "Комиссия признала, что настоящая природа болезни вызывает сомнения, хотя и заметила, что у маленьких детей холера часто проявляется неотчётливо.",
       "timestamp": "11:51",
-      "human_status": "Ещё не проверено",
+      "human_status": "Пользователь прослушал: ошибок нет",
       "target_rows": [
         {
           "index": 7,
@@ -4648,7 +4678,9 @@
           ],
           "score_scope": "supported_sounds"
         }
-      ]
+      ],
+      "human_assessment": "confirmed_no_audio_error",
+      "human_feedback_ref": "human-feedback.json"
     },
     {
       "case_id": "snow-17",
@@ -4656,7 +4688,7 @@
       "audio_sha256": "7e87bbe8d0a140d32587f198d13656884a30154bb6d4fe5922336d033ea6bd7e",
       "reference_text": "Но опасную колонку Сноу нашёл, так и не увидев саму заразу: не в стакане и не под микроскопом, а по адресам умерших и словам живых.",
       "timestamp": "12:09",
-      "human_status": "Ещё не проверено",
+      "human_status": "Пользователь прослушал: ошибок нет",
       "target_rows": [
         {
           "index": 3,
@@ -5009,7 +5041,9 @@
           ]
         }
       ],
-      "other_flagged_words": []
+      "other_flagged_words": [],
+      "human_assessment": "confirmed_no_audio_error",
+      "human_feedback_ref": "human-feedback.json"
     },
     {
       "case_id": "ordinary-district",
@@ -5192,7 +5226,9 @@
           ]
         }
       ],
-      "other_flagged_words": []
+      "other_flagged_words": [],
+      "human_assessment": "confirmed_audio_error",
+      "human_feedback_ref": "human-feedback.json"
     },
     {
       "case_id": "heard-verb",
@@ -5395,7 +5431,9 @@
           ]
         }
       ],
-      "other_flagged_words": []
+      "other_flagged_words": [],
+      "human_assessment": "confirmed_audio_error",
+      "human_feedback_ref": "human-feedback.json"
     }
   ]
 }

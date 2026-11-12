@@ -1,0 +1,26 @@
+{
+  "contract": "toneperfect-human-evaluated-followup/1",
+  "human_feedback_ref": "human-feedback.json",
+  "clean_phrases": 17,
+  "clean_phrase_false_review_words": 2,
+  "clean_phrase_uncertain_words": 5,
+  "clean_phrase_unassessed_words": 6,
+  "clean_phrases_with_review_or_uncertain": 6,
+  "confirmed_error_phrases": 2,
+  "confirmed_error_provider_decisions": [
+    {
+      "case_id": "ordinary-district",
+      "target": "обычной",
+      "decision": "review"
+    },
+    {
+      "case_id": "heard-verb",
+      "target": "услышал",
+      "decision": "uncertain",
+      "phonetic_signal": "ʃ→x"
+    }
+  ],
+  "interpretation": "On this selected sample, both real errors drew attention (one review, one uncertain), but seven other review/uncertain word flags occurred in six clean phrases. Provider flags are not sufficient evidence for automatic audio repair. No population precision or recall estimate is inferred.",
+  "new_api_calls": 0,
+  "production_ready": false
+}

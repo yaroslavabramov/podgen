@@ -56,7 +56,7 @@
             ]
           ],
           "acoustic_ambiguity_possible": false,
-          "human_status": "not_reviewed",
+          "human_status": "confirmed_no_audio_error",
           "provider_word_indexes": [
             10
           ],
@@ -570,7 +570,8 @@
         "free_credits": 40,
         "source": "free"
       },
-      "human_status": "not_reviewed"
+      "human_status": "confirmed_no_audio_error",
+      "human_feedback_ref": "human-feedback.json"
     },
     {
       "case_id": "snow-02",
@@ -607,7 +608,7 @@
             ]
           ],
           "acoustic_ambiguity_possible": false,
-          "human_status": "not_reviewed",
+          "human_status": "confirmed_no_audio_error",
           "provider_word_indexes": [
             6
           ],
@@ -1172,7 +1173,8 @@
         "free_credits": 39,
         "source": "free"
       },
-      "human_status": "not_reviewed"
+      "human_status": "confirmed_no_audio_error",
+      "human_feedback_ref": "human-feedback.json"
     },
     {
       "case_id": "snow-03",
@@ -1213,7 +1215,7 @@
             ]
           ],
           "acoustic_ambiguity_possible": false,
-          "human_status": "not_reviewed",
+          "human_status": "confirmed_no_audio_error",
           "provider_word_indexes": [
             2,
             3
@@ -2060,7 +2062,8 @@
         "free_credits": 38,
         "source": "free"
       },
-      "human_status": "not_reviewed"
+      "human_status": "confirmed_no_audio_error",
+      "human_feedback_ref": "human-feedback.json"
     },
     {
       "case_id": "snow-04",
@@ -2097,7 +2100,7 @@
             ]
           ],
           "acoustic_ambiguity_possible": false,
-          "human_status": "not_reviewed",
+          "human_status": "confirmed_no_audio_error",
           "provider_word_indexes": [
             1
           ],
@@ -2804,7 +2807,8 @@
         "free_credits": 37,
         "source": "free"
       },
-      "human_status": "not_reviewed"
+      "human_status": "confirmed_no_audio_error",
+      "human_feedback_ref": "human-feedback.json"
     },
     {
       "case_id": "snow-05",
@@ -2841,7 +2845,7 @@
             ]
           ],
           "acoustic_ambiguity_possible": true,
-          "human_status": "not_reviewed",
+          "human_status": "confirmed_no_audio_error",
           "provider_word_indexes": [
             11
           ],
@@ -3621,7 +3625,8 @@
         "free_credits": 36,
         "source": "free"
       },
-      "human_status": "not_reviewed"
+      "human_status": "confirmed_no_audio_error",
+      "human_feedback_ref": "human-feedback.json"
     },
     {
       "case_id": "snow-06",
@@ -3658,7 +3663,7 @@
             ]
           ],
           "acoustic_ambiguity_possible": false,
-          "human_status": "not_reviewed",
+          "human_status": "confirmed_no_audio_error",
           "provider_word_indexes": [
             8
           ],
@@ -3962,7 +3967,8 @@
         "free_credits": 35,
         "source": "free"
       },
-      "human_status": "not_reviewed"
+      "human_status": "confirmed_no_audio_error",
+      "human_feedback_ref": "human-feedback.json"
     },
     {
       "case_id": "snow-07",
@@ -3999,7 +4005,7 @@
             ]
           ],
           "acoustic_ambiguity_possible": false,
-          "human_status": "not_reviewed",
+          "human_status": "confirmed_no_audio_error",
           "provider_word_indexes": [
             8
           ],
@@ -4357,7 +4363,8 @@
         "free_credits": 34,
         "source": "free"
       },
-      "human_status": "not_reviewed"
+      "human_status": "confirmed_no_audio_error",
+      "human_feedback_ref": "human-feedback.json"
     },
     {
       "case_id": "snow-08",
@@ -4394,7 +4401,7 @@
             ]
           ],
           "acoustic_ambiguity_possible": true,
-          "human_status": "not_reviewed",
+          "human_status": "confirmed_no_audio_error",
           "provider_word_indexes": [
             0
           ],
@@ -4564,7 +4571,7 @@
             ]
           ],
           "acoustic_ambiguity_possible": true,
-          "human_status": "not_reviewed",
+          "human_status": "confirmed_no_audio_error",
           "provider_word_indexes": [
             2
           ],
@@ -5304,7 +5311,8 @@
         "free_credits": 33,
         "source": "free"
       },
-      "human_status": "not_reviewed"
+      "human_status": "confirmed_no_audio_error",
+      "human_feedback_ref": "human-feedback.json"
     },
     {
       "case_id": "snow-09",
@@ -5341,7 +5349,7 @@
             ]
           ],
           "acoustic_ambiguity_possible": false,
-          "human_status": "not_reviewed",
+          "human_status": "confirmed_no_audio_error",
           "provider_word_indexes": [
             5
           ],
@@ -6033,7 +6041,8 @@
         "free_credits": 32,
         "source": "free"
       },
-      "human_status": "not_reviewed"
+      "human_status": "confirmed_no_audio_error",
+      "human_feedback_ref": "human-feedback.json"
     },
     {
       "case_id": "snow-10",
@@ -6074,7 +6083,7 @@
             ]
           ],
           "acoustic_ambiguity_possible": false,
-          "human_status": "not_reviewed",
+          "human_status": "confirmed_no_audio_error",
           "provider_word_indexes": [
             0,
             1
@@ -7202,7 +7211,8 @@
         "free_credits": 31,
         "source": "free"
       },
-      "human_status": "not_reviewed"
+      "human_status": "confirmed_no_audio_error",
+      "human_feedback_ref": "human-feedback.json"
     },
     {
       "case_id": "snow-11",
@@ -7239,7 +7249,7 @@
             ]
           ],
           "acoustic_ambiguity_possible": true,
-          "human_status": "not_reviewed",
+          "human_status": "confirmed_no_audio_error",
           "provider_word_indexes": [
             6
           ],
@@ -7899,7 +7909,8 @@
         "free_credits": 30,
         "source": "free"
       },
-      "human_status": "not_reviewed"
+      "human_status": "confirmed_no_audio_error",
+      "human_feedback_ref": "human-feedback.json"
     },
     {
       "case_id": "snow-12",
@@ -7936,7 +7947,7 @@
             ]
           ],
           "acoustic_ambiguity_possible": false,
-          "human_status": "not_reviewed",
+          "human_status": "confirmed_no_audio_error",
           "provider_word_indexes": [
             2
           ],
@@ -8276,7 +8287,8 @@
         "free_credits": 29,
         "source": "free"
       },
-      "human_status": "not_reviewed"
+      "human_status": "confirmed_no_audio_error",
+      "human_feedback_ref": "human-feedback.json"
     },
     {
       "case_id": "snow-13",
@@ -8313,7 +8325,7 @@
             ]
           ],
           "acoustic_ambiguity_possible": false,
-          "human_status": "not_reviewed",
+          "human_status": "confirmed_no_audio_error",
           "provider_word_indexes": [
             5
           ],
@@ -8659,7 +8671,8 @@
         "free_credits": 28,
         "source": "free"
       },
-      "human_status": "not_reviewed"
+      "human_status": "confirmed_no_audio_error",
+      "human_feedback_ref": "human-feedback.json"
     },
     {
       "case_id": "snow-14",
@@ -8700,7 +8713,7 @@
             ]
           ],
           "acoustic_ambiguity_possible": true,
-          "human_status": "not_reviewed",
+          "human_status": "confirmed_no_audio_error",
           "provider_word_indexes": [
             3,
             4
@@ -9703,7 +9716,8 @@
         "free_credits": 27,
         "source": "free"
       },
-      "human_status": "not_reviewed"
+      "human_status": "confirmed_no_audio_error",
+      "human_feedback_ref": "human-feedback.json"
     },
     {
       "case_id": "snow-15",
@@ -9740,7 +9754,7 @@
             ]
           ],
           "acoustic_ambiguity_possible": true,
-          "human_status": "not_reviewed",
+          "human_status": "confirmed_no_audio_error",
           "provider_word_indexes": [
             4
           ],
@@ -10272,7 +10286,8 @@
         "free_credits": 26,
         "source": "free"
       },
-      "human_status": "not_reviewed"
+      "human_status": "confirmed_no_audio_error",
+      "human_feedback_ref": "human-feedback.json"
     },
     {
       "case_id": "snow-16",
@@ -10309,7 +10324,7 @@
             ]
           ],
           "acoustic_ambiguity_possible": true,
-          "human_status": "not_reviewed",
+          "human_status": "confirmed_no_audio_error",
           "provider_word_indexes": [
             7
           ],
@@ -11443,7 +11458,8 @@
         "free_credits": 25,
         "source": "free"
       },
-      "human_status": "not_reviewed"
+      "human_status": "confirmed_no_audio_error",
+      "human_feedback_ref": "human-feedback.json"
     },
     {
       "case_id": "snow-17",
@@ -11480,7 +11496,7 @@
             ]
           ],
           "acoustic_ambiguity_possible": false,
-          "human_status": "not_reviewed",
+          "human_status": "confirmed_no_audio_error",
           "provider_word_indexes": [
             3
           ],
@@ -11628,7 +11644,7 @@
             ]
           ],
           "acoustic_ambiguity_possible": true,
-          "human_status": "not_reviewed",
+          "human_status": "confirmed_no_audio_error",
           "provider_word_indexes": [
             11
           ],
@@ -11736,7 +11752,7 @@
             ]
           ],
           "acoustic_ambiguity_possible": true,
-          "human_status": "not_reviewed",
+          "human_status": "confirmed_no_audio_error",
           "provider_word_indexes": [
             14,
             15
@@ -12526,13 +12542,152 @@
         "free_credits": 24,
         "source": "free"
       },
-      "human_status": "not_reviewed"
+      "human_status": "confirmed_no_audio_error",
+      "human_feedback_ref": "human-feedback.json"
     }
   ],
   "human_confirmed_new_errors": 0,
-  "human_listening_status": "pending_for_all_new_cases",
+  "human_listening_status": "completed_by_user",
   "qualification": "partial_evidence_requires_validation",
   "production_ready": false,
   "prior_assessment_correction": "../2026-11-12-toneperfect-controls/assessment-supersession.json",
-  "prior_confirmed_errors": "../2026-11-12-toneperfect-real-errors/results.json"
+  "prior_confirmed_errors": "../2026-11-12-toneperfect-real-errors/results.json",
+  "human_feedback_ref": "human-feedback.json",
+  "human_evaluated_summary": {
+    "clean_phrases": 17,
+    "confirmed_audio_errors": 0,
+    "false_review_words": [
+      {
+        "case_id": "snow-01",
+        "index": 10,
+        "word": "с",
+        "decision": "review",
+        "score": 84.0,
+        "assessed": true,
+        "omitted": null
+      },
+      {
+        "case_id": "snow-04",
+        "index": 1,
+        "word": "поланд-стрит",
+        "decision": "review",
+        "score": 79.0,
+        "assessed": true,
+        "omitted": null
+      }
+    ],
+    "uncertain_words_in_clean_audio": [
+      {
+        "case_id": "snow-03",
+        "index": 2,
+        "word": "сноу",
+        "decision": "uncertain",
+        "score": 99.0,
+        "assessed": true,
+        "omitted": null
+      },
+      {
+        "case_id": "snow-08",
+        "index": 1,
+        "word": "о",
+        "decision": "uncertain",
+        "score": 14.0,
+        "assessed": true,
+        "omitted": null
+      },
+      {
+        "case_id": "snow-10",
+        "index": 2,
+        "word": "и",
+        "decision": "uncertain",
+        "score": 26.5,
+        "assessed": true,
+        "omitted": null
+      },
+      {
+        "case_id": "snow-10",
+        "index": 8,
+        "word": "четыре-пять",
+        "decision": "uncertain",
+        "score": 99.4,
+        "assessed": true,
+        "omitted": null
+      },
+      {
+        "case_id": "snow-13",
+        "index": 0,
+        "word": "о",
+        "decision": "uncertain",
+        "score": 39.8,
+        "assessed": true,
+        "omitted": null
+      }
+    ],
+    "unassessed_words_in_clean_audio": [
+      {
+        "case_id": "snow-01",
+        "index": 11,
+        "word": "семьями",
+        "decision": "partial",
+        "score": 99.5,
+        "assessed": false,
+        "omitted": null
+      },
+      {
+        "case_id": "snow-02",
+        "index": 9,
+        "word": "стоят",
+        "decision": "partial",
+        "score": 99.5,
+        "assessed": false,
+        "omitted": null
+      },
+      {
+        "case_id": "snow-10",
+        "index": 5,
+        "word": "семьям",
+        "decision": "partial",
+        "score": 99.5,
+        "assessed": false,
+        "omitted": null
+      },
+      {
+        "case_id": "snow-14",
+        "index": 8,
+        "word": "постоянно",
+        "decision": "partial",
+        "score": 99.5,
+        "assessed": false,
+        "omitted": null
+      },
+      {
+        "case_id": "snow-16",
+        "index": 3,
+        "word": "настоящая",
+        "decision": "partial",
+        "score": 99.5,
+        "assessed": false,
+        "omitted": null
+      },
+      {
+        "case_id": "snow-16",
+        "index": 17,
+        "word": "проявляется",
+        "decision": "partial",
+        "score": 99.0,
+        "assessed": false,
+        "omitted": null
+      }
+    ],
+    "clean_phrases_with_review_or_uncertain": [
+      "snow-01",
+      "snow-03",
+      "snow-04",
+      "snow-08",
+      "snow-10",
+      "snow-13"
+    ],
+    "clean_phrases_with_review_or_uncertain_count": 6,
+    "notes": "Uncertain is a request for further checking, not a definite claim of error. Unassessed/partial is missing assessment, not a confirmed error. Counts describe this selected sample only."
+  }
 }
