@@ -161,3 +161,7 @@ def assert_native_assembly(repo, project, comparison, script, folder, monkeypatc
     old.pop("subject")
     with pytest.raises(ContractError, match="outside_comparison"):
         prepare_asr(journal, FidelityConfig.model_validate(old))
+
+    from tests.audio_repair_cases import assert_native_repair
+
+    assert_native_repair(journal, project, ref, part_refs, fidelity, folder, monkeypatch)

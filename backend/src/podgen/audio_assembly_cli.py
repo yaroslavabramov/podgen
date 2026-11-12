@@ -10,7 +10,7 @@ from podgen.domain.errors import ContractError
 from podgen.persistence.database import Database
 from podgen.persistence.objects import FileObjectStore
 from podgen.persistence.repository import Repository
-from podgen.runtime.evaluation.audio.assembly.contracts import AssemblyConfig
+from podgen.runtime.evaluation.audio.assembly.contracts import load_assembly_config
 from podgen.runtime.evaluation.audio.assembly.export import export
 from podgen.runtime.evaluation.audio.assembly.service import build
 from podgen.runtime.evaluation.audio.journal import AudioJournal
@@ -32,7 +32,7 @@ def main(argv=None):
         from dotenv import load_dotenv
 
         load_dotenv(args.env_file, override=False)
-    config = AssemblyConfig.model_validate_json(args.config.read_text())
+    config = load_assembly_config(args.config.read_text())
     db = Database(os.environ["PODGEN_DATABASE_URL"])
     journal = AudioJournal(
         Repository(db, FileObjectStore(args.objects), args.actor, purpose="evaluation"),

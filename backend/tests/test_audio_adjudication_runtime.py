@@ -18,7 +18,7 @@ from podgen.runtime.evaluation.audio.fidelity.service import run as recognize
 from tests.test_audio_fidelity_evaluation import ASR, setup
 
 
-def review_fixture(monkeypatch, **overrides):
+def review_fixture(monkeypatch, asr_response=None, **overrides):
     journal, asr = setup(monkeypatch)
     text = "Странное русское произношение. Без лишних звуков."
     response = dict(

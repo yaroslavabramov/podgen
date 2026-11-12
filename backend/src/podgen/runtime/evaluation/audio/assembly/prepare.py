@@ -3,7 +3,7 @@ from podgen.domain.canonical import digest
 from podgen.domain.errors import Conflict, ContractError
 
 from ..fidelity.snapshots import schema_blob
-from .contracts import AssemblyConfig, prefix
+from .contracts import prefix
 from .source import prepare_sources
 
 
@@ -32,14 +32,15 @@ def prepare(journal, config):
         parts=[
             dict(
                 result_ref=ref.model_dump(mode="json"),
+                source_kind=config.bindings[index].kind,
                 source_ref=p["source_ref"],
                 decoded_ref=p["decoded_ref"],
                 audio_blob=p["audio_blob"],
                 selectors=p["source"]["selectors"],
             )
-            for ref, p in zip(config.part_result_refs, parts, strict=True)
+            for index, (ref, p) in enumerate(zip(config.part_result_refs, parts, strict=True))
         ],
-        config_schema_blob=schema_blob(journal, AssemblyConfig),
+        config_schema_blob=schema_blob(journal, type(config)),
         tool_versions=tools(),
         coverage=dict(
             full_script=True,

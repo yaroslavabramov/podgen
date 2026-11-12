@@ -1,0 +1,142 @@
+{
+  "$defs": {
+    "AudioSubject": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "enum": [
+            "comparison_result",
+            "assembly"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "ref": {
+          "$ref": "#/$defs/RuntimeRef"
+        }
+      },
+      "required": [
+        "kind",
+        "ref"
+      ],
+      "title": "AudioSubject",
+      "type": "object"
+    },
+    "RuntimeRef": {
+      "additionalProperties": false,
+      "properties": {
+        "record_kind": {
+          "enum": [
+            "search_record",
+            "tool_execution",
+            "context_assembly",
+            "user_input",
+            "acquisition_record",
+            "evaluation_reading"
+          ],
+          "title": "Record Kind",
+          "type": "string"
+        },
+        "record_id": {
+          "format": "uuid",
+          "title": "Record Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "record_kind",
+        "record_id"
+      ],
+      "title": "RuntimeRef",
+      "type": "object"
+    },
+    "SynthesisPart": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "enum": [
+            "comparison_result",
+            "repair_part"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "ref": {
+          "$ref": "#/$defs/RuntimeRef"
+        }
+      },
+      "required": [
+        "kind",
+        "ref"
+      ],
+      "title": "SynthesisPart",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "assembly_id": {
+      "format": "uuid",
+      "title": "Assembly Id",
+      "type": "string"
+    },
+    "comparison_run_id": {
+      "format": "uuid",
+      "title": "Comparison Run Id",
+      "type": "string"
+    },
+    "preferred_lufs": {
+      "default": -20,
+      "maximum": -14,
+      "minimum": -40,
+      "title": "Preferred Lufs",
+      "type": "number"
+    },
+    "true_peak_dbtp": {
+      "default": -1,
+      "maximum": -1,
+      "minimum": -6,
+      "title": "True Peak Dbtp",
+      "type": "number"
+    },
+    "headroom_db": {
+      "default": 0.3,
+      "maximum": 3,
+      "minimum": 0.1,
+      "title": "Headroom Db",
+      "type": "number"
+    },
+    "join_context_seconds": {
+      "default": 5,
+      "maximum": 20,
+      "minimum": 1,
+      "title": "Join Context Seconds",
+      "type": "number"
+    },
+    "contract": {
+      "const": "audio-evaluation-assembly/2",
+      "default": "audio-evaluation-assembly/2",
+      "title": "Contract",
+      "type": "string"
+    },
+    "part_sources": {
+      "items": {
+        "$ref": "#/$defs/SynthesisPart"
+      },
+      "minItems": 1,
+      "title": "Part Sources",
+      "type": "array"
+    },
+    "parent_subject": {
+      "$ref": "#/$defs/AudioSubject"
+    }
+  },
+  "required": [
+    "assembly_id",
+    "comparison_run_id",
+    "part_sources",
+    "parent_subject"
+  ],
+  "title": "AssemblyConfigV2",
+  "type": "object"
+}

@@ -5,11 +5,19 @@ from podgen.domain.errors import ContractError
 
 from ..contracts import Fragment, UtteranceSelection
 from ..source import import_fragment
-from ..subjects import comparison_result
+from ..subjects import comparison_result, synthesis_part
 
 
 def prepare_sources(journal, config):
-    parts = [comparison_result(journal, ref) for ref in config.part_result_refs]
+    parts = (
+        [comparison_result(journal, ref) for ref in config.part_result_refs]
+        if config.contract == "audio-evaluation-assembly/1"
+        else [synthesis_part(journal, b) for b in config.bindings]
+    )
+    if config.contract == "audio-evaluation-assembly/2":
+        from ..repair.replacement import validate_replacements
+
+        validate_replacements(journal, config)
     first = parts[0]
 
     def identity(p):

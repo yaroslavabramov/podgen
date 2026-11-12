@@ -8,6 +8,8 @@ from pydantic import Field, model_validator
 from podgen.audio.recognition.contracts import RecognitionProfile
 from podgen.domain.contracts.common import Contract, DecimalString, RuntimeRef, Text
 
+from ..subject_contracts import AudioSubject
+
 
 class RecognitionPrice(Contract):
     usd_per_audio_minute: DecimalString
@@ -48,11 +50,6 @@ class FidelityConfig(FidelityConfigBase):
     @property
     def subject_kind(self):
         return "comparison_result"
-
-
-class AudioSubject(Contract):
-    kind: Literal["comparison_result", "assembly"]
-    ref: RuntimeRef
 
 
 class FidelityConfigV2(FidelityConfigBase):

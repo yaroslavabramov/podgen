@@ -43,7 +43,12 @@ def build(journal, config):
         rate = proof["sample_rate_hz"]
         playback_rate = playback_params[2]
         source_map = [
-            dict(row, source_result_ref=p["result_ref"], source_ref=p["source_ref"])
+            dict(
+                row,
+                source_result_ref=p["result_ref"],
+                source_ref=p["source_ref"],
+                source_kind=p.get("source_kind", "comparison_result"),
+            )
             for row, p in zip(proof["parts"], manifest["parts"], strict=True)
         ]
         mapping = final_master_map(source_map, rate, playback_rate, playback_frames)

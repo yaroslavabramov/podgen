@@ -35,5 +35,27 @@ def comparison_result(journal, result_ref):
                         playback_audio_blob=result["blind_audio_blob"],
                         playback_normalization=result["normalization"],
                         profile=row["prepared"]["profile"],
+                        original_request=row["prepared"]["request"],
+                        original_attempt_key=row["key"],
+                        original_wire_blob=row["prepared"]["wire_request_blob"],
+                        wire_authority_key=row["key"] + ":prepared",
+                        repair_depth=0,
+                        origin_part_ref=result_ref.model_dump(mode="json"),
                     )
     raise ContractError("fidelity_result_outside_comparison")
+
+
+def synthesis_part(journal, binding):
+    if binding.kind == "repair_part":
+        from .repair.subject import resolve
+
+        return resolve(journal, binding.ref)
+    return comparison_result(journal, binding.ref)
+
+
+def audio_subject(journal, binding):
+    if binding.kind == "assembly":
+        from .assembly.subject import resolve
+
+        return resolve(journal, binding.ref)
+    return comparison_result(journal, binding.ref)
