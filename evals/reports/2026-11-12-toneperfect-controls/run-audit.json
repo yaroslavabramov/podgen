@@ -1,0 +1,402 @@
+{
+  "contract": "toneperfect-root-run-audit/1",
+  "run_id": "d69d2add-23d0-52c0-a7c9-58ddedd5203f",
+  "request_field_allowlist": [
+    "audio",
+    "text",
+    "language",
+    "task"
+  ],
+  "exact_multipart_reparsed": true,
+  "paired_audio_identical": true,
+  "pcm_matches_saved_sources": true,
+  "credential_not_present_in_archive": true,
+  "all_responses_saved_before_parsing": true,
+  "requests": 8,
+  "retries": 0,
+  "paid_credits": 0,
+  "free_credits_used": 7,
+  "free_credits_remaining": 43,
+  "credit_cap": 10,
+  "cases": [
+    {
+      "case_id": "feminine-exact",
+      "audio_sha256": "d207a947621701ebdbc7df13b83ffe590776cf706042f8673e6c6d7034b6107a",
+      "wire_sha256": "7708ce533619f57589a924e0a705a3befdded056803c68de84c1517af4aa3774",
+      "response_sha256": "9b15ac9e2452d24250d9d71e5fdc925ab5b92b3b3af05fe9ebf1d742446f76e6",
+      "response_bytes": 58927,
+      "response_path": "/Users/yaroslavabramov/side/podgen/tmp/toneperfect-controls-2026-11-12/live/cases/feminine-exact/attempt-1/response.bin",
+      "receipt_path": "/Users/yaroslavabramov/side/podgen/tmp/toneperfect-controls-2026-11-12/live/cases/feminine-exact/attempt-1/receipt.json",
+      "request_path": "/Users/yaroslavabramov/side/podgen/tmp/toneperfect-controls-2026-11-12/live/cases/feminine-exact/request.json",
+      "attempts": 1,
+      "http_status": 200,
+      "complete": true,
+      "elapsed_ms": 4297,
+      "request_id": "req_43b79b9662604d5eb1b6d91ac25667c0",
+      "model_version": "multilingual-native-v1-ru-dd47176068cc",
+      "engine_route": {
+        "engine": "primary",
+        "box": "eu",
+        "fallback": false
+      },
+      "billing": {
+        "credits": 1,
+        "balance_credits": 0,
+        "free_credits": 49,
+        "source": "free"
+      },
+      "status": "completed",
+      "reason": null,
+      "scores": {
+        "overall": 95.4,
+        "pronunciation": 98.0,
+        "fluency": null,
+        "integrity": 100.0,
+        "rhythm": null,
+        "tone": null
+      },
+      "warnings": []
+    },
+    {
+      "case_id": "feminine-altered",
+      "audio_sha256": "d207a947621701ebdbc7df13b83ffe590776cf706042f8673e6c6d7034b6107a",
+      "wire_sha256": "10ec0be0cf577a76bd0441c31183eeb1cec504533fb42afa5990c796fba4435f",
+      "response_sha256": "5d1d6720dc5b5441d4262d5e68d0fa964473e0670ceee3b0eebe82985d9ef259",
+      "response_bytes": 60367,
+      "response_path": "/Users/yaroslavabramov/side/podgen/tmp/toneperfect-controls-2026-11-12/live/cases/feminine-altered/attempt-1/response.bin",
+      "receipt_path": "/Users/yaroslavabramov/side/podgen/tmp/toneperfect-controls-2026-11-12/live/cases/feminine-altered/attempt-1/receipt.json",
+      "request_path": "/Users/yaroslavabramov/side/podgen/tmp/toneperfect-controls-2026-11-12/live/cases/feminine-altered/request.json",
+      "attempts": 1,
+      "http_status": 200,
+      "complete": true,
+      "elapsed_ms": 3322,
+      "request_id": "req_fb46ddad73104809b25d57c68cf6debb",
+      "model_version": "multilingual-native-v1-ru-dd47176068cc",
+      "engine_route": {
+        "engine": "primary",
+        "box": "eu",
+        "fallback": false
+      },
+      "billing": {
+        "credits": 1,
+        "balance_credits": 0,
+        "free_credits": 48,
+        "source": "free"
+      },
+      "status": "completed",
+      "reason": null,
+      "scores": {
+        "overall": 97.2,
+        "pronunciation": 98.0,
+        "fluency": null,
+        "integrity": 100.0,
+        "rhythm": null,
+        "tone": null
+      },
+      "warnings": []
+    },
+    {
+      "case_id": "date-exact",
+      "audio_sha256": "ce4a917757d2c008631b84afb55f08985562dbab84bff4ffd8338ab70de4b9e4",
+      "wire_sha256": "6db1e6b2952f4792e287e36b42e3bcf3542f583de0c3b6728b0caa6aa65a62b7",
+      "response_sha256": "30d829b15eb547c362ecc481e89cbbfdc2d8f036e7c7889f79ca4f57c3a6ce30",
+      "response_bytes": 109588,
+      "response_path": "/Users/yaroslavabramov/side/podgen/tmp/toneperfect-controls-2026-11-12/live/cases/date-exact/attempt-1/response.bin",
+      "receipt_path": "/Users/yaroslavabramov/side/podgen/tmp/toneperfect-controls-2026-11-12/live/cases/date-exact/attempt-1/receipt.json",
+      "request_path": "/Users/yaroslavabramov/side/podgen/tmp/toneperfect-controls-2026-11-12/live/cases/date-exact/request.json",
+      "attempts": 1,
+      "http_status": 200,
+      "complete": true,
+      "elapsed_ms": 4848,
+      "request_id": "req_0fa1d1026b78459c964d337437c9266a",
+      "model_version": "multilingual-native-v1-ru-dd47176068cc",
+      "engine_route": {
+        "engine": "primary",
+        "box": "eu",
+        "fallback": false
+      },
+      "billing": {
+        "credits": 1,
+        "balance_credits": 0,
+        "free_credits": 47,
+        "source": "free"
+      },
+      "status": "completed",
+      "reason": null,
+      "scores": {
+        "overall": 93.8,
+        "pronunciation": 98.2,
+        "fluency": null,
+        "integrity": 95.5,
+        "rhythm": null,
+        "tone": null
+      },
+      "warnings": [
+        "unsupported_phonetic_symbols",
+        "incomplete_reading"
+      ]
+    },
+    {
+      "case_id": "date-altered",
+      "audio_sha256": "ce4a917757d2c008631b84afb55f08985562dbab84bff4ffd8338ab70de4b9e4",
+      "wire_sha256": "35f3d84a9bf14e3d751d5550e35c35e2027dba3771c770f967bb28709804ff33",
+      "response_sha256": "92433b51439a7231c78805f41fd38d7ccbb549c35dba1a9a6fb9f15916934b4d",
+      "response_bytes": 109619,
+      "response_path": "/Users/yaroslavabramov/side/podgen/tmp/toneperfect-controls-2026-11-12/live/cases/date-altered/attempt-1/response.bin",
+      "receipt_path": "/Users/yaroslavabramov/side/podgen/tmp/toneperfect-controls-2026-11-12/live/cases/date-altered/attempt-1/receipt.json",
+      "request_path": "/Users/yaroslavabramov/side/podgen/tmp/toneperfect-controls-2026-11-12/live/cases/date-altered/request.json",
+      "attempts": 1,
+      "http_status": 200,
+      "complete": true,
+      "elapsed_ms": 4136,
+      "request_id": "req_dbbc3b569bec4476b41a06c16f54fa4a",
+      "model_version": "multilingual-native-v1-ru-dd47176068cc",
+      "engine_route": {
+        "engine": "primary",
+        "box": "eu",
+        "fallback": false
+      },
+      "billing": {
+        "credits": 1,
+        "balance_credits": 0,
+        "free_credits": 46,
+        "source": "free"
+      },
+      "status": "completed",
+      "reason": null,
+      "scores": {
+        "overall": 93.6,
+        "pronunciation": 98.0,
+        "fluency": null,
+        "integrity": 95.5,
+        "rhythm": null,
+        "tone": null
+      },
+      "warnings": [
+        "unsupported_phonetic_symbols",
+        "incomplete_reading"
+      ]
+    },
+    {
+      "case_id": "word-boundary-split",
+      "audio_sha256": "6758e204ef5dc8308bcd0062544ca58137ff943821f26adf4bd0a82a4191e3bf",
+      "wire_sha256": "08330ddaa8d53de7e0444ff618e889e58df59fffe5178285509b450be3acd747",
+      "response_sha256": "bb1ba9ca806d2d15ac8bfb2c25d57890ad8b7c50c18158428ee7f3b4039bdc44",
+      "response_bytes": 88450,
+      "response_path": "/Users/yaroslavabramov/side/podgen/tmp/toneperfect-controls-2026-11-12/live/cases/word-boundary-split/attempt-1/response.bin",
+      "receipt_path": "/Users/yaroslavabramov/side/podgen/tmp/toneperfect-controls-2026-11-12/live/cases/word-boundary-split/attempt-1/receipt.json",
+      "request_path": "/Users/yaroslavabramov/side/podgen/tmp/toneperfect-controls-2026-11-12/live/cases/word-boundary-split/request.json",
+      "attempts": 1,
+      "http_status": 200,
+      "complete": true,
+      "elapsed_ms": 3689,
+      "request_id": "req_496cf1aa58fb4888b127ffda00bada4d",
+      "model_version": "multilingual-native-v1-ru-dd47176068cc",
+      "engine_route": {
+        "engine": "primary",
+        "box": "eu",
+        "fallback": false
+      },
+      "billing": {
+        "credits": 1,
+        "balance_credits": 0,
+        "free_credits": 45,
+        "source": "free"
+      },
+      "status": "completed",
+      "reason": null,
+      "scores": {
+        "overall": 99.9,
+        "pronunciation": 98.2,
+        "fluency": null,
+        "integrity": 100.0,
+        "rhythm": null,
+        "tone": null
+      },
+      "warnings": []
+    },
+    {
+      "case_id": "word-boundary-joined",
+      "audio_sha256": "6758e204ef5dc8308bcd0062544ca58137ff943821f26adf4bd0a82a4191e3bf",
+      "wire_sha256": "86e58d069dd3bfe69ac71d2b167cefe970a996f3de2a988df16cdd7acb6b1b80",
+      "response_sha256": "95a250e333c3e8f9b1edae999fd9cecba05f2d8997a5cfe9d6d6e36a6611dd02",
+      "response_bytes": 87134,
+      "response_path": "/Users/yaroslavabramov/side/podgen/tmp/toneperfect-controls-2026-11-12/live/cases/word-boundary-joined/attempt-1/response.bin",
+      "receipt_path": "/Users/yaroslavabramov/side/podgen/tmp/toneperfect-controls-2026-11-12/live/cases/word-boundary-joined/attempt-1/receipt.json",
+      "request_path": "/Users/yaroslavabramov/side/podgen/tmp/toneperfect-controls-2026-11-12/live/cases/word-boundary-joined/request.json",
+      "attempts": 1,
+      "http_status": 200,
+      "complete": true,
+      "elapsed_ms": 3869,
+      "request_id": "req_a9163c61e6654a51ac30f4cda732aaa1",
+      "model_version": "multilingual-native-v1-ru-dd47176068cc",
+      "engine_route": {
+        "engine": "primary",
+        "box": "eu",
+        "fallback": false
+      },
+      "billing": {
+        "credits": 1,
+        "balance_credits": 0,
+        "free_credits": 44,
+        "source": "free"
+      },
+      "status": "completed",
+      "reason": null,
+      "scores": {
+        "overall": 99.9,
+        "pronunciation": 98.2,
+        "fluency": null,
+        "integrity": 100.0,
+        "rhythm": null,
+        "tone": null
+      },
+      "warnings": []
+    },
+    {
+      "case_id": "silence-with-text",
+      "audio_sha256": "c9e4d4d6942bc71f106b315ca269bff4da821e6313095719703fc89f0d859777",
+      "wire_sha256": "43b8bb805b04f6150f8704eb2d367aa125940e6cc35dbc9e8ef1b54b0cb46f6c",
+      "response_sha256": "a99d8f60f9b01a7cabca395023b74e7ce6b95897f009acfa1e4e9bac8c114ea2",
+      "response_bytes": 737,
+      "response_path": "/Users/yaroslavabramov/side/podgen/tmp/toneperfect-controls-2026-11-12/live/cases/silence-with-text/attempt-1/response.bin",
+      "receipt_path": "/Users/yaroslavabramov/side/podgen/tmp/toneperfect-controls-2026-11-12/live/cases/silence-with-text/attempt-1/receipt.json",
+      "request_path": "/Users/yaroslavabramov/side/podgen/tmp/toneperfect-controls-2026-11-12/live/cases/silence-with-text/request.json",
+      "attempts": 1,
+      "http_status": 200,
+      "complete": true,
+      "elapsed_ms": 2493,
+      "request_id": "req_259c2903e88845cf9c306a9f3e79e725",
+      "model_version": null,
+      "engine_route": {
+        "engine": "primary",
+        "box": "eu",
+        "fallback": false
+      },
+      "billing": {
+        "credits": 0,
+        "balance_credits": 0,
+        "free_credits": 44,
+        "source": "free"
+      },
+      "status": "unassessable",
+      "reason": "no_audio",
+      "scores": {
+        "overall": null,
+        "pronunciation": null,
+        "fluency": null,
+        "integrity": null,
+        "rhythm": null,
+        "tone": null
+      },
+      "warnings": []
+    },
+    {
+      "case_id": "apollo-with-snow-reference",
+      "audio_sha256": "1a721746d55461539cbee3eb58b7a884e4be9d5dc17fe582e9e477a564d29cab",
+      "wire_sha256": "91f2a6732aba651fd9a451e767add8aeb9eed7579733980be603fec9f076ded3",
+      "response_sha256": "7d4474c259e9358fc83be0578d1a5284b8b7fcb1006b3d704e93f521cf393d8b",
+      "response_bytes": 60226,
+      "response_path": "/Users/yaroslavabramov/side/podgen/tmp/toneperfect-controls-2026-11-12/live/cases/apollo-with-snow-reference/attempt-1/response.bin",
+      "receipt_path": "/Users/yaroslavabramov/side/podgen/tmp/toneperfect-controls-2026-11-12/live/cases/apollo-with-snow-reference/attempt-1/receipt.json",
+      "request_path": "/Users/yaroslavabramov/side/podgen/tmp/toneperfect-controls-2026-11-12/live/cases/apollo-with-snow-reference/request.json",
+      "attempts": 1,
+      "http_status": 200,
+      "complete": true,
+      "elapsed_ms": 3797,
+      "request_id": "req_fe0fe54e8b10454099b9e36cbff72245",
+      "model_version": "multilingual-native-v1-ru-dd47176068cc",
+      "engine_route": {
+        "engine": "primary",
+        "box": "eu",
+        "fallback": false
+      },
+      "billing": {
+        "credits": 1,
+        "balance_credits": 0,
+        "free_credits": 43,
+        "source": "free"
+      },
+      "status": "completed",
+      "reason": null,
+      "scores": {
+        "overall": 75.2,
+        "pronunciation": 87.9,
+        "fluency": null,
+        "integrity": 87.4,
+        "rhythm": null,
+        "tone": null
+      },
+      "warnings": [
+        "content",
+        "content_mismatch_suspected"
+      ]
+    }
+  ],
+  "capabilities_path": "/Users/yaroslavabramov/side/podgen/tmp/toneperfect-controls-2026-11-12/capabilities.raw.json",
+  "preflight_lint": [
+    {
+      "case_id": "date-altered",
+      "path": "/Users/yaroslavabramov/side/podgen/tmp/toneperfect-controls-2026-11-12/date-altered/lint.response.json",
+      "response": {
+        "ok": true,
+        "language": "ru-RU",
+        "issues": [],
+        "units": 22
+      }
+    },
+    {
+      "case_id": "date-exact",
+      "path": "/Users/yaroslavabramov/side/podgen/tmp/toneperfect-controls-2026-11-12/date-exact/lint.response.json",
+      "response": {
+        "ok": true,
+        "language": "ru-RU",
+        "issues": [],
+        "units": 22
+      }
+    },
+    {
+      "case_id": "feminine-altered",
+      "path": "/Users/yaroslavabramov/side/podgen/tmp/toneperfect-controls-2026-11-12/feminine-altered/lint.response.json",
+      "response": {
+        "ok": true,
+        "language": "ru-RU",
+        "issues": [],
+        "units": 10
+      }
+    },
+    {
+      "case_id": "feminine-exact",
+      "path": "/Users/yaroslavabramov/side/podgen/tmp/toneperfect-controls-2026-11-12/feminine-exact/lint.response.json",
+      "response": {
+        "ok": true,
+        "language": "ru-RU",
+        "issues": [],
+        "units": 10
+      }
+    },
+    {
+      "case_id": "word-boundary-joined",
+      "path": "/Users/yaroslavabramov/side/podgen/tmp/toneperfect-controls-2026-11-12/word-boundary-joined/lint.response.json",
+      "response": {
+        "ok": true,
+        "language": "ru-RU",
+        "issues": [],
+        "units": 19
+      }
+    },
+    {
+      "case_id": "word-boundary-split",
+      "path": "/Users/yaroslavabramov/side/podgen/tmp/toneperfect-controls-2026-11-12/word-boundary-split/lint.response.json",
+      "response": {
+        "ok": true,
+        "language": "ru-RU",
+        "issues": [],
+        "units": 20
+      }
+    }
+  ],
+  "production_ready": false,
+  "qualification_status": "failed_morphological_target_discrimination",
+  "scope": "Qualification only. Does not enable automatic repair or release."
+}
