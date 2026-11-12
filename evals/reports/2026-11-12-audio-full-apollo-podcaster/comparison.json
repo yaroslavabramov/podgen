@@ -1,0 +1,140 @@
+{
+  "contract": "audio-comparison/2",
+  "run_id": "1cb1f38d-260a-4027-8318-8d85c40fe606",
+  "providers": [
+    "gemini"
+  ],
+  "profiles": [
+    {
+      "profile_id": "gemini-38-ru-ru-podcaster-1-baseline",
+      "synthesis": {
+        "provider": "gemini",
+        "model_id": "gemini-3.8-flash-tts",
+        "voice_id": "ru-ru-podcaster-1",
+        "output_language": "ru",
+        "sample_rate_hz": 24000,
+        "output_format": "wav",
+        "options": {}
+      },
+      "credential_env": "JEMINI_API_KEY",
+      "rates": [
+        {
+          "unit": "input_tokens",
+          "usd_per_million": "0",
+          "source_url": "https://aistudio.google.com/docs/pricing#gemini-3.8-flash-tts",
+          "checked_at": "2026-11-12"
+        },
+        {
+          "unit": "audio_tokens",
+          "usd_per_million": "0",
+          "source_url": "https://aistudio.google.com/docs/pricing#gemini-3.8-flash-tts",
+          "checked_at": "2026-11-12"
+        }
+      ],
+      "reservation_usd": "0.25"
+    }
+  ],
+  "fragments": [
+    {
+      "fragment_id": "apollo-full",
+      "outcome_ref": {
+        "record_kind": "tool_execution",
+        "record_id": "af96f0e4-edc8-5c8c-b65b-82b358dc55b3"
+      },
+      "selections": [
+        {
+          "utterance_index": 0,
+          "start_char": 0,
+          "end_char": null
+        },
+        {
+          "utterance_index": 1,
+          "start_char": 0,
+          "end_char": null
+        },
+        {
+          "utterance_index": 2,
+          "start_char": 0,
+          "end_char": null
+        },
+        {
+          "utterance_index": 3,
+          "start_char": 0,
+          "end_char": null
+        },
+        {
+          "utterance_index": 4,
+          "start_char": 0,
+          "end_char": null
+        },
+        {
+          "utterance_index": 5,
+          "start_char": 0,
+          "end_char": null
+        },
+        {
+          "utterance_index": 6,
+          "start_char": 0,
+          "end_char": null
+        },
+        {
+          "utterance_index": 7,
+          "start_char": 0,
+          "end_char": null
+        },
+        {
+          "utterance_index": 8,
+          "start_char": 0,
+          "end_char": null
+        },
+        {
+          "utterance_index": 9,
+          "start_char": 0,
+          "end_char": null
+        },
+        {
+          "utterance_index": 10,
+          "start_char": 0,
+          "end_char": null
+        },
+        {
+          "utterance_index": 11,
+          "start_char": 0,
+          "end_char": null
+        },
+        {
+          "utterance_index": 12,
+          "start_char": 0,
+          "end_char": null
+        },
+        {
+          "utterance_index": 13,
+          "start_char": 0,
+          "end_char": null
+        },
+        {
+          "utterance_index": 14,
+          "start_char": 0,
+          "end_char": null
+        },
+        {
+          "utterance_index": 15,
+          "start_char": 0,
+          "end_char": null
+        }
+      ],
+      "direction": {
+        "style": ""
+      }
+    }
+  ],
+  "expected_voices_per_provider": {
+    "gemini": 1
+  },
+  "request_timeout_seconds": 900,
+  "max_cost_usd": "0.25",
+  "max_attempts": 1,
+  "loudness_lufs": -22.2,
+  "true_peak_dbtp": -1,
+  "blind_seed": 1122026
+}
