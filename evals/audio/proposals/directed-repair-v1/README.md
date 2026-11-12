@@ -39,7 +39,7 @@
 
 Полный новый instruction text:
 
-> Correct the omitted word in “снимают с семьями на неделю”: say “с семьями” fully, including “с”. Keep the current voice and delivery. Speak only the supplied script, verbatim.
+> Correct the omitted word in “снимают с семьями на неделю”: say “с семьями” fully, including “с”. Speak only the supplied script, verbatim.
 
 Ожидаемое изменение решения синтезатора — произнести конкретное source word в конкретном месте, которое было подтверждённо пропущено. Не «сделать красивее», не сменить эмоцию/темп и не пересказать фразу. Whole-fragment render scope пока остаётся целым исходным фрагментом; это нужно отдельно от направленности instruction и не обещает сокращения стоимости.
 

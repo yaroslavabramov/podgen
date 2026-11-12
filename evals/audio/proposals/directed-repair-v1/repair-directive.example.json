@@ -18,8 +18,8 @@
   },
   "confirmed_evidence": null,
   "evidence_note": "The existing Snow ASR deletion of с is only a candidate. This example conditionally demonstrates what to request IF actual audio later confirms that omission. It is not an approved repair.",
-  "action": "restore_omitted_word",
-  "performance_instruction": "Correct the omitted word in “снимают с семьями на неделю”: say “с семьями” fully, including “с”. Keep the current voice and delivery. Speak only the supplied script, verbatim.",
+  "action": "restore_omitted_words",
+  "performance_instruction": "Correct the omitted word in “снимают с семьями на неделю”: say “с семьями” fully, including “с”. Speak only the supplied script, verbatim.",
   "pronunciation_basis": null,
   "render_scope": "whole_original_synthesis_fragment",
   "preserve": {

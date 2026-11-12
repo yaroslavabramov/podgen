@@ -190,7 +190,7 @@
     }
   },
   "proposal": {
-    "body_sha256": "36ea88309fe0967bc04fcf5400e16c87cb425877ad74885a3719232eed4bcd2e",
+    "body_sha256": "441410be43e30ac0458138ed45f9f38aacd6c6e508060e79386c21c55b4d19b2",
     "body": {
       "generation_config": {
         "speech_config": [
@@ -206,7 +206,7 @@
               "annotations": [
                 {
                   "type": "speech_metadata",
-                  "style": "Correct the omitted word in “снимают с семьями на неделю”: say “с семьями” fully, including “с”. Keep the current voice and delivery. Speak only the supplied script, verbatim."
+                  "style": "Correct the omitted word in “снимают с семьями на неделю”: say “с семьями” fully, including “с”. Speak only the supplied script, verbatim."
                 }
               ],
               "text": "Лондон, вечер третьего сентября 1854 года. Квартал вокруг Брод-стрит, недалеко от Голден-сквер. Здесь тесно: мастерские, лавки, комнаты, которые портные и рабочие снимают с семьями на неделю. Воду в домах держат в баках, а они нередко стоят без крышек рядом с грязными задворками, так что доверяют им далеко не все. Пить ходят к уличной колонке: качнёшь ручку, и из колодца под мостовой поднимается холодная вода.",
@@ -379,7 +379,7 @@
     {
       "operation": "add",
       "json_pointer": "/input/0/content/0/annotations/0/style",
-      "value": "Correct the omitted word in “снимают с семьями на неделю”: say “с семьями” fully, including “с”. Keep the current voice and delivery. Speak only the supplied script, verbatim."
+      "value": "Correct the omitted word in “снимают с семьями на неделю”: say “с семьями” fully, including “с”. Speak only the supplied script, verbatim."
     }
   ],
   "invariants": {
