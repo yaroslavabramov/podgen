@@ -10,7 +10,7 @@
     {
       "provider": "elevenlabs",
       "requested_model_id": "eleven_v4",
-      "access_status": "coordinator_reported_available",
+      "access_status": "credentials_present_free_plan_preflight_pending",
       "voice_candidates": [
         {
           "slot": "voice-a",
@@ -29,7 +29,7 @@
     {
       "provider": "gemini",
       "requested_model_id": "gemini-3.8-flash-tts",
-      "access_status": "credentials_requested_preflight_pending",
+      "access_status": "credentials_present_free_plan_preflight_pending",
       "voice_candidates": [
         {
           "slot": "voice-a",
@@ -46,7 +46,7 @@
     {
       "provider": "inworld",
       "requested_model_id": "inworld-tts-2",
-      "access_status": "credentials_requested_preflight_pending",
+      "access_status": "credentials_present_free_plan_preflight_pending",
       "voice_candidates": [
         {
           "slot": "voice-a",
@@ -63,7 +63,7 @@
     {
       "provider": "fish",
       "requested_model_id": "drama-3",
-      "access_status": "credentials_requested_preflight_pending",
+      "access_status": "credentials_present_free_plan_preflight_pending",
       "voice_candidates": [
         {
           "slot": "voice-a",
@@ -80,7 +80,7 @@
     {
       "provider": "minimax",
       "requested_model_id": "speech-2.8-hd",
-      "access_status": "credentials_requested_preflight_pending",
+      "access_status": "credentials_missing",
       "voice_candidates": [
         {
           "slot": "voice-a",
@@ -269,14 +269,6 @@
     }
   ],
   "expected_sample_count": 20,
-  "initial_subset": {
-    "provider": "elevenlabs",
-    "expected_sample_count": 4,
-    "coverage": "one provider, two preliminary voices, both exact excerpts",
-    "comparison_complete": false,
-    "may_choose_five_model_winner": false,
-    "may_auto_fill_two_finalists": false
-  },
   "human_panel": {
     "listener_count": [
       3,
@@ -306,7 +298,32 @@
     "third_fragment": "Deferred exact-source ending extraction; no third render text exists in this fixture set.",
     "directed_style_candidate": "Read the supplied script verbatim in the requested output language as an engaged documentary host speaking to one listener. Let phrasing and emphasis follow the meaning. Keep the delivery conversational, with enough variation to sustain attention.",
     "delivery_channel": "Supported non-spoken direction field or an explicitly qualified inline-tag plan; never silently mix instructions into spoken text.",
-    "output_language": "ru"
+    "output_language": "ru",
+    "selection_scope": "Actually heard qualified cells, with absent families and incomplete coverage disclosed; no forced winner from a partial one-provider batch."
   },
-  "provider_calls_by_fixture_preparation": 0
+  "provider_calls_by_fixture_preparation": 0,
+  "available_subset": {
+    "providers": [
+      "elevenlabs",
+      "gemini",
+      "inworld",
+      "fish"
+    ],
+    "missing_providers": [
+      "minimax"
+    ],
+    "sample_count_upper_bound": 16,
+    "actual_eligible_sample_count": null,
+    "actual_eligibility": "Exact-model and voice access plus remaining free allowance must be checked before submission.",
+    "comparison_complete": false,
+    "may_claim_five_model_winner": false,
+    "may_auto_fill_two_finalists": false
+  },
+  "payment_policy": {
+    "allowed_allowance": "existing free-plan quotas only",
+    "purchases_allowed": false,
+    "model_changes_allowed": false,
+    "silent_fallback_allowed": false,
+    "quota_exhaustion": "record an unavailable/incomplete cell and stop that request; no automatic paid retry"
+  }
 }
