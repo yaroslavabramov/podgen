@@ -6,7 +6,7 @@ from podgen.audio.fidelity.adjudication.gemini import prepare as request_for
 from podgen.audio.fidelity.adjudication.payload import VERSION as PAYLOAD_VERSION
 from podgen.audio.fidelity.adjudication.payload import case_payload, window_segments
 from podgen.audio.fidelity.adjudication.windows import group
-from podgen.audio.fidelity.contracts import CandidateReport
+from podgen.audio.fidelity.contracts import validate_report
 from podgen.audio.media.recognition import clip
 from podgen.domain.canonical import canonical_bytes, digest
 from podgen.domain.errors import Conflict, ContractError
@@ -26,7 +26,7 @@ def subject(journal, config):
     for row in revisions(journal, config.fidelity_audit_id):
         if row["result"] and journal.ref(row["key"] + ":result") == config.candidate_result_ref:
             result = journal.base.read(config.candidate_result_ref)
-            CandidateReport.model_validate(result["report"])
+            validate_report(result["report"])
             return manifest, result, journal.get(row["key"] + ":recognition")["output"]
     raise ContractError("review_candidates_outside_fidelity_audit")
 

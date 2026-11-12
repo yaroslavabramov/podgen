@@ -2,12 +2,12 @@ from uuid import uuid5
 
 from podgen.domain.canonical import digest
 
-from .alignment import align
+from .alignment import align, provenance
 from .context import expected_range, source_context
 from .timing import clip_range, map_timing
 from .tokens import VERSION, expected_tokens, tokens
 
-VERSION_CANDIDATES = "literal-fidelity-candidates/4"
+VERSION_CANDIDATES = "literal-fidelity-candidates/5"
 
 
 def generate(audit_id, utterances, recognition, rate, frames, *, margin_seconds=1.5, max_clip_seconds=45):
@@ -65,6 +65,7 @@ def generate(audit_id, utterances, recognition, rate, frames, *, margin_seconds=
     return dict(
         contract=VERSION_CANDIDATES,
         normalization_contract=VERSION,
+        alignment=provenance(),
         normalization_equivalences=equivalences,
         expected_tokens=expected,
         recognized_tokens=actual,

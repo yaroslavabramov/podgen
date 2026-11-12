@@ -57,3 +57,23 @@ class CandidateReport(Contract):
     audio_review_status: Literal["pending"]
     production_ready: Literal[False]
     decision: Literal["candidates_generated"]
+
+
+class AlignmentProvenance(Contract):
+    contract: Literal["kaldialign-text-alignment/1"]
+    engine: Literal["kaldialign"]
+    engine_version: Literal["0.12.0"]
+    merge_compounds: Literal["alphabetic_literal_units_only"]
+    sclite_mode: Literal[False]
+    integer_rule: Literal["literal-ru-integer-surface-equivalence/1"]
+    compound_rule: Literal["literal-alphabetic-compound-equivalence/1"]
+
+
+class CandidateReportV5(CandidateReport):
+    contract: Literal["literal-fidelity-candidates/5"]
+    alignment: AlignmentProvenance
+
+
+def validate_report(value):
+    model = CandidateReportV5 if value.get("contract") == "literal-fidelity-candidates/5" else CandidateReport
+    return model.model_validate(value)
