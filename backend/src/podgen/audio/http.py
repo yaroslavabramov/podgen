@@ -17,12 +17,15 @@ class HttpReceipt:
 
 
 class RawAudioTransport:
-    def __init__(self, *, timeout_seconds=900, client=None):
+    def __init__(
+        self, *, timeout_seconds=900, client=None, auth_header="authorization", auth_prefix="Bearer "
+    ):
         self.timeout_seconds, self.client = timeout_seconds, client
+        self.auth_header, self.auth_prefix = auth_header, auth_prefix
 
     def submit(self, request, wire_body, credential):
         started = time.monotonic()
-        headers = dict(request["headers"], authorization="Bearer " + credential)
+        headers = dict(request["headers"], **{self.auth_header: self.auth_prefix + credential})
         client = self.client or httpx.Client(
             timeout=httpx.Timeout(self.timeout_seconds, connect=10),
             follow_redirects=False,
