@@ -1,0 +1,52 @@
+{
+  "question": "Does the reviewer claim missing audio because the integration failed to deliver it?",
+  "production_code_changed": false,
+  "model": "gpt-realtime-2.1",
+  "audio": "same frozen Snow window4,3.96sec,PCM16mono24k",
+  "official_sources": [
+    "https://developers.openai.com/api/docs/guides/realtime-conversations",
+    "https://developers.openai.com/api/reference/resources/realtime/client-events",
+    "https://developers.openai.com/api/reference/resources/realtime/server-events"
+  ],
+  "observations": [
+    "Documented append/commit/response.create sequence matches production. Server traces show completed input_audio item before response.created in all7previous Snow responses.",
+    "conversation.item.retrieve returned190080bytes identical to submitted nonzero PCM in both retrieval probes.",
+    "Blind transcription without reference,ASR or review tool gave recognizable content under BOTH retrieval-barrier and unchanged production transport. Transcript itself is not certified word-perfect.",
+    "Unchanged production reviewer request again returned audio_unavailable. Waiting for audio item.done alone also returned audio_unavailable; adding this barrier is not a demonstrated fix.",
+    "Original review task with retrieval barrier heard expected feminine phrase correctly but confirmed a defect by comparing speech against ASR instead of intended script. This is a concrete wrong decision, not transport failure."
+  ],
+  "limits": [
+    "Task instructions,payload andtool schema were removed together in blind condition. The exact component causing false unavailable remains unidentified.",
+    "One successful original-task retrieval response does not establish a causal benefit of retrieval or delay.",
+    "Evidence supports criticizing the current configured review task; it does not establish general model inability to process audio."
+  ],
+  "prompt_issue": "confirmed audible_mismatch must mean audio differs from intended script. ASR is an auxiliary candidate source. Current prompt says support the difference without explicitly binding confirmed to that comparison; observed model instead confirmed ASR error as TTS defect.",
+  "estimated_known_usage_cost_usd": "0.046824",
+  "runs": [
+    {
+      "variant": "blind",
+      "cost_estimate_usd": "0.002808",
+      "trace_sha256": "cca7077434ad4b7c48dc748049b3b1c5b18eae3f6c589fec1893aee8b258995c"
+    },
+    {
+      "variant": "original",
+      "cost_estimate_usd": "0.015616",
+      "trace_sha256": "811abe613b7beeb603d25e37eb78f077545283e14c6996492fee05865a4afd1f"
+    },
+    {
+      "variant": "unchanged-original",
+      "cost_estimate_usd": "0.012472",
+      "trace_sha256": "ac114fd844ac9f2b81eecd5ee3b7270546c7d3828dfb3a32af6bd7b3e6101e6f"
+    },
+    {
+      "variant": "done-only",
+      "cost_estimate_usd": "0.012544",
+      "trace_sha256": "d0c3c960127d81c711bfd591fa87c662d596cfb006252730dbd6433ea7e4ff5c"
+    },
+    {
+      "variant": "blind-original-transport",
+      "cost_estimate_usd": "0.003384",
+      "trace_sha256": "3a38f7de4b95ec69c14631702589d973a7ac4505529c6fc1a5369283c80edec8"
+    }
+  ]
+}

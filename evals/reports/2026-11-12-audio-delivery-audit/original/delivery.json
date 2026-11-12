@@ -1,0 +1,9 @@
+{
+  "audio_item_id": "item_EjQpHINbELas7WWhYZFBV",
+  "server_item_status": "completed",
+  "server_audio_bytes": 190080,
+  "input_audio_bytes": 190080,
+  "server_audio_sha256": "4242470df60b4929d3e342434987643798a95ffce1b467c77ecf7f8925ade662",
+  "server_audio_matches_input": true,
+  "server_audio_nonzero": true
+}

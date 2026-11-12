@@ -1,0 +1,35 @@
+{
+  "id": "resp_EjQqVlPxOWF9iXackeNMt",
+  "output": {
+    "results": [
+      {
+        "case_id": "C4",
+        "status": "inconclusive",
+        "reason_code": "audio_unavailable",
+        "heard_spans": [],
+        "explanation": "Невозможно подтвердить или опровергнуть расхождение: фактическое аудио-окно недоступно для прослушивания. Текстовые выдержки (включая ASR и предоставленную строку) не являются доказательством того, что реально было сказано."
+      }
+    ]
+  },
+  "usage": {
+    "total_tokens": 1610,
+    "input_tokens": 1363,
+    "output_tokens": 247,
+    "input_token_details": {
+      "text_tokens": 1324,
+      "audio_tokens": 39,
+      "image_tokens": 0,
+      "cached_tokens": 0,
+      "cached_tokens_details": {
+        "text_tokens": 0,
+        "audio_tokens": 0,
+        "image_tokens": 0
+      }
+    },
+    "output_token_details": {
+      "text_tokens": 247,
+      "audio_tokens": 0,
+      "reasoning_tokens": 100
+    }
+  }
+}

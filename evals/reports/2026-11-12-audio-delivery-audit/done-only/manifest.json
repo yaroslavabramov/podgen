@@ -1,0 +1,8 @@
+{
+  "variant": "done-only",
+  "source_window": 4,
+  "model": "gpt-realtime-2.1",
+  "input_audio_sha256": "4242470df60b4929d3e342434987643798a95ffce1b467c77ecf7f8925ade662",
+  "wire_sha256": "5c4e5aaed3e51ae06217a9be97ce4b45b0fe943794a28b8c7d7491d66f41a669",
+  "diagnostic_change": "wait for audio item.done only, no retrieval; frozen model-facing events unchanged"
+}
