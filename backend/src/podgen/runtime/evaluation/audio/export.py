@@ -6,6 +6,7 @@ import random
 from pathlib import Path
 
 from .attempts import baseline, history, ledger
+from .matrix import full_comparison_complete
 
 
 def write_json(path, value):
@@ -132,8 +133,7 @@ def export(journal, folder):
         expected_samples=manifest["expected_samples"],
         listening_samples=len(items),
         requested_matrix_complete=len(items) == manifest["expected_samples"],
-        full_five_provider_comparison_complete=len(manifest["configuration"]["providers"]) == 5
-        and len(items) == 20,
+        full_five_provider_comparison_complete=full_comparison_complete(manifest, len(items)),
         availability=manifest["availability"],
         samples=statuses,
         attempts_submitted=count,

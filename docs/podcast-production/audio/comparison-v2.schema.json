@@ -1,0 +1,361 @@
+{
+  "$defs": {
+    "Fragment": {
+      "additionalProperties": false,
+      "properties": {
+        "fragment_id": {
+          "minLength": 1,
+          "title": "Fragment Id",
+          "type": "string"
+        },
+        "outcome_ref": {
+          "$ref": "#/$defs/RuntimeRef"
+        },
+        "selections": {
+          "items": {
+            "$ref": "#/$defs/UtteranceSelection"
+          },
+          "minItems": 1,
+          "title": "Selections",
+          "type": "array"
+        },
+        "direction": {
+          "$ref": "#/$defs/SparseDirection"
+        }
+      },
+      "required": [
+        "fragment_id",
+        "outcome_ref",
+        "selections"
+      ],
+      "title": "Fragment",
+      "type": "object"
+    },
+    "JsonValue": {},
+    "PriceRate": {
+      "additionalProperties": false,
+      "properties": {
+        "unit": {
+          "enum": [
+            "characters",
+            "utf8_bytes",
+            "input_tokens",
+            "audio_tokens"
+          ],
+          "title": "Unit",
+          "type": "string"
+        },
+        "usd_per_million": {
+          "pattern": "^-?(0|[1-9][0-9]*)(\\.[0-9]+)?$",
+          "title": "Usd Per Million",
+          "type": "string"
+        },
+        "source_url": {
+          "minLength": 1,
+          "title": "Source Url",
+          "type": "string"
+        },
+        "checked_at": {
+          "minLength": 1,
+          "title": "Checked At",
+          "type": "string"
+        }
+      },
+      "required": [
+        "unit",
+        "usd_per_million",
+        "source_url",
+        "checked_at"
+      ],
+      "title": "PriceRate",
+      "type": "object"
+    },
+    "RuntimeRef": {
+      "additionalProperties": false,
+      "properties": {
+        "record_kind": {
+          "enum": [
+            "search_record",
+            "tool_execution",
+            "context_assembly",
+            "user_input",
+            "acquisition_record",
+            "evaluation_reading"
+          ],
+          "title": "Record Kind",
+          "type": "string"
+        },
+        "record_id": {
+          "format": "uuid",
+          "title": "Record Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "record_kind",
+        "record_id"
+      ],
+      "title": "RuntimeRef",
+      "type": "object"
+    },
+    "SparseDirection": {
+      "additionalProperties": false,
+      "description": "No local instruction means inherit the voice's natural delivery; legacy Direction is unchanged.",
+      "properties": {
+        "style": {
+          "default": "",
+          "title": "Style",
+          "type": "string"
+        }
+      },
+      "title": "SparseDirection",
+      "type": "object"
+    },
+    "SynthesisProfile": {
+      "additionalProperties": false,
+      "properties": {
+        "provider": {
+          "enum": [
+            "elevenlabs",
+            "gemini",
+            "inworld",
+            "fish",
+            "minimax"
+          ],
+          "title": "Provider",
+          "type": "string"
+        },
+        "model_id": {
+          "minLength": 1,
+          "title": "Model Id",
+          "type": "string"
+        },
+        "voice_id": {
+          "minLength": 1,
+          "title": "Voice Id",
+          "type": "string"
+        },
+        "output_language": {
+          "const": "ru",
+          "default": "ru",
+          "title": "Output Language",
+          "type": "string"
+        },
+        "sample_rate_hz": {
+          "default": 24000,
+          "exclusiveMinimum": 0,
+          "title": "Sample Rate Hz",
+          "type": "integer"
+        },
+        "output_format": {
+          "default": "wav",
+          "enum": [
+            "wav",
+            "pcm_s16le",
+            "flac"
+          ],
+          "title": "Output Format",
+          "type": "string"
+        },
+        "options": {
+          "additionalProperties": {
+            "$ref": "#/$defs/JsonValue"
+          },
+          "title": "Options",
+          "type": "object"
+        }
+      },
+      "required": [
+        "provider",
+        "model_id",
+        "voice_id"
+      ],
+      "title": "SynthesisProfile",
+      "type": "object"
+    },
+    "UtteranceSelection": {
+      "additionalProperties": false,
+      "properties": {
+        "utterance_index": {
+          "minimum": 0,
+          "title": "Utterance Index",
+          "type": "integer"
+        },
+        "start_char": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Start Char",
+          "type": "integer"
+        },
+        "end_char": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "End Char"
+        }
+      },
+      "required": [
+        "utterance_index"
+      ],
+      "title": "UtteranceSelection",
+      "type": "object"
+    },
+    "VoiceCandidate": {
+      "additionalProperties": false,
+      "properties": {
+        "profile_id": {
+          "minLength": 1,
+          "title": "Profile Id",
+          "type": "string"
+        },
+        "synthesis": {
+          "$ref": "#/$defs/SynthesisProfile"
+        },
+        "credential_env": {
+          "minLength": 1,
+          "title": "Credential Env",
+          "type": "string"
+        },
+        "rates": {
+          "items": {
+            "$ref": "#/$defs/PriceRate"
+          },
+          "title": "Rates",
+          "type": "array"
+        },
+        "reservation_usd": {
+          "pattern": "^-?(0|[1-9][0-9]*)(\\.[0-9]+)?$",
+          "title": "Reservation Usd",
+          "type": "string"
+        }
+      },
+      "required": [
+        "profile_id",
+        "synthesis",
+        "credential_env",
+        "rates",
+        "reservation_usd"
+      ],
+      "title": "VoiceCandidate",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "contract": {
+      "const": "audio-comparison/2",
+      "default": "audio-comparison/2",
+      "title": "Contract",
+      "type": "string"
+    },
+    "run_id": {
+      "format": "uuid",
+      "title": "Run Id",
+      "type": "string"
+    },
+    "providers": {
+      "items": {
+        "enum": [
+          "elevenlabs",
+          "gemini",
+          "inworld",
+          "fish",
+          "minimax"
+        ],
+        "type": "string"
+      },
+      "minItems": 1,
+      "title": "Providers",
+      "type": "array"
+    },
+    "profiles": {
+      "items": {
+        "$ref": "#/$defs/VoiceCandidate"
+      },
+      "title": "Profiles",
+      "type": "array"
+    },
+    "fragments": {
+      "items": {
+        "$ref": "#/$defs/Fragment"
+      },
+      "maxItems": 2,
+      "minItems": 1,
+      "title": "Fragments",
+      "type": "array"
+    },
+    "max_cost_usd": {
+      "pattern": "^-?(0|[1-9][0-9]*)(\\.[0-9]+)?$",
+      "title": "Max Cost Usd",
+      "type": "string"
+    },
+    "max_attempts": {
+      "default": 20,
+      "minimum": 1,
+      "title": "Max Attempts",
+      "type": "integer"
+    },
+    "loudness_lufs": {
+      "default": -20,
+      "maximum": -14,
+      "minimum": -30,
+      "title": "Loudness Lufs",
+      "type": "number"
+    },
+    "true_peak_dbtp": {
+      "default": -1,
+      "maximum": -1,
+      "minimum": -3,
+      "title": "True Peak Dbtp",
+      "type": "number"
+    },
+    "blind_seed": {
+      "minimum": 0,
+      "title": "Blind Seed",
+      "type": "integer"
+    },
+    "expected_voices_per_provider": {
+      "additionalProperties": {
+        "maximum": 2,
+        "minimum": 1,
+        "type": "integer"
+      },
+      "propertyNames": {
+        "enum": [
+          "elevenlabs",
+          "gemini",
+          "inworld",
+          "fish",
+          "minimax"
+        ]
+      },
+      "title": "Expected Voices Per Provider",
+      "type": "object"
+    },
+    "request_timeout_seconds": {
+      "default": 180,
+      "maximum": 1800,
+      "minimum": 1,
+      "title": "Request Timeout Seconds",
+      "type": "number"
+    }
+  },
+  "required": [
+    "run_id",
+    "providers",
+    "profiles",
+    "fragments",
+    "max_cost_usd",
+    "blind_seed",
+    "expected_voices_per_provider"
+  ],
+  "title": "TargetedComparisonConfig",
+  "type": "object"
+}

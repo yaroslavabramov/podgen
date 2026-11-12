@@ -1,4 +1,5 @@
 from .attempts import baseline, execute, history, ledger
+from .matrix import full_comparison_complete
 from .prepare import prepare
 
 
@@ -33,7 +34,7 @@ def run(journal, config, transport, *, progress=lambda value: None, retake_cell=
             prepared_samples=len(manifest["cells"]),
             completed_samples=completed,
             requested_matrix_complete=completed == manifest["expected_samples"],
-            full_five_provider_comparison_complete=len(config.providers) == 5 and completed == 20,
+            full_five_provider_comparison_complete=full_comparison_complete(manifest, completed),
             attempts_submitted=count,
             cost_or_reservation_usd=str(cost),
             samples=statuses,

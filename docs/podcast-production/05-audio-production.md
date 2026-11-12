@@ -355,3 +355,11 @@ python -m podgen.audio_evaluation_cli --project PROJECT --actor ACTOR --objects 
 ```
 
 `listen-export` с теми же config/batch-id экспортирует сохранённое издание. `batch.json` привязывает каталог к точному batch ref/hash; другой batch туда не записывается. `private/` содержит manifest, соответствие меток, decoded provenance, repair audit и результаты; `blind/` — обезличенные файлы и страницу с отдельным пространством заметок. Coverage различает expected/configured, полные HTTP200, provider refusals и реально доступные listening samples. Успех локальной команды означает готовность этого издания, а не полноту матрицы провайдеров или production acceptance.
+
+### Целевая проверка полного сценария
+
+`audio-comparison/2` ([schema](audio/comparison-v2.schema.json)) допускает один или два настоящих фрагмента и явно задаёт `expected_voices_per_provider`, например `{"gemini": 1}`. Ключи должны точно совпадать с `providers`; ожидается один или два голоса на провайдера. Число профилей не может превышать заявленное; недостающие профили остаются видны как неполный набор. Expected samples = сумма ожидаемых голосов × число фрагментов. Полный сценарий задаётся одним фрагментом с selections всех его реплик; source refs, exact text и обе финальные `keep` проверяются прежним путём.
+
+`request_timeout_seconds` задаёт HTTPX timeout для сетевых операций (включая ожидание очередного блока ответа), от 1 до 1800 секунд; default 180. Это не ограничение длительности речи и не обещание общего wall-clock deadline. Timeout сохраняет неполный receipt как `outcome_unknown`, без автоматического retry. Изменение timeout или ожидаемого набора меняет configuration hash и требует нового run_id.
+
+`audio-comparison/1` сохраняет прежний payload/hash без новых default-полей: ровно два фрагмента, два ожидаемых голоса на провайдера, HTTP timeout 180 секунд. Пять провайдеров по-прежнему означают expected=20. Run/export/listening используют ожидаемую матрицу исходного manifest; успешная проверка 1×1 не называется полным сравнением пяти провайдеров. CLI-команды для обеих версий одинаковы.

@@ -46,9 +46,9 @@ def prepare(journal, config):
         dict(
             provider=provider,
             configured_profiles=sum(p.synthesis.provider == provider for p in config.profiles),
-            expected_profiles=2,
+            expected_profiles=config.voice_counts[provider],
             status="profiles_configured"
-            if sum(p.synthesis.provider == provider for p in config.profiles) == 2
+            if sum(p.synthesis.provider == provider for p in config.profiles) == config.voice_counts[provider]
             else "not_configured",
         )
         for provider in config.providers
@@ -64,7 +64,7 @@ def prepare(journal, config):
         configuration_hash=digest(raw),
         cells=cells,
         availability=availability,
-        expected_samples=len(config.providers) * 4,
+        expected_samples=config.expected_samples,
         source_refs={key: value["ref"] for key, value in inputs.items()},
         processing_contract="ffmpeg-lossless-comparison/1",
     )
