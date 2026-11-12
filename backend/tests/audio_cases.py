@@ -11,6 +11,7 @@ from types import SimpleNamespace
 from uuid import uuid4, uuid5
 
 import numpy as np
+
 from podgen.audio.synthesis.contracts import (
     MODELS,
     HttpReceipt,
@@ -119,6 +120,9 @@ class MemoryJournal:
 
     def bytes(self, key, blob):
         return self.blobs[blob["storage_key"]]
+
+    def read_blob(self, ref, blob):
+        return self.blobs[blob.storage_key]
 
     def read(self, ref):
         return deepcopy(self.records[str(ref.record_id)])

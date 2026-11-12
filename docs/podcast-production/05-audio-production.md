@@ -365,3 +365,24 @@ python -m podgen.audio_evaluation_cli --project PROJECT --actor ACTOR --objects 
 `request_timeout_seconds` задаёт HTTPX timeout для сетевых операций (включая ожидание очередного блока ответа), от 1 до 1800 секунд; default 180. Это не ограничение длительности речи и не обещание общего wall-clock deadline. Timeout сохраняет неполный receipt как `outcome_unknown`, без автоматического retry. Изменение timeout или ожидаемого набора меняет configuration hash и требует нового run_id.
 
 `audio-comparison/1` сохраняет прежний payload/hash без новых default-полей: ровно два фрагмента, два ожидаемых голоса на провайдера, HTTP timeout 180 секунд. Пять провайдеров по-прежнему означают expected=20. Run/export/listening используют ожидаемую матрицу исходного manifest; успешная проверка 1×1 не называется полным сравнением пяти провайдеров. CLI-команды для обеих версий одинаковы.
+
+## 15. Evaluation: независимый ASR и кандидаты fidelity
+
+`python -m podgen.audio_fidelity_cli` реализует первые два этапа: независимое распознавание сохранённого результата и подготовку кандидатов расхождений с аудиоклипами. Это не perceptual adjudication, final Transcript или production acceptance. Результат всегда сохраняет `audio_review_status=pending`, даже если текст совпал.
+
+Конфигурация [audio-fidelity-evaluation/1](audio/fidelity-evaluation.schema.json) задаёт audit_id, comparison_run_id, exact result_ref, recognition profile, цену с источником/датой, reservation/max_cost и размер review-окон. Принимается только зарегистрированный успешный `audio-sample-result/1` выбранного comparison; source/script refs/hash остаются исходными. Текущий профиль — один рассказчик, Fish `transcribe-1-pro`, language=ru, timestamps включены, diarize/tag_audio_events выключены. Передаётся только звук; сценарий, hints и prompt отсутствуют. [Официальный Fish ASR contract](https://docs.fish.audio/features/speech-to-text.md).
+
+Проверяется **decoded PCM до playback gain**, а не нормализованный файл проигрывателя. Manifest и отчёт явно сохраняют этот вариант, exact hash/decoded ref, связь с playback blob и его normalization. В ASR идёт FLAC-копия без VAD/обрезки/изменения темпа: весь вход и FLAC полностью декодируются в PCM32 и побитно сравниваются, проверяются rate/channels/frames. Несовпадение блокирует отправку. Хранятся оба file hash, оба PCM hash и полное submitted frame range.
+
+Manifest сохраняет config/hash, exact source/result/decoded refs, FLAC, фактический multipart body, явный model header, версии adapter/processing, отсутствие prompt и полные schema snapshots как отдельные blobs. Submit intent и reservation записываются до сети; полный raw HTTP receipt — до JSON parsing. Единственный запрос на subject закреплён отдельным claim и не повторяется при resume, timeout или новом audit_id. Отказ провайдера остаётся `provider_rejected`, неполная доставка/потеря acknowledgement — `outcome_unknown`; raw body/error/headers не теряются. Budget проверяется до отправки; reservation обязана покрывать оценку полной длительности по frozen price. Расходы остаются estimate/reservation, не invoice. Покупок, hidden retries или смены модели нет.
+
+ASR `text` и все `segments` сохраняются дословно, вместе с исходным response. Сопоставление [literal-fidelity-candidates/1](audio/fidelity-candidates.schema.json) нормализует только регистр, пунктуацию и ё/е. Числа/десятичные разделители/числовые знаки, отрицания и формы слов не стираются; стемминга и семантических исправлений нет. Кандидат содержит исходные tokens, индексы/char ranges, selectors, соседний исходный контекст и гипотезу frame range с margin. Совпадения ASR text с segments дают только гипотезу времени. Несовпадение текста/segments, плохой timeline или duration mismatch — отдельные uncertainty candidates. Пропорционального распределения времени нет.
+
+Клип вырезается по точным PCM frames без изменения payload; сохраняются frame range/hash и исходная привязка. Окно длиннее max_review_clip_seconds (не более 45 секунд), в том числе полностью немаппящийся длинный участок, остаётся `inconclusive` без фиктивного короткого клипа. Совпадение текста и нулевой diagnostic count не снимают необходимость проверки аудио. Confirmation/dismissal выполняет отдельный следующий этап с фактическим звуком; этот CLI не исправляет сценарий и не отправляет TTS.
+
+```sh
+python -m podgen.audio_fidelity_cli --project PROJECT --actor ACTOR --objects OBJECTS \
+  --env-file .env prepare --config fidelity.json --export-dir fidelity-export
+```
+
+`run`/`resume` используют те же аргументы; только они могут отправить ASR-запрос. `reprocess --reason TEXT` создаёт новую immutable обработку уже полного успешного receipt без ключа/сети. Старые результаты и ошибки сохраняются. `export` выгружает manifest, schemas, точный wire body, FLAC, raw receipt, все обработки и клипы; каталог привязывается до записи и до возможной оплаты. `candidates_generated` означает завершение этого этапа, а не подтверждение качества речи.

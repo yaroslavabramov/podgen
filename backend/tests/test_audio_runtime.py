@@ -157,3 +157,7 @@ def test_native_approved_runtime_input_cli_lossless_blind_export_and_resume(
     target_listening_status = json.loads((tmp_path / "targeted-listening/status.json").read_text())
     assert target_listening_status["expected_samples"] == target_listening_status["listening_samples"] == 1
     assert target_listening_status["requested_matrix_complete"] and len(transport.calls) == 5
+
+    from tests.audio_fidelity_cases import assert_persisted_fidelity
+
+    assert_persisted_fidelity(repo, project, targeted, tmp_path, monkeypatch)

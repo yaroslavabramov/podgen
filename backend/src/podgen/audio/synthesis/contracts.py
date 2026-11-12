@@ -4,6 +4,7 @@ from uuid import UUID
 
 from pydantic import Field, JsonValue, model_validator
 
+from podgen.audio.http import HttpReceipt as HttpReceipt
 from podgen.domain.contracts.common import Contract, Text
 
 Provider = Literal["elevenlabs", "gemini", "inworld", "fish", "minimax"]
@@ -64,16 +65,6 @@ class PreparedRequest(Contract):
     text_utf8_bytes: int = Field(ge=0)
     output_format: Literal["wav", "pcm_s16le", "flac"]
     sample_rate_hz: int = Field(gt=0)
-
-
-@dataclass(frozen=True)
-class HttpReceipt:
-    status_code: int
-    headers: dict[str, str]
-    body: bytes
-    elapsed_ms: int
-    complete: bool = True
-    error: str | None = None
 
 
 @dataclass(frozen=True)
