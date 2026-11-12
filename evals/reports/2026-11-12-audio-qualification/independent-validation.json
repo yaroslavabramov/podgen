@@ -1,0 +1,22 @@
+{
+  "decoded_files": 12,
+  "repairs": [
+    {
+      "sample": "S009",
+      "pcm_bytes_unchanged": 4976640
+    },
+    {
+      "sample": "S001",
+      "pcm_bytes_unchanged": 5869568
+    }
+  ],
+  "blind_page_checked": true,
+  "measurements": {
+    "min_integrated_lufs": -22.21,
+    "max_integrated_lufs": -22.19,
+    "max_true_peak_dbtp": -1.32,
+    "all_same_target": true,
+    "container_repairs": 2,
+    "all_repaired_pcm_payloads_unchanged": true
+  }
+}
