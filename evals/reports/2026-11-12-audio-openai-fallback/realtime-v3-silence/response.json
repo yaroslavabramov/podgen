@@ -1,0 +1,52 @@
+{
+  "object": "realtime.response",
+  "id": "resp_EjQ9cld0HLtSJxSBRTFF0",
+  "status": "completed",
+  "status_details": null,
+  "output": [
+    {
+      "id": "item_EjQ9csodQ0hSXq5Fjj77b",
+      "type": "function_call",
+      "status": "completed",
+      "name": "submit_audio_review",
+      "call_id": "call_m0oW7Dnq5EPWT0Iw",
+      "arguments": "{\"results\":[{\"case_id\":\"C1\",\"status\":\"confirmed\",\"reason_code\":\"audible_mismatch\",\"heard_spans\":[{\"start_seconds\":0.0,\"end_seconds\":1.6,\"words\":\"Апрель 1971 года.\"}],\"explanation\":\"В аудио отчётливо произносится «Апрель 1971 года», что расходится с ожидаемым «Апрель 1970 года». Слышно именно число «1971», поэтому это подтверждённое несоответствие текста озвучке.\"}]}"
+    }
+  ],
+  "conversation_id": "conv_EjQ9aRF6Ty2zFvEGGbI5x",
+  "output_modalities": [
+    "text"
+  ],
+  "max_output_tokens": 4096,
+  "audio": {
+    "output": {
+      "format": {
+        "type": "audio/pcm",
+        "rate": 24000
+      },
+      "voice": "marin"
+    }
+  },
+  "usage": {
+    "total_tokens": 1402,
+    "input_tokens": 1131,
+    "output_tokens": 271,
+    "input_token_details": {
+      "text_tokens": 1011,
+      "audio_tokens": 120,
+      "image_tokens": 0,
+      "cached_tokens": 0,
+      "cached_tokens_details": {
+        "text_tokens": 0,
+        "audio_tokens": 0,
+        "image_tokens": 0
+      }
+    },
+    "output_token_details": {
+      "text_tokens": 271,
+      "audio_tokens": 0,
+      "reasoning_tokens": 141
+    }
+  },
+  "metadata": null
+}

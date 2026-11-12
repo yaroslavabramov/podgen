@@ -1,0 +1,41 @@
+{
+  "output": {
+    "results": [
+      {
+        "case_id": "C1",
+        "status": "dismissed",
+        "reason_code": "asr_error",
+        "heard_spans": [
+          {
+            "start_seconds": 0.0,
+            "end_seconds": 1.5,
+            "words": "Апрель 1970 года."
+          }
+        ],
+        "explanation": "В аудио отчётливо слышно «Апрель 1970 года.». Число года соответствует ожидаемому, поэтому замена на «1971» является ошибкой распознавания, а не фактическим расхождением в произнесённом тексте."
+      }
+    ]
+  },
+  "usage": {
+    "total_tokens": 1350,
+    "input_tokens": 1132,
+    "output_tokens": 218,
+    "input_token_details": {
+      "text_tokens": 1012,
+      "audio_tokens": 120,
+      "image_tokens": 0,
+      "cached_tokens": 0,
+      "cached_tokens_details": {
+        "text_tokens": 0,
+        "audio_tokens": 0,
+        "image_tokens": 0
+      }
+    },
+    "output_token_details": {
+      "text_tokens": 218,
+      "audio_tokens": 0,
+      "reasoning_tokens": 87
+    }
+  },
+  "response_id": "resp_EjQNOq9vis3m79d9EPmKi"
+}

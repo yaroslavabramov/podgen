@@ -1,0 +1,10 @@
+{
+  "variant": "exact",
+  "audio_path": "/Users/yaroslavabramov/side/podgen/tmp/audio-fidelity-controls-2026-11-12/apollo-date-v1.wav",
+  "audio_sha256": "366fe120cbde252d9ee8682e56be479578df28f3503cc98948ce61e5d36c8e3d",
+  "wire_sha256": "b7092253af9be448dc9f2504ab4c40c01038962096894768798938a040def9b4",
+  "prompt_sha256": "204057d959905c41cc88d035772ec930d82f2a836a5e89e85f8f9705453d831c",
+  "model": "gpt-audio-1.5",
+  "output_mode": "text",
+  "reservation_usd": "0.15"
+}

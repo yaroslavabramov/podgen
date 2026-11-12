@@ -1,0 +1,38 @@
+{
+  "id": "chatcmpl-EjQ3HCcS5PGSpdOobalVCD276KKuo",
+  "object": "chat.completion",
+  "created": 1794493611,
+  "model": "gpt-audio-1.5",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "{\"results\":[{\"case_id\":\"C2\",\"status\":\"confirmed\",\"reason_code\":\"audible_mismatch\",\"heard_spans\":[{\"start_seconds\":0.0,\"end_seconds\":3.0,\"words\":\"Апрель 1971 года\"}],\"explanation\":\"В начале отчётливо слышно 'Апрель 1971 года', а ожидаемое слово было '1972'. Разница в годе подтверждается по аудио.\"}]}",
+        "refusal": null,
+        "annotations": []
+      },
+      "finish_reason": "stop"
+    }
+  ],
+  "usage": {
+    "prompt_tokens": 1047,
+    "completion_tokens": 94,
+    "total_tokens": 1141,
+    "prompt_tokens_details": {
+      "cached_tokens": 0,
+      "audio_tokens": 120,
+      "text_tokens": 927,
+      "image_tokens": 0
+    },
+    "completion_tokens_details": {
+      "reasoning_tokens": 0,
+      "audio_tokens": 0,
+      "accepted_prediction_tokens": 0,
+      "rejected_prediction_tokens": 0,
+      "text_tokens": 94
+    }
+  },
+  "service_tier": "default",
+  "system_fingerprint": "fp_28698fffca"
+}

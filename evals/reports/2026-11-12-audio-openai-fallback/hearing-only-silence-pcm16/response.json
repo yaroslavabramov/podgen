@@ -1,0 +1,38 @@
+{
+  "id": "chatcmpl-EjQAsnMkS74azV4HOle5jwfg1rpDi",
+  "object": "chat.completion",
+  "created": 1794494082,
+  "model": "gpt-audio-1.5",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "{\"transcription\": \"Bonjour, comment \\u00e7a va?\"}",
+        "refusal": null,
+        "annotations": []
+      },
+      "finish_reason": "stop"
+    }
+  ],
+  "usage": {
+    "prompt_tokens": 170,
+    "completion_tokens": 17,
+    "total_tokens": 187,
+    "prompt_tokens_details": {
+      "cached_tokens": 0,
+      "audio_tokens": 120,
+      "text_tokens": 50,
+      "image_tokens": 0
+    },
+    "completion_tokens_details": {
+      "reasoning_tokens": 0,
+      "audio_tokens": 0,
+      "accepted_prediction_tokens": 0,
+      "rejected_prediction_tokens": 0,
+      "text_tokens": 17
+    }
+  },
+  "service_tier": "default",
+  "system_fingerprint": "fp_80a31e8b83"
+}

@@ -1,0 +1,42 @@
+{
+  "output": {
+    "results": [
+      {
+        "case_id": "C1",
+        "status": "confirmed",
+        "reason_code": "audible_mismatch",
+        "heard_spans": [
+          {
+            "start_seconds": 0.0,
+            "end_seconds": 6.0,
+            "words": "Лондон, вечер третьего сентября 1854 года. Квартал вокруг Брод-стрит, недалеко от Голден-сквер."
+          }
+        ],
+        "explanation": "В слышимом фрагменте говорится о «третьем сентября 1854 года» и описывается квартал в Лондоне. Слов «Апрель 1970 года» или «Апрель 1971 года» в этом окне не слышно, поэтому расхождение подтверждается по фактически произнесённым словам."
+      }
+    ]
+  },
+  "response_id": "resp_EjQH8fyzVO5zwGNc58kbt",
+  "usage": {
+    "total_tokens": 1428,
+    "input_tokens": 1131,
+    "output_tokens": 297,
+    "input_token_details": {
+      "text_tokens": 1011,
+      "audio_tokens": 120,
+      "image_tokens": 0,
+      "cached_tokens": 0,
+      "cached_tokens_details": {
+        "text_tokens": 0,
+        "audio_tokens": 0,
+        "image_tokens": 0
+      }
+    },
+    "output_token_details": {
+      "text_tokens": 297,
+      "audio_tokens": 0,
+      "reasoning_tokens": 95
+    }
+  },
+  "elapsed_ms": 5824
+}

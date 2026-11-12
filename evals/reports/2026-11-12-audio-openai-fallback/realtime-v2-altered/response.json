@@ -1,0 +1,57 @@
+{
+  "object": "realtime.response",
+  "id": "resp_EjQ8I3Qc4s9Jvn3kGQ7sJ",
+  "status": "completed",
+  "status_details": null,
+  "output": [
+    {
+      "id": "item_EjQ8IOBYxyzRBCEsIyGbG",
+      "type": "message",
+      "status": "completed",
+      "role": "assistant",
+      "content": [
+        {
+          "type": "output_text",
+          "text": "({\"results\":[{\"case_id\":\"C2\",\"status\":\"confirmed\",\"reason_code\":\"audible_mismatch\",\"heard_spans\":[{\"start_seconds\":0,\"end_seconds\":2,\"words\":\"Апрель 1970 года.\"},{\"start_seconds\":2,\"end_seconds\":4,\"words\":\"«Аполлон-13» летит к Луне.\"}],\"explanation\":\"В слышимом аудио произносится «Апрель 1970 года.», что отличается от ожидаемого «Апрель 1972 года.» и от ASR-варианта «Апрель 1971 года.». Разница в числовом значении года слышна и поддерживается фразой целиком.\"}]})"
+        }
+      ],
+      "phase": "final_answer"
+    }
+  ],
+  "conversation_id": "conv_EjQ8F5fjHEXdX1A8zLpRh",
+  "output_modalities": [
+    "text"
+  ],
+  "max_output_tokens": 4096,
+  "audio": {
+    "output": {
+      "format": {
+        "type": "audio/pcm",
+        "rate": 24000
+      },
+      "voice": "marin"
+    }
+  },
+  "usage": {
+    "total_tokens": 1296,
+    "input_tokens": 1047,
+    "output_tokens": 249,
+    "input_token_details": {
+      "text_tokens": 927,
+      "audio_tokens": 120,
+      "image_tokens": 0,
+      "cached_tokens": 0,
+      "cached_tokens_details": {
+        "text_tokens": 0,
+        "audio_tokens": 0,
+        "image_tokens": 0
+      }
+    },
+    "output_token_details": {
+      "text_tokens": 249,
+      "audio_tokens": 0,
+      "reasoning_tokens": 94
+    }
+  },
+  "metadata": null
+}

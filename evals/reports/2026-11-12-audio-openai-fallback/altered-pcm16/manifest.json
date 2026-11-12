@@ -1,0 +1,10 @@
+{
+  "variant": "altered",
+  "audio_path": "/Users/yaroslavabramov/side/podgen/tmp/audio-openai-fallback-2026-11-12/apollo-date-pcm16.wav",
+  "audio_sha256": "a3a089bee55a317030485987f0ce933b62e87dede0319e94a414a6229e4ff551",
+  "wire_sha256": "5709b04f1f73df391883efae0003aec70d801d374d86662697608480e533486a",
+  "prompt_sha256": "204057d959905c41cc88d035772ec930d82f2a836a5e89e85f8f9705453d831c",
+  "model": "gpt-audio-1.5",
+  "output_mode": "text",
+  "reservation_usd": "0.15"
+}

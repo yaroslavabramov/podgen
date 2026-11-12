@@ -1,0 +1,7 @@
+{
+  "stage": "response_requested",
+  "error_type": "ValidationError",
+  "error": "1 validation error for WindowResolution\n  Invalid JSON: expected value at line 1 column 1 [type=json_invalid, input_value='({\"results\":[{\"case_id\":...й целиком.\"}]})', input_type=str]\n    For further information visit https://errors.pydantic.dev/2.14/v/json_invalid",
+  "elapsed_ms": 6565,
+  "response_completed": true
+}

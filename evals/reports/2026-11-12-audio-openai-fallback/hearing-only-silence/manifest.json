@@ -1,0 +1,6 @@
+{
+  "audio_sha256": "33593c4526ae5341d6d59d7aea3ee076cf2fb7578a7941388592e1d97835ad3f",
+  "wire_sha256": "8d487086cd1268bf762c960026e26923f872e0af914ab047ef71691c19f9fa4f",
+  "diagnostic": "audio_only_no_reference_or_asr",
+  "production_prompt_changed": false
+}

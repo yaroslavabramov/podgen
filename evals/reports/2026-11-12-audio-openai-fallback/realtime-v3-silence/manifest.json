@@ -1,0 +1,9 @@
+{
+  "model": "gpt-realtime-2.1",
+  "variant": "silence",
+  "audio_sha256": "69cb3f12fbdd46bf2f41eaddcec48e76d6c46ad836db55c34dc23370f43acfb6",
+  "pcm_sha256": "30fafbdc0facf210a26498db982f7ff8ad1e0b9a805816731c72e356a768c162",
+  "wire_sha256": "488e046b7416969ba9ea3ad0b5ce8832bcb66cb423584827b5eb79dc98cb583d",
+  "prompt_sha256": "204057d959905c41cc88d035772ec930d82f2a836a5e89e85f8f9705453d831c",
+  "diagnostic": true
+}

@@ -1,0 +1,10 @@
+{
+  "variant": "silence",
+  "audio_path": "/Users/yaroslavabramov/side/podgen/tmp/audio-openai-fallback-2026-11-12/silence-12s.wav",
+  "audio_sha256": "33593c4526ae5341d6d59d7aea3ee076cf2fb7578a7941388592e1d97835ad3f",
+  "wire_sha256": "0c20dca395bf097cad6866ee2555650faf92bdd07f6eec4828ee9004ae3cf91b",
+  "prompt_sha256": "204057d959905c41cc88d035772ec930d82f2a836a5e89e85f8f9705453d831c",
+  "model": "gpt-audio-1.5",
+  "output_mode": "text",
+  "reservation_usd": "0.15"
+}

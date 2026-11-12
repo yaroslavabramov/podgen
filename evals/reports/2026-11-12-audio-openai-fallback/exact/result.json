@@ -1,0 +1,40 @@
+{
+  "output": {
+    "results": [
+      {
+        "case_id": "C1",
+        "status": "dismissed",
+        "reason_code": "asr_error",
+        "heard_spans": [
+          {
+            "start_seconds": 0.0,
+            "end_seconds": 3.0,
+            "words": "Апрель 1970 года."
+          }
+        ],
+        "explanation": "В аудио ясно произносится \"Апрель 1970 года.\", поэтому упоминание 1971-го года является ошибкой распознавания."
+      }
+    ]
+  },
+  "usage": {
+    "prompt_tokens": 1047,
+    "completion_tokens": 103,
+    "total_tokens": 1150,
+    "prompt_tokens_details": {
+      "cached_tokens": 0,
+      "audio_tokens": 120,
+      "text_tokens": 927,
+      "image_tokens": 0
+    },
+    "completion_tokens_details": {
+      "reasoning_tokens": 0,
+      "audio_tokens": 0,
+      "accepted_prediction_tokens": 0,
+      "rejected_prediction_tokens": 0,
+      "text_tokens": 103
+    }
+  },
+  "request_id": "chatcmpl-EjPyzuQbTw7cRT6IHeLXgPnEyx3oH",
+  "estimated_cost_usd": "0.0071875",
+  "cost_status": "token_estimate_not_invoice"
+}
