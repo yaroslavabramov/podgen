@@ -29,6 +29,8 @@ def assert_persisted_fidelity(repo, project, comparison, folder, monkeypatch):
     class ASR:
         def submit(self, request, body, credential):
             calls.append(body)
+            if len(calls) == 1:
+                return HttpReceipt(503, {}, b"service unavailable", 5)
             return HttpReceipt(
                 200,
                 {"content-type": "application/json"},
@@ -54,9 +56,26 @@ def assert_persisted_fidelity(repo, project, comparison, folder, monkeypatch):
     common = ["--project", str(project), "--actor", str(repo.actor_id), "--objects", str(repo.objects.root)]
     args = ["--config", str(path), "--export-dir", str(folder / "fidelity-export")]
     assert audio_fidelity_cli.main([*common, "prepare", *args]) == 0 and not calls
-    assert audio_fidelity_cli.main([*common, "run", *args]) == 0
+    assert audio_fidelity_cli.main([*common, "run", *args]) == 2
+    assert audio_fidelity_cli.main([*common, "resume", *args]) == 2 and len(calls) == 1
+    assert (
+        audio_fidelity_cli.main(
+            [
+                *common,
+                "retry",
+                *args,
+                "--reason",
+                "Explicit service recovery",
+                "--max-total-requests",
+                "2",
+                "--max-total-cost-usd",
+                "0.04",
+            ]
+        )
+        == 0
+    )
     monkeypatch.delenv("FISH_API_KEY")
-    assert audio_fidelity_cli.main([*common, "resume", *args]) == 0 and len(calls) == 1
+    assert audio_fidelity_cli.main([*common, "resume", *args]) == 0 and len(calls) == 2
     monkeypatch.setattr(
         audio_fidelity_cli,
         "RawAudioTransport",
@@ -67,7 +86,7 @@ def assert_persisted_fidelity(repo, project, comparison, folder, monkeypatch):
     assert calls[0] == journal.bytes(prefix(config.audit_id) + ":manifest", manifest["wire_blob"])
     assert manifest["transport_proof"]["pcm_bit_identical"]
     assert manifest["source_script_hash"] == manifest["source"]["source_script_hash"]
-    assert json.loads((folder / "fidelity-export/status.json").read_text())["requests_submitted"] == 1
+    assert json.loads((folder / "fidelity-export/status.json").read_text())["requests_submitted"] == 2
     assert "fixture-recognition-secret" not in "".join(
         p.read_text() for p in (folder / "fidelity-export").rglob("*.json")
     )
@@ -75,3 +94,21 @@ def assert_persisted_fidelity(repo, project, comparison, folder, monkeypatch):
     from tests.audio_adjudication_cases import assert_persisted_adjudication
 
     assert_persisted_adjudication(journal, project, config, folder, monkeypatch)
+
+    from podgen.domain.errors import ContractError
+    from podgen.runtime.evaluation.audio.fidelity import processing as fidelity_processing
+    from podgen.runtime.evaluation.audio.fidelity.export import export as export_fidelity
+    from podgen.runtime.evaluation.audio.fidelity.service import reprocess as reprocess_fidelity
+
+    current = export_fidelity(journal, config, folder / "fidelity-export")
+    last = current["current"]["current_result"]
+    with monkeypatch.context() as local:
+        local.setattr(
+            fidelity_processing,
+            "generate",
+            lambda *a, **k: (_ for _ in ()).throw(ContractError("native_injected_failure")),
+        )
+        assert reprocess_fidelity(journal, config, "Native failed local reprocess") == "response_invalid"
+    failed = export_fidelity(journal, config, folder / "fidelity-export")
+    assert failed["current"]["current_result"] is None and failed["current"]["last_successful_result"] == last
+    assert json.loads((folder / "fidelity-export/candidates.json").read_text())["report"] is None

@@ -1,7 +1,7 @@
 import re
 import unicodedata
 
-VERSION = "literal-ru-case-punctuation-yo/2"
+VERSION = "literal-ru-case-punctuation-yo/3"
 WORDS = re.compile(
     r"(?<!\w)[+−-]\d+(?:[.,:/-]\d+)*|\d+(?:[.,:/-]\d+)*|[^\W\d_]+(?:['’][^\W\d_]+)*|[^\w\s]", re.UNICODE
 )
@@ -25,6 +25,9 @@ def tokens(text, **origin):
         result.append(
             dict(
                 index=len(result),
+                separator_before=text[result[-1]["char_end"] : match.start()]
+                if result
+                else text[: match.start()],
                 text=word,
                 normalized=word.casefold().replace("ё", "е"),
                 char_start=match.start(),

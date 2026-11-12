@@ -294,7 +294,8 @@
       "enum": [
         "literal-fidelity-candidates/1",
         "literal-fidelity-candidates/2",
-        "literal-fidelity-candidates/3"
+        "literal-fidelity-candidates/3",
+        "literal-fidelity-candidates/4"
       ],
       "title": "Contract",
       "type": "string"
@@ -302,10 +303,21 @@
     "normalization_contract": {
       "enum": [
         "literal-ru-case-punctuation-yo/1",
-        "literal-ru-case-punctuation-yo/2"
+        "literal-ru-case-punctuation-yo/2",
+        "literal-ru-case-punctuation-yo/3"
       ],
       "title": "Normalization Contract",
       "type": "string"
+    },
+    "normalization_equivalences": {
+      "items": {
+        "additionalProperties": {
+          "$ref": "#/$defs/JsonValue"
+        },
+        "type": "object"
+      },
+      "title": "Normalization Equivalences",
+      "type": "array"
     },
     "expected_tokens": {
       "items": {

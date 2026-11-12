@@ -36,9 +36,17 @@ class Candidate(Contract):
 
 class CandidateReport(Contract):
     contract: Literal[
-        "literal-fidelity-candidates/1", "literal-fidelity-candidates/2", "literal-fidelity-candidates/3"
+        "literal-fidelity-candidates/1",
+        "literal-fidelity-candidates/2",
+        "literal-fidelity-candidates/3",
+        "literal-fidelity-candidates/4",
     ]
-    normalization_contract: Literal["literal-ru-case-punctuation-yo/1", "literal-ru-case-punctuation-yo/2"]
+    normalization_contract: Literal[
+        "literal-ru-case-punctuation-yo/1",
+        "literal-ru-case-punctuation-yo/2",
+        "literal-ru-case-punctuation-yo/3",
+    ]
+    normalization_equivalences: list[dict[str, JsonValue]] = Field(default_factory=list)
     expected_tokens: list[dict[str, JsonValue]]
     recognized_tokens: list[dict[str, JsonValue]]
     candidates: list[Candidate]

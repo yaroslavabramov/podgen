@@ -157,7 +157,7 @@ def test_timestamp_discrepancy_retains_expected_text_context_even_across_replace
     candidate = next(c for c in result["candidates"] if c["kind"] == "recognition_uncertainty")
     assert candidate["expected_tokens"][0]["text"] == "3.5"
     assert candidate["expected_context"][0]["text"] == "Нужны 3.5 недели" and candidate["script_selectors"]
-    assert result["contract"].endswith("/3")
+    assert result["contract"].endswith("/4")
 
 
 def test_zero_segment_in_text_mismatch_uses_whole_opcode_without_extra_audio_cases():

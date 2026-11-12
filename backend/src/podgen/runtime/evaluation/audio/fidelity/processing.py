@@ -9,6 +9,7 @@ from podgen.audio.recognition.fish import parse
 from podgen.domain.errors import ContractError
 
 from .contracts import prefix
+from .deliveries import latest
 from .snapshots import schema_blob
 
 
@@ -30,13 +31,14 @@ def revisions(journal, audit_id):
 
 def process(journal, config, manifest, *, reason=None):
     key = prefix(config.audit_id)
+    receipt_key = latest(journal, config)["key"]
     previous = revisions(journal, config.audit_id)
     output_key = f"{key}:processing:{len(previous) + 1}"
     journal.put(
         output_key,
         dict(
             contract="audio-fidelity-processing/1",
-            source_receipt_ref=journal.ref(key + ":receipt").model_dump(mode="json"),
+            source_receipt_ref=journal.ref(receipt_key + ":receipt").model_dump(mode="json"),
             parent_processing_ref=journal.ref(previous[-1]["key"]).model_dump(mode="json")
             if previous
             else None,
@@ -49,14 +51,14 @@ def process(journal, config, manifest, *, reason=None):
         ),
     )
     try:
-        receipt = journal.get(key + ":receipt")
-        parsed = parse(journal.bytes(key + ":receipt", receipt["raw_response_blob"]))
+        receipt = journal.get(receipt_key + ":receipt")
+        parsed = parse(journal.bytes(receipt_key + ":receipt", receipt["raw_response_blob"]))
         journal.put(
             output_key + ":recognition",
             dict(
                 contract="audio-independent-recognition/1",
                 output=parsed.model_dump(mode="json"),
-                receipt_ref=journal.ref(key + ":receipt").model_dump(mode="json"),
+                receipt_ref=journal.ref(receipt_key + ":receipt").model_dump(mode="json"),
                 submitted_audio_ref=journal.ref(key + ":manifest").model_dump(mode="json"),
                 submitted_audio_sha256=manifest["transport_proof"]["source_audio_sha256"],
                 submitted_range=manifest["transport_proof"]["submitted_range"],
@@ -110,7 +112,7 @@ def process(journal, config, manifest, *, reason=None):
                 contract="audio-fidelity-processing-failure/1",
                 status="response_invalid",
                 reason=str(error),
-                receipt_ref=journal.ref(key + ":receipt").model_dump(mode="json"),
+                receipt_ref=journal.ref(receipt_key + ":receipt").model_dump(mode="json"),
             ),
         )
         return "response_invalid"

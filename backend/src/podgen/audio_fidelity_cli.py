@@ -25,11 +25,14 @@ def parser():
     p.add_argument("--objects", type=Path, required=True)
     p.add_argument("--env-file", type=Path)
     commands = p.add_subparsers(dest="operation", required=True)
-    for op in ("prepare", "run", "resume", "reprocess", "export"):
+    for op in ("prepare", "run", "resume", "retry", "reprocess", "export"):
         command = commands.add_parser(op)
         command.add_argument("--config", type=Path, required=True)
         command.add_argument("--export-dir", type=Path, required=True)
-        if op == "reprocess":
+        if op == "retry":
+            command.add_argument("--max-total-requests", type=int, required=True)
+            command.add_argument("--max-total-cost-usd", required=True)
+        if op in ("retry", "reprocess"):
             command.add_argument("--reason", required=True)
     return p
 
@@ -51,13 +54,24 @@ def main(argv=None):
         with journal.lock():
             prepare(journal, config)
         bind(journal, config, args.export_dir)
-        if args.operation in ("run", "resume"):
-            run(
-                journal, config, RawAudioTransport(timeout_seconds=config.recognition.request_timeout_seconds)
+        operation_status = None
+        if args.operation in ("run", "resume", "retry"):
+            operation_status = run(
+                journal,
+                config,
+                RawAudioTransport(timeout_seconds=config.recognition.request_timeout_seconds),
+                retry_policy=dict(
+                    reason=args.reason,
+                    max_total_requests=args.max_total_requests,
+                    max_total_cost_usd=args.max_total_cost_usd,
+                )
+                if args.operation == "retry"
+                else None,
             )
         elif args.operation == "reprocess":
-            reprocess(journal, config, args.reason)
+            operation_status = reprocess(journal, config, args.reason)
         result = export(journal, config, args.export_dir)
+        result["operation_status"] = operation_status
         print(json.dumps(result, ensure_ascii=False), flush=True)
         return (
             0 if args.operation in ("prepare", "export") or result["status"] == "candidates_generated" else 2
