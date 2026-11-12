@@ -1,3 +1,4 @@
+from .decisions import GROUPS, summarize
 from .observations import charged_or_reserved
 
 
@@ -6,6 +7,7 @@ def export(store, config):
     if not manifest:
         return dict(status="not_prepared", production_ready=False)
     cases = []
+    evaluations = {case["case_id"]: case["evaluation"] for case in manifest["configuration"]["cases"]}
     for case in manifest["cases"]:
         rows = store.attempts(case)
         last = rows[-1] if rows else None
@@ -33,6 +35,8 @@ def export(store, config):
                 billing=value.get("billing") if value else None,
                 model_changed=any(store.get(row["key"] + "/model-change.json") is not None for row in rows),
                 provider_response=value,
+                provider_word_decisions=summarize(value),
+                operator_evaluation=evaluations[case["case_id"]],
             )
         )
     all_saved = all(c["status"] == "response_saved" for c in cases)
@@ -47,6 +51,9 @@ def export(store, config):
         credit_cap=config.max_credits,
         qualification_status="not_evaluated",
         production_ready=False,
+        word_decision_counts={
+            name: sum(case["provider_word_decisions"]["counts"][name] for case in cases) for name in GROUPS
+        },
     )
     # An immutable report per distinct state; no prior observation is replaced.
     from podgen.domain.canonical import digest

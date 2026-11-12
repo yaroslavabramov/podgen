@@ -59,6 +59,7 @@ def main(argv=None):
                 "qualification_status",
                 "production_ready",
                 "report_path",
+                "word_decision_counts",
             )
         }
         print(json.dumps(summary), flush=True)
