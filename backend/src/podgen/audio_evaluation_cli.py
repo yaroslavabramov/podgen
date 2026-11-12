@@ -11,6 +11,7 @@ from podgen.domain.errors import ContractError
 from podgen.persistence.database import Database
 from podgen.persistence.objects import FileObjectStore
 from podgen.persistence.repository import Repository
+from podgen.runtime.evaluation.audio.comparison_directory import bind_comparison
 from podgen.runtime.evaluation.audio.contracts import load_comparison_config
 from podgen.runtime.evaluation.audio.export import export
 from podgen.runtime.evaluation.audio.journal import AudioJournal
@@ -83,6 +84,9 @@ def main(argv=None):
         elif args.operation == "reprocess":
             reprocess(journal, config, args.sample_id, args.reason)
         elif args.operation in ("run", "resume", "retake"):
+            with journal.lock():
+                manifest = prepare(journal, config)
+                bind_comparison(journal, args.export_dir, manifest)
             run(
                 journal,
                 config,

@@ -19,7 +19,7 @@ def read_exact(path, expected):
         return False
 
 
-def bind_directory(folder, filename, binding, manifest):
+def bind_directory(folder, filename, binding, manifest, *, legacy_validator=None):
     """A matching old manifest can establish ownership; unknown nonempty folders cannot."""
     folder = Path(folder)
     binding_path = folder / filename
@@ -35,6 +35,8 @@ def bind_directory(folder, filename, binding, manifest):
     if folder.exists() and any(folder.iterdir()):
         if not manifest_path.is_file() or not read_exact(manifest_path, manifest):
             raise Conflict("audio_export_nonempty_directory_not_verified")
+        if legacy_validator is not None:
+            legacy_validator()
     folder.mkdir(parents=True, exist_ok=True)
     # Exclusive creation also rejects another run claiming the directory concurrently.
     try:

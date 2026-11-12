@@ -64,6 +64,18 @@ def test_native_approved_runtime_input_cli_lossless_blind_export_and_resume(
     output = tmp_path / "audio-output"
     common = ["--project", str(project), "--actor", str(repo.actor_id), "--objects", str(repo.objects.root)]
     args = ["--config", str(path), "--export-dir", str(output)]
+    foreign = tmp_path / "foreign-export"
+    foreign.mkdir()
+    note = foreign / "notes.txt"
+    note.write_text("unrelated notes")
+    before = note.stat().st_mtime_ns
+    for operation in ("run", "resume", "retake"):
+        blocked = [*common, operation, "--config", str(path), "--export-dir", str(foreign)]
+        if operation == "retake":
+            blocked += ["--sample-id", manifest["cells"][0]["cell_id"], "--reason", "Explicit alternative"]
+        assert audio_evaluation_cli.main(blocked) == 2
+        assert not transport.calls and note.stat().st_mtime_ns == before
+        assert list(foreign.iterdir()) == [note]
     assert (
         audio_evaluation_cli.main([*common, "run", *args]) == 2
     )  # Four available cells do not claim the missing sixteen.

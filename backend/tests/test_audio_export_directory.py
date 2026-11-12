@@ -85,7 +85,7 @@ def test_unverified_nonempty_directory_is_untouched(monkeypatch, tmp_path, state
     assert snapshot(tmp_path) == before
 
 
-def test_exact_legacy_manifest_can_be_adopted_without_removing_unknown_leftovers(monkeypatch, tmp_path):
+def test_mixed_legacy_manifest_is_rejected_without_removing_foreign_leftovers(monkeypatch, tmp_path):
     journal, *_ = fixture(monkeypatch)
     export(journal, tmp_path)
     (tmp_path / "export-binding.json").unlink()
@@ -94,11 +94,10 @@ def test_exact_legacy_manifest_can_be_adopted_without_removing_unknown_leftovers
     other = tmp_path / "private/other-run/original.wav"
     other.parent.mkdir()
     other.write_bytes(b"keep original")
-    prior = (leftover.stat().st_mtime_ns, other.stat().st_mtime_ns)
-    export(journal, tmp_path)
-    assert leftover.read_bytes() == b"unrelated recording" and other.read_bytes() == b"keep original"
-    assert (leftover.stat().st_mtime_ns, other.stat().st_mtime_ns) == prior
-    assert (tmp_path / "export-binding.json").is_file()
+    before = snapshot(tmp_path)
+    with pytest.raises(Conflict, match="foreign_private_records"):
+        export(journal, tmp_path)
+    assert snapshot(tmp_path) == before
 
 
 @pytest.mark.parametrize("filename", ["export-binding.json", "batch.json"])
@@ -114,3 +113,54 @@ def test_all_audio_export_types_reject_unknown_nonempty_folder_and_wrong_legacy(
     with pytest.raises(Conflict):
         bind_directory(tmp_path, filename, dict(ref="owned"), dict(contract="owned"))
     assert snapshot(tmp_path) == before
+
+
+def test_clean_legacy_export_is_adopted_and_user_notes_and_subfolders_survive(monkeypatch, tmp_path):
+    journal, *_ = fixture(monkeypatch)
+    export(journal, tmp_path)
+    (tmp_path / "export-binding.json").unlink()
+    notes = tmp_path / "notes.txt"
+    notes.write_bytes(b"user notes")
+    for name in ("apollo-full", "apollo-podcaster"):
+        user = tmp_path / "blind" / name
+        user.mkdir()
+        (user / "S999.wav").write_bytes(b"user recording")
+    before = {
+        p: p.read_bytes()
+        for p in tmp_path.rglob("*")
+        if p.is_file() and (p == notes or p.parent.name in ("apollo-full", "apollo-podcaster"))
+    }
+    export(journal, tmp_path)
+    assert all(p.read_bytes() == data for p, data in before.items())
+    assert (tmp_path / "export-binding.json").is_file()
+
+
+@pytest.mark.parametrize("kind", ["sample", "unknown-source", "changed-source", "wrong-content"])
+def test_legacy_service_namespace_must_match_manifest(monkeypatch, tmp_path, kind):
+    journal, *_ = fixture(monkeypatch)
+    export(journal, tmp_path)
+    (tmp_path / "export-binding.json").unlink()
+    if kind == "sample":
+        (tmp_path / "blind/S999.wav").write_bytes(b"foreign")
+    elif kind == "wrong-content":
+        (tmp_path / "blind/S001.wav").write_bytes(b"foreign bytes under valid label")
+    elif kind == "unknown-source":
+        (tmp_path / "private/sources/other.json").write_text("{}")
+    else:
+        next((tmp_path / "private/sources").glob("*.json")).write_text("{}")
+    before = snapshot(tmp_path)
+    with pytest.raises(Conflict):
+        export(journal, tmp_path)
+    assert snapshot(tmp_path) == before
+
+
+def test_clean_legacy_audio_bytes_are_verified_against_saved_take(monkeypatch, tmp_path):
+    from podgen.runtime.evaluation.audio.attempts import execute
+    from tests.test_audio_evaluation import Transport
+
+    journal, config, manifest, cell = fixture(monkeypatch)
+    execute(journal, manifest, cell, config, Transport())
+    export(journal, tmp_path)
+    (tmp_path / "export-binding.json").unlink()
+    export(journal, tmp_path)
+    assert (tmp_path / "export-binding.json").is_file()

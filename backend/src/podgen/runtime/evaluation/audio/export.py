@@ -4,10 +4,9 @@ import html
 import random
 from pathlib import Path
 
-from podgen.domain.canonical import digest
-
 from .attempts import baseline, history, ledger
-from .export_directory import bind_directory, write_json
+from .comparison_directory import bind_comparison
+from .export_directory import write_json
 from .matrix import full_comparison_complete
 
 
@@ -16,17 +15,7 @@ def export(journal, folder):
     if manifest is None:
         raise ValueError("audio_comparison_not_prepared")
     folder = Path(folder)
-    bind_directory(
-        folder,
-        "export-binding.json",
-        dict(
-            contract="audio-comparison-export-binding/1",
-            run_id=str(journal.run_id),
-            manifest_ref=journal.ref("manifest").model_dump(mode="json"),
-            manifest_hash=digest(manifest),
-        ),
-        manifest,
-    )
+    bind_comparison(journal, folder, manifest)
     private = folder / "private"
     private.mkdir(parents=True, exist_ok=True)
     blind = folder / "blind"
