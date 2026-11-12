@@ -2,15 +2,16 @@
 
 import json
 from copy import deepcopy
+from uuid import uuid4
 
 import pytest
+
 from podgen import audio_evaluation_cli, writing_cli
 from podgen.domain.errors import Conflict
 from podgen.runtime.evaluation.audio.contracts import ComparisonConfig
 from podgen.runtime.evaluation.audio.journal import AudioJournal
 from podgen.runtime.evaluation.audio.prepare import prepare
 from podgen.runtime.evaluation.reading_cycle import outcome_ref
-
 from tests.audio_cases import config, response, signal
 from tests.test_editorial_independence import invoke
 from tests.test_independent_readings import ReadingProvider, setup_review
@@ -75,3 +76,19 @@ def test_native_approved_runtime_input_cli_lossless_blind_export_and_resume(
     receipt = list((output / "private").glob("*/take-1/receipt.json"))[0]
     assert json.loads(receipt.read_text())["headers"]["character-cost"] == "123"
     assert "not-written-to-artifacts" not in "".join(p.read_text() for p in output.rglob("*.json"))
+
+    # A separate offline edition reads actual persisted blobs through their owning record ACL.
+    batch = str(uuid4())
+    edition = tmp_path / "listening-edition"
+    listen_args = ["--config", str(path), "--export-dir", str(edition), "--batch-id", batch]
+    monkeypatch.setattr(
+        audio_evaluation_cli,
+        "HttpSynthesisTransport",
+        lambda: pytest.fail("offline edition constructed a transport"),
+    )
+    assert audio_evaluation_cli.main([*common, "listen", *listen_args]) == 0
+    assert audio_evaluation_cli.main([*common, "listen-export", *listen_args]) == 0
+    status = json.loads((edition / "status.json").read_text())
+    assert status["coverage"]["complete_http_200"] == 4
+    assert status["listening_samples"] == 4 and not status["requested_matrix_complete"]
+    assert len(transport.calls) == 4

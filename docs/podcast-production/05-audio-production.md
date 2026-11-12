@@ -339,3 +339,19 @@ python -m podgen.audio_evaluation_cli --project PROJECT --actor ACTOR \
 `private/` содержит config, source records с точным текстом, подготовленные запросы и фактические UTF-8 wire bodies без секретных auth headers, raw HTTP responses, receipts, исходные provider audio, decoded PCM, все обработки и расходы. `blind/` содержит обезличенные WAV, случайный сохранённый порядок и страницу прослушивания с закрытым текстом для второго прохода. Заметки изолированы по configuration hash. Native WAV/PCM/FLAC сохраняются без lossy-перекодирования; MP3 под видом lossless отклоняется. Полное декодирование измеряет frames/rate/channels/LUFS/true peak и `full_scale_samples` по исходной bit depth; это последнее поле само по себе не доказывает слышимый клиппинг.
 
 Blind-копии приводятся к общим mono/48 kHz/PCM24 и loudness-target постоянным измеренным gain, без изменения темпа и скрытой компрессии. Если target нельзя получить без превышения true peak, обработка явно останавливается. Провайдерские исходники остаются нетронутыми. Корректный сигнал и HTTP200 не удостоверяют исполнение слов, произношение или естественность; финалистов выбирает прослушивание. Независимые ASR, acoustic review, full-master assembly и локальные production retakes остаются следующими частями WP-07, не заменяются заглушками.
+
+### Отдельные локальные издания для прослушивания
+
+`listen --batch-id UUID` создаёт immutable `audio-listening-batch/1` поверх сохранённых decoded records, включая записи с прежним отказом нормализации. HTTP-запросов и ключей не требует. Frozen comparison config, requests и profiles не меняются. Используется первый пригодный synthesis take и последняя пригодная decoded-обработка этого take.
+
+Сначала каждый сигнал преобразуется в mono/48 kHz/PCM32 и измеряется. Общая цель — минимум из `--preferred-lufs` (по умолчанию −20) и допустимых целей всех сигналов с ограничением `--true-peak-dbtp` (−1) и `--headroom-db` (0.3); округление вниз до 0.1 LU. Затем применяется только постоянный gain с выходом PCM24. Ограничение пиков не заменяется компрессией. Manifest сохраняет точные decoded/input refs, измерения, версии инструментов и общий target; прежние ошибки остаются отдельно от новых результатов.
+
+Явный `--repair-observed-fish-header` разрешает отдельную контейнерную копию только наблюдённого Fish WAV: 44-byte header, PCM16 mono, согласованные rate/byte-rate/block-align, sentinel `RIFF=0xffffff24`, `data=0xffffff00`, полный HTTP200 и целые frames. Меняются только uint32 length по offsets 4 и 40; исходник, repaired blob, hash исходника/результата/неизменного PCM payload, оба patches и receipt ref сохраняются. Остальные повреждённые WAV отклоняются; строгий `-xerror` decode сохранён. Repair не доказывает полноту произнесённых слов: fidelity остаётся `pending_listening`.
+
+```sh
+python -m podgen.audio_evaluation_cli --project PROJECT --actor ACTOR --objects OBJECTS \
+  listen --config comparison.json --export-dir listening/UUID --batch-id UUID \
+  --repair-observed-fish-header
+```
+
+`listen-export` с теми же config/batch-id экспортирует сохранённое издание. `batch.json` привязывает каталог к точному batch ref/hash; другой batch туда не записывается. `private/` содержит manifest, соответствие меток, decoded provenance, repair audit и результаты; `blind/` — обезличенные файлы и страницу с отдельным пространством заметок. Coverage различает expected/configured, полные HTTP200, provider refusals и реально доступные listening samples. Успех локальной команды означает готовность этого издания, а не полноту матрицы провайдеров или production acceptance.

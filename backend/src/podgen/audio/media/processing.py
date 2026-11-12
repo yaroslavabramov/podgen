@@ -126,7 +126,7 @@ def decode(audio):
         return decoded.read_bytes(), report
 
 
-def normalize(decoded, target_lufs, true_peak):
+def playback_input(decoded):
     with tempfile.TemporaryDirectory(prefix="podgen-listening-") as folder:
         source = Path(folder) / "source.wav"
         source.write_bytes(decoded)
@@ -152,6 +152,14 @@ def normalize(decoded, target_lufs, true_peak):
             ]
         )
         measured = measure(converted)
+        return converted.read_bytes(), measured
+
+
+def normalize(decoded, target_lufs, true_peak):
+    playback, measured = playback_input(decoded)
+    with tempfile.TemporaryDirectory(prefix="podgen-gain-") as folder:
+        converted = Path(folder) / "mono.wav"
+        converted.write_bytes(playback)
         gain = target_lufs - float(measured["input_i"])
         if float(measured["input_tp"]) + gain > true_peak + 0.05:
             raise ContractError("audio_linear_normalization_exceeds_true_peak")

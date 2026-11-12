@@ -14,6 +14,8 @@ from podgen.persistence.repository import Repository
 from podgen.runtime.evaluation.audio.contracts import ComparisonConfig
 from podgen.runtime.evaluation.audio.export import export
 from podgen.runtime.evaluation.audio.journal import AudioJournal
+from podgen.runtime.evaluation.audio.listening.batch import ListeningConfig, build
+from podgen.runtime.evaluation.audio.listening.export import export_batch
 from podgen.runtime.evaluation.audio.prepare import prepare
 from podgen.runtime.evaluation.audio.reprocess import reprocess
 from podgen.runtime.evaluation.audio.service import run
@@ -26,10 +28,18 @@ def parser():
     p.add_argument("--objects", type=Path, required=True)
     p.add_argument("--env-file", type=Path)
     commands = p.add_subparsers(dest="operation", required=True)
-    for op in ("prepare", "run", "resume", "retake", "reprocess", "export"):
+    for op in ("prepare", "run", "resume", "retake", "reprocess", "export", "listen", "listen-export"):
         child = commands.add_parser(op)
         child.add_argument("--config", type=Path, required=True)
         child.add_argument("--export-dir", type=Path, required=True)
+        if op in ("listen", "listen-export"):
+            child.add_argument("--batch-id", type=UUID, required=True)
+        if op == "listen":
+            child.add_argument("--preferred-lufs", type=float, default=-20)
+            child.add_argument("--true-peak-dbtp", type=float, default=-1)
+            child.add_argument("--headroom-db", type=float, default=0.3)
+            child.add_argument("--blind-seed", type=int, default=42)
+            child.add_argument("--repair-observed-fish-header", action="store_true")
         if op in ("retake", "reprocess"):
             child.add_argument("--sample-id", required=True)
             child.add_argument("--reason", required=True)
@@ -50,6 +60,23 @@ def main(argv=None):
         config.run_id,
     )
     try:
+        if args.operation in ("listen", "listen-export"):
+            if args.operation == "listen":
+                build(
+                    journal,
+                    config,
+                    ListeningConfig(
+                        batch_id=args.batch_id,
+                        preferred_lufs=args.preferred_lufs,
+                        true_peak_dbtp=args.true_peak_dbtp,
+                        headroom_db=args.headroom_db,
+                        blind_seed=args.blind_seed,
+                        repair_observed_fish_header=args.repair_observed_fish_header,
+                    ),
+                )
+            result = export_batch(journal, args.batch_id, args.export_dir)
+            print(json.dumps(result, ensure_ascii=False), flush=True)
+            return 0
         if args.operation == "prepare":
             with journal.lock():
                 prepare(journal, config)
