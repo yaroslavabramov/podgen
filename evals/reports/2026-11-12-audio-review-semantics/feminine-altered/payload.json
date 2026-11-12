@@ -1,0 +1,80 @@
+{
+  "output_language": "ru",
+  "audio_window": {
+    "duration_seconds": 3.96
+  },
+  "asr_segment_excerpts": [
+    {
+      "text": "Вокруг",
+      "start_seconds": -0.18,
+      "end_seconds": 0.14
+    },
+    {
+      "text": "умирают",
+      "start_seconds": 0.14,
+      "end_seconds": 0.46
+    },
+    {
+      "text": "сотни",
+      "start_seconds": 0.46,
+      "end_seconds": 0.7
+    },
+    {
+      "text": "людей",
+      "start_seconds": 0.7,
+      "end_seconds": 1.18
+    },
+    {
+      "text": "а",
+      "start_seconds": 1.26,
+      "end_seconds": 1.5
+    },
+    {
+      "text": "главное",
+      "start_seconds": 1.5,
+      "end_seconds": 1.82
+    },
+    {
+      "text": "подозреваемое",
+      "start_seconds": 1.82,
+      "end_seconds": 2.46
+    },
+    {
+      "text": "выглядит",
+      "start_seconds": 2.46,
+      "end_seconds": 2.86
+    },
+    {
+      "text": "почти",
+      "start_seconds": 2.86,
+      "end_seconds": 3.26
+    },
+    {
+      "text": "невинно",
+      "start_seconds": 3.26,
+      "end_seconds": 3.82
+    }
+  ],
+  "asr_segment_time_basis": "seconds_relative_to_supplied_audio_window",
+  "cases": [
+    {
+      "case_id": "C4",
+      "kind": "script_discrepancy",
+      "expected_words": "главное подозреваемое",
+      "expected_context": {
+        "before": " Вокруг умирают сотни людей, а ",
+        "after": " выглядит почти невинно."
+      },
+      "asr_transcript_excerpt": "главное подозреваемое",
+      "asr_context": {
+        "before": " Вокруг умирают сотни людей, а ",
+        "after": " выглядит почти невинно."
+      },
+      "localization": {
+        "basis": "matched_segment_timestamps",
+        "uncertainties": []
+      },
+      "operation": "replace"
+    }
+  ]
+}

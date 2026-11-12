@@ -1,0 +1,15 @@
+{
+  "control": "date-equivalent",
+  "audio_sha256": "d79012e749b19e184eab18ef75b9ca15d13e8c0e9935639c957850b91a084319",
+  "wire_sha256": "f79972ca4962203fee75c506ccfa3699eb648c0fa8f012b7de45512972a5c7a2",
+  "prompt_sha256": "7b47aea0256bb0792987e4549d90d1be8f8fbb93c2de99437bb760587ffc424c",
+  "adapter_version": "openai-realtime-actual-audio-review/2",
+  "changed_model_facing_paths": [
+    "/0/session/instructions",
+    "/0/session/tools/0/parameters/$defs/CaseResolution/properties/explanation/description",
+    "/0/session/tools/0/parameters/$defs/CaseResolution/properties/heard_spans/description",
+    "/0/session/tools/0/parameters/$defs/CaseResolution/properties/reason_code/description",
+    "/0/session/tools/0/parameters/$defs/CaseResolution/properties/status/description",
+    "/0/session/tools/0/parameters/$defs/HeardSpan/properties/words/description"
+  ]
+}

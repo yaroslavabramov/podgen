@@ -1,0 +1,41 @@
+{
+  "output": {
+    "results": [
+      {
+        "case_id": "C4",
+        "status": "dismissed",
+        "reason_code": "asr_error",
+        "heard_spans": [
+          {
+            "start_seconds": 1.5,
+            "end_seconds": 2.46,
+            "words": "главная подозреваемая"
+          }
+        ],
+        "explanation": "В аудио слышно «главная подозреваемая», что соответствует ожидаемому скрипту «главная подозреваемая» в данном контексте. Расхождение с ASR («главное подозреваемое») является ошибкой распознавания, а не дефектом чтения."
+      }
+    ]
+  },
+  "usage": {
+    "total_tokens": 2025,
+    "input_tokens": 1660,
+    "output_tokens": 365,
+    "input_token_details": {
+      "text_tokens": 1621,
+      "audio_tokens": 39,
+      "image_tokens": 0,
+      "cached_tokens": 0,
+      "cached_tokens_details": {
+        "text_tokens": 0,
+        "audio_tokens": 0,
+        "image_tokens": 0
+      }
+    },
+    "output_token_details": {
+      "text_tokens": 365,
+      "audio_tokens": 0,
+      "reasoning_tokens": 199
+    }
+  },
+  "response_id": "resp_EjRwxzKwERVWLa8lHQl7E"
+}

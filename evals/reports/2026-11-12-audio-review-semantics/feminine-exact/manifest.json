@@ -1,0 +1,15 @@
+{
+  "control": "feminine-exact",
+  "audio_sha256": "faabb6ff129c8839d594914f3d61f7aa0eb1b60f555d61a2b3d1db0ee8998429",
+  "wire_sha256": "6143de705ae7da0e37962dba905a7e83f00796e3a6a9996b6bab9b7790b40656",
+  "prompt_sha256": "7b47aea0256bb0792987e4549d90d1be8f8fbb93c2de99437bb760587ffc424c",
+  "adapter_version": "openai-realtime-actual-audio-review/2",
+  "changed_model_facing_paths": [
+    "/0/session/instructions",
+    "/0/session/tools/0/parameters/$defs/CaseResolution/properties/explanation/description",
+    "/0/session/tools/0/parameters/$defs/CaseResolution/properties/heard_spans/description",
+    "/0/session/tools/0/parameters/$defs/CaseResolution/properties/reason_code/description",
+    "/0/session/tools/0/parameters/$defs/CaseResolution/properties/status/description",
+    "/0/session/tools/0/parameters/$defs/HeardSpan/properties/words/description"
+  ]
+}

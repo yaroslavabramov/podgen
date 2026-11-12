@@ -1,0 +1,41 @@
+{
+  "output": {
+    "results": [
+      {
+        "case_id": "C5",
+        "status": "confirmed",
+        "reason_code": "audible_mismatch",
+        "heard_spans": [
+          {
+            "start_seconds": 1.5,
+            "end_seconds": 1.9,
+            "words": "потому"
+          }
+        ],
+        "explanation": "В слышимой речи произносится слово «потому». Это отличается от ожидаемой фразы «по тому» (двух отдельных слов) в данном контексте. Разница слышна по составу слов, поэтому это подтверждённое несоответствие записи ожидаемому тексту."
+      }
+    ]
+  },
+  "usage": {
+    "total_tokens": 2231,
+    "input_tokens": 1689,
+    "output_tokens": 542,
+    "input_token_details": {
+      "text_tokens": 1655,
+      "audio_tokens": 34,
+      "image_tokens": 0,
+      "cached_tokens": 0,
+      "cached_tokens_details": {
+        "text_tokens": 0,
+        "audio_tokens": 0,
+        "image_tokens": 0
+      }
+    },
+    "output_token_details": {
+      "text_tokens": 542,
+      "audio_tokens": 0,
+      "reasoning_tokens": 381
+    }
+  },
+  "response_id": "resp_EjS0zCV8vCZpuseHAqXXD"
+}

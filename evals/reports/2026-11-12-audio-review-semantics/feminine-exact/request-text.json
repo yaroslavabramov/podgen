@@ -1,0 +1,175 @@
+[
+  {
+    "session": {
+      "audio": {
+        "input": {
+          "format": {
+            "rate": 24000,
+            "type": "audio/pcm"
+          },
+          "turn_detection": null
+        }
+      },
+      "instructions": "Review only the supplied cases for spoken-word fidelity. Compare the actual audio with the intended script in `expected_words` and `expected_context`. ASR is a fallible recognition of the recording, supplied only to help locate a possible discrepancy. An ASR error is not a recording defect. Use `output_language` for explanations; preserve case IDs and source quotations exactly.\n\nReport the words you actually hear in `heard_spans`, with start/end seconds relative to the supplied window. Use phrase ranges supported by the audio; ASR words and timestamps do not establish what was heard. Mark unclear speech explicitly rather than completing it from either the script or ASR.\n\nReturn exactly one result per case: `case_id`, `status`, `reason_code`, `heard_spans`, `explanation`. Each heard span contains `start_seconds`, `end_seconds`, `words`.\n\n- `confirmed`, reason `audible_mismatch`: the audio differs from the intended script. Identify the heard words and the intended words they differ from. Confirm an omission only with audible surrounding anchors and enough context to establish the missing span. Disagreement between audio and ASR alone never warrants this status.\n- `dismissed`, reason `asr_error`, `asr_representation_conflict`, or `equivalent_spoken_form`: the audio matches the intended script, regardless of what ASR says. State the heard words and why they match.\n- `inconclusive`, reason `unclear_speech`, `insufficient_window`, `audio_unavailable`, or `pronunciation_reference_unresolved`: state the unresolved evidence.\n\nSpelling, word spacing, punctuation, casing, and digit/word notation alone do not establish a difference in sound. Dismiss equivalent spoken forms. Check numerical value, units, names, negation, scope, order and repetitions carefully. A decimal separator lost in an ASR segment is not an audible error by itself.\n\nJudge words only. Do not rate general prosody or voice quality, reopen factual research, or propose script edits. Return the agreed structured results only.\n\n\nReturn the results by calling submit_audio_review.",
+      "max_output_tokens": 4096,
+      "model": "gpt-realtime-2.1",
+      "output_modalities": [
+        "text"
+      ],
+      "reasoning": {
+        "effort": "medium"
+      },
+      "tool_choice": {
+        "name": "submit_audio_review",
+        "type": "function"
+      },
+      "tools": [
+        {
+          "description": "Return the results of checking the supplied audio window.",
+          "name": "submit_audio_review",
+          "parameters": {
+            "$defs": {
+              "CaseResolution": {
+                "additionalProperties": false,
+                "properties": {
+                  "case_id": {
+                    "minLength": 1,
+                    "title": "Case Id",
+                    "type": "string"
+                  },
+                  "explanation": {
+                    "description": "Explain the verdict by comparing the actual heard words with expected_words and the intended script in expected_context, or state why that comparison remains unresolved. An ASR-versus-audio difference alone does not establish a script-reading defect.",
+                    "minLength": 1,
+                    "title": "Explanation",
+                    "type": "string"
+                  },
+                  "heard_spans": {
+                    "description": "Words actually heard, with ranges relative to the supplied audio window, supporting the audio-versus-script verdict. Never put diagnostic placeholders in these spans. Use an empty list when inconclusive and no words can actually be heard.",
+                    "items": {
+                      "$ref": "#/$defs/HeardSpan"
+                    },
+                    "title": "Heard Spans",
+                    "type": "array"
+                  },
+                  "reason_code": {
+                    "description": "Reason for the audio-versus-script verdict. audible_mismatch requires an audible difference from the intended script, not merely from ASR. When audio matches the script, dismiss the case even if ASR differs, using the applicable dismissed reason.",
+                    "enum": [
+                      "audible_mismatch",
+                      "asr_error",
+                      "asr_representation_conflict",
+                      "equivalent_spoken_form",
+                      "unclear_speech",
+                      "insufficient_window",
+                      "audio_unavailable",
+                      "pronunciation_reference_unresolved"
+                    ],
+                    "title": "Reason Code",
+                    "type": "string"
+                  },
+                  "status": {
+                    "description": "Verdict about actual audio versus the intended script in expected_words and expected_context. confirmed means an audible difference from that script; dismissed means the audio matches the intended spoken words, including equivalent spoken forms, regardless of ASR differences; inconclusive means this comparison cannot be established from the available audio evidence.",
+                    "enum": [
+                      "confirmed",
+                      "dismissed",
+                      "inconclusive"
+                    ],
+                    "title": "Status",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "case_id",
+                  "status",
+                  "reason_code",
+                  "heard_spans",
+                  "explanation"
+                ],
+                "title": "CaseResolution",
+                "type": "object"
+              },
+              "HeardSpan": {
+                "additionalProperties": false,
+                "properties": {
+                  "end_seconds": {
+                    "exclusiveMinimum": 0,
+                    "title": "End Seconds",
+                    "type": "number"
+                  },
+                  "start_seconds": {
+                    "minimum": 0,
+                    "title": "Start Seconds",
+                    "type": "number"
+                  },
+                  "words": {
+                    "description": "Only words actually heard in this audio range. Do not copy unheard script or ASR words, and do not use diagnostic labels or placeholders as heard speech.",
+                    "minLength": 1,
+                    "title": "Words",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "start_seconds",
+                  "end_seconds",
+                  "words"
+                ],
+                "title": "HeardSpan",
+                "type": "object"
+              }
+            },
+            "additionalProperties": false,
+            "properties": {
+              "results": {
+                "items": {
+                  "$ref": "#/$defs/CaseResolution"
+                },
+                "title": "Results",
+                "type": "array"
+              }
+            },
+            "required": [
+              "results"
+            ],
+            "title": "WindowResolution",
+            "type": "object"
+          },
+          "type": "function"
+        }
+      ],
+      "type": "realtime"
+    },
+    "type": "session.update"
+  },
+  {
+    "item": {
+      "content": [
+        {
+          "text": "{\"output_language\": \"ru\", \"audio_window\": {\"duration_seconds\": 3.96}, \"asr_segment_excerpts\": [{\"text\": \"Вокруг\", \"start_seconds\": -0.18, \"end_seconds\": 0.14}, {\"text\": \"умирают\", \"start_seconds\": 0.14, \"end_seconds\": 0.46}, {\"text\": \"сотни\", \"start_seconds\": 0.46, \"end_seconds\": 0.7}, {\"text\": \"людей\", \"start_seconds\": 0.7, \"end_seconds\": 1.18}, {\"text\": \"а\", \"start_seconds\": 1.26, \"end_seconds\": 1.5}, {\"text\": \"главное\", \"start_seconds\": 1.5, \"end_seconds\": 1.82}, {\"text\": \"подозреваемое\", \"start_seconds\": 1.82, \"end_seconds\": 2.46}, {\"text\": \"выглядит\", \"start_seconds\": 2.46, \"end_seconds\": 2.86}, {\"text\": \"почти\", \"start_seconds\": 2.86, \"end_seconds\": 3.26}, {\"text\": \"невинно\", \"start_seconds\": 3.26, \"end_seconds\": 3.82}], \"asr_segment_time_basis\": \"seconds_relative_to_supplied_audio_window\", \"cases\": [{\"case_id\": \"C4\", \"kind\": \"script_discrepancy\", \"expected_words\": \"главная подозреваемая\", \"expected_context\": {\"before\": \" Вокруг умирают сотни людей, а \", \"after\": \" выглядит почти невинно.\"}, \"asr_transcript_excerpt\": \"главное подозреваемое\", \"asr_context\": {\"before\": \" Вокруг умирают сотни людей, а \", \"after\": \" выглядит почти невинно.\"}, \"localization\": {\"basis\": \"matched_segment_timestamps\", \"uncertainties\": []}, \"operation\": \"replace\"}]}",
+          "type": "input_text"
+        }
+      ],
+      "id": "item_review_payload",
+      "role": "user",
+      "type": "message"
+    },
+    "type": "conversation.item.create"
+  },
+  {
+    "type": "input_audio_buffer.append",
+    "audio_omitted_from_report": {
+      "pcm_bytes": 190080,
+      "sha256": "4242470df60b4929d3e342434987643798a95ffce1b467c77ecf7f8925ade662"
+    }
+  },
+  {
+    "type": "input_audio_buffer.commit"
+  },
+  {
+    "response": {
+      "max_output_tokens": 4096,
+      "output_modalities": [
+        "text"
+      ]
+    },
+    "type": "response.create"
+  }
+]

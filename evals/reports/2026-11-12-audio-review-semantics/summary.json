@@ -1,0 +1,51 @@
+{
+  "decision": "not_qualified_do_not_continue_full_snow",
+  "model": "gpt-realtime-2.1",
+  "changes": "review prompt and five existing schema field descriptions only; altered control additionally changes expected_words",
+  "human_confirmation": "Only target phrases in W3/W4, held outside requests. No W5 human gold.",
+  "results": {
+    "feminine-exact": "Correctly dismisses ASR error and reports confirmed feminine phrase.",
+    "feminine-altered": "Fails: same PCM, changed expected_words; reports neuter words contrary to human-confirmed feminine audio, dismisses actual reference mismatch.",
+    "date-equivalent": "Correct dismissal and heard target word; imprecise reason asr_error rather than equivalent_spoken_form.",
+    "word-boundary": "Unsupported confirmed: explanation contrasts word spacing without identifying a phonetic difference. Exact articulation is not human verified."
+  },
+  "limits": [
+    "Single paired experiment does not establish general model incapability or isolate a causal prompt component.",
+    "No audio_unavailable in these four responses does not establish elimination of intermittent failure.",
+    "No full Snow run, new TTS, new ASR, or audio repair.",
+    "Request-text reports omit only PCM base64; complete frozen wire and events retained in tmp."
+  ],
+  "rates_usd_per_million": {
+    "input_text": 4,
+    "input_audio": 32,
+    "output_text": 24
+  },
+  "cost_method": "Usage estimate, not invoice. Reasoning already included in output_tokens. No cached tokens.",
+  "estimated_cost_usd": "0.072420",
+  "runs": [
+    {
+      "control": "feminine-exact",
+      "estimated_cost_usd": "0.016492",
+      "events_sha256": "8a7ae5c764077e7f078a9dfcf70da639a4b449506f080786913137f44793e506",
+      "response_id": "resp_EjRwxzKwERVWLa8lHQl7E"
+    },
+    {
+      "control": "feminine-altered",
+      "estimated_cost_usd": "0.013708",
+      "events_sha256": "db7ea685ce6793bf7d09624096ae8456f7970e070eea4683fdf1c385516f6b17",
+      "response_id": "resp_EjRxIKNz7J4sJI69xSNh9"
+    },
+    {
+      "control": "date-equivalent",
+      "estimated_cost_usd": "0.021504",
+      "events_sha256": "68ff530d7895add3611b1a8fa582c1d2d8f02dbe87f35d984bc2331dc17f012a",
+      "response_id": "resp_EjRxn0uTzZs4gvwQO2kw9"
+    },
+    {
+      "control": "word-boundary",
+      "estimated_cost_usd": "0.020716",
+      "events_sha256": "203b3784413da023c965cb765c1a2fa09644b2f08d277e7f437bc3c05d5d3b60",
+      "response_id": "resp_EjS0zCV8vCZpuseHAqXXD"
+    }
+  ]
+}

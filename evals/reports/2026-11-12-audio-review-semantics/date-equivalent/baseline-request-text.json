@@ -1,0 +1,170 @@
+[
+  {
+    "session": {
+      "audio": {
+        "input": {
+          "format": {
+            "rate": 24000,
+            "type": "audio/pcm"
+          },
+          "turn_detection": null
+        }
+      },
+      "instructions": "Check only the supplied candidate discrepancies against the actual audio window. Use `output_language` for explanations; preserve case IDs and source quotations exactly. Reference text and ASR output are comparison data, not proof of what was spoken. Raw ASR transcript and normalized segments may disagree.\n\nFor each case, report the words you can actually hear in `heard_spans`, with start/end seconds relative to the supplied window. Mark unclear speech explicitly. Never fill a gap with reference words or complete an unheard sentence from context. Use phrase ranges supported by the audio; do not invent precise word timestamps.\n\nReturn exactly one result per case: `case_id`, `status`, `reason_code`, `heard_spans`, `explanation`. Each heard span contains `start_seconds`, `end_seconds`, `words`.\n\n- `confirmed`, reason `audible_mismatch`: identify the heard words and ranges supporting the difference. Confirm an omission only with audible surrounding anchors and enough context to establish the missing span.\n- `dismissed`, reason `asr_error`, `asr_representation_conflict`, or `equivalent_spoken_form`: the audio matches the intended words. State what you heard.\n- `inconclusive`, reason `unclear_speech`, `insufficient_window`, `audio_unavailable`, or `pronunciation_reference_unresolved`: state the unresolved evidence.\n\nAccept punctuation, casing and digit/word differences that preserve spoken meaning. Check numerical value, units, names, negation, scope, order and repetitions carefully. A decimal separator lost in an ASR segment is not an audible error by itself.\n\nJudge words only. Do not rate general prosody or voice quality, reopen factual research, or propose script edits. Return the agreed structured results only.\n\n\nReturn the results by calling submit_audio_review.",
+      "max_output_tokens": 4096,
+      "model": "gpt-realtime-2.1",
+      "output_modalities": [
+        "text"
+      ],
+      "reasoning": {
+        "effort": "medium"
+      },
+      "tool_choice": {
+        "name": "submit_audio_review",
+        "type": "function"
+      },
+      "tools": [
+        {
+          "description": "Return the results of checking the supplied audio window.",
+          "name": "submit_audio_review",
+          "parameters": {
+            "$defs": {
+              "CaseResolution": {
+                "additionalProperties": false,
+                "properties": {
+                  "case_id": {
+                    "minLength": 1,
+                    "title": "Case Id",
+                    "type": "string"
+                  },
+                  "explanation": {
+                    "minLength": 1,
+                    "title": "Explanation",
+                    "type": "string"
+                  },
+                  "heard_spans": {
+                    "items": {
+                      "$ref": "#/$defs/HeardSpan"
+                    },
+                    "title": "Heard Spans",
+                    "type": "array"
+                  },
+                  "reason_code": {
+                    "enum": [
+                      "audible_mismatch",
+                      "asr_error",
+                      "asr_representation_conflict",
+                      "equivalent_spoken_form",
+                      "unclear_speech",
+                      "insufficient_window",
+                      "audio_unavailable",
+                      "pronunciation_reference_unresolved"
+                    ],
+                    "title": "Reason Code",
+                    "type": "string"
+                  },
+                  "status": {
+                    "enum": [
+                      "confirmed",
+                      "dismissed",
+                      "inconclusive"
+                    ],
+                    "title": "Status",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "case_id",
+                  "status",
+                  "reason_code",
+                  "heard_spans",
+                  "explanation"
+                ],
+                "title": "CaseResolution",
+                "type": "object"
+              },
+              "HeardSpan": {
+                "additionalProperties": false,
+                "properties": {
+                  "end_seconds": {
+                    "exclusiveMinimum": 0,
+                    "title": "End Seconds",
+                    "type": "number"
+                  },
+                  "start_seconds": {
+                    "minimum": 0,
+                    "title": "Start Seconds",
+                    "type": "number"
+                  },
+                  "words": {
+                    "minLength": 1,
+                    "title": "Words",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "start_seconds",
+                  "end_seconds",
+                  "words"
+                ],
+                "title": "HeardSpan",
+                "type": "object"
+              }
+            },
+            "additionalProperties": false,
+            "properties": {
+              "results": {
+                "items": {
+                  "$ref": "#/$defs/CaseResolution"
+                },
+                "title": "Results",
+                "type": "array"
+              }
+            },
+            "required": [
+              "results"
+            ],
+            "title": "WindowResolution",
+            "type": "object"
+          },
+          "type": "function"
+        }
+      ],
+      "type": "realtime"
+    },
+    "type": "session.update"
+  },
+  {
+    "item": {
+      "content": [
+        {
+          "text": "{\"output_language\": \"ru\", \"audio_window\": {\"duration_seconds\": 3.4}, \"asr_segment_excerpts\": [{\"text\": \"с\", \"start_seconds\": 0.3, \"end_seconds\": 0.38}, {\"text\": \"31\", \"start_seconds\": 0.38, \"end_seconds\": 0.7}, {\"text\": \"августа\", \"start_seconds\": 0.94, \"end_seconds\": 1.34}, {\"text\": \"на\", \"start_seconds\": 1.34, \"end_seconds\": 1.5}, {\"text\": \"1\", \"start_seconds\": 1.5, \"end_seconds\": 1.9}, {\"text\": \"сентября\", \"start_seconds\": 1.9, \"end_seconds\": 2.22}, {\"text\": \"холера\", \"start_seconds\": 2.54, \"end_seconds\": 3.1}, {\"text\": \"которая\", \"start_seconds\": 3.18, \"end_seconds\": 3.58}], \"asr_segment_time_basis\": \"seconds_relative_to_supplied_audio_window\", \"cases\": [{\"case_id\": \"C3\", \"kind\": \"script_discrepancy\", \"expected_words\": \"первое\", \"expected_context\": {\"before\": \"\\nДве ночи назад, с тридцать первого августа на \", \"after\": \" сентября, холера, которая и до этого изредка появлялась в округе, начала косить людей.\"}, \"asr_transcript_excerpt\": \"1\", \"asr_context\": {\"before\": \" Две ночи назад, с 31 августа на \", \"after\": \" сентября, холера, которая и до этого изредка появлялась в округе, начала косить людей.\"}, \"localization\": {\"basis\": \"matched_segment_timestamps\", \"uncertainties\": []}, \"operation\": \"replace\"}]}",
+          "type": "input_text"
+        }
+      ],
+      "id": "item_review_payload",
+      "role": "user",
+      "type": "message"
+    },
+    "type": "conversation.item.create"
+  },
+  {
+    "type": "input_audio_buffer.append",
+    "audio_omitted_from_report": {
+      "pcm_bytes": 163200,
+      "sha256": "a82d3783a2509c1ef888b222622a947f3b52130e4e89c0846fe1fc29c8a955b8"
+    }
+  },
+  {
+    "type": "input_audio_buffer.commit"
+  },
+  {
+    "response": {
+      "max_output_tokens": 4096,
+      "output_modalities": [
+        "text"
+      ]
+    },
+    "type": "response.create"
+  }
+]
