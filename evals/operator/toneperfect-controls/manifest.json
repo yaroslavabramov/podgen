@@ -1,0 +1,98 @@
+{
+  "contract": "toneperfect-saved-controls/1",
+  "purpose": "bounded offline-prepared qualification; root alone submits",
+  "max_total_credits": 10,
+  "planned_max_credits": 8,
+  "request_field_allowlist": [
+    "audio",
+    "text",
+    "language",
+    "task"
+  ],
+  "controls": [
+    {
+      "id": "feminine-exact",
+      "audio_path": "/Users/yaroslavabramov/side/podgen/tmp/toneperfect-controls-2026-11-12/feminine-exact/audio.wav",
+      "audio_sha256": "d207a947621701ebdbc7df13b83ffe590776cf706042f8673e6c6d7034b6107a",
+      "text": "Вокруг умирают сотни людей, а главная подозреваемая выглядит почти невинно.",
+      "text_sha256": "75dd528a59a29689344a7f2a11d6ad4ee83a11bdd14558c8da75e1b1519313d4",
+      "language": "ru-RU",
+      "duration_seconds": 4.4,
+      "max_credits": 1
+    },
+    {
+      "id": "feminine-altered",
+      "audio_path": "/Users/yaroslavabramov/side/podgen/tmp/toneperfect-controls-2026-11-12/feminine-altered/audio.wav",
+      "audio_sha256": "d207a947621701ebdbc7df13b83ffe590776cf706042f8673e6c6d7034b6107a",
+      "text": "Вокруг умирают сотни людей, а главное подозреваемое выглядит почти невинно.",
+      "text_sha256": "6143c83ae40629b73a428005361506240a55f3e8d82df046b8c38e42580a2b30",
+      "language": "ru-RU",
+      "duration_seconds": 4.4,
+      "max_credits": 1
+    },
+    {
+      "id": "date-exact",
+      "audio_path": "/Users/yaroslavabramov/side/podgen/tmp/toneperfect-controls-2026-11-12/date-exact/audio.wav",
+      "audio_sha256": "ce4a917757d2c008631b84afb55f08985562dbab84bff4ffd8338ab70de4b9e4",
+      "text": "Две ночи назад, с тридцать первого августа на первое сентября, холера, которая и до этого изредка появлялась в округе, начала косить людей.",
+      "text_sha256": "e37c5b78946f9f7135cb81fc99bdb21141ea3309dcce223127dc800e58950948",
+      "language": "ru-RU",
+      "duration_seconds": 8.2,
+      "max_credits": 1
+    },
+    {
+      "id": "date-altered",
+      "audio_path": "/Users/yaroslavabramov/side/podgen/tmp/toneperfect-controls-2026-11-12/date-altered/audio.wav",
+      "audio_sha256": "ce4a917757d2c008631b84afb55f08985562dbab84bff4ffd8338ab70de4b9e4",
+      "text": "Две ночи назад, с тридцать первого августа на второе сентября, холера, которая и до этого изредка появлялась в округе, начала косить людей.",
+      "text_sha256": "c5361fb074600e06a7de28a25adb38a66876c2cbc9e19c0ac197822eee04ffa3",
+      "language": "ru-RU",
+      "duration_seconds": 8.2,
+      "max_credits": 1
+    },
+    {
+      "id": "word-boundary-split",
+      "audio_path": "/Users/yaroslavabramov/side/podgen/tmp/toneperfect-controls-2026-11-12/word-boundary-split/audio.wav",
+      "audio_sha256": "6758e204ef5dc8308bcd0062544ca58137ff943821f26adf4bd0a82a4191e3bf",
+      "text": "Он сам признавал, что под микроскопом его не распознать и судить о нём можно только по тому, что оно делает.",
+      "text_sha256": "30d7d8144480659af0ecf23da8c467d1362a9891c766039d22353ad0df401f49",
+      "language": "ru-RU",
+      "duration_seconds": 5.95,
+      "max_credits": 1
+    },
+    {
+      "id": "word-boundary-joined",
+      "audio_path": "/Users/yaroslavabramov/side/podgen/tmp/toneperfect-controls-2026-11-12/word-boundary-joined/audio.wav",
+      "audio_sha256": "6758e204ef5dc8308bcd0062544ca58137ff943821f26adf4bd0a82a4191e3bf",
+      "text": "Он сам признавал, что под микроскопом его не распознать и судить о нём можно только потому, что оно делает.",
+      "text_sha256": "94af087314df685e410158d2fe49b8116666491bd70fae85f895e5171a3ad6c5",
+      "language": "ru-RU",
+      "duration_seconds": 5.95,
+      "max_credits": 1
+    },
+    {
+      "id": "silence-with-text",
+      "audio_path": "/Users/yaroslavabramov/side/podgen/tmp/toneperfect-controls-2026-11-12/silence-with-text/audio.wav",
+      "audio_sha256": "c9e4d4d6942bc71f106b315ca269bff4da821e6313095719703fc89f0d859777",
+      "text": "Вокруг умирают сотни людей, а главная подозреваемая выглядит почти невинно.",
+      "text_sha256": "75dd528a59a29689344a7f2a11d6ad4ee83a11bdd14558c8da75e1b1519313d4",
+      "language": "ru-RU",
+      "duration_seconds": 4.4,
+      "max_credits": 1
+    },
+    {
+      "id": "apollo-with-snow-reference",
+      "audio_path": "/Users/yaroslavabramov/side/podgen/tmp/toneperfect-controls-2026-11-12/apollo-with-snow-reference/audio.wav",
+      "audio_sha256": "1a721746d55461539cbee3eb58b7a884e4be9d5dc17fe582e9e477a564d29cab",
+      "text": "Вокруг умирают сотни людей, а главная подозреваемая выглядит почти невинно.",
+      "text_sha256": "75dd528a59a29689344a7f2a11d6ad4ee83a11bdd14558c8da75e1b1519313d4",
+      "language": "ru-RU",
+      "duration_seconds": 5.7,
+      "max_credits": 1
+    }
+  ],
+  "constant_request_fields": {
+    "language": "ru-RU",
+    "task": "general"
+  }
+}

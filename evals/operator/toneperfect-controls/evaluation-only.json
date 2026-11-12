@@ -1,0 +1,95 @@
+{
+  "contract": "toneperfect-control-evaluation/1",
+  "visibility": "evaluation only; never include in provider request",
+  "human_confirmation": {
+    "source_chat": "01a07e3b-bf31-7f52-8e9e-0ba159507b5a",
+    "user_response": "Да, обе фразы совпадают",
+    "targets": [
+      "главная подозреваемая",
+      "первое сентября"
+    ],
+    "scope": "only original target phrases in saved Snow W4/W3; same underlying PCM retained in expanded sentence clips; no full-phrase or timestamp gold"
+  },
+  "pair_invariants": [
+    [
+      "feminine-exact",
+      "feminine-altered"
+    ],
+    [
+      "date-exact",
+      "date-altered"
+    ],
+    [
+      "word-boundary-split",
+      "word-boundary-joined"
+    ]
+  ],
+  "controls": [
+    {
+      "id": "feminine-exact",
+      "targets": [
+        "главная",
+        "подозреваемая"
+      ],
+      "criterion": "Human-confirmed target must not receive an erroneous correction; inspect decisions, scores, omissions and phone evidence together."
+    },
+    {
+      "id": "feminine-altered",
+      "targets": [
+        "главное",
+        "подозреваемое"
+      ],
+      "criterion": "Differentiate the deliberately wrong endings from exact. Both variants no_correction is failure even if display scores differ slightly."
+    },
+    {
+      "id": "date-exact",
+      "targets": [
+        "первое"
+      ],
+      "criterion": "The unique calendar target is первое, not the earlier тридцать первого. No erroneous correction on the human-confirmed target."
+    },
+    {
+      "id": "date-altered",
+      "targets": [
+        "второе"
+      ],
+      "criterion": "Differentiate the deliberately wrong day from exact with target-word evidence."
+    },
+    {
+      "id": "word-boundary-split",
+      "targets": [
+        "по",
+        "тому"
+      ],
+      "criterion": "Compare against joined reference on identical PCM. A space alone must not create a pronunciation correction; consistent acceptance or unresolved evidence is acceptable. No human acoustic gold."
+    },
+    {
+      "id": "word-boundary-joined",
+      "targets": [
+        "потому"
+      ],
+      "criterion": "Same as split: inspect decisions/phones without treating lexical spelling as acoustic evidence. No human acoustic gold."
+    },
+    {
+      "id": "silence-with-text",
+      "targets": [
+        "all_reference_words"
+      ],
+      "criterion": "Exact digital zero: must not report successful reading; unassessable/no speech is expected. Absence of billing does not alone prove correct content decision."
+    },
+    {
+      "id": "apollo-with-snow-reference",
+      "targets": [
+        "whole_reference"
+      ],
+      "criterion": "Unassessable/different-content or clear content warnings with word evidence must expose wrong subject. HTTP error is not required; high acceptance without mismatch evidence fails."
+    }
+  ],
+  "readout": [
+    "Do not invent thresholds after seeing results. Use explicit decisions together with target scores, omitted/omission_suspected, phonetic evidence and heard_by. Overall score alone is insufficient.",
+    "Record model_version, engine_route, raw warnings, unsupported dimensions and billing. Different engine routes or versions confound paired comparison; do not auto-resubmit.",
+    "Experimental phone heard values, especially heard_by transcript/forced_alignment, are not independent human hearing.",
+    "Only whole sentence references are supplied; unrelated sentences from the full source utterance are never sent.",
+    "No prosody/monotony qualification and no automatic repair/release acceptance."
+  ]
+}
