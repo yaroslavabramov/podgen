@@ -1,0 +1,5008 @@
+{
+  "candidate_result_ref": {
+    "record_kind": "tool_execution",
+    "record_id": "791e592e-66e1-5d0d-839e-3d09ebb48219"
+  },
+  "normalization_contract": "literal-ru-case-punctuation-yo/3",
+  "candidate_contract": "literal-fidelity-candidates/4",
+  "equivalences": [
+    {
+      "rule": "literal-ru-integer-surface-equivalence/1",
+      "value": 3,
+      "expected_token_range": [
+        2,
+        3
+      ],
+      "recognized_token_range": [
+        2,
+        3
+      ],
+      "expected_tokens": [
+        {
+          "index": 2,
+          "separator_before": " ",
+          "text": "третьего",
+          "normalized": "третьего",
+          "char_start": 14,
+          "char_end": 22,
+          "utterance_index": 0,
+          "utterance_id": "ff2b00b7-a20d-51ad-94be-016e2a5aac58"
+        }
+      ],
+      "recognized_tokens": [
+        {
+          "index": 2,
+          "separator_before": " ",
+          "text": "3",
+          "normalized": "3",
+          "char_start": 14,
+          "char_end": 15
+        }
+      ]
+    },
+    {
+      "rule": "literal-ru-integer-surface-equivalence/1",
+      "value": 31,
+      "expected_token_range": [
+        70,
+        72
+      ],
+      "recognized_token_range": [
+        68,
+        69
+      ],
+      "expected_tokens": [
+        {
+          "index": 70,
+          "separator_before": " ",
+          "text": "тридцать",
+          "normalized": "тридцать",
+          "char_start": 18,
+          "char_end": 26,
+          "utterance_index": 1,
+          "utterance_id": "a87e5637-ff05-570a-bfc6-684dc4927a3e"
+        },
+        {
+          "index": 71,
+          "separator_before": " ",
+          "text": "первого",
+          "normalized": "первого",
+          "char_start": 27,
+          "char_end": 34,
+          "utterance_index": 1,
+          "utterance_id": "a87e5637-ff05-570a-bfc6-684dc4927a3e"
+        }
+      ],
+      "recognized_tokens": [
+        {
+          "index": 68,
+          "separator_before": " ",
+          "text": "31",
+          "normalized": "31",
+          "char_start": 421,
+          "char_end": 423
+        }
+      ]
+    },
+    {
+      "rule": "literal-ru-integer-surface-equivalence/1",
+      "value": 230,
+      "expected_token_range": [
+        98,
+        100
+      ],
+      "recognized_token_range": [
+        95,
+        96
+      ],
+      "expected_tokens": [
+        {
+          "index": 98,
+          "separator_before": " ",
+          "text": "двухсот",
+          "normalized": "двухсот",
+          "char_start": 212,
+          "char_end": 219,
+          "utterance_index": 1,
+          "utterance_id": "a87e5637-ff05-570a-bfc6-684dc4927a3e"
+        },
+        {
+          "index": 99,
+          "separator_before": " ",
+          "text": "тридцати",
+          "normalized": "тридцати",
+          "char_start": 220,
+          "char_end": 228,
+          "utterance_index": 1,
+          "utterance_id": "a87e5637-ff05-570a-bfc6-684dc4927a3e"
+        }
+      ],
+      "recognized_tokens": [
+        {
+          "index": 95,
+          "separator_before": " ",
+          "text": "230",
+          "normalized": "230",
+          "char_start": 596,
+          "char_end": 599
+        }
+      ]
+    },
+    {
+      "rule": "literal-ru-integer-surface-equivalence/1",
+      "value": 10,
+      "expected_token_range": [
+        105,
+        106
+      ],
+      "recognized_token_range": [
+        101,
+        102
+      ],
+      "expected_tokens": [
+        {
+          "index": 105,
+          "separator_before": " ",
+          "text": "десять",
+          "normalized": "десять",
+          "char_start": 261,
+          "char_end": 267,
+          "utterance_index": 1,
+          "utterance_id": "a87e5637-ff05-570a-bfc6-684dc4927a3e"
+        }
+      ],
+      "recognized_tokens": [
+        {
+          "index": 101,
+          "separator_before": " ",
+          "text": "10",
+          "normalized": "10",
+          "char_start": 632,
+          "char_end": 634
+        }
+      ]
+    },
+    {
+      "rule": "literal-ru-integer-surface-equivalence/1",
+      "value": 500,
+      "expected_token_range": [
+        110,
+        111
+      ],
+      "recognized_token_range": [
+        106,
+        107
+      ],
+      "expected_tokens": [
+        {
+          "index": 110,
+          "separator_before": " ",
+          "text": "пятисот",
+          "normalized": "пятисот",
+          "char_start": 300,
+          "char_end": 307,
+          "utterance_index": 1,
+          "utterance_id": "a87e5637-ff05-570a-bfc6-684dc4927a3e"
+        }
+      ],
+      "recognized_tokens": [
+        {
+          "index": 106,
+          "separator_before": " ",
+          "text": "500",
+          "normalized": "500",
+          "char_start": 667,
+          "char_end": 670
+        }
+      ]
+    },
+    {
+      "rule": "literal-ru-integer-surface-equivalence/1",
+      "value": 2,
+      "expected_token_range": [
+        335,
+        336
+      ],
+      "recognized_token_range": [
+        330,
+        331
+      ],
+      "expected_tokens": [
+        {
+          "index": 335,
+          "separator_before": " ",
+          "text": "второго",
+          "normalized": "второго",
+          "char_start": 154,
+          "char_end": 161,
+          "utterance_index": 6,
+          "utterance_id": "87f3f40e-7374-53a8-8e0c-12ca69bb849d"
+        }
+      ],
+      "recognized_tokens": [
+        {
+          "index": 330,
+          "separator_before": " ",
+          "text": "2",
+          "normalized": "2",
+          "char_start": 2066,
+          "char_end": 2067
+        }
+      ]
+    },
+    {
+      "rule": "literal-ru-integer-surface-equivalence/1",
+      "value": 89,
+      "expected_token_range": [
+        343,
+        345
+      ],
+      "recognized_token_range": [
+        338,
+        339
+      ],
+      "expected_tokens": [
+        {
+          "index": 343,
+          "separator_before": " ",
+          "text": "восемьдесят",
+          "normalized": "восемьдесят",
+          "char_start": 212,
+          "char_end": 223,
+          "utterance_index": 6,
+          "utterance_id": "87f3f40e-7374-53a8-8e0c-12ca69bb849d"
+        },
+        {
+          "index": 344,
+          "separator_before": " ",
+          "text": "девять",
+          "normalized": "девять",
+          "char_start": 224,
+          "char_end": 230,
+          "utterance_index": 6,
+          "utterance_id": "87f3f40e-7374-53a8-8e0c-12ca69bb849d"
+        }
+      ],
+      "recognized_tokens": [
+        {
+          "index": 338,
+          "separator_before": " ",
+          "text": "89",
+          "normalized": "89",
+          "char_start": 2118,
+          "char_end": 2120
+        }
+      ]
+    },
+    {
+      "rule": "literal-ru-integer-surface-equivalence/1",
+      "value": 6,
+      "expected_token_range": [
+        523,
+        524
+      ],
+      "recognized_token_range": [
+        517,
+        518
+      ],
+      "expected_tokens": [
+        {
+          "index": 523,
+          "separator_before": ". ",
+          "text": "Шестого",
+          "normalized": "шестого",
+          "char_start": 240,
+          "char_end": 247,
+          "utterance_index": 9,
+          "utterance_id": "2e53f945-c389-53b3-b014-35433c70ad2b"
+        }
+      ],
+      "recognized_tokens": [
+        {
+          "index": 517,
+          "separator_before": ". ",
+          "text": "6",
+          "normalized": "6",
+          "char_start": 3226,
+          "char_end": 3227
+        }
+      ]
+    },
+    {
+      "rule": "literal-ru-integer-surface-equivalence/1",
+      "value": 73,
+      "expected_token_range": [
+        562,
+        564
+      ],
+      "recognized_token_range": [
+        556,
+        557
+      ],
+      "expected_tokens": [
+        {
+          "index": 562,
+          "separator_before": " ",
+          "text": "семьдесят",
+          "normalized": "семьдесят",
+          "char_start": 112,
+          "char_end": 121,
+          "utterance_index": 10,
+          "utterance_id": "5311bca1-61af-58df-b103-eec4bf47883c"
+        },
+        {
+          "index": 563,
+          "separator_before": " ",
+          "text": "три",
+          "normalized": "три",
+          "char_start": 122,
+          "char_end": 125,
+          "utterance_index": 10,
+          "utterance_id": "5311bca1-61af-58df-b103-eec4bf47883c"
+        }
+      ],
+      "recognized_tokens": [
+        {
+          "index": 556,
+          "separator_before": " ",
+          "text": "73",
+          "normalized": "73",
+          "char_start": 3468,
+          "char_end": 3470
+        }
+      ]
+    },
+    {
+      "rule": "literal-ru-integer-surface-equivalence/1",
+      "value": 535,
+      "expected_token_range": [
+        679,
+        682
+      ],
+      "recognized_token_range": [
+        671,
+        672
+      ],
+      "expected_tokens": [
+        {
+          "index": 679,
+          "separator_before": " ",
+          "text": "пятьсот",
+          "normalized": "пятьсот",
+          "char_start": 185,
+          "char_end": 192,
+          "utterance_index": 12,
+          "utterance_id": "76107aad-7210-560c-a34a-462206678118"
+        },
+        {
+          "index": 680,
+          "separator_before": " ",
+          "text": "тридцать",
+          "normalized": "тридцать",
+          "char_start": 193,
+          "char_end": 201,
+          "utterance_index": 12,
+          "utterance_id": "76107aad-7210-560c-a34a-462206678118"
+        },
+        {
+          "index": 681,
+          "separator_before": " ",
+          "text": "пять",
+          "normalized": "пять",
+          "char_start": 202,
+          "char_end": 206,
+          "utterance_index": 12,
+          "utterance_id": "76107aad-7210-560c-a34a-462206678118"
+        }
+      ],
+      "recognized_tokens": [
+        {
+          "index": 671,
+          "separator_before": " ",
+          "text": "535",
+          "normalized": "535",
+          "char_start": 4129,
+          "char_end": 4132
+        }
+      ]
+    },
+    {
+      "rule": "literal-ru-integer-surface-equivalence/1",
+      "value": 7,
+      "expected_token_range": [
+        740,
+        741
+      ],
+      "recognized_token_range": [
+        730,
+        731
+      ],
+      "expected_tokens": [
+        {
+          "index": 740,
+          "separator_before": ", ",
+          "text": "седьмого",
+          "normalized": "седьмого",
+          "char_start": 57,
+          "char_end": 65,
+          "utterance_index": 14,
+          "utterance_id": "7405ea40-f826-5b7b-aeac-262a8a4d7e2e"
+        }
+      ],
+      "recognized_tokens": [
+        {
+          "index": 730,
+          "separator_before": ", ",
+          "text": "7",
+          "normalized": "7",
+          "char_start": 4495,
+          "char_end": 4496
+        }
+      ]
+    },
+    {
+      "rule": "literal-ru-integer-surface-equivalence/1",
+      "value": 8,
+      "expected_token_range": [
+        791,
+        792
+      ],
+      "recognized_token_range": [
+        781,
+        782
+      ],
+      "expected_tokens": [
+        {
+          "index": 791,
+          "separator_before": ", ",
+          "text": "восьмого",
+          "normalized": "восьмого",
+          "char_start": 387,
+          "char_end": 395,
+          "utterance_index": 14,
+          "utterance_id": "7405ea40-f826-5b7b-aeac-262a8a4d7e2e"
+        }
+      ],
+      "recognized_tokens": [
+        {
+          "index": 781,
+          "separator_before": ", ",
+          "text": "8",
+          "normalized": "8",
+          "char_start": 4817,
+          "char_end": 4818
+        }
+      ]
+    },
+    {
+      "rule": "literal-ru-integer-surface-equivalence/1",
+      "value": 1,
+      "expected_token_range": [
+        840,
+        841
+      ],
+      "recognized_token_range": [
+        829,
+        830
+      ],
+      "expected_tokens": [
+        {
+          "index": 840,
+          "separator_before": ". ",
+          "text": "Первого",
+          "normalized": "первого",
+          "char_start": 250,
+          "char_end": 257,
+          "utterance_index": 15,
+          "utterance_id": "9f24f14c-3a2a-5ab6-acb8-85a390912833"
+        }
+      ],
+      "recognized_tokens": [
+        {
+          "index": 829,
+          "separator_before": ". ",
+          "text": "1",
+          "normalized": "1",
+          "char_start": 5102,
+          "char_end": 5103
+        }
+      ]
+    },
+    {
+      "rule": "literal-ru-integer-surface-equivalence/1",
+      "value": 2,
+      "expected_token_range": [
+        989,
+        990
+      ],
+      "recognized_token_range": [
+        976,
+        977
+      ],
+      "expected_tokens": [
+        {
+          "index": 989,
+          "separator_before": ". ",
+          "text": "Второго",
+          "normalized": "второго",
+          "char_start": 208,
+          "char_end": 215,
+          "utterance_index": 18,
+          "utterance_id": "bcbc5447-0a97-54e7-b90d-2e07802f00a8"
+        }
+      ],
+      "recognized_tokens": [
+        {
+          "index": 976,
+          "separator_before": ". ",
+          "text": "2",
+          "normalized": "2",
+          "char_start": 5994,
+          "char_end": 5995
+        }
+      ]
+    },
+    {
+      "rule": "literal-ru-integer-surface-equivalence/1",
+      "value": 31,
+      "expected_token_range": [
+        1058,
+        1060
+      ],
+      "recognized_token_range": [
+        1046,
+        1047
+      ],
+      "expected_tokens": [
+        {
+          "index": 1058,
+          "separator_before": ", ",
+          "text": "тридцать",
+          "normalized": "тридцать",
+          "char_start": 237,
+          "char_end": 245,
+          "utterance_index": 19,
+          "utterance_id": "9f12f628-1a07-5fb6-8795-819c77da96b9"
+        },
+        {
+          "index": 1059,
+          "separator_before": " ",
+          "text": "первого",
+          "normalized": "первого",
+          "char_start": 246,
+          "char_end": 253,
+          "utterance_index": 19,
+          "utterance_id": "9f12f628-1a07-5fb6-8795-819c77da96b9"
+        }
+      ],
+      "recognized_tokens": [
+        {
+          "index": 1046,
+          "separator_before": ", ",
+          "text": "31",
+          "normalized": "31",
+          "char_start": 6382,
+          "char_end": 6384
+        }
+      ]
+    },
+    {
+      "rule": "literal-ru-integer-surface-equivalence/1",
+      "value": 1,
+      "expected_token_range": [
+        1183,
+        1184
+      ],
+      "recognized_token_range": [
+        1170,
+        1171
+      ],
+      "expected_tokens": [
+        {
+          "index": 1183,
+          "separator_before": " ",
+          "text": "первого",
+          "normalized": "первого",
+          "char_start": 76,
+          "char_end": 83,
+          "utterance_index": 22,
+          "utterance_id": "de505921-0c72-5258-8593-e18ad77475cf"
+        }
+      ],
+      "recognized_tokens": [
+        {
+          "index": 1170,
+          "separator_before": " ",
+          "text": "1",
+          "normalized": "1",
+          "char_start": 7120,
+          "char_end": 7121
+        }
+      ]
+    },
+    {
+      "rule": "literal-ru-integer-surface-equivalence/1",
+      "value": 25,
+      "expected_token_range": [
+        1217,
+        1219
+      ],
+      "recognized_token_range": [
+        1204,
+        1205
+      ],
+      "expected_tokens": [
+        {
+          "index": 1217,
+          "separator_before": " ",
+          "text": "двадцать",
+          "normalized": "двадцать",
+          "char_start": 2,
+          "char_end": 10,
+          "utterance_index": 23,
+          "utterance_id": "7ff7f0de-f8ef-5c07-b627-1b282ae4b608"
+        },
+        {
+          "index": 1218,
+          "separator_before": " ",
+          "text": "пятого",
+          "normalized": "пятого",
+          "char_start": 11,
+          "char_end": 17,
+          "utterance_index": 23,
+          "utterance_id": "7ff7f0de-f8ef-5c07-b627-1b282ae4b608"
+        }
+      ],
+      "recognized_tokens": [
+        {
+          "index": 1204,
+          "separator_before": " ",
+          "text": "25",
+          "normalized": "25",
+          "char_start": 7310,
+          "char_end": 7312
+        }
+      ]
+    },
+    {
+      "rule": "literal-ru-integer-surface-equivalence/1",
+      "value": 2,
+      "expected_token_range": [
+        1392,
+        1393
+      ],
+      "recognized_token_range": [
+        1377,
+        1378
+      ],
+      "expected_tokens": [
+        {
+          "index": 1392,
+          "separator_before": " ",
+          "text": "второго",
+          "normalized": "второго",
+          "char_start": 287,
+          "char_end": 294,
+          "utterance_index": 25,
+          "utterance_id": "65cc4ffc-be75-524d-ac00-8e79b1df7387"
+        }
+      ],
+      "recognized_tokens": [
+        {
+          "index": 1377,
+          "separator_before": " ",
+          "text": "2",
+          "normalized": "2",
+          "char_start": 8302,
+          "char_end": 8303
+        }
+      ]
+    },
+    {
+      "rule": "literal-ru-integer-surface-equivalence/1",
+      "value": 896,
+      "expected_token_range": [
+        1437,
+        1440
+      ],
+      "recognized_token_range": [
+        1422,
+        1423
+      ],
+      "expected_tokens": [
+        {
+          "index": 1437,
+          "separator_before": " ",
+          "text": "восьмисот",
+          "normalized": "восьмисот",
+          "char_start": 227,
+          "char_end": 236,
+          "utterance_index": 26,
+          "utterance_id": "f8f835b1-191d-58b6-936c-8d3bdc794b39"
+        },
+        {
+          "index": 1438,
+          "separator_before": " ",
+          "text": "девяноста",
+          "normalized": "девяноста",
+          "char_start": 237,
+          "char_end": 246,
+          "utterance_index": 26,
+          "utterance_id": "f8f835b1-191d-58b6-936c-8d3bdc794b39"
+        },
+        {
+          "index": 1439,
+          "separator_before": " ",
+          "text": "шести",
+          "normalized": "шести",
+          "char_start": 247,
+          "char_end": 252,
+          "utterance_index": 26,
+          "utterance_id": "f8f835b1-191d-58b6-936c-8d3bdc794b39"
+        }
+      ],
+      "recognized_tokens": [
+        {
+          "index": 1422,
+          "separator_before": " ",
+          "text": "896",
+          "normalized": "896",
+          "char_start": 8552,
+          "char_end": 8555
+        }
+      ]
+    },
+    {
+      "rule": "literal-ru-integer-surface-equivalence/1",
+      "value": 80,
+      "expected_token_range": [
+        1458,
+        1459
+      ],
+      "recognized_token_range": [
+        1441,
+        1442
+      ],
+      "expected_tokens": [
+        {
+          "index": 1458,
+          "separator_before": " ",
+          "text": "восьмидесяти",
+          "normalized": "восьмидесяти",
+          "char_start": 370,
+          "char_end": 382,
+          "utterance_index": 26,
+          "utterance_id": "f8f835b1-191d-58b6-936c-8d3bdc794b39"
+        }
+      ],
+      "recognized_tokens": [
+        {
+          "index": 1441,
+          "separator_before": " ",
+          "text": "80",
+          "normalized": "80",
+          "char_start": 8673,
+          "char_end": 8675
+        }
+      ]
+    },
+    {
+      "rule": "literal-ru-integer-surface-equivalence/1",
+      "value": 57,
+      "expected_token_range": [
+        1463,
+        1465
+      ],
+      "recognized_token_range": [
+        1446,
+        1447
+      ],
+      "expected_tokens": [
+        {
+          "index": 1463,
+          "separator_before": " ",
+          "text": "пятьдесят",
+          "normalized": "пятьдесят",
+          "char_start": 406,
+          "char_end": 415,
+          "utterance_index": 26,
+          "utterance_id": "f8f835b1-191d-58b6-936c-8d3bdc794b39"
+        },
+        {
+          "index": 1464,
+          "separator_before": " ",
+          "text": "семь",
+          "normalized": "семь",
+          "char_start": 416,
+          "char_end": 420,
+          "utterance_index": 26,
+          "utterance_id": "f8f835b1-191d-58b6-936c-8d3bdc794b39"
+        }
+      ],
+      "recognized_tokens": [
+        {
+          "index": 1446,
+          "separator_before": " ",
+          "text": "57",
+          "normalized": "57",
+          "char_start": 8699,
+          "char_end": 8701
+        }
+      ]
+    },
+    {
+      "rule": "literal-ru-integer-surface-equivalence/1",
+      "value": 279,
+      "expected_token_range": [
+        1473,
+        1476
+      ],
+      "recognized_token_range": [
+        1455,
+        1456
+      ],
+      "expected_tokens": [
+        {
+          "index": 1473,
+          "separator_before": " ",
+          "text": "двести",
+          "normalized": "двести",
+          "char_start": 478,
+          "char_end": 484,
+          "utterance_index": 26,
+          "utterance_id": "f8f835b1-191d-58b6-936c-8d3bdc794b39"
+        },
+        {
+          "index": 1474,
+          "separator_before": " ",
+          "text": "семьдесят",
+          "normalized": "семьдесят",
+          "char_start": 485,
+          "char_end": 494,
+          "utterance_index": 26,
+          "utterance_id": "f8f835b1-191d-58b6-936c-8d3bdc794b39"
+        },
+        {
+          "index": 1475,
+          "separator_before": " ",
+          "text": "девять",
+          "normalized": "девять",
+          "char_start": 495,
+          "char_end": 501,
+          "utterance_index": 26,
+          "utterance_id": "f8f835b1-191d-58b6-936c-8d3bdc794b39"
+        }
+      ],
+      "recognized_tokens": [
+        {
+          "index": 1455,
+          "separator_before": " ",
+          "text": "279",
+          "normalized": "279",
+          "char_start": 8753,
+          "char_end": 8756
+        }
+      ]
+    },
+    {
+      "rule": "literal-ru-integer-surface-equivalence/1",
+      "value": 4,
+      "expected_token_range": [
+        1602,
+        1603
+      ],
+      "recognized_token_range": [
+        1581,
+        1582
+      ],
+      "expected_tokens": [
+        {
+          "index": 1602,
+          "separator_before": " ",
+          "text": "четыре",
+          "normalized": "четыре",
+          "char_start": 186,
+          "char_end": 192,
+          "utterance_index": 29,
+          "utterance_id": "d64a5364-775f-565b-8ff5-cf826fc57911"
+        }
+      ],
+      "recognized_tokens": [
+        {
+          "index": 1581,
+          "separator_before": " ",
+          "text": "4",
+          "normalized": "4",
+          "char_start": 9531,
+          "char_end": 9532
+        }
+      ]
+    },
+    {
+      "rule": "literal-ru-integer-surface-equivalence/1",
+      "value": 4,
+      "expected_token_range": [
+        1625,
+        1626
+      ],
+      "recognized_token_range": [
+        1603,
+        1604
+      ],
+      "expected_tokens": [
+        {
+          "index": 1625,
+          "separator_before": " ",
+          "text": "четыре",
+          "normalized": "четыре",
+          "char_start": 307,
+          "char_end": 313,
+          "utterance_index": 29,
+          "utterance_id": "d64a5364-775f-565b-8ff5-cf826fc57911"
+        }
+      ],
+      "recognized_tokens": [
+        {
+          "index": 1603,
+          "separator_before": " ",
+          "text": "4",
+          "normalized": "4",
+          "char_start": 9646,
+          "char_end": 9647
+        }
+      ]
+    },
+    {
+      "rule": "literal-ru-integer-surface-equivalence/1",
+      "value": 2,
+      "expected_token_range": [
+        1628,
+        1629
+      ],
+      "recognized_token_range": [
+        1606,
+        1607
+      ],
+      "expected_tokens": [
+        {
+          "index": 1628,
+          "separator_before": " ",
+          "text": "второго",
+          "normalized": "второго",
+          "char_start": 321,
+          "char_end": 328,
+          "utterance_index": 29,
+          "utterance_id": "d64a5364-775f-565b-8ff5-cf826fc57911"
+        }
+      ],
+      "recognized_tokens": [
+        {
+          "index": 1606,
+          "separator_before": " ",
+          "text": "2",
+          "normalized": "2",
+          "char_start": 9655,
+          "char_end": 9656
+        }
+      ]
+    },
+    {
+      "rule": "literal-ru-integer-surface-equivalence/1",
+      "value": 28,
+      "expected_token_range": [
+        1647,
+        1649
+      ],
+      "recognized_token_range": [
+        1625,
+        1626
+      ],
+      "expected_tokens": [
+        {
+          "index": 1647,
+          "separator_before": ", ",
+          "text": "двадцать",
+          "normalized": "двадцать",
+          "char_start": 77,
+          "char_end": 85,
+          "utterance_index": 30,
+          "utterance_id": "10a7f48c-eeed-56bd-a3df-fbf0f552fd32"
+        },
+        {
+          "index": 1648,
+          "separator_before": " ",
+          "text": "восьмого",
+          "normalized": "восьмого",
+          "char_start": 86,
+          "char_end": 94,
+          "utterance_index": 30,
+          "utterance_id": "10a7f48c-eeed-56bd-a3df-fbf0f552fd32"
+        }
+      ],
+      "recognized_tokens": [
+        {
+          "index": 1625,
+          "separator_before": ", ",
+          "text": "28",
+          "normalized": "28",
+          "char_start": 9771,
+          "char_end": 9773
+        }
+      ]
+    },
+    {
+      "rule": "literal-ru-integer-surface-equivalence/1",
+      "value": 3,
+      "expected_token_range": [
+        1676,
+        1677
+      ],
+      "recognized_token_range": [
+        1653,
+        1654
+      ],
+      "expected_tokens": [
+        {
+          "index": 1676,
+          "separator_before": ". ",
+          "text": "Третьего",
+          "normalized": "третьего",
+          "char_start": 264,
+          "char_end": 272,
+          "utterance_index": 30,
+          "utterance_id": "10a7f48c-eeed-56bd-a3df-fbf0f552fd32"
+        }
+      ],
+      "recognized_tokens": [
+        {
+          "index": 1653,
+          "separator_before": ". ",
+          "text": "3",
+          "normalized": "3",
+          "char_start": 9943,
+          "char_end": 9944
+        }
+      ]
+    }
+  ],
+  "remaining_candidates": [
+    {
+      "kind": "script_discrepancy",
+      "operation": "delete",
+      "recognized_token_range": [
+        24,
+        24
+      ],
+      "recognized_tokens": [],
+      "expected_token_range": [
+        24,
+        25
+      ],
+      "expected_tokens": [
+        {
+          "index": 24,
+          "separator_before": " ",
+          "text": "с",
+          "normalized": "с",
+          "char_start": 171,
+          "char_end": 172,
+          "utterance_index": 0,
+          "utterance_id": "ff2b00b7-a20d-51ad-94be-016e2a5aac58"
+        }
+      ],
+      "expected_context": [
+        {
+          "utterance_id": "ff2b00b7-a20d-51ad-94be-016e2a5aac58",
+          "speaker": "РАССКАЗЧИК",
+          "text": "Лондон, вечер третьего сентября 1854 года. Квартал вокруг Брод-стрит, недалеко от Голден-сквер. Здесь тесно: мастерские, лавки, комнаты, которые портные и рабочие снимают с семьями на неделю. Воду в домах держат в баках, а они нередко стоят без крышек рядом с грязными задворками, так что доверяют им далеко не все. Пить ходят к уличной колонке: качнёшь ручку, и из колодца под мостовой поднимается холодная вода."
+        },
+        {
+          "utterance_id": "a87e5637-ff05-570a-bfc6-684dc4927a3e",
+          "speaker": "РАССКАЗЧИК",
+          "text": "Две ночи назад, с тридцать первого августа на первое сентября, холера, которая и до этого изредка появлялась в округе, начала косить людей. Многие умирают за несколько часов. Потом подсчитают: в радиусе примерно двухсот тридцати метров от одного перекрёстка за десять дней смертельно заболели больше пятисот человек."
+        }
+      ],
+      "script_selectors": [
+        {
+          "utterance_id": "ff2b00b7-a20d-51ad-94be-016e2a5aac58",
+          "utterance_index": 0,
+          "char_start": 171,
+          "char_end": 172
+        }
+      ],
+      "timing_uncertainties": [],
+      "candidate_id": "d14958c9-b355-5218-bfd8-d091e2eaa0dd",
+      "audio_range": {
+        "start_frame": 562560,
+        "end_frame": 706560,
+        "basis": "neighbor_anchors_or_full_audio_edges",
+        "margin_frames": 72000,
+        "boundary_precision": "recognizer_hypothesis"
+      },
+      "status": "pending_audio_adjudication",
+      "clip_status": "extracted",
+      "conclusion": "candidate_only_not_confirmed_tts_error",
+      "clip_blob": {
+        "storage_key": "d24132ce-d2c3-4084-bf89-9905b7d765a7/83ca1322a825439036646ca239ca5453e59e7922237e03fe4a200378b08a3cb2-7fc478ab21f20dde",
+        "sha256": "83ca1322a825439036646ca239ca5453e59e7922237e03fe4a200378b08a3cb2",
+        "byte_length": 432044,
+        "media_type": "audio/wav"
+      },
+      "extraction": {
+        "start_frame": 562560,
+        "end_frame": 706560,
+        "sample_frames": 144000,
+        "sample_rate_hz": 48000,
+        "pcm_sha256": "a6c3f56dfbb81fdf256ae2529e6099a2c29eb9388d38ce726674d8851e985d91",
+        "extraction": "exact_pcm_frames"
+      }
+    },
+    {
+      "kind": "script_discrepancy",
+      "operation": "delete",
+      "recognized_token_range": [
+        33,
+        33
+      ],
+      "recognized_tokens": [],
+      "expected_token_range": [
+        34,
+        35
+      ],
+      "expected_tokens": [
+        {
+          "index": 34,
+          "separator_before": ", ",
+          "text": "а",
+          "normalized": "а",
+          "char_start": 221,
+          "char_end": 222,
+          "utterance_index": 0,
+          "utterance_id": "ff2b00b7-a20d-51ad-94be-016e2a5aac58"
+        }
+      ],
+      "expected_context": [
+        {
+          "utterance_id": "ff2b00b7-a20d-51ad-94be-016e2a5aac58",
+          "speaker": "РАССКАЗЧИК",
+          "text": "Лондон, вечер третьего сентября 1854 года. Квартал вокруг Брод-стрит, недалеко от Голден-сквер. Здесь тесно: мастерские, лавки, комнаты, которые портные и рабочие снимают с семьями на неделю. Воду в домах держат в баках, а они нередко стоят без крышек рядом с грязными задворками, так что доверяют им далеко не все. Пить ходят к уличной колонке: качнёшь ручку, и из колодца под мостовой поднимается холодная вода."
+        },
+        {
+          "utterance_id": "a87e5637-ff05-570a-bfc6-684dc4927a3e",
+          "speaker": "РАССКАЗЧИК",
+          "text": "Две ночи назад, с тридцать первого августа на первое сентября, холера, которая и до этого изредка появлялась в округе, начала косить людей. Многие умирают за несколько часов. Потом подсчитают: в радиусе примерно двухсот тридцати метров от одного перекрёстка за десять дней смертельно заболели больше пятисот человек."
+        }
+      ],
+      "script_selectors": [
+        {
+          "utterance_id": "ff2b00b7-a20d-51ad-94be-016e2a5aac58",
+          "utterance_index": 0,
+          "char_start": 221,
+          "char_end": 222
+        }
+      ],
+      "timing_uncertainties": [],
+      "candidate_id": "46de6390-0c81-5199-8182-1a2af38333cf",
+      "audio_range": {
+        "start_frame": 708480,
+        "end_frame": 867840,
+        "basis": "neighbor_anchors_or_full_audio_edges",
+        "margin_frames": 72000,
+        "boundary_precision": "recognizer_hypothesis"
+      },
+      "status": "pending_audio_adjudication",
+      "clip_status": "extracted",
+      "conclusion": "candidate_only_not_confirmed_tts_error",
+      "clip_blob": {
+        "storage_key": "d24132ce-d2c3-4084-bf89-9905b7d765a7/330fcb43d8a08f0605ce4ecde7d65b1a816d1ccdf35d5b46cc2b4bcb66840d64-7fc478ab21f20dde",
+        "sha256": "330fcb43d8a08f0605ce4ecde7d65b1a816d1ccdf35d5b46cc2b4bcb66840d64",
+        "byte_length": 478124,
+        "media_type": "audio/wav"
+      },
+      "extraction": {
+        "start_frame": 708480,
+        "end_frame": 867840,
+        "sample_frames": 159360,
+        "sample_rate_hz": 48000,
+        "pcm_sha256": "a3d4fc43c5b4cb32ebad70f955890238011a7e829f1c8f1a3e68e6f6f5c414e6",
+        "extraction": "exact_pcm_frames"
+      }
+    },
+    {
+      "kind": "script_discrepancy",
+      "operation": "replace",
+      "recognized_token_range": [
+        71,
+        72
+      ],
+      "recognized_tokens": [
+        {
+          "index": 71,
+          "separator_before": " ",
+          "text": "1",
+          "normalized": "1",
+          "char_start": 435,
+          "char_end": 436
+        }
+      ],
+      "expected_token_range": [
+        74,
+        75
+      ],
+      "expected_tokens": [
+        {
+          "index": 74,
+          "separator_before": " ",
+          "text": "первое",
+          "normalized": "первое",
+          "char_start": 46,
+          "char_end": 52,
+          "utterance_index": 1,
+          "utterance_id": "a87e5637-ff05-570a-bfc6-684dc4927a3e"
+        }
+      ],
+      "expected_context": [
+        {
+          "utterance_id": "ff2b00b7-a20d-51ad-94be-016e2a5aac58",
+          "speaker": "РАССКАЗЧИК",
+          "text": "Лондон, вечер третьего сентября 1854 года. Квартал вокруг Брод-стрит, недалеко от Голден-сквер. Здесь тесно: мастерские, лавки, комнаты, которые портные и рабочие снимают с семьями на неделю. Воду в домах держат в баках, а они нередко стоят без крышек рядом с грязными задворками, так что доверяют им далеко не все. Пить ходят к уличной колонке: качнёшь ручку, и из колодца под мостовой поднимается холодная вода."
+        },
+        {
+          "utterance_id": "a87e5637-ff05-570a-bfc6-684dc4927a3e",
+          "speaker": "РАССКАЗЧИК",
+          "text": "Две ночи назад, с тридцать первого августа на первое сентября, холера, которая и до этого изредка появлялась в округе, начала косить людей. Многие умирают за несколько часов. Потом подсчитают: в радиусе примерно двухсот тридцати метров от одного перекрёстка за десять дней смертельно заболели больше пятисот человек."
+        },
+        {
+          "utterance_id": "27603958-9f4e-5db5-8ee0-1fa82f8e28a6",
+          "speaker": "РАССКАЗЧИК",
+          "text": "И вот врач Джон Сноу набирает воду из колонки на Брод-стрит, у конца Кембридж-стрит. Её он и подозревает. Колонка бойкая, к ней ходит весь квартал. Сноу рассматривает воду и видит в ней совсем мало органической примеси. Так мало, что он, по собственному признанию, не решается сделать вывод."
+        }
+      ],
+      "script_selectors": [
+        {
+          "utterance_id": "a87e5637-ff05-570a-bfc6-684dc4927a3e",
+          "utterance_index": 1,
+          "char_start": 46,
+          "char_end": 52
+        }
+      ],
+      "timing_uncertainties": [],
+      "candidate_id": "568b3232-c489-5a4f-836b-55e9eb5191c5",
+      "audio_range": {
+        "start_frame": 1434240,
+        "end_frame": 1597440,
+        "basis": "matched_segment_timestamps",
+        "margin_frames": 72000,
+        "boundary_precision": "recognizer_hypothesis"
+      },
+      "status": "pending_audio_adjudication",
+      "clip_status": "extracted",
+      "conclusion": "candidate_only_not_confirmed_tts_error",
+      "clip_blob": {
+        "storage_key": "d24132ce-d2c3-4084-bf89-9905b7d765a7/d79012e749b19e184eab18ef75b9ca15d13e8c0e9935639c957850b91a084319-7fc478ab21f20dde",
+        "sha256": "d79012e749b19e184eab18ef75b9ca15d13e8c0e9935639c957850b91a084319",
+        "byte_length": 489644,
+        "media_type": "audio/wav"
+      },
+      "extraction": {
+        "start_frame": 1434240,
+        "end_frame": 1597440,
+        "sample_frames": 163200,
+        "sample_rate_hz": 48000,
+        "pcm_sha256": "56d77164163c251627e6889224277521889bcd20bb6eb6ae14c2d41313864b7a",
+        "extraction": "exact_pcm_frames"
+      }
+    },
+    {
+      "kind": "script_discrepancy",
+      "operation": "replace",
+      "recognized_token_range": [
+        168,
+        170
+      ],
+      "recognized_tokens": [
+        {
+          "index": 168,
+          "separator_before": " ",
+          "text": "главное",
+          "normalized": "главное",
+          "char_start": 1032,
+          "char_end": 1039
+        },
+        {
+          "index": 169,
+          "separator_before": " ",
+          "text": "подозреваемое",
+          "normalized": "подозреваемое",
+          "char_start": 1040,
+          "char_end": 1053
+        }
+      ],
+      "expected_token_range": [
+        172,
+        174
+      ],
+      "expected_tokens": [
+        {
+          "index": 172,
+          "separator_before": " ",
+          "text": "главная",
+          "normalized": "главная",
+          "char_start": 63,
+          "char_end": 70,
+          "utterance_index": 3,
+          "utterance_id": "7224726f-85e4-5029-8010-fd1320e7a2b7"
+        },
+        {
+          "index": 173,
+          "separator_before": " ",
+          "text": "подозреваемая",
+          "normalized": "подозреваемая",
+          "char_start": 71,
+          "char_end": 84,
+          "utterance_index": 3,
+          "utterance_id": "7224726f-85e4-5029-8010-fd1320e7a2b7"
+        }
+      ],
+      "expected_context": [
+        {
+          "utterance_id": "27603958-9f4e-5db5-8ee0-1fa82f8e28a6",
+          "speaker": "РАССКАЗЧИК",
+          "text": "И вот врач Джон Сноу набирает воду из колонки на Брод-стрит, у конца Кембридж-стрит. Её он и подозревает. Колонка бойкая, к ней ходит весь квартал. Сноу рассматривает воду и видит в ней совсем мало органической примеси. Так мало, что он, по собственному признанию, не решается сделать вывод."
+        },
+        {
+          "utterance_id": "7224726f-85e4-5029-8010-fd1320e7a2b7",
+          "speaker": "РАССКАЗЧИК",
+          "text": "Вот и первая загадка этого дела. Вокруг умирают сотни людей, а главная подозреваемая выглядит почти невинно."
+        },
+        {
+          "utterance_id": "02fc2985-c26f-510d-91b9-54764b1fec9e",
+          "speaker": "РАССКАЗЧИК",
+          "text": "Почему Сноу вообще заподозрил воду? У него была версия. Ещё в 1849 году он выпустил небольшую брошюру о том, как передаётся холера, а потом развивал эти доводы в статьях и в книге. Рассуждал он так: холера начинается в кишечнике, значит, вещество, которое её вызывает, человек проглатывает, и размножается оно уже внутри. Выделения больного могут попасть в питьевую воду. Например, просочиться через землю в колодец. Получается путь от одного больного к чужой кружке."
+        }
+      ],
+      "script_selectors": [
+        {
+          "utterance_id": "7224726f-85e4-5029-8010-fd1320e7a2b7",
+          "utterance_index": 3,
+          "char_start": 63,
+          "char_end": 70
+        },
+        {
+          "utterance_id": "7224726f-85e4-5029-8010-fd1320e7a2b7",
+          "utterance_index": 3,
+          "char_start": 71,
+          "char_end": 84
+        }
+      ],
+      "timing_uncertainties": [],
+      "candidate_id": "7f2c44b9-705a-5754-b18a-cf15619c53e1",
+      "audio_range": {
+        "start_frame": 3295200,
+        "end_frame": 3485280,
+        "basis": "matched_segment_timestamps",
+        "margin_frames": 72000,
+        "boundary_precision": "recognizer_hypothesis"
+      },
+      "status": "pending_audio_adjudication",
+      "clip_status": "extracted",
+      "conclusion": "candidate_only_not_confirmed_tts_error",
+      "clip_blob": {
+        "storage_key": "d24132ce-d2c3-4084-bf89-9905b7d765a7/faabb6ff129c8839d594914f3d61f7aa0eb1b60f555d61a2b3d1db0ee8998429-7fc478ab21f20dde",
+        "sha256": "faabb6ff129c8839d594914f3d61f7aa0eb1b60f555d61a2b3d1db0ee8998429",
+        "byte_length": 570284,
+        "media_type": "audio/wav"
+      },
+      "extraction": {
+        "start_frame": 3295200,
+        "end_frame": 3485280,
+        "sample_frames": 190080,
+        "sample_rate_hz": 48000,
+        "pcm_sha256": "0f074d14517cc59b718d33ea91aa9f5e4401cd71f73a0b8822a3cbc3d562bdc5",
+        "extraction": "exact_pcm_frames"
+      }
+    },
+    {
+      "kind": "script_discrepancy",
+      "operation": "replace",
+      "recognized_token_range": [
+        266,
+        267
+      ],
+      "recognized_tokens": [
+        {
+          "index": 266,
+          "separator_before": " ",
+          "text": "потому",
+          "normalized": "потому",
+          "char_start": 1665,
+          "char_end": 1671
+        }
+      ],
+      "expected_token_range": [
+        270,
+        272
+      ],
+      "expected_tokens": [
+        {
+          "index": 270,
+          "separator_before": " ",
+          "text": "по",
+          "normalized": "по",
+          "char_start": 118,
+          "char_end": 120,
+          "utterance_index": 5,
+          "utterance_id": "96888566-6d36-5e46-88dd-65aa69114c60"
+        },
+        {
+          "index": 271,
+          "separator_before": " ",
+          "text": "тому",
+          "normalized": "тому",
+          "char_start": 121,
+          "char_end": 125,
+          "utterance_index": 5,
+          "utterance_id": "96888566-6d36-5e46-88dd-65aa69114c60"
+        }
+      ],
+      "expected_context": [
+        {
+          "utterance_id": "02fc2985-c26f-510d-91b9-54764b1fec9e",
+          "speaker": "РАССКАЗЧИК",
+          "text": "Почему Сноу вообще заподозрил воду? У него была версия. Ещё в 1849 году он выпустил небольшую брошюру о том, как передаётся холера, а потом развивал эти доводы в статьях и в книге. Рассуждал он так: холера начинается в кишечнике, значит, вещество, которое её вызывает, человек проглатывает, и размножается оно уже внутри. Выделения больного могут попасть в питьевую воду. Например, просочиться через землю в колодец. Получается путь от одного больного к чужой кружке."
+        },
+        {
+          "utterance_id": "96888566-6d36-5e46-88dd-65aa69114c60",
+          "speaker": "РАССКАЗЧИК",
+          "text": "Увидеть это вещество Сноу не мог. Он сам признавал, что под микроскопом его не распознать и судить о нём можно только по тому, что оно делает. Следующие два дня он снова смотрит на воду. Мелких белых хлопьев в ней то больше, то меньше. Сноу допускает, что в начале вспышки вода могла быть ещё грязнее. Но хлопья ничего не доказывают: убийцу в стакане не разглядишь."
+        },
+        {
+          "utterance_id": "87f3f40e-7374-53a8-8e0c-12ca69bb849d",
+          "speaker": "РАССКАЗЧИК",
+          "text": "Значит, нужно расспрашивать не воду, а людей. Сноу идёт в Главное регистрационное управление и получает список смертей от холеры за неделю, закончившуюся второго сентября, по трём соседним районам. Таких смертей восемьдесят девять, и почти все приходятся на последние дни. Сноу подробно разбирается с восемьюдесятью тремя, случившимися за последние три дня недели. Это далеко не все жертвы, только первые записи в реестре. Зато к каждой приложен адрес."
+        }
+      ],
+      "script_selectors": [
+        {
+          "utterance_id": "96888566-6d36-5e46-88dd-65aa69114c60",
+          "utterance_index": 5,
+          "char_start": 118,
+          "char_end": 120
+        },
+        {
+          "utterance_id": "96888566-6d36-5e46-88dd-65aa69114c60",
+          "utterance_index": 5,
+          "char_start": 121,
+          "char_end": 125
+        }
+      ],
+      "timing_uncertainties": [],
+      "candidate_id": "8aaa46ea-c65e-59ae-a495-9de0d126db54",
+      "audio_range": {
+        "start_frame": 5111520,
+        "end_frame": 5274720,
+        "basis": "matched_segment_timestamps",
+        "margin_frames": 72000,
+        "boundary_precision": "recognizer_hypothesis"
+      },
+      "status": "pending_audio_adjudication",
+      "clip_status": "extracted",
+      "conclusion": "candidate_only_not_confirmed_tts_error",
+      "clip_blob": {
+        "storage_key": "d24132ce-d2c3-4084-bf89-9905b7d765a7/14614afc942cf2320aec398b3c4b89519c26bac6c817ace7a2357ee687ec0299-7fc478ab21f20dde",
+        "sha256": "14614afc942cf2320aec398b3c4b89519c26bac6c817ace7a2357ee687ec0299",
+        "byte_length": 489644,
+        "media_type": "audio/wav"
+      },
+      "extraction": {
+        "start_frame": 5111520,
+        "end_frame": 5274720,
+        "sample_frames": 163200,
+        "sample_rate_hz": 48000,
+        "pcm_sha256": "b7cb6539f023a313b96822583f1037c8bd30b608a6419d02e80c51909db17d37",
+        "extraction": "exact_pcm_frames"
+      }
+    },
+    {
+      "kind": "script_discrepancy",
+      "operation": "replace",
+      "recognized_token_range": [
+        350,
+        352
+      ],
+      "recognized_tokens": [
+        {
+          "index": 350,
+          "separator_before": " ",
+          "text": "83",
+          "normalized": "83",
+          "char_start": 2191,
+          "char_end": 2193
+        },
+        {
+          "index": 351,
+          "separator_before": "-",
+          "text": "мя",
+          "normalized": "мя",
+          "char_start": 2194,
+          "char_end": 2196
+        }
+      ],
+      "expected_token_range": [
+        356,
+        358
+      ],
+      "expected_tokens": [
+        {
+          "index": 356,
+          "separator_before": " ",
+          "text": "восемьюдесятью",
+          "normalized": "восемьюдесятью",
+          "char_start": 301,
+          "char_end": 315,
+          "utterance_index": 6,
+          "utterance_id": "87f3f40e-7374-53a8-8e0c-12ca69bb849d"
+        },
+        {
+          "index": 357,
+          "separator_before": " ",
+          "text": "тремя",
+          "normalized": "тремя",
+          "char_start": 316,
+          "char_end": 321,
+          "utterance_index": 6,
+          "utterance_id": "87f3f40e-7374-53a8-8e0c-12ca69bb849d"
+        }
+      ],
+      "expected_context": [
+        {
+          "utterance_id": "96888566-6d36-5e46-88dd-65aa69114c60",
+          "speaker": "РАССКАЗЧИК",
+          "text": "Увидеть это вещество Сноу не мог. Он сам признавал, что под микроскопом его не распознать и судить о нём можно только по тому, что оно делает. Следующие два дня он снова смотрит на воду. Мелких белых хлопьев в ней то больше, то меньше. Сноу допускает, что в начале вспышки вода могла быть ещё грязнее. Но хлопья ничего не доказывают: убийцу в стакане не разглядишь."
+        },
+        {
+          "utterance_id": "87f3f40e-7374-53a8-8e0c-12ca69bb849d",
+          "speaker": "РАССКАЗЧИК",
+          "text": "Значит, нужно расспрашивать не воду, а людей. Сноу идёт в Главное регистрационное управление и получает список смертей от холеры за неделю, закончившуюся второго сентября, по трём соседним районам. Таких смертей восемьдесят девять, и почти все приходятся на последние дни. Сноу подробно разбирается с восемьюдесятью тремя, случившимися за последние три дня недели. Это далеко не все жертвы, только первые записи в реестре. Зато к каждой приложен адрес."
+        },
+        {
+          "utterance_id": "59c17af4-6f99-58ab-b685-7e8593425aba",
+          "speaker": "РАССКАЗЧИК",
+          "text": "Сноу отправляется по адресам. Первое наблюдение ожидаемое: почти все смерти случились недалеко от колонки. Но детективу интереснее те, кто в общую картину не вписывается. Десять умерших жили в домах, которые явно ближе к другим колонкам. Казалось бы, эти люди должны были пить другую воду."
+        }
+      ],
+      "script_selectors": [
+        {
+          "utterance_id": "87f3f40e-7374-53a8-8e0c-12ca69bb849d",
+          "utterance_index": 6,
+          "char_start": 301,
+          "char_end": 315
+        },
+        {
+          "utterance_id": "87f3f40e-7374-53a8-8e0c-12ca69bb849d",
+          "utterance_index": 6,
+          "char_start": 316,
+          "char_end": 321
+        }
+      ],
+      "timing_uncertainties": [],
+      "candidate_id": "efb217b9-3053-5cf8-867f-28fd64e7c7da",
+      "audio_range": {
+        "start_frame": 6792480,
+        "end_frame": 6990240,
+        "basis": "matched_segment_timestamps",
+        "margin_frames": 72000,
+        "boundary_precision": "recognizer_hypothesis"
+      },
+      "status": "pending_audio_adjudication",
+      "clip_status": "extracted",
+      "conclusion": "candidate_only_not_confirmed_tts_error",
+      "clip_blob": {
+        "storage_key": "d24132ce-d2c3-4084-bf89-9905b7d765a7/557c70ccdd1b16e092094fa8f6db8bb488d3ca832c8064119bb8723bd63629d6-7fc478ab21f20dde",
+        "sha256": "557c70ccdd1b16e092094fa8f6db8bb488d3ca832c8064119bb8723bd63629d6",
+        "byte_length": 593324,
+        "media_type": "audio/wav"
+      },
+      "extraction": {
+        "start_frame": 6792480,
+        "end_frame": 6990240,
+        "sample_frames": 197760,
+        "sample_rate_hz": 48000,
+        "pcm_sha256": "a0c9f6630f8a9ffdccc32ab146e8b9e87c519ae519b4d7bdafbb72151113d6cf",
+        "extraction": "exact_pcm_frames"
+      }
+    },
+    {
+      "kind": "script_discrepancy",
+      "operation": "replace",
+      "recognized_token_range": [
+        468,
+        470
+      ],
+      "recognized_tokens": [
+        {
+          "index": 468,
+          "separator_before": " ",
+          "text": "снова",
+          "normalized": "снова",
+          "char_start": 2910,
+          "char_end": 2915
+        },
+        {
+          "index": 469,
+          "separator_before": " ",
+          "text": "относят",
+          "normalized": "относят",
+          "char_start": 2916,
+          "char_end": 2923
+        }
+      ],
+      "expected_token_range": [
+        474,
+        476
+      ],
+      "expected_tokens": [
+        {
+          "index": 474,
+          "separator_before": " ",
+          "text": "Сноу",
+          "normalized": "сноу",
+          "char_start": 293,
+          "char_end": 297,
+          "utterance_index": 8,
+          "utterance_id": "6c381858-49bd-5755-9218-e7d0fd867a6f"
+        },
+        {
+          "index": 475,
+          "separator_before": " ",
+          "text": "относит",
+          "normalized": "относит",
+          "char_start": 298,
+          "char_end": 305,
+          "utterance_index": 8,
+          "utterance_id": "6c381858-49bd-5755-9218-e7d0fd867a6f"
+        }
+      ],
+      "expected_context": [
+        {
+          "utterance_id": "59c17af4-6f99-58ab-b685-7e8593425aba",
+          "speaker": "РАССКАЗЧИК",
+          "text": "Сноу отправляется по адресам. Первое наблюдение ожидаемое: почти все смерти случились недалеко от колонки. Но детективу интереснее те, кто в общую картину не вписывается. Десять умерших жили в домах, которые явно ближе к другим колонкам. Казалось бы, эти люди должны были пить другую воду."
+        },
+        {
+          "utterance_id": "6c381858-49bd-5755-9218-e7d0fd867a6f",
+          "speaker": "РАССКАЗЧИК",
+          "text": "Сноу стучится в двери. В пяти семьях ему говорят: мы всегда посылали за водой на Брод-стрит, она вкуснее. Трое умерших — дети, которые ходили в школу рядом с колонкой. Про двоих известно, что они пили её воду, а родители третьего считают, что, скорее всего, пил и он. Остаются двое. Их смерти Сноу относит к той холере, которая и раньше понемногу встречалась в округе."
+        },
+        {
+          "utterance_id": "2e53f945-c389-53b3-b014-35433c70ad2b",
+          "speaker": "РАССКАЗЧИК",
+          "text": "Выясняется и другое: чтобы выпить этой воды, не обязательно стоять у колонки. Ею разбавляли спиртное в окрестных пивных, её подавали в столовых и кофейнях. В маленьких лавках в неё добавляли ложечку шипучего порошка и продавали как шербет. Шестого сентября хозяйка одной кофейни, где рабочим к обеду наливали эту воду, сказала Сноу, что знает уже о девяти умерших посетителях."
+        }
+      ],
+      "script_selectors": [
+        {
+          "utterance_id": "6c381858-49bd-5755-9218-e7d0fd867a6f",
+          "utterance_index": 8,
+          "char_start": 293,
+          "char_end": 297
+        },
+        {
+          "utterance_id": "6c381858-49bd-5755-9218-e7d0fd867a6f",
+          "utterance_index": 8,
+          "char_start": 298,
+          "char_end": 305
+        }
+      ],
+      "timing_uncertainties": [],
+      "candidate_id": "9134ec02-572f-5d10-becf-1b6e93be3625",
+      "audio_range": {
+        "start_frame": 8929920,
+        "end_frame": 9100800,
+        "basis": "matched_segment_timestamps",
+        "margin_frames": 72000,
+        "boundary_precision": "recognizer_hypothesis"
+      },
+      "status": "pending_audio_adjudication",
+      "clip_status": "extracted",
+      "conclusion": "candidate_only_not_confirmed_tts_error",
+      "clip_blob": {
+        "storage_key": "d24132ce-d2c3-4084-bf89-9905b7d765a7/d4c21caa4041566eaafc1c0e38a9871efe50cf540122d0219689e83e58284fa7-7fc478ab21f20dde",
+        "sha256": "d4c21caa4041566eaafc1c0e38a9871efe50cf540122d0219689e83e58284fa7",
+        "byte_length": 512684,
+        "media_type": "audio/wav"
+      },
+      "extraction": {
+        "start_frame": 8929920,
+        "end_frame": 9100800,
+        "sample_frames": 170880,
+        "sample_rate_hz": 48000,
+        "pcm_sha256": "779472654d51bea886b9f1cfbe09370298db95610487ba1c2878fc87867bc0d3",
+        "extraction": "exact_pcm_frames"
+      }
+    },
+    {
+      "kind": "script_discrepancy",
+      "operation": "replace",
+      "recognized_token_range": [
+        551,
+        552
+      ],
+      "recognized_tokens": [
+        {
+          "index": 551,
+          "separator_before": " ",
+          "text": "обоины",
+          "normalized": "обоины",
+          "char_start": 3434,
+          "char_end": 3440
+        }
+      ],
+      "expected_token_range": [
+        557,
+        558
+      ],
+      "expected_tokens": [
+        {
+          "index": 557,
+          "separator_before": " ",
+          "text": "обычной",
+          "normalized": "обычной",
+          "char_start": 77,
+          "char_end": 84,
+          "utterance_index": 10,
+          "utterance_id": "5311bca1-61af-58df-b103-eec4bf47883c"
+        }
+      ],
+      "expected_context": [
+        {
+          "utterance_id": "2e53f945-c389-53b3-b014-35433c70ad2b",
+          "speaker": "РАССКАЗЧИК",
+          "text": "Выясняется и другое: чтобы выпить этой воды, не обязательно стоять у колонки. Ею разбавляли спиртное в окрестных пивных, её подавали в столовых и кофейнях. В маленьких лавках в неё добавляли ложечку шипучего порошка и продавали как шербет. Шестого сентября хозяйка одной кофейни, где рабочим к обеду наливали эту воду, сказала Сноу, что знает уже о девяти умерших посетителях."
+        },
+        {
+          "utterance_id": "5311bca1-61af-58df-b103-eec4bf47883c",
+          "speaker": "РАССКАЗЧИК",
+          "text": "При этом картина не получается идеально гладкой, и Сноу этого не скрывает. В обычной округе колонки он насчитал семьдесят три смерти. В шестидесяти одном случае ему сказали, что умерший пил эту воду, постоянно или время от времени. В шести случаях спросить было уже некого: родные умерли или уехали. А ещё в шести ему ответили, что воду до болезни не пили. Закономерность сильная, но список не закрыт."
+        },
+        {
+          "utterance_id": "9bd62d90-0ac6-50c2-8b26-ca970a0425ba",
+          "speaker": "РАССКАЗЧИК",
+          "text": "Есть в книге Сноу и обратная сторона этого дела. Когда именно он о ней узнал, неизвестно, но вопрос напрашивается сам. Если одни жили далеко и всё равно пострадали, нет ли таких, кто жил в самом очаге, но уцелел?"
+        }
+      ],
+      "script_selectors": [
+        {
+          "utterance_id": "5311bca1-61af-58df-b103-eec4bf47883c",
+          "utterance_index": 10,
+          "char_start": 77,
+          "char_end": 84
+        }
+      ],
+      "timing_uncertainties": [],
+      "candidate_id": "73baf8a4-80d3-53fa-8859-67e1a64ff53c",
+      "audio_range": {
+        "start_frame": 10496640,
+        "end_frame": 10663680,
+        "basis": "matched_segment_timestamps",
+        "margin_frames": 72000,
+        "boundary_precision": "recognizer_hypothesis"
+      },
+      "status": "pending_audio_adjudication",
+      "clip_status": "extracted",
+      "conclusion": "candidate_only_not_confirmed_tts_error",
+      "clip_blob": {
+        "storage_key": "d24132ce-d2c3-4084-bf89-9905b7d765a7/907863ed8f3aab8fae04b91a2e6c47d984f2e7c64578a8f6d3abc756fd3048e4-7fc478ab21f20dde",
+        "sha256": "907863ed8f3aab8fae04b91a2e6c47d984f2e7c64578a8f6d3abc756fd3048e4",
+        "byte_length": 501164,
+        "media_type": "audio/wav"
+      },
+      "extraction": {
+        "start_frame": 10496640,
+        "end_frame": 10663680,
+        "sample_frames": 167040,
+        "sample_rate_hz": 48000,
+        "pcm_sha256": "9ccf1d701ab6273233ed5bedfa4b2f0ab24cd05baa962c7caf032535c22b6b5d",
+        "extraction": "exact_pcm_frames"
+      }
+    },
+    {
+      "kind": "script_discrepancy",
+      "operation": "replace",
+      "recognized_token_range": [
+        559,
+        560
+      ],
+      "recognized_tokens": [
+        {
+          "index": 559,
+          "separator_before": " ",
+          "text": "61",
+          "normalized": "61",
+          "char_start": 3481,
+          "char_end": 3483
+        }
+      ],
+      "expected_token_range": [
+        566,
+        568
+      ],
+      "expected_tokens": [
+        {
+          "index": 566,
+          "separator_before": " ",
+          "text": "шестидесяти",
+          "normalized": "шестидесяти",
+          "char_start": 136,
+          "char_end": 147,
+          "utterance_index": 10,
+          "utterance_id": "5311bca1-61af-58df-b103-eec4bf47883c"
+        },
+        {
+          "index": 567,
+          "separator_before": " ",
+          "text": "одном",
+          "normalized": "одном",
+          "char_start": 148,
+          "char_end": 153,
+          "utterance_index": 10,
+          "utterance_id": "5311bca1-61af-58df-b103-eec4bf47883c"
+        }
+      ],
+      "expected_context": [
+        {
+          "utterance_id": "2e53f945-c389-53b3-b014-35433c70ad2b",
+          "speaker": "РАССКАЗЧИК",
+          "text": "Выясняется и другое: чтобы выпить этой воды, не обязательно стоять у колонки. Ею разбавляли спиртное в окрестных пивных, её подавали в столовых и кофейнях. В маленьких лавках в неё добавляли ложечку шипучего порошка и продавали как шербет. Шестого сентября хозяйка одной кофейни, где рабочим к обеду наливали эту воду, сказала Сноу, что знает уже о девяти умерших посетителях."
+        },
+        {
+          "utterance_id": "5311bca1-61af-58df-b103-eec4bf47883c",
+          "speaker": "РАССКАЗЧИК",
+          "text": "При этом картина не получается идеально гладкой, и Сноу этого не скрывает. В обычной округе колонки он насчитал семьдесят три смерти. В шестидесяти одном случае ему сказали, что умерший пил эту воду, постоянно или время от времени. В шести случаях спросить было уже некого: родные умерли или уехали. А ещё в шести ему ответили, что воду до болезни не пили. Закономерность сильная, но список не закрыт."
+        },
+        {
+          "utterance_id": "9bd62d90-0ac6-50c2-8b26-ca970a0425ba",
+          "speaker": "РАССКАЗЧИК",
+          "text": "Есть в книге Сноу и обратная сторона этого дела. Когда именно он о ней узнал, неизвестно, но вопрос напрашивается сам. Если одни жили далеко и всё равно пострадали, нет ли таких, кто жил в самом очаге, но уцелел?"
+        }
+      ],
+      "script_selectors": [
+        {
+          "utterance_id": "5311bca1-61af-58df-b103-eec4bf47883c",
+          "utterance_index": 10,
+          "char_start": 136,
+          "char_end": 147
+        },
+        {
+          "utterance_id": "5311bca1-61af-58df-b103-eec4bf47883c",
+          "utterance_index": 10,
+          "char_start": 148,
+          "char_end": 153
+        }
+      ],
+      "timing_uncertainties": [],
+      "candidate_id": "f0694f8e-bd33-546f-ad40-7463077e7753",
+      "audio_range": {
+        "start_frame": 10673280,
+        "end_frame": 10848000,
+        "basis": "matched_segment_timestamps",
+        "margin_frames": 72000,
+        "boundary_precision": "recognizer_hypothesis"
+      },
+      "status": "pending_audio_adjudication",
+      "clip_status": "extracted",
+      "conclusion": "candidate_only_not_confirmed_tts_error",
+      "clip_blob": {
+        "storage_key": "d24132ce-d2c3-4084-bf89-9905b7d765a7/ec756c345a1de5dee0dd9a168388c7b3af7f4516c2bb851952c27b8d78371fdd-7fc478ab21f20dde",
+        "sha256": "ec756c345a1de5dee0dd9a168388c7b3af7f4516c2bb851952c27b8d78371fdd",
+        "byte_length": 524204,
+        "media_type": "audio/wav"
+      },
+      "extraction": {
+        "start_frame": 10673280,
+        "end_frame": 10848000,
+        "sample_frames": 174720,
+        "sample_rate_hz": 48000,
+        "pcm_sha256": "b3e9ebcc8a4f8fbe826a8d99881cf240a6217c470611454d232eafdbfd884bcd",
+        "extraction": "exact_pcm_frames"
+      }
+    },
+    {
+      "kind": "script_discrepancy",
+      "operation": "replace",
+      "recognized_token_range": [
+        641,
+        642
+      ],
+      "recognized_tokens": [
+        {
+          "index": 641,
+          "separator_before": " ",
+          "text": "Полн",
+          "normalized": "полн",
+          "char_start": 3949,
+          "char_end": 3953
+        }
+      ],
+      "expected_token_range": [
+        649,
+        650
+      ],
+      "expected_tokens": [
+        {
+          "index": 649,
+          "separator_before": " ",
+          "text": "Поланд",
+          "normalized": "поланд",
+          "char_start": 3,
+          "char_end": 9,
+          "utterance_index": 12,
+          "utterance_id": "76107aad-7210-560c-a34a-462206678118"
+        }
+      ],
+      "expected_context": [
+        {
+          "utterance_id": "9bd62d90-0ac6-50c2-8b26-ca970a0425ba",
+          "speaker": "РАССКАЗЧИК",
+          "text": "Есть в книге Сноу и обратная сторона этого дела. Когда именно он о ней узнал, неизвестно, но вопрос напрашивается сам. Если одни жили далеко и всё равно пострадали, нет ли таких, кто жил в самом очаге, но уцелел?"
+        },
+        {
+          "utterance_id": "76107aad-7210-560c-a34a-462206678118",
+          "speaker": "РАССКАЗЧИК",
+          "text": "На Поланд-стрит стоит работный дом. Так называли учреждение, где жили бедняки, которым некуда было больше идти. Почти со всех сторон его окружают дома, где люди умерли от холеры. В нём пятьсот тридцать пять обитателей. От холеры умерли пятеро. Тех, кого привозили туда уже больными, Сноу считает отдельно."
+        },
+        {
+          "utterance_id": "204b2411-4742-5549-84c7-a6099c3e196c",
+          "speaker": "РАССКАЗЧИК",
+          "text": "Пятеро из пятисот с лишним посреди улиц, где умирали целыми семьями. В чём же разница? У работного дома свой колодец и подача воды от водопроводной компании. За водой на Брод-стрит оттуда не посылали никогда."
+        }
+      ],
+      "script_selectors": [
+        {
+          "utterance_id": "76107aad-7210-560c-a34a-462206678118",
+          "utterance_index": 12,
+          "char_start": 3,
+          "char_end": 9
+        }
+      ],
+      "timing_uncertainties": [],
+      "candidate_id": "1a1f168a-07d8-5fc1-8d5b-c971d2751dc7",
+      "audio_range": {
+        "start_frame": 12161760,
+        "end_frame": 12317280,
+        "basis": "matched_segment_timestamps",
+        "margin_frames": 72000,
+        "boundary_precision": "recognizer_hypothesis"
+      },
+      "status": "pending_audio_adjudication",
+      "clip_status": "extracted",
+      "conclusion": "candidate_only_not_confirmed_tts_error",
+      "clip_blob": {
+        "storage_key": "d24132ce-d2c3-4084-bf89-9905b7d765a7/b91ee0944d7b5858ec27ad4df9f30ef99e5b82abcee7fbb81e6d646c2c59fedf-7fc478ab21f20dde",
+        "sha256": "b91ee0944d7b5858ec27ad4df9f30ef99e5b82abcee7fbb81e6d646c2c59fedf",
+        "byte_length": 466604,
+        "media_type": "audio/wav"
+      },
+      "extraction": {
+        "start_frame": 12161760,
+        "end_frame": 12317280,
+        "sample_frames": 155520,
+        "sample_rate_hz": 48000,
+        "pcm_sha256": "9434960ba012bec659d1a763eb2e0cb6da38504f9274fea36bacd1b8b24b11ae",
+        "extraction": "exact_pcm_frames"
+      }
+    },
+    {
+      "kind": "script_discrepancy",
+      "operation": "replace",
+      "recognized_token_range": [
+        688,
+        689
+      ],
+      "recognized_tokens": [
+        {
+          "index": 688,
+          "separator_before": " ",
+          "text": "500",
+          "normalized": "500",
+          "char_start": 4242,
+          "char_end": 4245
+        }
+      ],
+      "expected_token_range": [
+        698,
+        699
+      ],
+      "expected_tokens": [
+        {
+          "index": 698,
+          "separator_before": " ",
+          "text": "пятисот",
+          "normalized": "пятисот",
+          "char_start": 10,
+          "char_end": 17,
+          "utterance_index": 13,
+          "utterance_id": "204b2411-4742-5549-84c7-a6099c3e196c"
+        }
+      ],
+      "expected_context": [
+        {
+          "utterance_id": "76107aad-7210-560c-a34a-462206678118",
+          "speaker": "РАССКАЗЧИК",
+          "text": "На Поланд-стрит стоит работный дом. Так называли учреждение, где жили бедняки, которым некуда было больше идти. Почти со всех сторон его окружают дома, где люди умерли от холеры. В нём пятьсот тридцать пять обитателей. От холеры умерли пятеро. Тех, кого привозили туда уже больными, Сноу считает отдельно."
+        },
+        {
+          "utterance_id": "204b2411-4742-5549-84c7-a6099c3e196c",
+          "speaker": "РАССКАЗЧИК",
+          "text": "Пятеро из пятисот с лишним посреди улиц, где умирали целыми семьями. В чём же разница? У работного дома свой колодец и подача воды от водопроводной компании. За водой на Брод-стрит оттуда не посылали никогда."
+        },
+        {
+          "utterance_id": "7405ea40-f826-5b7b-aeac-262a8a4d7e2e",
+          "speaker": "РАССКАЗЧИК",
+          "text": "Но вернёмся в первую неделю сентября. Вечером в четверг, седьмого сентября, Сноу приходит к попечителям прихода Сент-Джеймс, то есть к людям, которые могут распорядиться колонкой. Он рассказывает им, что показали адреса из реестра и расспросы родных: особенной вспышки холеры в этой части Лондона не было нигде, кроме как среди тех, кто привык пить воду этой колонки. На следующий день, восьмого сентября, с колонки снимают ручку."
+        }
+      ],
+      "script_selectors": [
+        {
+          "utterance_id": "204b2411-4742-5549-84c7-a6099c3e196c",
+          "utterance_index": 13,
+          "char_start": 10,
+          "char_end": 17
+        }
+      ],
+      "timing_uncertainties": [],
+      "candidate_id": "27cf7784-c6cc-5ca0-ade8-720b84a00e35",
+      "audio_range": {
+        "start_frame": 13025760,
+        "end_frame": 13188960,
+        "basis": "matched_segment_timestamps",
+        "margin_frames": 72000,
+        "boundary_precision": "recognizer_hypothesis"
+      },
+      "status": "pending_audio_adjudication",
+      "clip_status": "extracted",
+      "conclusion": "candidate_only_not_confirmed_tts_error",
+      "clip_blob": {
+        "storage_key": "d24132ce-d2c3-4084-bf89-9905b7d765a7/9c2285a34d33a8004e0cbc2dcaaa3172db622271834b6b6ec3d2065bcb586779-7fc478ab21f20dde",
+        "sha256": "9c2285a34d33a8004e0cbc2dcaaa3172db622271834b6b6ec3d2065bcb586779",
+        "byte_length": 489644,
+        "media_type": "audio/wav"
+      },
+      "extraction": {
+        "start_frame": 13025760,
+        "end_frame": 13188960,
+        "sample_frames": 163200,
+        "sample_rate_hz": 48000,
+        "pcm_sha256": "c41848c0432d26f829577647ff98d314661e09ff6bf067c2d2b30a7cd438d668",
+        "extraction": "exact_pcm_frames"
+      }
+    },
+    {
+      "kind": "script_discrepancy",
+      "operation": "replace",
+      "recognized_token_range": [
+        758,
+        759
+      ],
+      "recognized_tokens": [
+        {
+          "index": 758,
+          "separator_before": ". ",
+          "text": "Особенно",
+          "normalized": "особенно",
+          "char_start": 4682,
+          "char_end": 4690
+        }
+      ],
+      "expected_token_range": [
+        768,
+        769
+      ],
+      "expected_tokens": [
+        {
+          "index": 768,
+          "separator_before": ": ",
+          "text": "особенной",
+          "normalized": "особенной",
+          "char_start": 251,
+          "char_end": 260,
+          "utterance_index": 14,
+          "utterance_id": "7405ea40-f826-5b7b-aeac-262a8a4d7e2e"
+        }
+      ],
+      "expected_context": [
+        {
+          "utterance_id": "204b2411-4742-5549-84c7-a6099c3e196c",
+          "speaker": "РАССКАЗЧИК",
+          "text": "Пятеро из пятисот с лишним посреди улиц, где умирали целыми семьями. В чём же разница? У работного дома свой колодец и подача воды от водопроводной компании. За водой на Брод-стрит оттуда не посылали никогда."
+        },
+        {
+          "utterance_id": "7405ea40-f826-5b7b-aeac-262a8a4d7e2e",
+          "speaker": "РАССКАЗЧИК",
+          "text": "Но вернёмся в первую неделю сентября. Вечером в четверг, седьмого сентября, Сноу приходит к попечителям прихода Сент-Джеймс, то есть к людям, которые могут распорядиться колонкой. Он рассказывает им, что показали адреса из реестра и расспросы родных: особенной вспышки холеры в этой части Лондона не было нигде, кроме как среди тех, кто привык пить воду этой колонки. На следующий день, восьмого сентября, с колонки снимают ручку."
+        },
+        {
+          "utterance_id": "9f24f14c-3a2a-5ab6-acb8-85a390912833",
+          "speaker": "РАССКАЗЧИК",
+          "text": "Хорошо бы на этом и закончить: сняли ручку, и эпидемия отступила. Но сам Сноу так не пишет. Он восстанавливает, когда заболели люди, которые потом умерли. Это не то же самое, что дата смерти: человек мог заболеть в один день, а умереть на следующий. Первого сентября таких заболевших было сто сорок три. Второго — сто шестнадцать. Третьего — уже пятьдесят четыре. Восьмого, в день, когда сняли ручку, — двенадцать. Спад начался раньше, чем закрыли колонку."
+        }
+      ],
+      "script_selectors": [
+        {
+          "utterance_id": "7405ea40-f826-5b7b-aeac-262a8a4d7e2e",
+          "utterance_index": 14,
+          "char_start": 251,
+          "char_end": 260
+        }
+      ],
+      "timing_uncertainties": [],
+      "candidate_id": "6be5aa15-f625-5ef8-8ab9-09eba2396938",
+      "audio_range": {
+        "start_frame": 14324640,
+        "end_frame": 14491680,
+        "basis": "matched_segment_timestamps",
+        "margin_frames": 72000,
+        "boundary_precision": "recognizer_hypothesis"
+      },
+      "status": "pending_audio_adjudication",
+      "clip_status": "extracted",
+      "conclusion": "candidate_only_not_confirmed_tts_error",
+      "clip_blob": {
+        "storage_key": "d24132ce-d2c3-4084-bf89-9905b7d765a7/b316a7caa7262f328565e6c86cbf5687785f9cbd13c1854c361f5fd72e16675a-7fc478ab21f20dde",
+        "sha256": "b316a7caa7262f328565e6c86cbf5687785f9cbd13c1854c361f5fd72e16675a",
+        "byte_length": 501164,
+        "media_type": "audio/wav"
+      },
+      "extraction": {
+        "start_frame": 14324640,
+        "end_frame": 14491680,
+        "sample_frames": 167040,
+        "sample_rate_hz": 48000,
+        "pcm_sha256": "8bcc25acf059a57f9e5de1919a89f2b723c87e4a783a7dae6d40d738d3186dc6",
+        "extraction": "exact_pcm_frames"
+      }
+    },
+    {
+      "kind": "script_discrepancy",
+      "operation": "delete",
+      "recognized_token_range": [
+        795,
+        795
+      ],
+      "recognized_tokens": [],
+      "expected_token_range": [
+        805,
+        806
+      ],
+      "expected_tokens": [
+        {
+          "index": 805,
+          "separator_before": ", ",
+          "text": "и",
+          "normalized": "и",
+          "char_start": 44,
+          "char_end": 45,
+          "utterance_index": 15,
+          "utterance_id": "9f24f14c-3a2a-5ab6-acb8-85a390912833"
+        }
+      ],
+      "expected_context": [
+        {
+          "utterance_id": "7405ea40-f826-5b7b-aeac-262a8a4d7e2e",
+          "speaker": "РАССКАЗЧИК",
+          "text": "Но вернёмся в первую неделю сентября. Вечером в четверг, седьмого сентября, Сноу приходит к попечителям прихода Сент-Джеймс, то есть к людям, которые могут распорядиться колонкой. Он рассказывает им, что показали адреса из реестра и расспросы родных: особенной вспышки холеры в этой части Лондона не было нигде, кроме как среди тех, кто привык пить воду этой колонки. На следующий день, восьмого сентября, с колонки снимают ручку."
+        },
+        {
+          "utterance_id": "9f24f14c-3a2a-5ab6-acb8-85a390912833",
+          "speaker": "РАССКАЗЧИК",
+          "text": "Хорошо бы на этом и закончить: сняли ручку, и эпидемия отступила. Но сам Сноу так не пишет. Он восстанавливает, когда заболели люди, которые потом умерли. Это не то же самое, что дата смерти: человек мог заболеть в один день, а умереть на следующий. Первого сентября таких заболевших было сто сорок три. Второго — сто шестнадцать. Третьего — уже пятьдесят четыре. Восьмого, в день, когда сняли ручку, — двенадцать. Спад начался раньше, чем закрыли колонку."
+        },
+        {
+          "utterance_id": "0fe22983-8819-52d7-bfb7-59aaaf219563",
+          "speaker": "РАССКАЗЧИК",
+          "text": "Отчасти дело было в том, что люди бежали. Первыми съехали жильцы меблированных комнат, за ними другие квартиранты, причём многие бросали мебель, чтобы забрать её, когда найдут новое жильё. По оценке Сноу, меньше чем за шесть дней с самых пострадавших улиц уехали больше трёх четвертей жителей. Была ли вода к восьмому сентября ещё опасной, он, по его же словам, сказать не мог. Всего эта вспышка унесла, по его подсчёту, больше шестисот жизней."
+        }
+      ],
+      "script_selectors": [
+        {
+          "utterance_id": "9f24f14c-3a2a-5ab6-acb8-85a390912833",
+          "utterance_index": 15,
+          "char_start": 44,
+          "char_end": 45
+        }
+      ],
+      "timing_uncertainties": [],
+      "candidate_id": "9a5949e5-3b85-52f4-b12e-df6ac7751cd2",
+      "audio_range": {
+        "start_frame": 14931360,
+        "end_frame": 15079200,
+        "basis": "neighbor_anchors_or_full_audio_edges",
+        "margin_frames": 72000,
+        "boundary_precision": "recognizer_hypothesis"
+      },
+      "status": "pending_audio_adjudication",
+      "clip_status": "extracted",
+      "conclusion": "candidate_only_not_confirmed_tts_error",
+      "clip_blob": {
+        "storage_key": "d24132ce-d2c3-4084-bf89-9905b7d765a7/c18419744a460c3bb4d9abec115ec325e8f3962e20229b62dc43111b2e3d2b38-7fc478ab21f20dde",
+        "sha256": "c18419744a460c3bb4d9abec115ec325e8f3962e20229b62dc43111b2e3d2b38",
+        "byte_length": 443564,
+        "media_type": "audio/wav"
+      },
+      "extraction": {
+        "start_frame": 14931360,
+        "end_frame": 15079200,
+        "sample_frames": 147840,
+        "sample_rate_hz": 48000,
+        "pcm_sha256": "3ed124dff01ecb410490d530097b1ecd16b046c28f81151e5aeb468e42d910d1",
+        "extraction": "exact_pcm_frames"
+      }
+    },
+    {
+      "kind": "script_discrepancy",
+      "operation": "replace",
+      "recognized_token_range": [
+        834,
+        840
+      ],
+      "recognized_tokens": [
+        {
+          "index": 834,
+          "separator_before": " ",
+          "text": "143",
+          "normalized": "143",
+          "char_start": 5135,
+          "char_end": 5138
+        },
+        {
+          "index": 835,
+          "separator_before": ", ",
+          "text": "2",
+          "normalized": "2",
+          "char_start": 5140,
+          "char_end": 5141
+        },
+        {
+          "index": 836,
+          "separator_before": "-",
+          "text": "го",
+          "normalized": "го",
+          "char_start": 5142,
+          "char_end": 5144
+        },
+        {
+          "index": 837,
+          "separator_before": ", ",
+          "text": "116",
+          "normalized": "116",
+          "char_start": 5146,
+          "char_end": 5149
+        },
+        {
+          "index": 838,
+          "separator_before": ", ",
+          "text": "3",
+          "normalized": "3",
+          "char_start": 5151,
+          "char_end": 5152
+        },
+        {
+          "index": 839,
+          "separator_before": "-",
+          "text": "го",
+          "normalized": "го",
+          "char_start": 5153,
+          "char_end": 5155
+        }
+      ],
+      "expected_token_range": [
+        845,
+        852
+      ],
+      "expected_tokens": [
+        {
+          "index": 845,
+          "separator_before": " ",
+          "text": "сто",
+          "normalized": "сто",
+          "char_start": 289,
+          "char_end": 292,
+          "utterance_index": 15,
+          "utterance_id": "9f24f14c-3a2a-5ab6-acb8-85a390912833"
+        },
+        {
+          "index": 846,
+          "separator_before": " ",
+          "text": "сорок",
+          "normalized": "сорок",
+          "char_start": 293,
+          "char_end": 298,
+          "utterance_index": 15,
+          "utterance_id": "9f24f14c-3a2a-5ab6-acb8-85a390912833"
+        },
+        {
+          "index": 847,
+          "separator_before": " ",
+          "text": "три",
+          "normalized": "три",
+          "char_start": 299,
+          "char_end": 302,
+          "utterance_index": 15,
+          "utterance_id": "9f24f14c-3a2a-5ab6-acb8-85a390912833"
+        },
+        {
+          "index": 848,
+          "separator_before": ". ",
+          "text": "Второго",
+          "normalized": "второго",
+          "char_start": 304,
+          "char_end": 311,
+          "utterance_index": 15,
+          "utterance_id": "9f24f14c-3a2a-5ab6-acb8-85a390912833"
+        },
+        {
+          "index": 849,
+          "separator_before": " — ",
+          "text": "сто",
+          "normalized": "сто",
+          "char_start": 314,
+          "char_end": 317,
+          "utterance_index": 15,
+          "utterance_id": "9f24f14c-3a2a-5ab6-acb8-85a390912833"
+        },
+        {
+          "index": 850,
+          "separator_before": " ",
+          "text": "шестнадцать",
+          "normalized": "шестнадцать",
+          "char_start": 318,
+          "char_end": 329,
+          "utterance_index": 15,
+          "utterance_id": "9f24f14c-3a2a-5ab6-acb8-85a390912833"
+        },
+        {
+          "index": 851,
+          "separator_before": ". ",
+          "text": "Третьего",
+          "normalized": "третьего",
+          "char_start": 331,
+          "char_end": 339,
+          "utterance_index": 15,
+          "utterance_id": "9f24f14c-3a2a-5ab6-acb8-85a390912833"
+        }
+      ],
+      "expected_context": [
+        {
+          "utterance_id": "7405ea40-f826-5b7b-aeac-262a8a4d7e2e",
+          "speaker": "РАССКАЗЧИК",
+          "text": "Но вернёмся в первую неделю сентября. Вечером в четверг, седьмого сентября, Сноу приходит к попечителям прихода Сент-Джеймс, то есть к людям, которые могут распорядиться колонкой. Он рассказывает им, что показали адреса из реестра и расспросы родных: особенной вспышки холеры в этой части Лондона не было нигде, кроме как среди тех, кто привык пить воду этой колонки. На следующий день, восьмого сентября, с колонки снимают ручку."
+        },
+        {
+          "utterance_id": "9f24f14c-3a2a-5ab6-acb8-85a390912833",
+          "speaker": "РАССКАЗЧИК",
+          "text": "Хорошо бы на этом и закончить: сняли ручку, и эпидемия отступила. Но сам Сноу так не пишет. Он восстанавливает, когда заболели люди, которые потом умерли. Это не то же самое, что дата смерти: человек мог заболеть в один день, а умереть на следующий. Первого сентября таких заболевших было сто сорок три. Второго — сто шестнадцать. Третьего — уже пятьдесят четыре. Восьмого, в день, когда сняли ручку, — двенадцать. Спад начался раньше, чем закрыли колонку."
+        },
+        {
+          "utterance_id": "0fe22983-8819-52d7-bfb7-59aaaf219563",
+          "speaker": "РАССКАЗЧИК",
+          "text": "Отчасти дело было в том, что люди бежали. Первыми съехали жильцы меблированных комнат, за ними другие квартиранты, причём многие бросали мебель, чтобы забрать её, когда найдут новое жильё. По оценке Сноу, меньше чем за шесть дней с самых пострадавших улиц уехали больше трёх четвертей жителей. Была ли вода к восьмому сентября ещё опасной, он, по его же словам, сказать не мог. Всего эта вспышка унесла, по его подсчёту, больше шестисот жизней."
+        }
+      ],
+      "script_selectors": [
+        {
+          "utterance_id": "9f24f14c-3a2a-5ab6-acb8-85a390912833",
+          "utterance_index": 15,
+          "char_start": 289,
+          "char_end": 292
+        },
+        {
+          "utterance_id": "9f24f14c-3a2a-5ab6-acb8-85a390912833",
+          "utterance_index": 15,
+          "char_start": 293,
+          "char_end": 298
+        },
+        {
+          "utterance_id": "9f24f14c-3a2a-5ab6-acb8-85a390912833",
+          "utterance_index": 15,
+          "char_start": 299,
+          "char_end": 302
+        },
+        {
+          "utterance_id": "9f24f14c-3a2a-5ab6-acb8-85a390912833",
+          "utterance_index": 15,
+          "char_start": 304,
+          "char_end": 311
+        },
+        {
+          "utterance_id": "9f24f14c-3a2a-5ab6-acb8-85a390912833",
+          "utterance_index": 15,
+          "char_start": 314,
+          "char_end": 317
+        },
+        {
+          "utterance_id": "9f24f14c-3a2a-5ab6-acb8-85a390912833",
+          "utterance_index": 15,
+          "char_start": 318,
+          "char_end": 329
+        },
+        {
+          "utterance_id": "9f24f14c-3a2a-5ab6-acb8-85a390912833",
+          "utterance_index": 15,
+          "char_start": 331,
+          "char_end": 339
+        }
+      ],
+      "timing_uncertainties": [
+        {
+          "kind": "zero_length_segment_timestamp",
+          "segment_index": 835,
+          "start_frame": 15740640,
+          "end_frame": 15740640,
+          "transcript_token_range": [
+            835,
+            836
+          ]
+        }
+      ],
+      "candidate_id": "b7232687-3a25-5e25-9824-8b81d8bbf883",
+      "audio_range": {
+        "start_frame": 15611040,
+        "end_frame": 15912480,
+        "basis": "neighbor_anchors_or_full_audio_edges",
+        "margin_frames": 72000,
+        "boundary_precision": "recognizer_hypothesis"
+      },
+      "status": "pending_audio_adjudication",
+      "clip_status": "extracted",
+      "conclusion": "candidate_only_not_confirmed_tts_error",
+      "clip_blob": {
+        "storage_key": "d24132ce-d2c3-4084-bf89-9905b7d765a7/d7334b5cb645c5a8a4e7fa9f89a548bd641496ec000aec427b79495d14d3fc3e-7fc478ab21f20dde",
+        "sha256": "d7334b5cb645c5a8a4e7fa9f89a548bd641496ec000aec427b79495d14d3fc3e",
+        "byte_length": 904364,
+        "media_type": "audio/wav"
+      },
+      "extraction": {
+        "start_frame": 15611040,
+        "end_frame": 15912480,
+        "sample_frames": 301440,
+        "sample_rate_hz": 48000,
+        "pcm_sha256": "cd75f368581db98ae3945d277d9c86373bcc58119f8cf49fbd8f4b8f3cb34e8d",
+        "extraction": "exact_pcm_frames"
+      }
+    },
+    {
+      "kind": "script_discrepancy",
+      "operation": "replace",
+      "recognized_token_range": [
+        841,
+        844
+      ],
+      "recognized_tokens": [
+        {
+          "index": 841,
+          "separator_before": " ",
+          "text": "54",
+          "normalized": "54",
+          "char_start": 5161,
+          "char_end": 5163
+        },
+        {
+          "index": 842,
+          "separator_before": ", ",
+          "text": "8",
+          "normalized": "8",
+          "char_start": 5165,
+          "char_end": 5166
+        },
+        {
+          "index": 843,
+          "separator_before": "-",
+          "text": "го",
+          "normalized": "го",
+          "char_start": 5167,
+          "char_end": 5169
+        }
+      ],
+      "expected_token_range": [
+        853,
+        856
+      ],
+      "expected_tokens": [
+        {
+          "index": 853,
+          "separator_before": " ",
+          "text": "пятьдесят",
+          "normalized": "пятьдесят",
+          "char_start": 346,
+          "char_end": 355,
+          "utterance_index": 15,
+          "utterance_id": "9f24f14c-3a2a-5ab6-acb8-85a390912833"
+        },
+        {
+          "index": 854,
+          "separator_before": " ",
+          "text": "четыре",
+          "normalized": "четыре",
+          "char_start": 356,
+          "char_end": 362,
+          "utterance_index": 15,
+          "utterance_id": "9f24f14c-3a2a-5ab6-acb8-85a390912833"
+        },
+        {
+          "index": 855,
+          "separator_before": ". ",
+          "text": "Восьмого",
+          "normalized": "восьмого",
+          "char_start": 364,
+          "char_end": 372,
+          "utterance_index": 15,
+          "utterance_id": "9f24f14c-3a2a-5ab6-acb8-85a390912833"
+        }
+      ],
+      "expected_context": [
+        {
+          "utterance_id": "7405ea40-f826-5b7b-aeac-262a8a4d7e2e",
+          "speaker": "РАССКАЗЧИК",
+          "text": "Но вернёмся в первую неделю сентября. Вечером в четверг, седьмого сентября, Сноу приходит к попечителям прихода Сент-Джеймс, то есть к людям, которые могут распорядиться колонкой. Он рассказывает им, что показали адреса из реестра и расспросы родных: особенной вспышки холеры в этой части Лондона не было нигде, кроме как среди тех, кто привык пить воду этой колонки. На следующий день, восьмого сентября, с колонки снимают ручку."
+        },
+        {
+          "utterance_id": "9f24f14c-3a2a-5ab6-acb8-85a390912833",
+          "speaker": "РАССКАЗЧИК",
+          "text": "Хорошо бы на этом и закончить: сняли ручку, и эпидемия отступила. Но сам Сноу так не пишет. Он восстанавливает, когда заболели люди, которые потом умерли. Это не то же самое, что дата смерти: человек мог заболеть в один день, а умереть на следующий. Первого сентября таких заболевших было сто сорок три. Второго — сто шестнадцать. Третьего — уже пятьдесят четыре. Восьмого, в день, когда сняли ручку, — двенадцать. Спад начался раньше, чем закрыли колонку."
+        },
+        {
+          "utterance_id": "0fe22983-8819-52d7-bfb7-59aaaf219563",
+          "speaker": "РАССКАЗЧИК",
+          "text": "Отчасти дело было в том, что люди бежали. Первыми съехали жильцы меблированных комнат, за ними другие квартиранты, причём многие бросали мебель, чтобы забрать её, когда найдут новое жильё. По оценке Сноу, меньше чем за шесть дней с самых пострадавших улиц уехали больше трёх четвертей жителей. Была ли вода к восьмому сентября ещё опасной, он, по его же словам, сказать не мог. Всего эта вспышка унесла, по его подсчёту, больше шестисот жизней."
+        }
+      ],
+      "script_selectors": [
+        {
+          "utterance_id": "9f24f14c-3a2a-5ab6-acb8-85a390912833",
+          "utterance_index": 15,
+          "char_start": 346,
+          "char_end": 355
+        },
+        {
+          "utterance_id": "9f24f14c-3a2a-5ab6-acb8-85a390912833",
+          "utterance_index": 15,
+          "char_start": 356,
+          "char_end": 362
+        },
+        {
+          "utterance_id": "9f24f14c-3a2a-5ab6-acb8-85a390912833",
+          "utterance_index": 15,
+          "char_start": 364,
+          "char_end": 372
+        }
+      ],
+      "timing_uncertainties": [
+        {
+          "kind": "zero_length_segment_timestamp",
+          "segment_index": 841,
+          "start_frame": 15855840,
+          "end_frame": 15855840,
+          "transcript_token_range": [
+            841,
+            842
+          ]
+        },
+        {
+          "kind": "zero_length_segment_timestamp",
+          "segment_index": 842,
+          "start_frame": 15871200,
+          "end_frame": 15871200,
+          "transcript_token_range": [
+            842,
+            843
+          ]
+        },
+        {
+          "kind": "zero_length_segment_timestamp",
+          "segment_index": 843,
+          "start_frame": 15871200,
+          "end_frame": 15871200,
+          "transcript_token_range": [
+            843,
+            844
+          ]
+        },
+        {
+          "kind": "zero_length_segment_timestamp",
+          "segment_index": 844,
+          "start_frame": 15944160,
+          "end_frame": 15944160,
+          "transcript_token_range": [
+            844,
+            845
+          ]
+        }
+      ],
+      "candidate_id": "51f072e3-a896-5b2b-b30a-ddb8cbc4e153",
+      "audio_range": {
+        "start_frame": 15783840,
+        "end_frame": 16020000,
+        "basis": "neighbor_anchors_or_full_audio_edges",
+        "margin_frames": 72000,
+        "boundary_precision": "recognizer_hypothesis"
+      },
+      "status": "pending_audio_adjudication",
+      "clip_status": "extracted",
+      "conclusion": "candidate_only_not_confirmed_tts_error",
+      "clip_blob": {
+        "storage_key": "d24132ce-d2c3-4084-bf89-9905b7d765a7/adbecfc37fe907ee84df91845b4f8b5ac28a93c0864c7cdda03161722aafe34a-7fc478ab21f20dde",
+        "sha256": "adbecfc37fe907ee84df91845b4f8b5ac28a93c0864c7cdda03161722aafe34a",
+        "byte_length": 708524,
+        "media_type": "audio/wav"
+      },
+      "extraction": {
+        "start_frame": 15783840,
+        "end_frame": 16020000,
+        "sample_frames": 236160,
+        "sample_rate_hz": 48000,
+        "pcm_sha256": "bb1d70d60640606a8e7290b3d163c3aee77a4662a19520f5c6e3618c27fcb18b",
+        "extraction": "exact_pcm_frames"
+      }
+    },
+    {
+      "kind": "script_discrepancy",
+      "operation": "replace",
+      "recognized_token_range": [
+        849,
+        850
+      ],
+      "recognized_tokens": [
+        {
+          "index": 849,
+          "separator_before": ", ",
+          "text": "12",
+          "normalized": "12",
+          "char_start": 5198,
+          "char_end": 5200
+        }
+      ],
+      "expected_token_range": [
+        861,
+        862
+      ],
+      "expected_tokens": [
+        {
+          "index": 861,
+          "separator_before": ", — ",
+          "text": "двенадцать",
+          "normalized": "двенадцать",
+          "char_start": 403,
+          "char_end": 413,
+          "utterance_index": 15,
+          "utterance_id": "9f24f14c-3a2a-5ab6-acb8-85a390912833"
+        }
+      ],
+      "expected_context": [
+        {
+          "utterance_id": "7405ea40-f826-5b7b-aeac-262a8a4d7e2e",
+          "speaker": "РАССКАЗЧИК",
+          "text": "Но вернёмся в первую неделю сентября. Вечером в четверг, седьмого сентября, Сноу приходит к попечителям прихода Сент-Джеймс, то есть к людям, которые могут распорядиться колонкой. Он рассказывает им, что показали адреса из реестра и расспросы родных: особенной вспышки холеры в этой части Лондона не было нигде, кроме как среди тех, кто привык пить воду этой колонки. На следующий день, восьмого сентября, с колонки снимают ручку."
+        },
+        {
+          "utterance_id": "9f24f14c-3a2a-5ab6-acb8-85a390912833",
+          "speaker": "РАССКАЗЧИК",
+          "text": "Хорошо бы на этом и закончить: сняли ручку, и эпидемия отступила. Но сам Сноу так не пишет. Он восстанавливает, когда заболели люди, которые потом умерли. Это не то же самое, что дата смерти: человек мог заболеть в один день, а умереть на следующий. Первого сентября таких заболевших было сто сорок три. Второго — сто шестнадцать. Третьего — уже пятьдесят четыре. Восьмого, в день, когда сняли ручку, — двенадцать. Спад начался раньше, чем закрыли колонку."
+        },
+        {
+          "utterance_id": "0fe22983-8819-52d7-bfb7-59aaaf219563",
+          "speaker": "РАССКАЗЧИК",
+          "text": "Отчасти дело было в том, что люди бежали. Первыми съехали жильцы меблированных комнат, за ними другие квартиранты, причём многие бросали мебель, чтобы забрать её, когда найдут новое жильё. По оценке Сноу, меньше чем за шесть дней с самых пострадавших улиц уехали больше трёх четвертей жителей. Была ли вода к восьмому сентября ещё опасной, он, по его же словам, сказать не мог. Всего эта вспышка унесла, по его подсчёту, больше шестисот жизней."
+        }
+      ],
+      "script_selectors": [
+        {
+          "utterance_id": "9f24f14c-3a2a-5ab6-acb8-85a390912833",
+          "utterance_index": 15,
+          "char_start": 403,
+          "char_end": 413
+        }
+      ],
+      "timing_uncertainties": [],
+      "candidate_id": "adeca1ee-712e-5c78-94af-f50a64ae368b",
+      "audio_range": {
+        "start_frame": 15941280,
+        "end_frame": 16089120,
+        "basis": "matched_segment_timestamps",
+        "margin_frames": 72000,
+        "boundary_precision": "recognizer_hypothesis"
+      },
+      "status": "pending_audio_adjudication",
+      "clip_status": "extracted",
+      "conclusion": "candidate_only_not_confirmed_tts_error",
+      "clip_blob": {
+        "storage_key": "d24132ce-d2c3-4084-bf89-9905b7d765a7/6e1c2f6411eed70f7977ba62d618471ebe666a756a87a94181865ba091655b5b-7fc478ab21f20dde",
+        "sha256": "6e1c2f6411eed70f7977ba62d618471ebe666a756a87a94181865ba091655b5b",
+        "byte_length": 443564,
+        "media_type": "audio/wav"
+      },
+      "extraction": {
+        "start_frame": 15941280,
+        "end_frame": 16089120,
+        "sample_frames": 147840,
+        "sample_rate_hz": 48000,
+        "pcm_sha256": "55235b294c7350385bfa157334f62acdf59696bc776fe65fed628b60432173d8",
+        "extraction": "exact_pcm_frames"
+      }
+    },
+    {
+      "kind": "script_discrepancy",
+      "operation": "delete",
+      "recognized_token_range": [
+        892,
+        892
+      ],
+      "recognized_tokens": [],
+      "expected_token_range": [
+        904,
+        905
+      ],
+      "expected_tokens": [
+        {
+          "index": 904,
+          "separator_before": " ",
+          "text": "с",
+          "normalized": "с",
+          "char_start": 230,
+          "char_end": 231,
+          "utterance_index": 16,
+          "utterance_id": "0fe22983-8819-52d7-bfb7-59aaaf219563"
+        }
+      ],
+      "expected_context": [
+        {
+          "utterance_id": "9f24f14c-3a2a-5ab6-acb8-85a390912833",
+          "speaker": "РАССКАЗЧИК",
+          "text": "Хорошо бы на этом и закончить: сняли ручку, и эпидемия отступила. Но сам Сноу так не пишет. Он восстанавливает, когда заболели люди, которые потом умерли. Это не то же самое, что дата смерти: человек мог заболеть в один день, а умереть на следующий. Первого сентября таких заболевших было сто сорок три. Второго — сто шестнадцать. Третьего — уже пятьдесят четыре. Восьмого, в день, когда сняли ручку, — двенадцать. Спад начался раньше, чем закрыли колонку."
+        },
+        {
+          "utterance_id": "0fe22983-8819-52d7-bfb7-59aaaf219563",
+          "speaker": "РАССКАЗЧИК",
+          "text": "Отчасти дело было в том, что люди бежали. Первыми съехали жильцы меблированных комнат, за ними другие квартиранты, причём многие бросали мебель, чтобы забрать её, когда найдут новое жильё. По оценке Сноу, меньше чем за шесть дней с самых пострадавших улиц уехали больше трёх четвертей жителей. Была ли вода к восьмому сентября ещё опасной, он, по его же словам, сказать не мог. Всего эта вспышка унесла, по его подсчёту, больше шестисот жизней."
+        },
+        {
+          "utterance_id": "a24cdd2f-052f-5c5e-a0bf-89d89e78395a",
+          "speaker": "РАССКАЗЧИК",
+          "text": "Так что снятая ручка — это разумное решение, принятое на серьёзных основаниях. А дело тем временем продолжается."
+        }
+      ],
+      "script_selectors": [
+        {
+          "utterance_id": "0fe22983-8819-52d7-bfb7-59aaaf219563",
+          "utterance_index": 16,
+          "char_start": 230,
+          "char_end": 231
+        }
+      ],
+      "timing_uncertainties": [],
+      "candidate_id": "3f91736c-6f6b-5b75-aa08-497f7f451350",
+      "audio_range": {
+        "start_frame": 16803360,
+        "end_frame": 16951200,
+        "basis": "neighbor_anchors_or_full_audio_edges",
+        "margin_frames": 72000,
+        "boundary_precision": "recognizer_hypothesis"
+      },
+      "status": "pending_audio_adjudication",
+      "clip_status": "extracted",
+      "conclusion": "candidate_only_not_confirmed_tts_error",
+      "clip_blob": {
+        "storage_key": "d24132ce-d2c3-4084-bf89-9905b7d765a7/7aeb344d2c760049fb86464fad227cac4039d11bb7e94c6f52b99ac896ea369b-7fc478ab21f20dde",
+        "sha256": "7aeb344d2c760049fb86464fad227cac4039d11bb7e94c6f52b99ac896ea369b",
+        "byte_length": 443564,
+        "media_type": "audio/wav"
+      },
+      "extraction": {
+        "start_frame": 16803360,
+        "end_frame": 16951200,
+        "sample_frames": 147840,
+        "sample_rate_hz": 48000,
+        "pcm_sha256": "e3f0085664d70a18c3d71ebd1a584717b664e682e657cffa711288745424b46a",
+        "extraction": "exact_pcm_frames"
+      }
+    },
+    {
+      "kind": "script_discrepancy",
+      "operation": "replace",
+      "recognized_token_range": [
+        904,
+        905
+      ],
+      "recognized_tokens": [
+        {
+          "index": 904,
+          "separator_before": " ",
+          "text": "8",
+          "normalized": "8",
+          "char_start": 5551,
+          "char_end": 5552
+        }
+      ],
+      "expected_token_range": [
+        917,
+        918
+      ],
+      "expected_tokens": [
+        {
+          "index": 917,
+          "separator_before": " ",
+          "text": "восьмому",
+          "normalized": "восьмому",
+          "char_start": 309,
+          "char_end": 317,
+          "utterance_index": 16,
+          "utterance_id": "0fe22983-8819-52d7-bfb7-59aaaf219563"
+        }
+      ],
+      "expected_context": [
+        {
+          "utterance_id": "9f24f14c-3a2a-5ab6-acb8-85a390912833",
+          "speaker": "РАССКАЗЧИК",
+          "text": "Хорошо бы на этом и закончить: сняли ручку, и эпидемия отступила. Но сам Сноу так не пишет. Он восстанавливает, когда заболели люди, которые потом умерли. Это не то же самое, что дата смерти: человек мог заболеть в один день, а умереть на следующий. Первого сентября таких заболевших было сто сорок три. Второго — сто шестнадцать. Третьего — уже пятьдесят четыре. Восьмого, в день, когда сняли ручку, — двенадцать. Спад начался раньше, чем закрыли колонку."
+        },
+        {
+          "utterance_id": "0fe22983-8819-52d7-bfb7-59aaaf219563",
+          "speaker": "РАССКАЗЧИК",
+          "text": "Отчасти дело было в том, что люди бежали. Первыми съехали жильцы меблированных комнат, за ними другие квартиранты, причём многие бросали мебель, чтобы забрать её, когда найдут новое жильё. По оценке Сноу, меньше чем за шесть дней с самых пострадавших улиц уехали больше трёх четвертей жителей. Была ли вода к восьмому сентября ещё опасной, он, по его же словам, сказать не мог. Всего эта вспышка унесла, по его подсчёту, больше шестисот жизней."
+        },
+        {
+          "utterance_id": "a24cdd2f-052f-5c5e-a0bf-89d89e78395a",
+          "speaker": "РАССКАЗЧИК",
+          "text": "Так что снятая ручка — это разумное решение, принятое на серьёзных основаниях. А дело тем временем продолжается."
+        }
+      ],
+      "script_selectors": [
+        {
+          "utterance_id": "0fe22983-8819-52d7-bfb7-59aaaf219563",
+          "utterance_index": 16,
+          "char_start": 309,
+          "char_end": 317
+        }
+      ],
+      "timing_uncertainties": [],
+      "candidate_id": "3166fd0f-d4ef-54df-8134-2ecff3109c9b",
+      "audio_range": {
+        "start_frame": 17041440,
+        "end_frame": 17193120,
+        "basis": "matched_segment_timestamps",
+        "margin_frames": 72000,
+        "boundary_precision": "recognizer_hypothesis"
+      },
+      "status": "pending_audio_adjudication",
+      "clip_status": "extracted",
+      "conclusion": "candidate_only_not_confirmed_tts_error",
+      "clip_blob": {
+        "storage_key": "d24132ce-d2c3-4084-bf89-9905b7d765a7/24cb0cae1d71f70d5a5dd7830e8c7eeec766518b3d35424a331b47e3322ca354-7fc478ab21f20dde",
+        "sha256": "24cb0cae1d71f70d5a5dd7830e8c7eeec766518b3d35424a331b47e3322ca354",
+        "byte_length": 455084,
+        "media_type": "audio/wav"
+      },
+      "extraction": {
+        "start_frame": 17041440,
+        "end_frame": 17193120,
+        "sample_frames": 151680,
+        "sample_rate_hz": 48000,
+        "pcm_sha256": "afcfa3a9b985dbc5adb47aae422f94a7b09e620d6ee3d41f3c912c903865009b",
+        "extraction": "exact_pcm_frames"
+      }
+    },
+    {
+      "kind": "script_discrepancy",
+      "operation": "replace",
+      "recognized_token_range": [
+        924,
+        925
+      ],
+      "recognized_tokens": [
+        {
+          "index": 924,
+          "separator_before": " ",
+          "text": "600",
+          "normalized": "600",
+          "char_start": 5663,
+          "char_end": 5666
+        }
+      ],
+      "expected_token_range": [
+        937,
+        938
+      ],
+      "expected_tokens": [
+        {
+          "index": 937,
+          "separator_before": " ",
+          "text": "шестисот",
+          "normalized": "шестисот",
+          "char_start": 428,
+          "char_end": 436,
+          "utterance_index": 16,
+          "utterance_id": "0fe22983-8819-52d7-bfb7-59aaaf219563"
+        }
+      ],
+      "expected_context": [
+        {
+          "utterance_id": "9f24f14c-3a2a-5ab6-acb8-85a390912833",
+          "speaker": "РАССКАЗЧИК",
+          "text": "Хорошо бы на этом и закончить: сняли ручку, и эпидемия отступила. Но сам Сноу так не пишет. Он восстанавливает, когда заболели люди, которые потом умерли. Это не то же самое, что дата смерти: человек мог заболеть в один день, а умереть на следующий. Первого сентября таких заболевших было сто сорок три. Второго — сто шестнадцать. Третьего — уже пятьдесят четыре. Восьмого, в день, когда сняли ручку, — двенадцать. Спад начался раньше, чем закрыли колонку."
+        },
+        {
+          "utterance_id": "0fe22983-8819-52d7-bfb7-59aaaf219563",
+          "speaker": "РАССКАЗЧИК",
+          "text": "Отчасти дело было в том, что люди бежали. Первыми съехали жильцы меблированных комнат, за ними другие квартиранты, причём многие бросали мебель, чтобы забрать её, когда найдут новое жильё. По оценке Сноу, меньше чем за шесть дней с самых пострадавших улиц уехали больше трёх четвертей жителей. Была ли вода к восьмому сентября ещё опасной, он, по его же словам, сказать не мог. Всего эта вспышка унесла, по его подсчёту, больше шестисот жизней."
+        },
+        {
+          "utterance_id": "a24cdd2f-052f-5c5e-a0bf-89d89e78395a",
+          "speaker": "РАССКАЗЧИК",
+          "text": "Так что снятая ручка — это разумное решение, принятое на серьёзных основаниях. А дело тем временем продолжается."
+        }
+      ],
+      "script_selectors": [
+        {
+          "utterance_id": "0fe22983-8819-52d7-bfb7-59aaaf219563",
+          "utterance_index": 16,
+          "char_start": 428,
+          "char_end": 436
+        }
+      ],
+      "timing_uncertainties": [],
+      "candidate_id": "a298ed3c-a995-5c46-a6d0-9dc3557ac607",
+      "audio_range": {
+        "start_frame": 17337120,
+        "end_frame": 17496480,
+        "basis": "matched_segment_timestamps",
+        "margin_frames": 72000,
+        "boundary_precision": "recognizer_hypothesis"
+      },
+      "status": "pending_audio_adjudication",
+      "clip_status": "extracted",
+      "conclusion": "candidate_only_not_confirmed_tts_error",
+      "clip_blob": {
+        "storage_key": "d24132ce-d2c3-4084-bf89-9905b7d765a7/6b5586c9f03201d45da63a587466de28c7156a1bf05b7ab2e1e02c91f92f4352-7fc478ab21f20dde",
+        "sha256": "6b5586c9f03201d45da63a587466de28c7156a1bf05b7ab2e1e02c91f92f4352",
+        "byte_length": 478124,
+        "media_type": "audio/wav"
+      },
+      "extraction": {
+        "start_frame": 17337120,
+        "end_frame": 17496480,
+        "sample_frames": 159360,
+        "sample_rate_hz": 48000,
+        "pcm_sha256": "729edf6dedeaec6f7affa8905fee24292de2b5fe66f9466511ff841c9282cfa6",
+        "extraction": "exact_pcm_frames"
+      }
+    },
+    {
+      "kind": "script_discrepancy",
+      "operation": "replace",
+      "recognized_token_range": [
+        980,
+        982
+      ],
+      "recognized_tokens": [
+        {
+          "index": 980,
+          "separator_before": " ",
+          "text": "59",
+          "normalized": "59",
+          "char_start": 6016,
+          "char_end": 6018
+        },
+        {
+          "index": 981,
+          "separator_before": "-",
+          "text": "летняя",
+          "normalized": "летняя",
+          "char_start": 6019,
+          "char_end": 6025
+        }
+      ],
+      "expected_token_range": [
+        993,
+        994
+      ],
+      "expected_tokens": [
+        {
+          "index": 993,
+          "separator_before": " ",
+          "text": "пятидесятидевятилетняя",
+          "normalized": "пятидесятидевятилетняя",
+          "char_start": 236,
+          "char_end": 258,
+          "utterance_index": 18,
+          "utterance_id": "bcbc5447-0a97-54e7-b90d-2e07802f00a8"
+        }
+      ],
+      "expected_context": [
+        {
+          "utterance_id": "a24cdd2f-052f-5c5e-a0bf-89d89e78395a",
+          "speaker": "РАССКАЗЧИК",
+          "text": "Так что снятая ручка — это разумное решение, принятое на серьёзных основаниях. А дело тем временем продолжается."
+        },
+        {
+          "utterance_id": "bcbc5447-0a97-54e7-b90d-2e07802f00a8",
+          "speaker": "РАССКАЗЧИК",
+          "text": "Ещё один эпизод, который Сноу опишет в своей книге, уводит далеко от Брод-стрит, на северную окраину, в Хэмпстед. Внимание Сноу на этот случай обратил доктор Фрейзер. Когда именно это произошло, мы не знаем. Второго сентября там умерла пятидесятидевятилетняя вдова. По словам её сына, она уже много месяцев не бывала в районе Брод-стрит. Холеры в её окрестностях тогда не было."
+        },
+        {
+          "utterance_id": "9f12f628-1a07-5fb6-8795-819c77da96b9",
+          "speaker": "РАССКАЗЧИК",
+          "text": "Как же её связать с колонкой? Сын объясняет. Каждый день с Брод-стрит в их сторону ходила повозка, и с ней обычно отправляли большую бутыль воды из той самой колонки: мать любила эту воду. Бутыль, о которой идёт речь, набрали в четверг, тридцать первого августа. Вдова пила из неё вечером и в пятницу. В пятницу вечером она заболела, а в субботу умерла."
+        }
+      ],
+      "script_selectors": [
+        {
+          "utterance_id": "bcbc5447-0a97-54e7-b90d-2e07802f00a8",
+          "utterance_index": 18,
+          "char_start": 236,
+          "char_end": 258
+        }
+      ],
+      "timing_uncertainties": [],
+      "candidate_id": "9e4ce1c2-6610-5119-8636-9c25c98565d2",
+      "audio_range": {
+        "start_frame": 18546720,
+        "end_frame": 18756000,
+        "basis": "matched_segment_timestamps",
+        "margin_frames": 72000,
+        "boundary_precision": "recognizer_hypothesis"
+      },
+      "status": "pending_audio_adjudication",
+      "clip_status": "extracted",
+      "conclusion": "candidate_only_not_confirmed_tts_error",
+      "clip_blob": {
+        "storage_key": "d24132ce-d2c3-4084-bf89-9905b7d765a7/ddaafcba5866d4ebddb0e32a9754a4a57202324544ed9b75f01c610bc3951f86-7fc478ab21f20dde",
+        "sha256": "ddaafcba5866d4ebddb0e32a9754a4a57202324544ed9b75f01c610bc3951f86",
+        "byte_length": 627884,
+        "media_type": "audio/wav"
+      },
+      "extraction": {
+        "start_frame": 18546720,
+        "end_frame": 18756000,
+        "sample_frames": 209280,
+        "sample_rate_hz": 48000,
+        "pcm_sha256": "066219a2b18a3bcbd85436533fba42163f8b7e4408ceb46a0fba6d4228de597f",
+        "extraction": "exact_pcm_frames"
+      }
+    },
+    {
+      "kind": "script_discrepancy",
+      "operation": "replace",
+      "recognized_token_range": [
+        1038,
+        1039
+      ],
+      "recognized_tokens": [
+        {
+          "index": 1038,
+          "separator_before": ". ",
+          "text": "Бутыли",
+          "normalized": "бутыли",
+          "char_start": 6334,
+          "char_end": 6340
+        }
+      ],
+      "expected_token_range": [
+        1050,
+        1051
+      ],
+      "expected_tokens": [
+        {
+          "index": 1050,
+          "separator_before": ". ",
+          "text": "Бутыль",
+          "normalized": "бутыль",
+          "char_start": 189,
+          "char_end": 195,
+          "utterance_index": 19,
+          "utterance_id": "9f12f628-1a07-5fb6-8795-819c77da96b9"
+        }
+      ],
+      "expected_context": [
+        {
+          "utterance_id": "bcbc5447-0a97-54e7-b90d-2e07802f00a8",
+          "speaker": "РАССКАЗЧИК",
+          "text": "Ещё один эпизод, который Сноу опишет в своей книге, уводит далеко от Брод-стрит, на северную окраину, в Хэмпстед. Внимание Сноу на этот случай обратил доктор Фрейзер. Когда именно это произошло, мы не знаем. Второго сентября там умерла пятидесятидевятилетняя вдова. По словам её сына, она уже много месяцев не бывала в районе Брод-стрит. Холеры в её окрестностях тогда не было."
+        },
+        {
+          "utterance_id": "9f12f628-1a07-5fb6-8795-819c77da96b9",
+          "speaker": "РАССКАЗЧИК",
+          "text": "Как же её связать с колонкой? Сын объясняет. Каждый день с Брод-стрит в их сторону ходила повозка, и с ней обычно отправляли большую бутыль воды из той самой колонки: мать любила эту воду. Бутыль, о которой идёт речь, набрали в четверг, тридцать первого августа. Вдова пила из неё вечером и в пятницу. В пятницу вечером она заболела, а в субботу умерла."
+        },
+        {
+          "utterance_id": "4287900a-5183-56a6-9a18-b8dd1100cf06",
+          "speaker": "РАССКАЗЧИК",
+          "text": "У неё гостила племянница, которая тоже пила эту воду. Потом она вернулась домой, в Ислингтон, где холеры тоже не было, и умерла от холеры. Пила воду и служанка. Она не заболела или, по крайней мере, не заболела тяжело."
+        }
+      ],
+      "script_selectors": [
+        {
+          "utterance_id": "9f12f628-1a07-5fb6-8795-819c77da96b9",
+          "utterance_index": 19,
+          "char_start": 189,
+          "char_end": 195
+        }
+      ],
+      "timing_uncertainties": [
+        {
+          "kind": "zero_length_segment_timestamp",
+          "segment_index": 1039,
+          "start_frame": 19738080,
+          "end_frame": 19738080,
+          "transcript_token_range": [
+            1039,
+            1040
+          ]
+        }
+      ],
+      "candidate_id": "ff4585a9-ebc4-542a-b391-4a229d41742b",
+      "audio_range": {
+        "start_frame": 19650720,
+        "end_frame": 19810080,
+        "basis": "matched_segment_timestamps",
+        "margin_frames": 72000,
+        "boundary_precision": "recognizer_hypothesis"
+      },
+      "status": "pending_audio_adjudication",
+      "clip_status": "extracted",
+      "conclusion": "candidate_only_not_confirmed_tts_error",
+      "clip_blob": {
+        "storage_key": "d24132ce-d2c3-4084-bf89-9905b7d765a7/76df885f3ea7ffce566eb2945216cb4a86baca576749680aaf54e319b2aa7a26-7fc478ab21f20dde",
+        "sha256": "76df885f3ea7ffce566eb2945216cb4a86baca576749680aaf54e319b2aa7a26",
+        "byte_length": 478124,
+        "media_type": "audio/wav"
+      },
+      "extraction": {
+        "start_frame": 19650720,
+        "end_frame": 19810080,
+        "sample_frames": 159360,
+        "sample_rate_hz": 48000,
+        "pcm_sha256": "9a9864d7e01770633846c3bb50d4a3b9c49d902b42296e478ea9c7b4dd534494",
+        "extraction": "exact_pcm_frames"
+      }
+    },
+    {
+      "kind": "script_discrepancy",
+      "operation": "replace",
+      "recognized_token_range": [
+        1040,
+        1041
+      ],
+      "recognized_tokens": [
+        {
+          "index": 1040,
+          "separator_before": " ",
+          "text": "которых",
+          "normalized": "которых",
+          "char_start": 6344,
+          "char_end": 6351
+        }
+      ],
+      "expected_token_range": [
+        1052,
+        1053
+      ],
+      "expected_tokens": [
+        {
+          "index": 1052,
+          "separator_before": " ",
+          "text": "которой",
+          "normalized": "которой",
+          "char_start": 199,
+          "char_end": 206,
+          "utterance_index": 19,
+          "utterance_id": "9f12f628-1a07-5fb6-8795-819c77da96b9"
+        }
+      ],
+      "expected_context": [
+        {
+          "utterance_id": "bcbc5447-0a97-54e7-b90d-2e07802f00a8",
+          "speaker": "РАССКАЗЧИК",
+          "text": "Ещё один эпизод, который Сноу опишет в своей книге, уводит далеко от Брод-стрит, на северную окраину, в Хэмпстед. Внимание Сноу на этот случай обратил доктор Фрейзер. Когда именно это произошло, мы не знаем. Второго сентября там умерла пятидесятидевятилетняя вдова. По словам её сына, она уже много месяцев не бывала в районе Брод-стрит. Холеры в её окрестностях тогда не было."
+        },
+        {
+          "utterance_id": "9f12f628-1a07-5fb6-8795-819c77da96b9",
+          "speaker": "РАССКАЗЧИК",
+          "text": "Как же её связать с колонкой? Сын объясняет. Каждый день с Брод-стрит в их сторону ходила повозка, и с ней обычно отправляли большую бутыль воды из той самой колонки: мать любила эту воду. Бутыль, о которой идёт речь, набрали в четверг, тридцать первого августа. Вдова пила из неё вечером и в пятницу. В пятницу вечером она заболела, а в субботу умерла."
+        },
+        {
+          "utterance_id": "4287900a-5183-56a6-9a18-b8dd1100cf06",
+          "speaker": "РАССКАЗЧИК",
+          "text": "У неё гостила племянница, которая тоже пила эту воду. Потом она вернулась домой, в Ислингтон, где холеры тоже не было, и умерла от холеры. Пила воду и служанка. Она не заболела или, по крайней мере, не заболела тяжело."
+        }
+      ],
+      "script_selectors": [
+        {
+          "utterance_id": "9f12f628-1a07-5fb6-8795-819c77da96b9",
+          "utterance_index": 19,
+          "char_start": 199,
+          "char_end": 206
+        }
+      ],
+      "timing_uncertainties": [
+        {
+          "kind": "zero_length_segment_timestamp",
+          "segment_index": 1039,
+          "start_frame": 19738080,
+          "end_frame": 19738080,
+          "transcript_token_range": [
+            1039,
+            1040
+          ]
+        }
+      ],
+      "candidate_id": "a792a422-9c1d-5e86-92f6-db65ea5b10a0",
+      "audio_range": {
+        "start_frame": 19666080,
+        "end_frame": 19825440,
+        "basis": "matched_segment_timestamps",
+        "margin_frames": 72000,
+        "boundary_precision": "recognizer_hypothesis"
+      },
+      "status": "pending_audio_adjudication",
+      "clip_status": "extracted",
+      "conclusion": "candidate_only_not_confirmed_tts_error",
+      "clip_blob": {
+        "storage_key": "d24132ce-d2c3-4084-bf89-9905b7d765a7/8ee524165dc8d5299893ec2722fb354c39e83f37798e02917462fe06f33eae68-7fc478ab21f20dde",
+        "sha256": "8ee524165dc8d5299893ec2722fb354c39e83f37798e02917462fe06f33eae68",
+        "byte_length": 478124,
+        "media_type": "audio/wav"
+      },
+      "extraction": {
+        "start_frame": 19666080,
+        "end_frame": 19825440,
+        "sample_frames": 159360,
+        "sample_rate_hz": 48000,
+        "pcm_sha256": "1d8350ffff1e951084fa045b794e61b5a31d95a74624dd53b4fbc292f138a976",
+        "extraction": "exact_pcm_frames"
+      }
+    },
+    {
+      "kind": "script_discrepancy",
+      "operation": "replace",
+      "recognized_token_range": [
+        1079,
+        1080
+      ],
+      "recognized_tokens": [
+        {
+          "index": 1079,
+          "separator_before": " ",
+          "text": "Уислингтон",
+          "normalized": "уислингтон",
+          "char_start": 6568,
+          "char_end": 6578
+        }
+      ],
+      "expected_token_range": [
+        1092,
+        1093
+      ],
+      "expected_tokens": [
+        {
+          "index": 1092,
+          "separator_before": " ",
+          "text": "Ислингтон",
+          "normalized": "ислингтон",
+          "char_start": 83,
+          "char_end": 92,
+          "utterance_index": 20,
+          "utterance_id": "4287900a-5183-56a6-9a18-b8dd1100cf06"
+        }
+      ],
+      "expected_context": [
+        {
+          "utterance_id": "9f12f628-1a07-5fb6-8795-819c77da96b9",
+          "speaker": "РАССКАЗЧИК",
+          "text": "Как же её связать с колонкой? Сын объясняет. Каждый день с Брод-стрит в их сторону ходила повозка, и с ней обычно отправляли большую бутыль воды из той самой колонки: мать любила эту воду. Бутыль, о которой идёт речь, набрали в четверг, тридцать первого августа. Вдова пила из неё вечером и в пятницу. В пятницу вечером она заболела, а в субботу умерла."
+        },
+        {
+          "utterance_id": "4287900a-5183-56a6-9a18-b8dd1100cf06",
+          "speaker": "РАССКАЗЧИК",
+          "text": "У неё гостила племянница, которая тоже пила эту воду. Потом она вернулась домой, в Ислингтон, где холеры тоже не было, и умерла от холеры. Пила воду и служанка. Она не заболела или, по крайней мере, не заболела тяжело."
+        },
+        {
+          "utterance_id": "36db7fff-4ce4-53bb-aecd-0af5f425c842",
+          "speaker": "РАССКАЗЧИК",
+          "text": "В этой истории есть ещё один сыщик, и поначалу он на стороне защиты. Генри Уайтхед — священник церкви Сент-Люкс на Бервик-стрит. Он знал этих людей задолго до эпидемии, а во время вспышки ходил по домам пострадавших. Когда он услышал, что всё валят на колонку, то сказал знакомому врачу, что тщательное расследование эту версию опровергнет."
+        }
+      ],
+      "script_selectors": [
+        {
+          "utterance_id": "4287900a-5183-56a6-9a18-b8dd1100cf06",
+          "utterance_index": 20,
+          "char_start": 83,
+          "char_end": 92
+        }
+      ],
+      "timing_uncertainties": [],
+      "candidate_id": "fd49f883-50eb-5aef-a943-52a96d5a0fe8",
+      "audio_range": {
+        "start_frame": 20430240,
+        "end_frame": 20597280,
+        "basis": "matched_segment_timestamps",
+        "margin_frames": 72000,
+        "boundary_precision": "recognizer_hypothesis"
+      },
+      "status": "pending_audio_adjudication",
+      "clip_status": "extracted",
+      "conclusion": "candidate_only_not_confirmed_tts_error",
+      "clip_blob": {
+        "storage_key": "d24132ce-d2c3-4084-bf89-9905b7d765a7/83a6a0234825a6db834948af3ff84cdf83a045bfc8afa310045bb089492fd0bf-7fc478ab21f20dde",
+        "sha256": "83a6a0234825a6db834948af3ff84cdf83a045bfc8afa310045bb089492fd0bf",
+        "byte_length": 501164,
+        "media_type": "audio/wav"
+      },
+      "extraction": {
+        "start_frame": 20430240,
+        "end_frame": 20597280,
+        "sample_frames": 167040,
+        "sample_rate_hz": 48000,
+        "pcm_sha256": "55e82ef627d1456e13c5a51ed995b88adf93b2067cb6a347f3e2f9e6949b17d4",
+        "extraction": "exact_pcm_frames"
+      }
+    },
+    {
+      "kind": "script_discrepancy",
+      "operation": "replace",
+      "recognized_token_range": [
+        1142,
+        1143
+      ],
+      "recognized_tokens": [
+        {
+          "index": 1142,
+          "separator_before": " ",
+          "text": "услыхал",
+          "normalized": "услыхал",
+          "char_start": 6929,
+          "char_end": 6936
+        }
+      ],
+      "expected_token_range": [
+        1155,
+        1156
+      ],
+      "expected_tokens": [
+        {
+          "index": 1155,
+          "separator_before": " ",
+          "text": "услышал",
+          "normalized": "услышал",
+          "char_start": 226,
+          "char_end": 233,
+          "utterance_index": 21,
+          "utterance_id": "36db7fff-4ce4-53bb-aecd-0af5f425c842"
+        }
+      ],
+      "expected_context": [
+        {
+          "utterance_id": "4287900a-5183-56a6-9a18-b8dd1100cf06",
+          "speaker": "РАССКАЗЧИК",
+          "text": "У неё гостила племянница, которая тоже пила эту воду. Потом она вернулась домой, в Ислингтон, где холеры тоже не было, и умерла от холеры. Пила воду и служанка. Она не заболела или, по крайней мере, не заболела тяжело."
+        },
+        {
+          "utterance_id": "36db7fff-4ce4-53bb-aecd-0af5f425c842",
+          "speaker": "РАССКАЗЧИК",
+          "text": "В этой истории есть ещё один сыщик, и поначалу он на стороне защиты. Генри Уайтхед — священник церкви Сент-Люкс на Бервик-стрит. Он знал этих людей задолго до эпидемии, а во время вспышки ходил по домам пострадавших. Когда он услышал, что всё валят на колонку, то сказал знакомому врачу, что тщательное расследование эту версию опровергнет."
+        },
+        {
+          "utterance_id": "de505921-0c72-5258-8593-e18ad77475cf",
+          "speaker": "РАССКАЗЧИК",
+          "text": "У него были свои основания. Он каждый день навещал служанку, которая слегла первого сентября и дошла до полного упадка сил. Всё время болезни она пила воду из колонки, без конца и помногу. И выжила. Таких случаев Уайтхед знал немало. Эту воду давали почти всем больным."
+        }
+      ],
+      "script_selectors": [
+        {
+          "utterance_id": "36db7fff-4ce4-53bb-aecd-0af5f425c842",
+          "utterance_index": 21,
+          "char_start": 226,
+          "char_end": 233
+        }
+      ],
+      "timing_uncertainties": [],
+      "candidate_id": "ffe80067-2c6c-58b1-82bf-6e7ca8a02cf2",
+      "audio_range": {
+        "start_frame": 21632160,
+        "end_frame": 21795360,
+        "basis": "matched_segment_timestamps",
+        "margin_frames": 72000,
+        "boundary_precision": "recognizer_hypothesis"
+      },
+      "status": "pending_audio_adjudication",
+      "clip_status": "extracted",
+      "conclusion": "candidate_only_not_confirmed_tts_error",
+      "clip_blob": {
+        "storage_key": "d24132ce-d2c3-4084-bf89-9905b7d765a7/3d0e310efe7f01c6d858c11ff0e24c3baa62676d73169e51e1086d4825747b38-7fc478ab21f20dde",
+        "sha256": "3d0e310efe7f01c6d858c11ff0e24c3baa62676d73169e51e1086d4825747b38",
+        "byte_length": 489644,
+        "media_type": "audio/wav"
+      },
+      "extraction": {
+        "start_frame": 21632160,
+        "end_frame": 21795360,
+        "sample_frames": 163200,
+        "sample_rate_hz": 48000,
+        "pcm_sha256": "c1d12a1555f31c42cd73069429098c9ddcdde0643007e955b243723fb7780af6",
+        "extraction": "exact_pcm_frames"
+      }
+    },
+    {
+      "kind": "script_discrepancy",
+      "operation": "replace",
+      "recognized_token_range": [
+        1229,
+        1231
+      ],
+      "recognized_tokens": [
+        {
+          "index": 1229,
+          "separator_before": ". ",
+          "text": "Ко",
+          "normalized": "ко",
+          "char_start": 7478,
+          "char_end": 7480
+        },
+        {
+          "index": 1230,
+          "separator_before": " ",
+          "text": "дням",
+          "normalized": "дням",
+          "char_start": 7481,
+          "char_end": 7485
+        }
+      ],
+      "expected_token_range": [
+        1243,
+        1245
+      ],
+      "expected_tokens": [
+        {
+          "index": 1243,
+          "separator_before": ". ",
+          "text": "К",
+          "normalized": "к",
+          "char_start": 183,
+          "char_end": 184,
+          "utterance_index": 23,
+          "utterance_id": "7ff7f0de-f8ef-5c07-b627-1b282ae4b608"
+        },
+        {
+          "index": 1244,
+          "separator_before": " ",
+          "text": "одним",
+          "normalized": "одним",
+          "char_start": 185,
+          "char_end": 190,
+          "utterance_index": 23,
+          "utterance_id": "7ff7f0de-f8ef-5c07-b627-1b282ae4b608"
+        }
+      ],
+      "expected_context": [
+        {
+          "utterance_id": "de505921-0c72-5258-8593-e18ad77475cf",
+          "speaker": "РАССКАЗЧИК",
+          "text": "У него были свои основания. Он каждый день навещал служанку, которая слегла первого сентября и дошла до полного упадка сил. Всё время болезни она пила воду из колонки, без конца и помногу. И выжила. Таких случаев Уайтхед знал немало. Эту воду давали почти всем больным."
+        },
+        {
+          "utterance_id": "7ff7f0de-f8ef-5c07-b627-1b282ae4b608",
+          "speaker": "РАССКАЗЧИК",
+          "text": "С двадцать пятого ноября 1854 года над вспышкой работает приходская комиссия. Сноу входит в неё, Уайтхед тоже. Ему достаётся Брод-стрит. Он разыскивает уехавших, иногда очень далеко. К одним и тем же семьям возвращается по четыре-пять раз, потому что задним числом понимает, о чём забыл спросить."
+        },
+        {
+          "utterance_id": "833a3cfa-e46b-5255-8d85-f3186643c47b",
+          "speaker": "РАССКАЗЧИК",
+          "text": "Вот как это выглядит. На верхнем этаже одного дома живут отец, мать, младенец и девочка лет десяти. Болел кто-нибудь? Нет. Пьёте воду из колонки? Да. А кто за ней ходит? Девочка. Тогда Уайтхед обращается к ней самой: не страшно было идти по улицам, когда кругом закрытые ставни и столько катафалков? А она по улицам не ходила. Лежала с простудой. Только тут мать вспоминает: да, так и было. И воду в те дни брали из домашнего бака."
+        }
+      ],
+      "script_selectors": [
+        {
+          "utterance_id": "7ff7f0de-f8ef-5c07-b627-1b282ae4b608",
+          "utterance_index": 23,
+          "char_start": 183,
+          "char_end": 184
+        },
+        {
+          "utterance_id": "7ff7f0de-f8ef-5c07-b627-1b282ae4b608",
+          "utterance_index": 23,
+          "char_start": 185,
+          "char_end": 190
+        }
+      ],
+      "timing_uncertainties": [
+        {
+          "kind": "zero_length_segment_timestamp",
+          "segment_index": 1231,
+          "start_frame": 23490720,
+          "end_frame": 23490720,
+          "transcript_token_range": [
+            1231,
+            1232
+          ]
+        }
+      ],
+      "candidate_id": "8a701d95-dcf4-5397-8879-4f6559a0887f",
+      "audio_range": {
+        "start_frame": 23403360,
+        "end_frame": 23562720,
+        "basis": "matched_segment_timestamps",
+        "margin_frames": 72000,
+        "boundary_precision": "recognizer_hypothesis"
+      },
+      "status": "pending_audio_adjudication",
+      "clip_status": "extracted",
+      "conclusion": "candidate_only_not_confirmed_tts_error",
+      "clip_blob": {
+        "storage_key": "d24132ce-d2c3-4084-bf89-9905b7d765a7/d719636452252528b07dc8ff30c4949a213cd8a81e8ece8ed97550cfaf109852-7fc478ab21f20dde",
+        "sha256": "d719636452252528b07dc8ff30c4949a213cd8a81e8ece8ed97550cfaf109852",
+        "byte_length": 478124,
+        "media_type": "audio/wav"
+      },
+      "extraction": {
+        "start_frame": 23403360,
+        "end_frame": 23562720,
+        "sample_frames": 159360,
+        "sample_rate_hz": 48000,
+        "pcm_sha256": "e2d3e404f52efd5fac0a212b157a5c8184782d4e978b95e338fc49e56cd88d42",
+        "extraction": "exact_pcm_frames"
+      }
+    },
+    {
+      "kind": "script_discrepancy",
+      "operation": "replace",
+      "recognized_token_range": [
+        1237,
+        1238
+      ],
+      "recognized_tokens": [
+        {
+          "index": 1237,
+          "separator_before": " ",
+          "text": "4-5",
+          "normalized": "4-5",
+          "char_start": 7518,
+          "char_end": 7521
+        }
+      ],
+      "expected_token_range": [
+        1251,
+        1253
+      ],
+      "expected_tokens": [
+        {
+          "index": 1251,
+          "separator_before": " ",
+          "text": "четыре",
+          "normalized": "четыре",
+          "char_start": 223,
+          "char_end": 229,
+          "utterance_index": 23,
+          "utterance_id": "7ff7f0de-f8ef-5c07-b627-1b282ae4b608"
+        },
+        {
+          "index": 1252,
+          "separator_before": "-",
+          "text": "пять",
+          "normalized": "пять",
+          "char_start": 230,
+          "char_end": 234,
+          "utterance_index": 23,
+          "utterance_id": "7ff7f0de-f8ef-5c07-b627-1b282ae4b608"
+        }
+      ],
+      "expected_context": [
+        {
+          "utterance_id": "de505921-0c72-5258-8593-e18ad77475cf",
+          "speaker": "РАССКАЗЧИК",
+          "text": "У него были свои основания. Он каждый день навещал служанку, которая слегла первого сентября и дошла до полного упадка сил. Всё время болезни она пила воду из колонки, без конца и помногу. И выжила. Таких случаев Уайтхед знал немало. Эту воду давали почти всем больным."
+        },
+        {
+          "utterance_id": "7ff7f0de-f8ef-5c07-b627-1b282ae4b608",
+          "speaker": "РАССКАЗЧИК",
+          "text": "С двадцать пятого ноября 1854 года над вспышкой работает приходская комиссия. Сноу входит в неё, Уайтхед тоже. Ему достаётся Брод-стрит. Он разыскивает уехавших, иногда очень далеко. К одним и тем же семьям возвращается по четыре-пять раз, потому что задним числом понимает, о чём забыл спросить."
+        },
+        {
+          "utterance_id": "833a3cfa-e46b-5255-8d85-f3186643c47b",
+          "speaker": "РАССКАЗЧИК",
+          "text": "Вот как это выглядит. На верхнем этаже одного дома живут отец, мать, младенец и девочка лет десяти. Болел кто-нибудь? Нет. Пьёте воду из колонки? Да. А кто за ней ходит? Девочка. Тогда Уайтхед обращается к ней самой: не страшно было идти по улицам, когда кругом закрытые ставни и столько катафалков? А она по улицам не ходила. Лежала с простудой. Только тут мать вспоминает: да, так и было. И воду в те дни брали из домашнего бака."
+        }
+      ],
+      "script_selectors": [
+        {
+          "utterance_id": "7ff7f0de-f8ef-5c07-b627-1b282ae4b608",
+          "utterance_index": 23,
+          "char_start": 223,
+          "char_end": 229
+        },
+        {
+          "utterance_id": "7ff7f0de-f8ef-5c07-b627-1b282ae4b608",
+          "utterance_index": 23,
+          "char_start": 230,
+          "char_end": 234
+        }
+      ],
+      "timing_uncertainties": [],
+      "candidate_id": "29dc792d-1954-518f-87a5-592842ecc742",
+      "audio_range": {
+        "start_frame": 23480160,
+        "end_frame": 23654880,
+        "basis": "neighbor_anchors_or_full_audio_edges",
+        "margin_frames": 72000,
+        "boundary_precision": "recognizer_hypothesis"
+      },
+      "status": "pending_audio_adjudication",
+      "clip_status": "extracted",
+      "conclusion": "candidate_only_not_confirmed_tts_error",
+      "clip_blob": {
+        "storage_key": "d24132ce-d2c3-4084-bf89-9905b7d765a7/2525a5a0eb302a87dd1dcdab832a1fe87b9d5bbbf5d29ffae158a2c3782e0681-7fc478ab21f20dde",
+        "sha256": "2525a5a0eb302a87dd1dcdab832a1fe87b9d5bbbf5d29ffae158a2c3782e0681",
+        "byte_length": 524204,
+        "media_type": "audio/wav"
+      },
+      "extraction": {
+        "start_frame": 23480160,
+        "end_frame": 23654880,
+        "sample_frames": 174720,
+        "sample_rate_hz": 48000,
+        "pcm_sha256": "6b7e218afbc09d3e51993e4a2cb9c8e02cc2bb9c0da13f63446c9c0fbdef2a67",
+        "extraction": "exact_pcm_frames"
+      }
+    },
+    {
+      "kind": "script_discrepancy",
+      "operation": "replace",
+      "recognized_token_range": [
+        1420,
+        1421
+      ],
+      "recognized_tokens": [
+        {
+          "index": 1420,
+          "separator_before": " ",
+          "text": "500",
+          "normalized": "500",
+          "char_start": 8545,
+          "char_end": 8548
+        }
+      ],
+      "expected_token_range": [
+        1435,
+        1436
+      ],
+      "expected_tokens": [
+        {
+          "index": 1435,
+          "separator_before": " ",
+          "text": "пятистах",
+          "normalized": "пятистах",
+          "char_start": 215,
+          "char_end": 223,
+          "utterance_index": 26,
+          "utterance_id": "f8f835b1-191d-58b6-936c-8d3bdc794b39"
+        }
+      ],
+      "expected_context": [
+        {
+          "utterance_id": "65cc4ffc-be75-524d-ac00-8e79b1df7387",
+          "speaker": "РАССКАЗЧИК",
+          "text": "Уайтхед начинает различать и другое: пил человек воду до того, как заболел, или уже во время болезни. А про ту выжившую служанку он выяснил ещё одно: воду она пила каждый день и до того, как слегла. А её подруга, которая за ней ухаживала и не заболела вовсе, начала пить эту воду только второго сентября, и то понемногу."
+        },
+        {
+          "utterance_id": "f8f835b1-191d-58b6-936c-8d3bdc794b39",
+          "speaker": "РАССКАЗЧИК",
+          "text": "Ещё важнее, что Уайтхед расспрашивает не только семьи погибших, но и тех, кто вообще не болел. Он сам ищет людей, которые пили воду без последствий, и оставляет их в отчёте. Всего он пытался что-то выяснить почти о пятистах из восьмисот девяноста шести жителей Брод-стрит. Сравнивал он только тех, о ком сведения были определёнными. Среди пивших воду заболели не меньше восьмидесяти человек, а не заболели пятьдесят семь. Среди не пивших заболели двадцать, а здоровыми остались двести семьдесят девять. Он считал и холеру, и понос, в том числе у тех, кто поправился."
+        },
+        {
+          "utterance_id": "980de8ef-5d99-5783-9154-d6bd08b00f6c",
+          "speaker": "РАССКАЗЧИК",
+          "text": "Выходит, в его подсчёте среди пивших заболела больше чем половина, а среди остальных — примерно каждый пятнадцатый. Это не эксперимент, а итог расспросов, но разница огромная. Уайтхед напишет, что убедился в связи воды со вспышкой медленно и, по его словам, неохотно."
+        }
+      ],
+      "script_selectors": [
+        {
+          "utterance_id": "f8f835b1-191d-58b6-936c-8d3bdc794b39",
+          "utterance_index": 26,
+          "char_start": 215,
+          "char_end": 223
+        }
+      ],
+      "timing_uncertainties": [],
+      "candidate_id": "9a9f3708-ebd5-5dbf-af77-b0433b40dfa0",
+      "audio_range": {
+        "start_frame": 26708160,
+        "end_frame": 26886720,
+        "basis": "matched_segment_timestamps",
+        "margin_frames": 72000,
+        "boundary_precision": "recognizer_hypothesis"
+      },
+      "status": "pending_audio_adjudication",
+      "clip_status": "extracted",
+      "conclusion": "candidate_only_not_confirmed_tts_error",
+      "clip_blob": {
+        "storage_key": "d24132ce-d2c3-4084-bf89-9905b7d765a7/18209e085ee221f2202fbc97ae23f8a540793850bfb5ebc7b79e458ae9a7d009-7fc478ab21f20dde",
+        "sha256": "18209e085ee221f2202fbc97ae23f8a540793850bfb5ebc7b79e458ae9a7d009",
+        "byte_length": 535724,
+        "media_type": "audio/wav"
+      },
+      "extraction": {
+        "start_frame": 26708160,
+        "end_frame": 26886720,
+        "sample_frames": 178560,
+        "sample_rate_hz": 48000,
+        "pcm_sha256": "e949aefc0b0e13470255fd2598e07a32dd78f33a8d582a67792cf9738dc44afb",
+        "extraction": "exact_pcm_frames"
+      }
+    },
+    {
+      "kind": "script_discrepancy",
+      "operation": "replace",
+      "recognized_token_range": [
+        1451,
+        1452
+      ],
+      "recognized_tokens": [
+        {
+          "index": 1451,
+          "separator_before": " ",
+          "text": "20",
+          "normalized": "20",
+          "char_start": 8728,
+          "char_end": 8730
+        }
+      ],
+      "expected_token_range": [
+        1469,
+        1470
+      ],
+      "expected_tokens": [
+        {
+          "index": 1469,
+          "separator_before": " ",
+          "text": "двадцать",
+          "normalized": "двадцать",
+          "char_start": 447,
+          "char_end": 455,
+          "utterance_index": 26,
+          "utterance_id": "f8f835b1-191d-58b6-936c-8d3bdc794b39"
+        }
+      ],
+      "expected_context": [
+        {
+          "utterance_id": "65cc4ffc-be75-524d-ac00-8e79b1df7387",
+          "speaker": "РАССКАЗЧИК",
+          "text": "Уайтхед начинает различать и другое: пил человек воду до того, как заболел, или уже во время болезни. А про ту выжившую служанку он выяснил ещё одно: воду она пила каждый день и до того, как слегла. А её подруга, которая за ней ухаживала и не заболела вовсе, начала пить эту воду только второго сентября, и то понемногу."
+        },
+        {
+          "utterance_id": "f8f835b1-191d-58b6-936c-8d3bdc794b39",
+          "speaker": "РАССКАЗЧИК",
+          "text": "Ещё важнее, что Уайтхед расспрашивает не только семьи погибших, но и тех, кто вообще не болел. Он сам ищет людей, которые пили воду без последствий, и оставляет их в отчёте. Всего он пытался что-то выяснить почти о пятистах из восьмисот девяноста шести жителей Брод-стрит. Сравнивал он только тех, о ком сведения были определёнными. Среди пивших воду заболели не меньше восьмидесяти человек, а не заболели пятьдесят семь. Среди не пивших заболели двадцать, а здоровыми остались двести семьдесят девять. Он считал и холеру, и понос, в том числе у тех, кто поправился."
+        },
+        {
+          "utterance_id": "980de8ef-5d99-5783-9154-d6bd08b00f6c",
+          "speaker": "РАССКАЗЧИК",
+          "text": "Выходит, в его подсчёте среди пивших заболела больше чем половина, а среди остальных — примерно каждый пятнадцатый. Это не эксперимент, а итог расспросов, но разница огромная. Уайтхед напишет, что убедился в связи воды со вспышкой медленно и, по его словам, неохотно."
+        }
+      ],
+      "script_selectors": [
+        {
+          "utterance_id": "f8f835b1-191d-58b6-936c-8d3bdc794b39",
+          "utterance_index": 26,
+          "char_start": 447,
+          "char_end": 455
+        }
+      ],
+      "timing_uncertainties": [],
+      "candidate_id": "69a6f334-ac9a-51a6-b31a-535c091feef5",
+      "audio_range": {
+        "start_frame": 27376320,
+        "end_frame": 27524160,
+        "basis": "matched_segment_timestamps",
+        "margin_frames": 72000,
+        "boundary_precision": "recognizer_hypothesis"
+      },
+      "status": "pending_audio_adjudication",
+      "clip_status": "extracted",
+      "conclusion": "candidate_only_not_confirmed_tts_error",
+      "clip_blob": {
+        "storage_key": "d24132ce-d2c3-4084-bf89-9905b7d765a7/6b9a8aa8850ab9b9a4668fd26cdde0cf62ceb07f561b008ad07042c5afb4f7a0-7fc478ab21f20dde",
+        "sha256": "6b9a8aa8850ab9b9a4668fd26cdde0cf62ceb07f561b008ad07042c5afb4f7a0",
+        "byte_length": 443564,
+        "media_type": "audio/wav"
+      },
+      "extraction": {
+        "start_frame": 27376320,
+        "end_frame": 27524160,
+        "sample_frames": 147840,
+        "sample_rate_hz": 48000,
+        "pcm_sha256": "10f2223be1c27c16153a2b189c7575100c5e410677d44f212c205c2acd83b2ef",
+        "extraction": "exact_pcm_frames"
+      }
+    },
+    {
+      "kind": "script_discrepancy",
+      "operation": "replace",
+      "recognized_token_range": [
+        1475,
+        1476
+      ],
+      "recognized_tokens": [
+        {
+          "index": 1475,
+          "separator_before": " ",
+          "text": "заболело",
+          "normalized": "заболело",
+          "char_start": 8859,
+          "char_end": 8867
+        }
+      ],
+      "expected_token_range": [
+        1495,
+        1496
+      ],
+      "expected_tokens": [
+        {
+          "index": 1495,
+          "separator_before": " ",
+          "text": "заболела",
+          "normalized": "заболела",
+          "char_start": 37,
+          "char_end": 45,
+          "utterance_index": 27,
+          "utterance_id": "980de8ef-5d99-5783-9154-d6bd08b00f6c"
+        }
+      ],
+      "expected_context": [
+        {
+          "utterance_id": "f8f835b1-191d-58b6-936c-8d3bdc794b39",
+          "speaker": "РАССКАЗЧИК",
+          "text": "Ещё важнее, что Уайтхед расспрашивает не только семьи погибших, но и тех, кто вообще не болел. Он сам ищет людей, которые пили воду без последствий, и оставляет их в отчёте. Всего он пытался что-то выяснить почти о пятистах из восьмисот девяноста шести жителей Брод-стрит. Сравнивал он только тех, о ком сведения были определёнными. Среди пивших воду заболели не меньше восьмидесяти человек, а не заболели пятьдесят семь. Среди не пивших заболели двадцать, а здоровыми остались двести семьдесят девять. Он считал и холеру, и понос, в том числе у тех, кто поправился."
+        },
+        {
+          "utterance_id": "980de8ef-5d99-5783-9154-d6bd08b00f6c",
+          "speaker": "РАССКАЗЧИК",
+          "text": "Выходит, в его подсчёте среди пивших заболела больше чем половина, а среди остальных — примерно каждый пятнадцатый. Это не эксперимент, а итог расспросов, но разница огромная. Уайтхед напишет, что убедился в связи воды со вспышкой медленно и, по его словам, неохотно."
+        },
+        {
+          "utterance_id": "e831b6ff-5bd7-5481-8c23-f73db4b8b70a",
+          "speaker": "РАССКАЗЧИК",
+          "text": "Но один вопрос остаётся открытым. Как зараза попала в колодец? Колодец вскрывали, и смотритель работ сообщил Сноу, что в кладке нет ни дыр, ни трещин. До весны 1855 года попадание стоков в колодец доказано не было, а всё, что было известно, скорее говорило против этого."
+        }
+      ],
+      "script_selectors": [
+        {
+          "utterance_id": "980de8ef-5d99-5783-9154-d6bd08b00f6c",
+          "utterance_index": 27,
+          "char_start": 37,
+          "char_end": 45
+        }
+      ],
+      "timing_uncertainties": [],
+      "candidate_id": "426b0f6a-0bbd-5b3f-872c-36e5e213e707",
+      "audio_range": {
+        "start_frame": 27856320,
+        "end_frame": 28019520,
+        "basis": "matched_segment_timestamps",
+        "margin_frames": 72000,
+        "boundary_precision": "recognizer_hypothesis"
+      },
+      "status": "pending_audio_adjudication",
+      "clip_status": "extracted",
+      "conclusion": "candidate_only_not_confirmed_tts_error",
+      "clip_blob": {
+        "storage_key": "d24132ce-d2c3-4084-bf89-9905b7d765a7/2e59b07960e23f57e1d346cd4a8bd1a0292ccb66829600c6e0a8ca7fb2fb985f-7fc478ab21f20dde",
+        "sha256": "2e59b07960e23f57e1d346cd4a8bd1a0292ccb66829600c6e0a8ca7fb2fb985f",
+        "byte_length": 489644,
+        "media_type": "audio/wav"
+      },
+      "extraction": {
+        "start_frame": 27856320,
+        "end_frame": 28019520,
+        "sample_frames": 163200,
+        "sample_rate_hz": 48000,
+        "pcm_sha256": "3955cfab427260f0305e5dc22723bdcf12d6333c4751ae7d0e0b1708d7e5d7af",
+        "extraction": "exact_pcm_frames"
+      }
+    },
+    {
+      "kind": "script_discrepancy",
+      "operation": "delete",
+      "recognized_token_range": [
+        1521,
+        1521
+      ],
+      "recognized_tokens": [],
+      "expected_token_range": [
+        1541,
+        1542
+      ],
+      "expected_tokens": [
+        {
+          "index": 1541,
+          "separator_before": ", ",
+          "text": "и",
+          "normalized": "и",
+          "char_start": 82,
+          "char_end": 83,
+          "utterance_index": 28,
+          "utterance_id": "e831b6ff-5bd7-5481-8c23-f73db4b8b70a"
+        }
+      ],
+      "expected_context": [
+        {
+          "utterance_id": "980de8ef-5d99-5783-9154-d6bd08b00f6c",
+          "speaker": "РАССКАЗЧИК",
+          "text": "Выходит, в его подсчёте среди пивших заболела больше чем половина, а среди остальных — примерно каждый пятнадцатый. Это не эксперимент, а итог расспросов, но разница огромная. Уайтхед напишет, что убедился в связи воды со вспышкой медленно и, по его словам, неохотно."
+        },
+        {
+          "utterance_id": "e831b6ff-5bd7-5481-8c23-f73db4b8b70a",
+          "speaker": "РАССКАЗЧИК",
+          "text": "Но один вопрос остаётся открытым. Как зараза попала в колодец? Колодец вскрывали, и смотритель работ сообщил Сноу, что в кладке нет ни дыр, ни трещин. До весны 1855 года попадание стоков в колодец доказано не было, а всё, что было известно, скорее говорило против этого."
+        },
+        {
+          "utterance_id": "d64a5364-775f-565b-8ff5-cf826fc57911",
+          "speaker": "РАССКАЗЧИК",
+          "text": "Подсказка нашлась в документе, который Уайтхед уже держал в руках. Дом номер сорок по Брод-стрит, второе сентября: умерла девочка пяти месяцев, от истощения после поноса, начавшегося за четыре дня до смерти. О её смерти Уайтхед знал и дату записал. А вот когда она заболела, не спросил: это же младенец. За четыре дня до второго сентября — это ещё до начала вспышки."
+        }
+      ],
+      "script_selectors": [
+        {
+          "utterance_id": "e831b6ff-5bd7-5481-8c23-f73db4b8b70a",
+          "utterance_index": 28,
+          "char_start": 82,
+          "char_end": 83
+        }
+      ],
+      "timing_uncertainties": [],
+      "candidate_id": "d39a4432-396a-525c-bc3f-0161e50b2707",
+      "audio_range": {
+        "start_frame": 28750080,
+        "end_frame": 28894080,
+        "basis": "neighbor_anchors_or_full_audio_edges",
+        "margin_frames": 72000,
+        "boundary_precision": "recognizer_hypothesis"
+      },
+      "status": "pending_audio_adjudication",
+      "clip_status": "extracted",
+      "conclusion": "candidate_only_not_confirmed_tts_error",
+      "clip_blob": {
+        "storage_key": "d24132ce-d2c3-4084-bf89-9905b7d765a7/f8c92e1e9b8fabd92832f216a1390326b76740097ad4cf7472492ac8b487dc85-7fc478ab21f20dde",
+        "sha256": "f8c92e1e9b8fabd92832f216a1390326b76740097ad4cf7472492ac8b487dc85",
+        "byte_length": 432044,
+        "media_type": "audio/wav"
+      },
+      "extraction": {
+        "start_frame": 28750080,
+        "end_frame": 28894080,
+        "sample_frames": 144000,
+        "sample_rate_hz": 48000,
+        "pcm_sha256": "623b737df459e27b087ed6bbe4efaf86c2b9d6d5113a0c6cf6366a716c62cce3",
+        "extraction": "exact_pcm_frames"
+      }
+    },
+    {
+      "kind": "script_discrepancy",
+      "operation": "replace",
+      "recognized_token_range": [
+        1565,
+        1566
+      ],
+      "recognized_tokens": [
+        {
+          "index": 1565,
+          "separator_before": " ",
+          "text": "40",
+          "normalized": "40",
+          "char_start": 9434,
+          "char_end": 9436
+        }
+      ],
+      "expected_token_range": [
+        1586,
+        1587
+      ],
+      "expected_tokens": [
+        {
+          "index": 1586,
+          "separator_before": " ",
+          "text": "сорок",
+          "normalized": "сорок",
+          "char_start": 77,
+          "char_end": 82,
+          "utterance_index": 29,
+          "utterance_id": "d64a5364-775f-565b-8ff5-cf826fc57911"
+        }
+      ],
+      "expected_context": [
+        {
+          "utterance_id": "e831b6ff-5bd7-5481-8c23-f73db4b8b70a",
+          "speaker": "РАССКАЗЧИК",
+          "text": "Но один вопрос остаётся открытым. Как зараза попала в колодец? Колодец вскрывали, и смотритель работ сообщил Сноу, что в кладке нет ни дыр, ни трещин. До весны 1855 года попадание стоков в колодец доказано не было, а всё, что было известно, скорее говорило против этого."
+        },
+        {
+          "utterance_id": "d64a5364-775f-565b-8ff5-cf826fc57911",
+          "speaker": "РАССКАЗЧИК",
+          "text": "Подсказка нашлась в документе, который Уайтхед уже держал в руках. Дом номер сорок по Брод-стрит, второе сентября: умерла девочка пяти месяцев, от истощения после поноса, начавшегося за четыре дня до смерти. О её смерти Уайтхед знал и дату записал. А вот когда она заболела, не спросил: это же младенец. За четыре дня до второго сентября — это ещё до начала вспышки."
+        },
+        {
+          "utterance_id": "10a7f48c-eeed-56bd-a3df-fbf0f552fd32",
+          "speaker": "РАССКАЗЧИК",
+          "text": "Он сразу идёт в этот дом. Мать рассказывает: девочка заболела в понедельник, двадцать восьмого августа. Пелёнки замачивали в вёдрах, а воду выливали частью в раковину на заднем дворе, частью в выгребную яму перед домом. Яма эта находилась совсем рядом с колодцем. Третьего апреля Уайтхед сообщает об этом комиссии."
+        }
+      ],
+      "script_selectors": [
+        {
+          "utterance_id": "d64a5364-775f-565b-8ff5-cf826fc57911",
+          "utterance_index": 29,
+          "char_start": 77,
+          "char_end": 82
+        }
+      ],
+      "timing_uncertainties": [],
+      "candidate_id": "45db5070-5245-585c-8095-c3bfc591b09e",
+      "audio_range": {
+        "start_frame": 29514240,
+        "end_frame": 29673600,
+        "basis": "matched_segment_timestamps",
+        "margin_frames": 72000,
+        "boundary_precision": "recognizer_hypothesis"
+      },
+      "status": "pending_audio_adjudication",
+      "clip_status": "extracted",
+      "conclusion": "candidate_only_not_confirmed_tts_error",
+      "clip_blob": {
+        "storage_key": "d24132ce-d2c3-4084-bf89-9905b7d765a7/9a8800c1df981a0a54b0efad5f6af21f10e676d73bb262705ee2efe74a5050c7-7fc478ab21f20dde",
+        "sha256": "9a8800c1df981a0a54b0efad5f6af21f10e676d73bb262705ee2efe74a5050c7",
+        "byte_length": 478124,
+        "media_type": "audio/wav"
+      },
+      "extraction": {
+        "start_frame": 29514240,
+        "end_frame": 29673600,
+        "sample_frames": 159360,
+        "sample_rate_hz": 48000,
+        "pcm_sha256": "0a42dc713e81f204c1d96d6cbaf898b324bd4573887d9173a8c60e82a7a5bdfb",
+        "extraction": "exact_pcm_frames"
+      }
+    },
+    {
+      "kind": "script_discrepancy",
+      "operation": "replace",
+      "recognized_token_range": [
+        1569,
+        1570
+      ],
+      "recognized_tokens": [
+        {
+          "index": 1569,
+          "separator_before": ", ",
+          "text": "2",
+          "normalized": "2",
+          "char_start": 9452,
+          "char_end": 9453
+        }
+      ],
+      "expected_token_range": [
+        1590,
+        1591
+      ],
+      "expected_tokens": [
+        {
+          "index": 1590,
+          "separator_before": ", ",
+          "text": "второе",
+          "normalized": "второе",
+          "char_start": 98,
+          "char_end": 104,
+          "utterance_index": 29,
+          "utterance_id": "d64a5364-775f-565b-8ff5-cf826fc57911"
+        }
+      ],
+      "expected_context": [
+        {
+          "utterance_id": "e831b6ff-5bd7-5481-8c23-f73db4b8b70a",
+          "speaker": "РАССКАЗЧИК",
+          "text": "Но один вопрос остаётся открытым. Как зараза попала в колодец? Колодец вскрывали, и смотритель работ сообщил Сноу, что в кладке нет ни дыр, ни трещин. До весны 1855 года попадание стоков в колодец доказано не было, а всё, что было известно, скорее говорило против этого."
+        },
+        {
+          "utterance_id": "d64a5364-775f-565b-8ff5-cf826fc57911",
+          "speaker": "РАССКАЗЧИК",
+          "text": "Подсказка нашлась в документе, который Уайтхед уже держал в руках. Дом номер сорок по Брод-стрит, второе сентября: умерла девочка пяти месяцев, от истощения после поноса, начавшегося за четыре дня до смерти. О её смерти Уайтхед знал и дату записал. А вот когда она заболела, не спросил: это же младенец. За четыре дня до второго сентября — это ещё до начала вспышки."
+        },
+        {
+          "utterance_id": "10a7f48c-eeed-56bd-a3df-fbf0f552fd32",
+          "speaker": "РАССКАЗЧИК",
+          "text": "Он сразу идёт в этот дом. Мать рассказывает: девочка заболела в понедельник, двадцать восьмого августа. Пелёнки замачивали в вёдрах, а воду выливали частью в раковину на заднем дворе, частью в выгребную яму перед домом. Яма эта находилась совсем рядом с колодцем. Третьего апреля Уайтхед сообщает об этом комиссии."
+        }
+      ],
+      "script_selectors": [
+        {
+          "utterance_id": "d64a5364-775f-565b-8ff5-cf826fc57911",
+          "utterance_index": 29,
+          "char_start": 98,
+          "char_end": 104
+        }
+      ],
+      "timing_uncertainties": [],
+      "candidate_id": "21d3ccd7-1722-5846-833a-90e889252bd5",
+      "audio_range": {
+        "start_frame": 29568000,
+        "end_frame": 29715840,
+        "basis": "matched_segment_timestamps",
+        "margin_frames": 72000,
+        "boundary_precision": "recognizer_hypothesis"
+      },
+      "status": "pending_audio_adjudication",
+      "clip_status": "extracted",
+      "conclusion": "candidate_only_not_confirmed_tts_error",
+      "clip_blob": {
+        "storage_key": "d24132ce-d2c3-4084-bf89-9905b7d765a7/d43b4f34bf5c5981b7b50b5a5e8b65e4681a0552e4da6ca418eb9808d75cc260-7fc478ab21f20dde",
+        "sha256": "d43b4f34bf5c5981b7b50b5a5e8b65e4681a0552e4da6ca418eb9808d75cc260",
+        "byte_length": 443564,
+        "media_type": "audio/wav"
+      },
+      "extraction": {
+        "start_frame": 29568000,
+        "end_frame": 29715840,
+        "sample_frames": 147840,
+        "sample_rate_hz": 48000,
+        "pcm_sha256": "86eec91215783a7a212dce58375a065520449df4c8918ba40143b96fecb05215",
+        "extraction": "exact_pcm_frames"
+      }
+    },
+    {
+      "kind": "script_discrepancy",
+      "operation": "replace",
+      "recognized_token_range": [
+        1573,
+        1574
+      ],
+      "recognized_tokens": [
+        {
+          "index": 1573,
+          "separator_before": " ",
+          "text": "5",
+          "normalized": "5",
+          "char_start": 9479,
+          "char_end": 9480
+        }
+      ],
+      "expected_token_range": [
+        1594,
+        1595
+      ],
+      "expected_tokens": [
+        {
+          "index": 1594,
+          "separator_before": " ",
+          "text": "пяти",
+          "normalized": "пяти",
+          "char_start": 130,
+          "char_end": 134,
+          "utterance_index": 29,
+          "utterance_id": "d64a5364-775f-565b-8ff5-cf826fc57911"
+        }
+      ],
+      "expected_context": [
+        {
+          "utterance_id": "e831b6ff-5bd7-5481-8c23-f73db4b8b70a",
+          "speaker": "РАССКАЗЧИК",
+          "text": "Но один вопрос остаётся открытым. Как зараза попала в колодец? Колодец вскрывали, и смотритель работ сообщил Сноу, что в кладке нет ни дыр, ни трещин. До весны 1855 года попадание стоков в колодец доказано не было, а всё, что было известно, скорее говорило против этого."
+        },
+        {
+          "utterance_id": "d64a5364-775f-565b-8ff5-cf826fc57911",
+          "speaker": "РАССКАЗЧИК",
+          "text": "Подсказка нашлась в документе, который Уайтхед уже держал в руках. Дом номер сорок по Брод-стрит, второе сентября: умерла девочка пяти месяцев, от истощения после поноса, начавшегося за четыре дня до смерти. О её смерти Уайтхед знал и дату записал. А вот когда она заболела, не спросил: это же младенец. За четыре дня до второго сентября — это ещё до начала вспышки."
+        },
+        {
+          "utterance_id": "10a7f48c-eeed-56bd-a3df-fbf0f552fd32",
+          "speaker": "РАССКАЗЧИК",
+          "text": "Он сразу идёт в этот дом. Мать рассказывает: девочка заболела в понедельник, двадцать восьмого августа. Пелёнки замачивали в вёдрах, а воду выливали частью в раковину на заднем дворе, частью в выгребную яму перед домом. Яма эта находилась совсем рядом с колодцем. Третьего апреля Уайтхед сообщает об этом комиссии."
+        }
+      ],
+      "script_selectors": [
+        {
+          "utterance_id": "d64a5364-775f-565b-8ff5-cf826fc57911",
+          "utterance_index": 29,
+          "char_start": 130,
+          "char_end": 134
+        }
+      ],
+      "timing_uncertainties": [],
+      "candidate_id": "fd3b8d5f-588e-599e-a5df-202ce3a11070",
+      "audio_range": {
+        "start_frame": 29667840,
+        "end_frame": 29819520,
+        "basis": "matched_segment_timestamps",
+        "margin_frames": 72000,
+        "boundary_precision": "recognizer_hypothesis"
+      },
+      "status": "pending_audio_adjudication",
+      "clip_status": "extracted",
+      "conclusion": "candidate_only_not_confirmed_tts_error",
+      "clip_blob": {
+        "storage_key": "d24132ce-d2c3-4084-bf89-9905b7d765a7/a18a834e5dbfcf5c6d729bd31c49e02d49b3b6ff5777102cb285758d7671d0dc-7fc478ab21f20dde",
+        "sha256": "a18a834e5dbfcf5c6d729bd31c49e02d49b3b6ff5777102cb285758d7671d0dc",
+        "byte_length": 455084,
+        "media_type": "audio/wav"
+      },
+      "extraction": {
+        "start_frame": 29667840,
+        "end_frame": 29819520,
+        "sample_frames": 151680,
+        "sample_rate_hz": 48000,
+        "pcm_sha256": "2a897ee832263e8498f8c0a3f37e36723ff76fb1a5f6ce98fa4358280b4b98ca",
+        "extraction": "exact_pcm_frames"
+      }
+    },
+    {
+      "kind": "script_discrepancy",
+      "operation": "delete",
+      "recognized_token_range": [
+        1590,
+        1590
+      ],
+      "recognized_tokens": [],
+      "expected_token_range": [
+        1611,
+        1612
+      ],
+      "expected_tokens": [
+        {
+          "index": 1611,
+          "separator_before": " ",
+          "text": "и",
+          "normalized": "и",
+          "char_start": 233,
+          "char_end": 234,
+          "utterance_index": 29,
+          "utterance_id": "d64a5364-775f-565b-8ff5-cf826fc57911"
+        }
+      ],
+      "expected_context": [
+        {
+          "utterance_id": "e831b6ff-5bd7-5481-8c23-f73db4b8b70a",
+          "speaker": "РАССКАЗЧИК",
+          "text": "Но один вопрос остаётся открытым. Как зараза попала в колодец? Колодец вскрывали, и смотритель работ сообщил Сноу, что в кладке нет ни дыр, ни трещин. До весны 1855 года попадание стоков в колодец доказано не было, а всё, что было известно, скорее говорило против этого."
+        },
+        {
+          "utterance_id": "d64a5364-775f-565b-8ff5-cf826fc57911",
+          "speaker": "РАССКАЗЧИК",
+          "text": "Подсказка нашлась в документе, который Уайтхед уже держал в руках. Дом номер сорок по Брод-стрит, второе сентября: умерла девочка пяти месяцев, от истощения после поноса, начавшегося за четыре дня до смерти. О её смерти Уайтхед знал и дату записал. А вот когда она заболела, не спросил: это же младенец. За четыре дня до второго сентября — это ещё до начала вспышки."
+        },
+        {
+          "utterance_id": "10a7f48c-eeed-56bd-a3df-fbf0f552fd32",
+          "speaker": "РАССКАЗЧИК",
+          "text": "Он сразу идёт в этот дом. Мать рассказывает: девочка заболела в понедельник, двадцать восьмого августа. Пелёнки замачивали в вёдрах, а воду выливали частью в раковину на заднем дворе, частью в выгребную яму перед домом. Яма эта находилась совсем рядом с колодцем. Третьего апреля Уайтхед сообщает об этом комиссии."
+        }
+      ],
+      "script_selectors": [
+        {
+          "utterance_id": "d64a5364-775f-565b-8ff5-cf826fc57911",
+          "utterance_index": 29,
+          "char_start": 233,
+          "char_end": 234
+        }
+      ],
+      "timing_uncertainties": [],
+      "candidate_id": "12b8d983-8695-5bbc-ae9a-cb84588b3de7",
+      "audio_range": {
+        "start_frame": 30001920,
+        "end_frame": 30145920,
+        "basis": "neighbor_anchors_or_full_audio_edges",
+        "margin_frames": 72000,
+        "boundary_precision": "recognizer_hypothesis"
+      },
+      "status": "pending_audio_adjudication",
+      "clip_status": "extracted",
+      "conclusion": "candidate_only_not_confirmed_tts_error",
+      "clip_blob": {
+        "storage_key": "d24132ce-d2c3-4084-bf89-9905b7d765a7/e20e05cd746808f5e49ec5527d14ec1ddcebe269db234c0284db5c1c892f5d19-7fc478ab21f20dde",
+        "sha256": "e20e05cd746808f5e49ec5527d14ec1ddcebe269db234c0284db5c1c892f5d19",
+        "byte_length": 432044,
+        "media_type": "audio/wav"
+      },
+      "extraction": {
+        "start_frame": 30001920,
+        "end_frame": 30145920,
+        "sample_frames": 144000,
+        "sample_rate_hz": 48000,
+        "pcm_sha256": "f1509ba9d2aaab305c1f44f163bab21f5b58e54c0d588fed13fe835e6a625004",
+        "extraction": "exact_pcm_frames"
+      }
+    },
+    {
+      "kind": "script_discrepancy",
+      "operation": "replace",
+      "recognized_token_range": [
+        1719,
+        1720
+      ],
+      "recognized_tokens": [
+        {
+          "index": 1719,
+          "separator_before": " ",
+          "text": "жидкости",
+          "normalized": "жидкости",
+          "char_start": 10357,
+          "char_end": 10365
+        }
+      ],
+      "expected_token_range": [
+        1742,
+        1744
+      ],
+      "expected_tokens": [
+        {
+          "index": 1742,
+          "separator_before": " ",
+          "text": "жидкость",
+          "normalized": "жидкость",
+          "char_start": 370,
+          "char_end": 378,
+          "utterance_index": 31,
+          "utterance_id": "5a070830-8536-5c33-9dd2-edc829347755"
+        },
+        {
+          "index": 1743,
+          "separator_before": " ",
+          "text": "из",
+          "normalized": "из",
+          "char_start": 379,
+          "char_end": 381,
+          "utterance_index": 31,
+          "utterance_id": "5a070830-8536-5c33-9dd2-edc829347755"
+        }
+      ],
+      "expected_context": [
+        {
+          "utterance_id": "10a7f48c-eeed-56bd-a3df-fbf0f552fd32",
+          "speaker": "РАССКАЗЧИК",
+          "text": "Он сразу идёт в этот дом. Мать рассказывает: девочка заболела в понедельник, двадцать восьмого августа. Пелёнки замачивали в вёдрах, а воду выливали частью в раковину на заднем дворе, частью в выгребную яму перед домом. Яма эта находилась совсем рядом с колодцем. Третьего апреля Уайтхед сообщает об этом комиссии."
+        },
+        {
+          "utterance_id": "5a070830-8536-5c33-9dd2-edc829347755",
+          "speaker": "РАССКАЗЧИК",
+          "text": "В конце апреля инженер Йорк вскрывает землю. Раствор в швах старого стока и в кладке переполненной ямы рассыпался, кирпичи вынимаются руками, кладка, по его словам, стала похожа на сито. От стока до наружной стенки колодца меньше метра. Земля между ямой и колодцем чёрная и насквозь мокрая. А изнутри колодца видно, что из гравия вымыт мелкий песок. Йорк заключает, что жидкость из стоков долго и постоянно просачивалась в колодец."
+        },
+        {
+          "utterance_id": "d68dede8-f874-50ec-85ce-b4861b7592dd",
+          "speaker": "РАССКАЗЧИК",
+          "text": "Так нашлась дорога, по которой грязная жидкость из стоков могла уходить в колодец. Но дорога для жидкости — это ещё не доказанный путь самой заразы. Для этого нужно было знать, что именно попало в яму и когда. А сомнения начинаются уже с первого случая. Врач, который лечил девочку, записей не вёл и восстанавливал подробности по памяти. Понос у неё бывал и раньше, а характерных признаков холеры он не помнил. Комиссия признала, что настоящая природа болезни вызывает сомнения, хотя и заметила, что у маленьких детей холера часто проявляется неотчётливо. Сам Уайтхед после переделки стока считал, что установить, где и как зараза попала в колодец, уже невозможно."
+        }
+      ],
+      "script_selectors": [
+        {
+          "utterance_id": "5a070830-8536-5c33-9dd2-edc829347755",
+          "utterance_index": 31,
+          "char_start": 370,
+          "char_end": 378
+        },
+        {
+          "utterance_id": "5a070830-8536-5c33-9dd2-edc829347755",
+          "utterance_index": 31,
+          "char_start": 379,
+          "char_end": 381
+        }
+      ],
+      "timing_uncertainties": [],
+      "candidate_id": "032a53ee-16df-5853-91d8-885de013ddcb",
+      "audio_range": {
+        "start_frame": 32677440,
+        "end_frame": 32844480,
+        "basis": "matched_segment_timestamps",
+        "margin_frames": 72000,
+        "boundary_precision": "recognizer_hypothesis"
+      },
+      "status": "pending_audio_adjudication",
+      "clip_status": "extracted",
+      "conclusion": "candidate_only_not_confirmed_tts_error",
+      "clip_blob": {
+        "storage_key": "d24132ce-d2c3-4084-bf89-9905b7d765a7/7c02138d6240841d06cfd1f746c53414e6033bd359e48852aa174e81d7e0405b-7fc478ab21f20dde",
+        "sha256": "7c02138d6240841d06cfd1f746c53414e6033bd359e48852aa174e81d7e0405b",
+        "byte_length": 501164,
+        "media_type": "audio/wav"
+      },
+      "extraction": {
+        "start_frame": 32677440,
+        "end_frame": 32844480,
+        "sample_frames": 167040,
+        "sample_rate_hz": 48000,
+        "pcm_sha256": "f794912c14703424c06f5c1e1c928bacf46a283340486a1ef1ee7ea29c1fb053",
+        "extraction": "exact_pcm_frames"
+      }
+    },
+    {
+      "kind": "script_discrepancy",
+      "operation": "replace",
+      "recognized_token_range": [
+        1774,
+        1775
+      ],
+      "recognized_tokens": [
+        {
+          "index": 1774,
+          "separator_before": ", ",
+          "text": "записи",
+          "normalized": "записи",
+          "char_start": 10699,
+          "char_end": 10705
+        }
+      ],
+      "expected_token_range": [
+        1798,
+        1799
+      ],
+      "expected_tokens": [
+        {
+          "index": 1798,
+          "separator_before": ", ",
+          "text": "записей",
+          "normalized": "записей",
+          "char_start": 283,
+          "char_end": 290,
+          "utterance_index": 32,
+          "utterance_id": "d68dede8-f874-50ec-85ce-b4861b7592dd"
+        }
+      ],
+      "expected_context": [
+        {
+          "utterance_id": "5a070830-8536-5c33-9dd2-edc829347755",
+          "speaker": "РАССКАЗЧИК",
+          "text": "В конце апреля инженер Йорк вскрывает землю. Раствор в швах старого стока и в кладке переполненной ямы рассыпался, кирпичи вынимаются руками, кладка, по его словам, стала похожа на сито. От стока до наружной стенки колодца меньше метра. Земля между ямой и колодцем чёрная и насквозь мокрая. А изнутри колодца видно, что из гравия вымыт мелкий песок. Йорк заключает, что жидкость из стоков долго и постоянно просачивалась в колодец."
+        },
+        {
+          "utterance_id": "d68dede8-f874-50ec-85ce-b4861b7592dd",
+          "speaker": "РАССКАЗЧИК",
+          "text": "Так нашлась дорога, по которой грязная жидкость из стоков могла уходить в колодец. Но дорога для жидкости — это ещё не доказанный путь самой заразы. Для этого нужно было знать, что именно попало в яму и когда. А сомнения начинаются уже с первого случая. Врач, который лечил девочку, записей не вёл и восстанавливал подробности по памяти. Понос у неё бывал и раньше, а характерных признаков холеры он не помнил. Комиссия признала, что настоящая природа болезни вызывает сомнения, хотя и заметила, что у маленьких детей холера часто проявляется неотчётливо. Сам Уайтхед после переделки стока считал, что установить, где и как зараза попала в колодец, уже невозможно."
+        },
+        {
+          "utterance_id": "6ce8a84b-52b0-55f4-b9fe-2faa11ab4f34",
+          "speaker": "РАССКАЗЧИК",
+          "text": "Чем же кончилось дело? Кто был самым первым заболевшим, так и не узнали. Но опасную колонку Сноу нашёл, так и не увидев саму заразу: не в стакане и не под микроскопом, а по адресам умерших и словам живых."
+        }
+      ],
+      "script_selectors": [
+        {
+          "utterance_id": "d68dede8-f874-50ec-85ce-b4861b7592dd",
+          "utterance_index": 32,
+          "char_start": 283,
+          "char_end": 290
+        }
+      ],
+      "timing_uncertainties": [],
+      "candidate_id": "efdc6a19-7d10-51cb-9fc9-e9a7a7733739",
+      "audio_range": {
+        "start_frame": 33693120,
+        "end_frame": 33856320,
+        "basis": "matched_segment_timestamps",
+        "margin_frames": 72000,
+        "boundary_precision": "recognizer_hypothesis"
+      },
+      "status": "pending_audio_adjudication",
+      "clip_status": "extracted",
+      "conclusion": "candidate_only_not_confirmed_tts_error",
+      "clip_blob": {
+        "storage_key": "d24132ce-d2c3-4084-bf89-9905b7d765a7/8e1c7b4603114cbe910a5f5799acfe207f7d5f571e257fe839e1882bf82a5a26-7fc478ab21f20dde",
+        "sha256": "8e1c7b4603114cbe910a5f5799acfe207f7d5f571e257fe839e1882bf82a5a26",
+        "byte_length": 489644,
+        "media_type": "audio/wav"
+      },
+      "extraction": {
+        "start_frame": 33693120,
+        "end_frame": 33856320,
+        "sample_frames": 163200,
+        "sample_rate_hz": 48000,
+        "pcm_sha256": "e989c21210af105999c827b67e1179f8cc26e9babadf76a89755020e810b4f2e",
+        "extraction": "exact_pcm_frames"
+      }
+    },
+    {
+      "kind": "script_discrepancy",
+      "operation": "replace",
+      "recognized_token_range": [
+        1802,
+        1803
+      ],
+      "recognized_tokens": [
+        {
+          "index": 1802,
+          "separator_before": " ",
+          "text": "сомнение",
+          "normalized": "сомнение",
+          "char_start": 10884,
+          "char_end": 10892
+        }
+      ],
+      "expected_token_range": [
+        1826,
+        1827
+      ],
+      "expected_tokens": [
+        {
+          "index": 1826,
+          "separator_before": " ",
+          "text": "сомнения",
+          "normalized": "сомнения",
+          "char_start": 469,
+          "char_end": 477,
+          "utterance_index": 32,
+          "utterance_id": "d68dede8-f874-50ec-85ce-b4861b7592dd"
+        }
+      ],
+      "expected_context": [
+        {
+          "utterance_id": "5a070830-8536-5c33-9dd2-edc829347755",
+          "speaker": "РАССКАЗЧИК",
+          "text": "В конце апреля инженер Йорк вскрывает землю. Раствор в швах старого стока и в кладке переполненной ямы рассыпался, кирпичи вынимаются руками, кладка, по его словам, стала похожа на сито. От стока до наружной стенки колодца меньше метра. Земля между ямой и колодцем чёрная и насквозь мокрая. А изнутри колодца видно, что из гравия вымыт мелкий песок. Йорк заключает, что жидкость из стоков долго и постоянно просачивалась в колодец."
+        },
+        {
+          "utterance_id": "d68dede8-f874-50ec-85ce-b4861b7592dd",
+          "speaker": "РАССКАЗЧИК",
+          "text": "Так нашлась дорога, по которой грязная жидкость из стоков могла уходить в колодец. Но дорога для жидкости — это ещё не доказанный путь самой заразы. Для этого нужно было знать, что именно попало в яму и когда. А сомнения начинаются уже с первого случая. Врач, который лечил девочку, записей не вёл и восстанавливал подробности по памяти. Понос у неё бывал и раньше, а характерных признаков холеры он не помнил. Комиссия признала, что настоящая природа болезни вызывает сомнения, хотя и заметила, что у маленьких детей холера часто проявляется неотчётливо. Сам Уайтхед после переделки стока считал, что установить, где и как зараза попала в колодец, уже невозможно."
+        },
+        {
+          "utterance_id": "6ce8a84b-52b0-55f4-b9fe-2faa11ab4f34",
+          "speaker": "РАССКАЗЧИК",
+          "text": "Чем же кончилось дело? Кто был самым первым заболевшим, так и не узнали. Но опасную колонку Сноу нашёл, так и не увидев саму заразу: не в стакане и не под микроскопом, а по адресам умерших и словам живых."
+        }
+      ],
+      "script_selectors": [
+        {
+          "utterance_id": "d68dede8-f874-50ec-85ce-b4861b7592dd",
+          "utterance_index": 32,
+          "char_start": 469,
+          "char_end": 477
+        }
+      ],
+      "timing_uncertainties": [],
+      "candidate_id": "b6e2d733-3ea2-5497-af7e-dc0b393504fe",
+      "audio_range": {
+        "start_frame": 34200000,
+        "end_frame": 34370880,
+        "basis": "matched_segment_timestamps",
+        "margin_frames": 72000,
+        "boundary_precision": "recognizer_hypothesis"
+      },
+      "status": "pending_audio_adjudication",
+      "clip_status": "extracted",
+      "conclusion": "candidate_only_not_confirmed_tts_error",
+      "clip_blob": {
+        "storage_key": "d24132ce-d2c3-4084-bf89-9905b7d765a7/d9d6c4876a5e6010d6ae5ca41d6122ca1eb935d9ef1b921966a3e1a7bcc88d7e-7fc478ab21f20dde",
+        "sha256": "d9d6c4876a5e6010d6ae5ca41d6122ca1eb935d9ef1b921966a3e1a7bcc88d7e",
+        "byte_length": 512684,
+        "media_type": "audio/wav"
+      },
+      "extraction": {
+        "start_frame": 34200000,
+        "end_frame": 34370880,
+        "sample_frames": 170880,
+        "sample_rate_hz": 48000,
+        "pcm_sha256": "5ab7c95a67f5564b14481ba1bca475c006297b0b86079da7dfdb4e60a3672221",
+        "extraction": "exact_pcm_frames"
+      }
+    },
+    {
+      "kind": "script_discrepancy",
+      "operation": "replace",
+      "recognized_token_range": [
+        1847,
+        1849
+      ],
+      "recognized_tokens": [
+        {
+          "index": 1847,
+          "separator_before": " ",
+          "text": "снова",
+          "normalized": "снова",
+          "char_start": 11172,
+          "char_end": 11177
+        },
+        {
+          "index": 1848,
+          "separator_before": " ",
+          "text": "он",
+          "normalized": "он",
+          "char_start": 11178,
+          "char_end": 11180
+        }
+      ],
+      "expected_token_range": [
+        1871,
+        1872
+      ],
+      "expected_tokens": [
+        {
+          "index": 1871,
+          "separator_before": " ",
+          "text": "Сноу",
+          "normalized": "сноу",
+          "char_start": 92,
+          "char_end": 96,
+          "utterance_index": 33,
+          "utterance_id": "6ce8a84b-52b0-55f4-b9fe-2faa11ab4f34"
+        }
+      ],
+      "expected_context": [
+        {
+          "utterance_id": "d68dede8-f874-50ec-85ce-b4861b7592dd",
+          "speaker": "РАССКАЗЧИК",
+          "text": "Так нашлась дорога, по которой грязная жидкость из стоков могла уходить в колодец. Но дорога для жидкости — это ещё не доказанный путь самой заразы. Для этого нужно было знать, что именно попало в яму и когда. А сомнения начинаются уже с первого случая. Врач, который лечил девочку, записей не вёл и восстанавливал подробности по памяти. Понос у неё бывал и раньше, а характерных признаков холеры он не помнил. Комиссия признала, что настоящая природа болезни вызывает сомнения, хотя и заметила, что у маленьких детей холера часто проявляется неотчётливо. Сам Уайтхед после переделки стока считал, что установить, где и как зараза попала в колодец, уже невозможно."
+        },
+        {
+          "utterance_id": "6ce8a84b-52b0-55f4-b9fe-2faa11ab4f34",
+          "speaker": "РАССКАЗЧИК",
+          "text": "Чем же кончилось дело? Кто был самым первым заболевшим, так и не узнали. Но опасную колонку Сноу нашёл, так и не увидев саму заразу: не в стакане и не под микроскопом, а по адресам умерших и словам живых."
+        }
+      ],
+      "script_selectors": [
+        {
+          "utterance_id": "6ce8a84b-52b0-55f4-b9fe-2faa11ab4f34",
+          "utterance_index": 33,
+          "char_start": 92,
+          "char_end": 96
+        }
+      ],
+      "timing_uncertainties": [],
+      "candidate_id": "d94fe610-47aa-5bbe-9f34-93c6d4617ade",
+      "audio_range": {
+        "start_frame": 34991040,
+        "end_frame": 35154240,
+        "basis": "matched_segment_timestamps",
+        "margin_frames": 72000,
+        "boundary_precision": "recognizer_hypothesis"
+      },
+      "status": "pending_audio_adjudication",
+      "clip_status": "extracted",
+      "conclusion": "candidate_only_not_confirmed_tts_error",
+      "clip_blob": {
+        "storage_key": "d24132ce-d2c3-4084-bf89-9905b7d765a7/e3b596e4f0f65612298d33f6ab8f12bdacbe61210b2d8fa8bd5aea6159435c34-7fc478ab21f20dde",
+        "sha256": "e3b596e4f0f65612298d33f6ab8f12bdacbe61210b2d8fa8bd5aea6159435c34",
+        "byte_length": 489644,
+        "media_type": "audio/wav"
+      },
+      "extraction": {
+        "start_frame": 34991040,
+        "end_frame": 35154240,
+        "sample_frames": 163200,
+        "sample_rate_hz": 48000,
+        "pcm_sha256": "51a3720f9ace04d427c354c11ae13ca6ded665b3b75d259bc2259bf0e8969d92",
+        "extraction": "exact_pcm_frames"
+      }
+    },
+    {
+      "kind": "script_discrepancy",
+      "operation": "replace",
+      "recognized_token_range": [
+        1856,
+        1857
+      ],
+      "recognized_tokens": [
+        {
+          "index": 1856,
+          "separator_before": ", ",
+          "text": "ни",
+          "normalized": "ни",
+          "char_start": 11217,
+          "char_end": 11219
+        }
+      ],
+      "expected_token_range": [
+        1879,
+        1880
+      ],
+      "expected_tokens": [
+        {
+          "index": 1879,
+          "separator_before": ": ",
+          "text": "не",
+          "normalized": "не",
+          "char_start": 133,
+          "char_end": 135,
+          "utterance_index": 33,
+          "utterance_id": "6ce8a84b-52b0-55f4-b9fe-2faa11ab4f34"
+        }
+      ],
+      "expected_context": [
+        {
+          "utterance_id": "d68dede8-f874-50ec-85ce-b4861b7592dd",
+          "speaker": "РАССКАЗЧИК",
+          "text": "Так нашлась дорога, по которой грязная жидкость из стоков могла уходить в колодец. Но дорога для жидкости — это ещё не доказанный путь самой заразы. Для этого нужно было знать, что именно попало в яму и когда. А сомнения начинаются уже с первого случая. Врач, который лечил девочку, записей не вёл и восстанавливал подробности по памяти. Понос у неё бывал и раньше, а характерных признаков холеры он не помнил. Комиссия признала, что настоящая природа болезни вызывает сомнения, хотя и заметила, что у маленьких детей холера часто проявляется неотчётливо. Сам Уайтхед после переделки стока считал, что установить, где и как зараза попала в колодец, уже невозможно."
+        },
+        {
+          "utterance_id": "6ce8a84b-52b0-55f4-b9fe-2faa11ab4f34",
+          "speaker": "РАССКАЗЧИК",
+          "text": "Чем же кончилось дело? Кто был самым первым заболевшим, так и не узнали. Но опасную колонку Сноу нашёл, так и не увидев саму заразу: не в стакане и не под микроскопом, а по адресам умерших и словам живых."
+        }
+      ],
+      "script_selectors": [
+        {
+          "utterance_id": "6ce8a84b-52b0-55f4-b9fe-2faa11ab4f34",
+          "utterance_index": 33,
+          "char_start": 133,
+          "char_end": 135
+        }
+      ],
+      "timing_uncertainties": [
+        {
+          "kind": "zero_length_segment_timestamp",
+          "segment_index": 1858,
+          "start_frame": 35205120,
+          "end_frame": 35205120,
+          "transcript_token_range": [
+            1857,
+            1858
+          ]
+        }
+      ],
+      "candidate_id": "fcfd6d1d-af44-555c-967f-a83192736b06",
+      "audio_range": {
+        "start_frame": 35125440,
+        "end_frame": 35277120,
+        "basis": "matched_segment_timestamps",
+        "margin_frames": 72000,
+        "boundary_precision": "recognizer_hypothesis"
+      },
+      "status": "pending_audio_adjudication",
+      "clip_status": "extracted",
+      "conclusion": "candidate_only_not_confirmed_tts_error",
+      "clip_blob": {
+        "storage_key": "d24132ce-d2c3-4084-bf89-9905b7d765a7/26b911afa9229f9c43659707d0f71217410fc8045c47c3db3a60713be33f8a24-7fc478ab21f20dde",
+        "sha256": "26b911afa9229f9c43659707d0f71217410fc8045c47c3db3a60713be33f8a24",
+        "byte_length": 455084,
+        "media_type": "audio/wav"
+      },
+      "extraction": {
+        "start_frame": 35125440,
+        "end_frame": 35277120,
+        "sample_frames": 151680,
+        "sample_rate_hz": 48000,
+        "pcm_sha256": "b88d4caeeaa15a8a6bf2c6bea27fdf56268b723568c79fea4ec567bb50be74dd",
+        "extraction": "exact_pcm_frames"
+      }
+    },
+    {
+      "kind": "script_discrepancy",
+      "operation": "replace",
+      "recognized_token_range": [
+        1859,
+        1860
+      ],
+      "recognized_tokens": [
+        {
+          "index": 1859,
+          "separator_before": ", ",
+          "text": "ни",
+          "normalized": "ни",
+          "char_start": 11231,
+          "char_end": 11233
+        }
+      ],
+      "expected_token_range": [
+        1882,
+        1884
+      ],
+      "expected_tokens": [
+        {
+          "index": 1882,
+          "separator_before": " ",
+          "text": "и",
+          "normalized": "и",
+          "char_start": 146,
+          "char_end": 147,
+          "utterance_index": 33,
+          "utterance_id": "6ce8a84b-52b0-55f4-b9fe-2faa11ab4f34"
+        },
+        {
+          "index": 1883,
+          "separator_before": " ",
+          "text": "не",
+          "normalized": "не",
+          "char_start": 148,
+          "char_end": 150,
+          "utterance_index": 33,
+          "utterance_id": "6ce8a84b-52b0-55f4-b9fe-2faa11ab4f34"
+        }
+      ],
+      "expected_context": [
+        {
+          "utterance_id": "d68dede8-f874-50ec-85ce-b4861b7592dd",
+          "speaker": "РАССКАЗЧИК",
+          "text": "Так нашлась дорога, по которой грязная жидкость из стоков могла уходить в колодец. Но дорога для жидкости — это ещё не доказанный путь самой заразы. Для этого нужно было знать, что именно попало в яму и когда. А сомнения начинаются уже с первого случая. Врач, который лечил девочку, записей не вёл и восстанавливал подробности по памяти. Понос у неё бывал и раньше, а характерных признаков холеры он не помнил. Комиссия признала, что настоящая природа болезни вызывает сомнения, хотя и заметила, что у маленьких детей холера часто проявляется неотчётливо. Сам Уайтхед после переделки стока считал, что установить, где и как зараза попала в колодец, уже невозможно."
+        },
+        {
+          "utterance_id": "6ce8a84b-52b0-55f4-b9fe-2faa11ab4f34",
+          "speaker": "РАССКАЗЧИК",
+          "text": "Чем же кончилось дело? Кто был самым первым заболевшим, так и не узнали. Но опасную колонку Сноу нашёл, так и не увидев саму заразу: не в стакане и не под микроскопом, а по адресам умерших и словам живых."
+        }
+      ],
+      "script_selectors": [
+        {
+          "utterance_id": "6ce8a84b-52b0-55f4-b9fe-2faa11ab4f34",
+          "utterance_index": 33,
+          "char_start": 146,
+          "char_end": 147
+        },
+        {
+          "utterance_id": "6ce8a84b-52b0-55f4-b9fe-2faa11ab4f34",
+          "utterance_index": 33,
+          "char_start": 148,
+          "char_end": 150
+        }
+      ],
+      "timing_uncertainties": [],
+      "candidate_id": "f698ab54-86fe-564c-bfce-9fbf8efe15a2",
+      "audio_range": {
+        "start_frame": 35160000,
+        "end_frame": 35307840,
+        "basis": "matched_segment_timestamps",
+        "margin_frames": 72000,
+        "boundary_precision": "recognizer_hypothesis"
+      },
+      "status": "pending_audio_adjudication",
+      "clip_status": "extracted",
+      "conclusion": "candidate_only_not_confirmed_tts_error",
+      "clip_blob": {
+        "storage_key": "d24132ce-d2c3-4084-bf89-9905b7d765a7/defa09e3acdafaa4668c97a7677869bbc9b2b074aee92a7003b282fd63606ba3-7fc478ab21f20dde",
+        "sha256": "defa09e3acdafaa4668c97a7677869bbc9b2b074aee92a7003b282fd63606ba3",
+        "byte_length": 443564,
+        "media_type": "audio/wav"
+      },
+      "extraction": {
+        "start_frame": 35160000,
+        "end_frame": 35307840,
+        "sample_frames": 147840,
+        "sample_rate_hz": 48000,
+        "pcm_sha256": "19ad6eb5b074209628733988f44f4d74f61c72bdbc897bc62d46ac774e11eb59",
+        "extraction": "exact_pcm_frames"
+      }
+    },
+    {
+      "kind": "recognition_uncertainty",
+      "issue": {
+        "kind": "transcript_segment_text_mismatch",
+        "transcript_token_range": [
+          1237,
+          1238
+        ],
+        "segment_token_range": [
+          1237,
+          1239
+        ],
+        "transcript_tokens": [
+          {
+            "index": 1237,
+            "separator_before": " ",
+            "text": "4-5",
+            "normalized": "4-5",
+            "char_start": 7518,
+            "char_end": 7521
+          }
+        ],
+        "segment_tokens": [
+          {
+            "index": 1237,
+            "separator_before": "",
+            "text": "4",
+            "normalized": "4",
+            "char_start": 0,
+            "char_end": 1,
+            "segment_index": 1237,
+            "start_frame": 23552160,
+            "end_frame": 23559840
+          },
+          {
+            "index": 1238,
+            "separator_before": "",
+            "text": "5",
+            "normalized": "5",
+            "char_start": 0,
+            "char_end": 1,
+            "segment_index": 1238,
+            "start_frame": 23559840,
+            "end_frame": 23563680
+          }
+        ]
+      },
+      "recognized_token_range": [
+        1237,
+        1238
+      ],
+      "recognized_tokens": [
+        {
+          "index": 1237,
+          "separator_before": " ",
+          "text": "4-5",
+          "normalized": "4-5",
+          "char_start": 7518,
+          "char_end": 7521
+        }
+      ],
+      "expected_token_range": [
+        1251,
+        1253
+      ],
+      "expected_tokens": [
+        {
+          "index": 1251,
+          "separator_before": " ",
+          "text": "четыре",
+          "normalized": "четыре",
+          "char_start": 223,
+          "char_end": 229,
+          "utterance_index": 23,
+          "utterance_id": "7ff7f0de-f8ef-5c07-b627-1b282ae4b608"
+        },
+        {
+          "index": 1252,
+          "separator_before": "-",
+          "text": "пять",
+          "normalized": "пять",
+          "char_start": 230,
+          "char_end": 234,
+          "utterance_index": 23,
+          "utterance_id": "7ff7f0de-f8ef-5c07-b627-1b282ae4b608"
+        }
+      ],
+      "expected_context": [
+        {
+          "utterance_id": "de505921-0c72-5258-8593-e18ad77475cf",
+          "speaker": "РАССКАЗЧИК",
+          "text": "У него были свои основания. Он каждый день навещал служанку, которая слегла первого сентября и дошла до полного упадка сил. Всё время болезни она пила воду из колонки, без конца и помногу. И выжила. Таких случаев Уайтхед знал немало. Эту воду давали почти всем больным."
+        },
+        {
+          "utterance_id": "7ff7f0de-f8ef-5c07-b627-1b282ae4b608",
+          "speaker": "РАССКАЗЧИК",
+          "text": "С двадцать пятого ноября 1854 года над вспышкой работает приходская комиссия. Сноу входит в неё, Уайтхед тоже. Ему достаётся Брод-стрит. Он разыскивает уехавших, иногда очень далеко. К одним и тем же семьям возвращается по четыре-пять раз, потому что задним числом понимает, о чём забыл спросить."
+        },
+        {
+          "utterance_id": "833a3cfa-e46b-5255-8d85-f3186643c47b",
+          "speaker": "РАССКАЗЧИК",
+          "text": "Вот как это выглядит. На верхнем этаже одного дома живут отец, мать, младенец и девочка лет десяти. Болел кто-нибудь? Нет. Пьёте воду из колонки? Да. А кто за ней ходит? Девочка. Тогда Уайтхед обращается к ней самой: не страшно было идти по улицам, когда кругом закрытые ставни и столько катафалков? А она по улицам не ходила. Лежала с простудой. Только тут мать вспоминает: да, так и было. И воду в те дни брали из домашнего бака."
+        }
+      ],
+      "script_selectors": [
+        {
+          "utterance_id": "7ff7f0de-f8ef-5c07-b627-1b282ae4b608",
+          "utterance_index": 23,
+          "char_start": 223,
+          "char_end": 229
+        },
+        {
+          "utterance_id": "7ff7f0de-f8ef-5c07-b627-1b282ae4b608",
+          "utterance_index": 23,
+          "char_start": 230,
+          "char_end": 234
+        }
+      ],
+      "timing_uncertainties": [],
+      "candidate_id": "b6139d42-72ed-50d1-b6de-34d11642bbac",
+      "audio_range": {
+        "start_frame": 23480160,
+        "end_frame": 23654880,
+        "basis": "neighbor_anchors_or_full_audio_edges",
+        "margin_frames": 72000,
+        "boundary_precision": "recognizer_hypothesis"
+      },
+      "status": "pending_audio_adjudication",
+      "clip_status": "extracted",
+      "conclusion": "candidate_only_not_confirmed_tts_error",
+      "clip_blob": {
+        "storage_key": "d24132ce-d2c3-4084-bf89-9905b7d765a7/2525a5a0eb302a87dd1dcdab832a1fe87b9d5bbbf5d29ffae158a2c3782e0681-7fc478ab21f20dde",
+        "sha256": "2525a5a0eb302a87dd1dcdab832a1fe87b9d5bbbf5d29ffae158a2c3782e0681",
+        "byte_length": 524204,
+        "media_type": "audio/wav"
+      },
+      "extraction": {
+        "start_frame": 23480160,
+        "end_frame": 23654880,
+        "sample_frames": 174720,
+        "sample_rate_hz": 48000,
+        "pcm_sha256": "6b7e218afbc09d3e51993e4a2cb9c8e02cc2bb9c0da13f63446c9c0fbdef2a67",
+        "extraction": "exact_pcm_frames"
+      }
+    }
+  ]
+}

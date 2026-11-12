@@ -1,0 +1,40 @@
+{
+  "contract": "audio-fidelity-export/1",
+  "status": "candidates_generated",
+  "manifest_ref": {
+    "record_kind": "tool_execution",
+    "record_id": "38e51b12-af1e-5ed5-92b0-3e499eb97d5c"
+  },
+  "requests_submitted": 1,
+  "max_requests": 1,
+  "current": {
+    "contract": "audio-fidelity-current/2",
+    "current_processing_ref": {
+      "record_kind": "tool_execution",
+      "record_id": "17eee510-867b-5845-9d12-a033344bfbf7"
+    },
+    "current_result": {
+      "result_ref": {
+        "record_kind": "tool_execution",
+        "record_id": "791e592e-66e1-5d0d-839e-3d09ebb48219"
+      },
+      "path": "results/791e592e-66e1-5d0d-839e-3d09ebb48219/candidates.json"
+    },
+    "last_successful_result": {
+      "result_ref": {
+        "record_kind": "tool_execution",
+        "record_id": "791e592e-66e1-5d0d-839e-3d09ebb48219"
+      },
+      "path": "results/791e592e-66e1-5d0d-839e-3d09ebb48219/candidates.json"
+    }
+  },
+  "authorized_max_requests": 1,
+  "cost_or_reservation_usd": "0.15",
+  "cost_status": "reservations_not_invoice",
+  "candidates": 41,
+  "checked_audio_variant": "assembled_final_playback_pcm",
+  "checked_audio_sha256": "fd37ecb9fb4eeeeb810ceefa3855ce5cf30117055f09704a5c402e11e7b4f4c2",
+  "playback_audio_sha256": "fd37ecb9fb4eeeeb810ceefa3855ce5cf30117055f09704a5c402e11e7b4f4c2",
+  "audio_review_status": "pending",
+  "production_ready": false
+}

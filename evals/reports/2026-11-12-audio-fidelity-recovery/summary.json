@@ -1,0 +1,45 @@
+{
+  "contract": "audio-fidelity-recovery-observation/1",
+  "network_calls_for_reprocessing": 0,
+  "tts_calls": 0,
+  "recordings": {
+    "snow": {
+      "before_candidates": 68,
+      "after_candidates": 41,
+      "equivalences": 27,
+      "requests_submitted": 1,
+      "candidate_result_ref": {
+        "record_kind": "tool_execution",
+        "record_id": "791e592e-66e1-5d0d-839e-3d09ebb48219"
+      },
+      "checked_audio_sha256": "fd37ecb9fb4eeeeb810ceefa3855ce5cf30117055f09704a5c402e11e7b4f4c2",
+      "raw_request_and_manifest_unchanged": true,
+      "previous_result_preserved": true,
+      "remaining_by_kind": {
+        "script_discrepancy": 40,
+        "recognition_uncertainty": 1
+      },
+      "acoustic_review": "pending_provider_availability",
+      "production_ready": false
+    },
+    "apollo": {
+      "before_candidates": 22,
+      "after_candidates": 19,
+      "equivalences": 3,
+      "requests_submitted": 1,
+      "candidate_result_ref": {
+        "record_kind": "tool_execution",
+        "record_id": "5efe70ee-86c0-51a1-ad51-a6595946abc6"
+      },
+      "checked_audio_sha256": "1f582175965a123b695f44d72ea8929ef3e59b5a06103f09ba32d5b6bf9c8507",
+      "raw_request_and_manifest_unchanged": true,
+      "previous_result_preserved": true,
+      "remaining_by_kind": {
+        "script_discrepancy": 13,
+        "recognition_uncertainty": 6
+      },
+      "acoustic_review": "pending_provider_availability",
+      "production_ready": false
+    }
+  }
+}
