@@ -1,0 +1,12 @@
+{
+  "stage": "compare",
+  "control": "date-equivalent",
+  "model": "gpt-realtime-2.1",
+  "reference_transform": {
+    "original": "первое",
+    "test": "1"
+  },
+  "transcript_sha256": "0d83b7cde4c3289e5989c05b311d80636098d81cd1b7da445921996587e8ceb6",
+  "transcription_response_id": "resp_EjSETRYLDFGDlVRoBsFYL",
+  "wire_sha256": "3d6271b8b6039b8959d7a7edc23ff6634959500fa386f043311957cffa3e7c19"
+}

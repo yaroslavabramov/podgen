@@ -1,0 +1,21 @@
+{
+  "handshake_status": 101,
+  "handshake_headers": {
+    "date": "Thu, 12 Nov 2026 16:46:53 GMT",
+    "connection": "upgrade",
+    "upgrade": "websocket",
+    "sec-websocket-accept": "zAvdVKferTh1U3GZow8j0lpAm9o=",
+    "server": "cloudflare",
+    "x-openai-proxy-wasm": "v0.1",
+    "cf-cache-status": "DYNAMIC",
+    "strict-transport-security": "max-age=31536000; includeSubDomains; preload",
+    "x-content-type-options": "nosniff",
+    "access-control-expose-headers": "CF-Ray",
+    "cf-ray": "a59703ed0ab86122-DXB",
+    "alt-svc": "h3=\":443\"; ma=86400"
+  },
+  "elapsed_ms": 5022,
+  "complete": true,
+  "response_done": true,
+  "error": null
+}

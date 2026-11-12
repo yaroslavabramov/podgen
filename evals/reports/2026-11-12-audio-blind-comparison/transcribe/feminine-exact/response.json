@@ -1,0 +1,57 @@
+{
+  "object": "realtime.response",
+  "id": "resp_EjSDM7YpeNCAH1BgTKkS8",
+  "status": "completed",
+  "status_details": null,
+  "output": [
+    {
+      "id": "item_EjSDMA4Kgh95LWZemlh24",
+      "type": "message",
+      "status": "completed",
+      "role": "assistant",
+      "content": [
+        {
+          "type": "output_text",
+          "text": "Пока умирают сотни людей, а главная подозреваемая выглядит почти невинной."
+        }
+      ],
+      "phase": "final_answer"
+    }
+  ],
+  "conversation_id": "conv_EjSCo7VDlC6Ka4guj2iU4",
+  "output_modalities": [
+    "text"
+  ],
+  "max_output_tokens": 4096,
+  "audio": {
+    "output": {
+      "format": {
+        "type": "audio/pcm",
+        "rate": 24000
+      },
+      "voice": "marin"
+    }
+  },
+  "usage": {
+    "total_tokens": 210,
+    "input_tokens": 151,
+    "output_tokens": 59,
+    "input_token_details": {
+      "text_tokens": 112,
+      "audio_tokens": 39,
+      "image_tokens": 0,
+      "cached_tokens": 0,
+      "cached_tokens_details": {
+        "text_tokens": 0,
+        "audio_tokens": 0,
+        "image_tokens": 0
+      }
+    },
+    "output_token_details": {
+      "text_tokens": 59,
+      "audio_tokens": 0,
+      "reasoning_tokens": 33
+    }
+  },
+  "metadata": null
+}

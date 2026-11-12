@@ -1,0 +1,57 @@
+{
+  "object": "realtime.response",
+  "id": "resp_EjSEqhsIuBS8b4RO0Y5ZT",
+  "status": "completed",
+  "status_details": null,
+  "output": [
+    {
+      "id": "item_EjSEqd8EwiAYKGU7Q2O8w",
+      "type": "message",
+      "status": "completed",
+      "role": "assistant",
+      "content": [
+        {
+          "type": "output_text",
+          "text": "Знать и судить о нем можно только потому, что оно делает."
+        }
+      ],
+      "phase": "final_answer"
+    }
+  ],
+  "conversation_id": "conv_EjSEnKXj6j0dtwDhjWh3v",
+  "output_modalities": [
+    "text"
+  ],
+  "max_output_tokens": 4096,
+  "audio": {
+    "output": {
+      "format": {
+        "type": "audio/pcm",
+        "rate": 24000
+      },
+      "voice": "marin"
+    }
+  },
+  "usage": {
+    "total_tokens": 185,
+    "input_tokens": 146,
+    "output_tokens": 39,
+    "input_token_details": {
+      "text_tokens": 112,
+      "audio_tokens": 34,
+      "image_tokens": 0,
+      "cached_tokens": 0,
+      "cached_tokens_details": {
+        "text_tokens": 0,
+        "audio_tokens": 0,
+        "image_tokens": 0
+      }
+    },
+    "output_token_details": {
+      "text_tokens": 39,
+      "audio_tokens": 0,
+      "reasoning_tokens": 20
+    }
+  },
+  "metadata": null
+}

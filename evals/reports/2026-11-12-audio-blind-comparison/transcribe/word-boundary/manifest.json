@@ -1,0 +1,31 @@
+{
+  "stage": "transcribe",
+  "control": "word-boundary",
+  "model": "gpt-realtime-2.1",
+  "source_wire_sha256": "ccdb0f032b69dde7418f1b1a551ff87523c8fd86c3dad6bd325647c6276eee17",
+  "audio_projection": {
+    "channels": 1,
+    "contract": "review-pcm16-mono24k/1",
+    "dither": "none",
+    "duration_rounding": "within_one_transport_sample",
+    "edits": "none",
+    "gain_applied": false,
+    "resampler": "ffmpeg_swr",
+    "source_all_zero": false,
+    "source_pcm_sha256": "b7cb6539f023a313b96822583f1037c8bd30b608a6419d02e80c51909db17d37",
+    "source_range": {
+      "end_frame": 163200,
+      "start_frame": 0
+    },
+    "source_sample_frames": 163200,
+    "source_sample_rate_hz": 48000,
+    "source_sample_width_bytes": 3,
+    "source_wav_sha256": "14614afc942cf2320aec398b3c4b89519c26bac6c817ace7a2357ee687ec0299",
+    "transport_pcm_sha256": "67730028b917fba37d079d398882667253f918d51b218171b1e5860a70271c42",
+    "transport_sample_frames": 81600,
+    "transport_sample_rate_hz": 24000,
+    "transport_sample_width_bytes": 2,
+    "transport_wav_sha256": "119f8a7227e373e0fc8fc2a2bfb1aad789075aab7d6602e4cfa82e34aad49c57"
+  },
+  "wire_sha256": "9cbc1b64289d62a10fa58efc81ad8e630fe6ca70ccdb9cbd5caae67fbc7950dc"
+}

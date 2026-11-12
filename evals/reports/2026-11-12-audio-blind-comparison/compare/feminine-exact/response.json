@@ -1,0 +1,57 @@
+{
+  "object": "realtime.response",
+  "id": "resp_EjSFSV0111oQFceAdiaS2",
+  "status": "completed",
+  "status_details": null,
+  "output": [
+    {
+      "id": "item_EjSFSSK32bphPzYcibk0I",
+      "type": "message",
+      "status": "completed",
+      "role": "assistant",
+      "content": [
+        {
+          "type": "output_text",
+          "text": "```json\n{\n  \"case_id\": \"C4\",\n  \"verdict\": \"matches\",\n  \"transcript_quote\": \"главная подозреваемая\",\n  \"expected_words\": \"главная подозреваемая\",\n  \"explanation\": \"Целевые слова присутствуют в транскрипте и совпадают по форме и смыслу.\"\n}\n```"
+        }
+      ],
+      "phase": "final_answer"
+    }
+  ],
+  "conversation_id": "conv_EjSFRGIonGAJp1wtHvptS",
+  "output_modalities": [
+    "text"
+  ],
+  "max_output_tokens": 4096,
+  "audio": {
+    "output": {
+      "format": {
+        "type": "audio/pcm",
+        "rate": 24000
+      },
+      "voice": "marin"
+    }
+  },
+  "usage": {
+    "total_tokens": 460,
+    "input_tokens": 336,
+    "output_tokens": 124,
+    "input_token_details": {
+      "text_tokens": 336,
+      "audio_tokens": 0,
+      "image_tokens": 0,
+      "cached_tokens": 0,
+      "cached_tokens_details": {
+        "text_tokens": 0,
+        "audio_tokens": 0,
+        "image_tokens": 0
+      }
+    },
+    "output_token_details": {
+      "text_tokens": 124,
+      "audio_tokens": 0,
+      "reasoning_tokens": 44
+    }
+  },
+  "metadata": null
+}
