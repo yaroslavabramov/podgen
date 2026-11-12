@@ -1,8 +1,0 @@
-{
-  "stage": "compare",
-  "control": "feminine-altered",
-  "model": "gpt-realtime-2.1",
-  "transcript_sha256": "e16c05a3d2bed2b33bd933baf53ba3c1b32f50771b5d99fc9839b8dc06a4c321",
-  "transcription_response_id": "resp_EjSDM7YpeNCAH1BgTKkS8",
-  "wire_sha256": "f7a8c9aa5b3a26c0e59f50ff3bd31952c9593ae86d8f6c6dcd783b698f2ce73b"
-}
