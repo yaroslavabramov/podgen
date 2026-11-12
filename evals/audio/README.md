@@ -20,3 +20,5 @@
 Имена исследователей дождя, дополнительные имена Apollo, дробные значения, концовки и целые выпуски перечислены в `deferred_checks` manifest. Третьего сочинённого текста нет. Для режима подачи у двух финалистов заключительный фрагмент позднее извлекается из этих же сохранённых сценариев и фиксируется отдельно.
 
 Исследование: [speech-synthesis](../../docs/podcast-production/research/2026-11-12-speech-synthesis.md). Исходные прогоны: [two-topic-cycles](../reports/2026-11-12-two-topic-cycles/README.md). Подготовка этого корпуса не выполняла provider calls, ASR или тестовые наборы.
+
+Следующий длинный источник: [принятый Сноу](fixtures/snow-accepted-v1/source.json), [полный текст](fixtures/snow-accepted-v1/source.txt). Предложение для независимой проверки произнесённых слов: [ASR/fidelity protocol](listening/fidelity-protocol.md), [локальный audio-review prompt](listening/local-fidelity-review.prompt.md). Контракт reviewer согласуется через основной чат; это ещё не результат распознавания или прослушивания Сноу.
