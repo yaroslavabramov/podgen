@@ -1,0 +1,284 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:podgen:audio-listening-rating:1",
+  "title": "One listener rating of one exact playback file in one pass",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "contract": {
+      "const": "audio-listening-rating/1"
+    },
+    "session_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "listener_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Pseudonymous listener ID; no name or provider identity."
+    },
+    "blind_sample_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "playback_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "audio_duration_seconds": {
+      "type": "number",
+      "exclusiveMinimum": 0
+    },
+    "pass": {
+      "enum": [
+        "audio_only",
+        "fidelity_with_text",
+        "context_relisten"
+      ]
+    },
+    "heard_complete": {
+      "type": "boolean"
+    },
+    "listened_ranges": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "start_seconds": {
+            "type": "number",
+            "minimum": 0
+          },
+          "end_seconds": {
+            "type": "number",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "start_seconds",
+          "end_seconds"
+        ]
+      }
+    },
+    "scores": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "naturalness": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 5
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Свободная речь без устойчивой искусственной манеры. Высокое значение лучше; null — не удалось оценить."
+        },
+        "intelligibility": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 5
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Слова и связи понятны на первом прослушивании. Высокое значение лучше; null — не удалось оценить."
+        },
+        "meaningful_prosody": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 5
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Ударения, акценты и паузы следуют смыслу. Высокое значение лучше; null — не удалось оценить."
+        },
+        "continuity": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 5
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Связанные фразы продолжают одну мысль; окончания и переходы естественны. Высокое значение лучше; null — не удалось оценить."
+        },
+        "voice_stability": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 5
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Голос и манера устойчивы внутри отрывка. Высокое значение лучше; null — не удалось оценить."
+        },
+        "listening_ease": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 5
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Темп и плотность речи позволяют слушать без напряжения; нет монотонности или переигрывания. Высокое значение лучше; null — не удалось оценить."
+        }
+      },
+      "required": [
+        "naturalness",
+        "intelligibility",
+        "meaningful_prosody",
+        "continuity",
+        "voice_stability",
+        "listening_ease"
+      ]
+    },
+    "would_continue": {
+      "enum": [
+        "yes",
+        "no",
+        "uncertain"
+      ]
+    },
+    "would_stop_at_seconds": {
+      "type": [
+        "number",
+        "null"
+      ],
+      "minimum": 0
+    },
+    "would_stop_reason": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "findings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "start_seconds": {
+            "type": "number",
+            "minimum": 0
+          },
+          "end_seconds": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "minimum": 0
+          },
+          "category": {
+            "enum": [
+              "missing_words",
+              "added_words",
+              "wrong_words",
+              "name",
+              "number_or_unit",
+              "negation_or_scope",
+              "stress_or_pronunciation",
+              "voiced_direction",
+              "wrong_language",
+              "monotony",
+              "overacting",
+              "pacing",
+              "pause_or_emphasis",
+              "voice_shift",
+              "boundary_or_cut",
+              "signal",
+              "other"
+            ]
+          },
+          "severity": {
+            "enum": [
+              "critical",
+              "major",
+              "minor",
+              "advisory"
+            ]
+          },
+          "certainty": {
+            "enum": [
+              "confirmed_by_listening",
+              "uncertain_needs_reference"
+            ]
+          },
+          "observation": {
+            "type": "string",
+            "minLength": 1
+          },
+          "heard_words": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "expected_source_words": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "start_seconds",
+          "end_seconds",
+          "category",
+          "severity",
+          "certainty",
+          "observation",
+          "heard_words",
+          "expected_source_words"
+        ]
+      }
+    },
+    "notes": {
+      "type": "string"
+    },
+    "recorded_at": {
+      "type": "string",
+      "format": "date-time"
+    }
+  },
+  "required": [
+    "contract",
+    "session_id",
+    "listener_id",
+    "blind_sample_id",
+    "playback_sha256",
+    "audio_duration_seconds",
+    "pass",
+    "heard_complete",
+    "listened_ranges",
+    "scores",
+    "would_continue",
+    "would_stop_at_seconds",
+    "would_stop_reason",
+    "findings",
+    "notes",
+    "recorded_at"
+  ],
+  "description": "Scores are observations, not release approval. Cross-field coverage and timestamp bounds must be checked against the actual audio. Unknown pronunciation is not silently promoted to a confirmed error. Audio-only scores are retained separately from later passes."
+}

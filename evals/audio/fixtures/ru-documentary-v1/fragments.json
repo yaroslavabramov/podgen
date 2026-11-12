@@ -1,0 +1,58 @@
+{
+  "fragments": [
+    {
+      "fragment_id": "apollo-narrative",
+      "outcome_ref": {
+        "record_kind": "tool_execution",
+        "record_id": "af96f0e4-edc8-5c8c-b65b-82b358dc55b3"
+      },
+      "selections": [
+        {
+          "utterance_index": 0,
+          "start_char": 0,
+          "end_char": null
+        },
+        {
+          "utterance_index": 1,
+          "start_char": 0,
+          "end_char": null
+        }
+      ],
+      "direction": {
+        "style": ""
+      }
+    },
+    {
+      "fragment_id": "rain-experiment",
+      "outcome_ref": {
+        "record_kind": "tool_execution",
+        "record_id": "c8e05b0e-f438-5589-8353-44aa5f388edb"
+      },
+      "selections": [
+        {
+          "utterance_index": 3,
+          "start_char": 32,
+          "end_char": null
+        },
+        {
+          "utterance_index": 4,
+          "start_char": 0,
+          "end_char": null
+        },
+        {
+          "utterance_index": 5,
+          "start_char": 0,
+          "end_char": null
+        },
+        {
+          "utterance_index": 6,
+          "start_char": 0,
+          "end_char": null
+        }
+      ],
+      "direction": {
+        "style": ""
+      }
+    }
+  ]
+}

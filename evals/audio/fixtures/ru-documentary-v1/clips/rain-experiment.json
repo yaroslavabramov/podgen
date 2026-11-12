@@ -1,0 +1,199 @@
+{
+  "contract": "audio-eval-clip/1",
+  "clip_id": "rain-experiment",
+  "purpose": "evaluation",
+  "output_language": "ru",
+  "content_kind": "explanation",
+  "episode_id": "rain-soil",
+  "episode_file": "episodes/rain-soil.json",
+  "run_id": "e89d67be-f630-4e3d-bb05-f3bf637c797a",
+  "script_ref": {
+    "record_kind": "tool_execution",
+    "record_id": "42423264-7bf9-5957-9eb7-996771145610"
+  },
+  "script_hash": "9be098eacf3170a019d5963d0d67bcf1e3148c9709fc0ff5042f959c6ae9deea",
+  "first_utterance_index": 3,
+  "last_utterance_index": 6,
+  "render_text_file": "clips/rain-experiment.txt",
+  "render_text_sha256": "d7251134d93d08c294a8cc408fb2d584cf175d7f73ee7f8a5b2b11a2ee73c114",
+  "joiner": "\n\n",
+  "trailing_newline": false,
+  "mapping_units": "Unicode code points; start inclusive, end exclusive; utterance indices zero-based",
+  "mappings": [
+    {
+      "utterance_id": "387d0611-980e-5f63-ae4d-2357cf51b029",
+      "utterance_index": 3,
+      "speaker": "РАССКАЗЧИК",
+      "source_start": 32,
+      "source_end": 95,
+      "render_start": 0,
+      "render_end": 63,
+      "source_text_sha256": "f58b1672496ee8169c53e3d3798eae7b748e03770fc4a29a3d8f655a34375ef1",
+      "transformation": "identity"
+    },
+    {
+      "utterance_id": "74bfffa3-da78-539f-b66a-4bbd9a6f206a",
+      "utterance_index": 4,
+      "speaker": "РАССКАЗЧИК",
+      "source_start": 0,
+      "source_end": 301,
+      "render_start": 65,
+      "render_end": 366,
+      "source_text_sha256": "8cb7ed037e7e0a309b3d2fd688b50addee50b986bef57c2dc85f29f85f37e20d",
+      "transformation": "identity"
+    },
+    {
+      "utterance_id": "8682d0e8-b0c0-5f96-bd57-cbd76e8ed79e",
+      "utterance_index": 5,
+      "speaker": "РАССКАЗЧИК",
+      "source_start": 0,
+      "source_end": 370,
+      "render_start": 368,
+      "render_end": 738,
+      "source_text_sha256": "25b62a6edca3be93595fc43cd4507f9c503c2250e19a2f48f292134280a0d334",
+      "transformation": "identity"
+    },
+    {
+      "utterance_id": "d8ac97e6-c707-530d-bd44-c434f5a788b0",
+      "utterance_index": 6,
+      "speaker": "РАССКАЗЧИК",
+      "source_start": 0,
+      "source_end": 110,
+      "render_start": 740,
+      "render_end": 850,
+      "source_text_sha256": "3e57e508a2462021929da4cac61764364c828c447190023e2f03005fd9a8d7c8",
+      "transformation": "identity"
+    }
+  ],
+  "critical_spans": [
+    {
+      "category": "number_and_unit",
+      "utterance_id": "74bfffa3-da78-539f-b66a-4bbd9a6f206a",
+      "utterance_index": 4,
+      "source_start": 65,
+      "source_end": 85,
+      "render_start": 130,
+      "render_end": 150,
+      "expected_source_text": "В десяти миллиметрах"
+    },
+    {
+      "category": "scope",
+      "utterance_id": "74bfffa3-da78-539f-b66a-4bbd9a6f206a",
+      "utterance_index": 4,
+      "source_start": 193,
+      "source_end": 223,
+      "render_start": 258,
+      "render_end": 288,
+      "expected_source_text": "Часть вылетевших вверх капелек"
+    },
+    {
+      "category": "term",
+      "utterance_id": "8682d0e8-b0c0-5f96-bd57-cbd76e8ed79e",
+      "utterance_index": 5,
+      "source_start": 71,
+      "source_end": 104,
+      "render_start": 439,
+      "render_end": 472,
+      "expected_source_text": "красным флуоресцентным красителем"
+    },
+    {
+      "category": "distinction",
+      "utterance_id": "8682d0e8-b0c0-5f96-bd57-cbd76e8ed79e",
+      "utterance_index": 5,
+      "source_start": 126,
+      "source_end": 161,
+      "render_start": 494,
+      "render_end": 529,
+      "expected_source_text": "другим, своим светящимся красителем"
+    },
+    {
+      "category": "scope",
+      "utterance_id": "8682d0e8-b0c0-5f96-bd57-cbd76e8ed79e",
+      "utterance_index": 5,
+      "source_start": 287,
+      "source_end": 311,
+      "render_start": 655,
+      "render_end": 679,
+      "expected_source_text": "Внутри некоторых кружков"
+    },
+    {
+      "category": "observation",
+      "utterance_id": "8682d0e8-b0c0-5f96-bd57-cbd76e8ed79e",
+      "utterance_index": 5,
+      "source_start": 318,
+      "source_end": 330,
+      "render_start": 686,
+      "render_end": 698,
+      "expected_source_text": "жёлтые точки"
+    },
+    {
+      "category": "negation",
+      "utterance_id": "d8ac97e6-c707-530d-bd44-c434f5a788b0",
+      "utterance_index": 6,
+      "source_start": 35,
+      "source_end": 68,
+      "render_start": 775,
+      "render_end": 808,
+      "expected_source_text": "в одной не было ни одной бактерии"
+    },
+    {
+      "category": "number_and_scope",
+      "utterance_id": "d8ac97e6-c707-530d-bd44-c434f5a788b0",
+      "utterance_index": 6,
+      "source_start": 94,
+      "source_end": 109,
+      "render_start": 834,
+      "render_end": 849,
+      "expected_source_text": "несколько тысяч"
+    }
+  ],
+  "length": {
+    "unicode_code_points": 850,
+    "utf16_code_units": 850,
+    "utf8_bytes": 1557,
+    "whitespace_token_count": 119
+  },
+  "duration_estimate": {
+    "min_seconds": 47.6,
+    "max_seconds": 64.9,
+    "basis": "110–150 whitespace tokens/minute; numeral expansion and pauses can change actual duration",
+    "measured": false
+  },
+  "listening_duration_window_seconds": [
+    45,
+    75
+  ],
+  "context_policy": "One continuous source span: begin at a sentence boundary and continue through the end of the last selected utterance; no preceding/following synthesis context in the initial comparison.",
+  "source_transformations": [],
+  "direction": {
+    "style": ""
+  },
+  "outcome_ref": {
+    "record_kind": "tool_execution",
+    "record_id": "c8e05b0e-f438-5589-8353-44aa5f388edb"
+  },
+  "selections": [
+    {
+      "utterance_index": 3,
+      "start_char": 32,
+      "end_char": null
+    },
+    {
+      "utterance_index": 4,
+      "start_char": 0,
+      "end_char": null
+    },
+    {
+      "utterance_index": 5,
+      "start_char": 0,
+      "end_char": null
+    },
+    {
+      "utterance_index": 6,
+      "start_char": 0,
+      "end_char": null
+    }
+  ],
+  "text_role": "Audit/reference flattening with the recorded joiner; native adapters receive the same exact selected utterances in their supported format. Preserve actual provider request bytes independently.",
+  "native_synthesis_input_hash": "982002a1994f6c58ff896ccb872e9a3ad082c1cd0dd0babad893fa03cd84df35"
+}

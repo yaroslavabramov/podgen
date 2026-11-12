@@ -1,0 +1,122 @@
+{
+  "contract": "audio-eval-fixtures/1",
+  "fixture_set_id": "ru-documentary-v1",
+  "created_on": "2026-11-12",
+  "purpose": "evaluation",
+  "output_language": "ru",
+  "paths_relative_to": "this manifest directory, except provenance paths which are repository-relative",
+  "episodes": [
+    {
+      "episode_id": "apollo13-air",
+      "source_file": "episodes/apollo13-air.json",
+      "source_file_sha256": "e0f5c5c3843fcf89cbee35150c109b443212b3dd5915df243b646300d8218e6d",
+      "script_hash": "20c770429e5749102dcf96280670673ed996e006335cb17c39e79d859a0e6a86"
+    },
+    {
+      "episode_id": "rain-soil",
+      "source_file": "episodes/rain-soil.json",
+      "source_file_sha256": "9db12d53ddd79026085dcbf2d2659b4cdd942ec2a33e2106bc8b5b9f6e7cf5e6",
+      "script_hash": "9be098eacf3170a019d5963d0d67bcf1e3148c9709fc0ff5042f959c6ae9deea"
+    }
+  ],
+  "clips": [
+    {
+      "clip_id": "apollo-narrative",
+      "clip_file": "clips/apollo-narrative.json",
+      "clip_file_sha256": "e13699026a736aca93dab353f199dcad0d66e2d86ebc4d2f9972af0d4d035dbe",
+      "render_text_sha256": "09e3f6bed62f5866364ae86d3753a72e4910b44e77363ffc0429f86dca255be6",
+      "episode_id": "apollo13-air"
+    },
+    {
+      "clip_id": "rain-experiment",
+      "clip_file": "clips/rain-experiment.json",
+      "clip_file_sha256": "9b4e3d315ffb433887a3587976e398b22d31f4d6d1e1335496208425eecdfd79",
+      "render_text_sha256": "d7251134d93d08c294a8cc408fb2d584cf175d7f73ee7f8a5b2b11a2ee73c114",
+      "episode_id": "rain-soil"
+    }
+  ],
+  "selection_basis": "Both final episodes were read in full. Apollo utterances 0–1 provide the narrative setup (125 whitespace tokens). Rain begins at the second sentence of utterance 3 and continues through 4–6 (119 tokens), explaining the experiment without a dangling reference. Only exact contiguous source slices are used.",
+  "deferred_checks": [
+    {
+      "episode_id": "rain-soil",
+      "utterance_indices": [
+        1
+      ],
+      "targets": [
+        "Янг Су Чжон",
+        "Чжифэй Гэ",
+        "Каллен Бьюи",
+        "2017"
+      ],
+      "stage": "finalist pronunciation qualification before full episodes",
+      "reason": "Researcher names are outside the two first-stage clips. Use the saved source utterance later; no third synthetic test text is created."
+    },
+    {
+      "episode_id": "apollo13-air",
+      "utterance_indices": [
+        6,
+        7,
+        8
+      ],
+      "targets": [
+        "Джо Кервин",
+        "Суайгерт",
+        "90 часов"
+      ],
+      "stage": "finalist pronunciation and connected-scene qualification",
+      "reason": "Radio instructions, further names and continuous delivery are outside the initial setup."
+    },
+    {
+      "episode_id": "apollo13-air",
+      "utterance_indices": [
+        11,
+        12,
+        14
+      ],
+      "targets": [
+        "94 с половиной часа",
+        "0,2",
+        "0,1",
+        "1,8",
+        "миллиметрах ртутного столба"
+      ],
+      "stage": "finalist number/unit qualification",
+      "reason": "Decimals and units require a later exact-source listening check; the first-stage count/date check does not qualify decimals."
+    },
+    {
+      "episode_id": "rain-soil",
+      "utterance_indices": [
+        11,
+        12
+      ],
+      "targets": [],
+      "stage": "finalist delivery comparison and full-episode ending check",
+      "reason": "Closing passage must be extracted and separately frozen from this accepted source before the three-passage delivery comparison; no third render text is authored here."
+    },
+    {
+      "episode_id": "apollo13-air",
+      "utterance_indices": [
+        15
+      ],
+      "targets": [],
+      "stage": "full-episode ending check",
+      "reason": "Closure and voice stability require listening to the whole accepted episode."
+    }
+  ],
+  "source_documents": [
+    {
+      "path": "docs/podcast-production/research/2026-11-12-speech-synthesis.md",
+      "role": "research protocol; external provider capability claims still require operator preflight"
+    },
+    {
+      "path": "evals/reports/2026-11-12-two-topic-cycles/README.md",
+      "role": "final textual outcomes and exact runs"
+    }
+  ],
+  "status": "frozen exact-source fixtures; Fragment input shape aligned with docs/podcast-production/audio/comparison.schema.json",
+  "provider_calls": 0,
+  "audio_files_generated": 0,
+  "integration_file": "fragments.json",
+  "integration_schema": "docs/podcast-production/audio/comparison.schema.json#/$defs/Fragment",
+  "integration_file_sha256": "c04d0f7880c8a39166b020bb4c37c9cac6f2715d6bbbc4f0d0f6459e96880c05"
+}

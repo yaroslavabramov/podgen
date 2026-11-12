@@ -1,0 +1,187 @@
+{
+  "contract": "audio-eval-clip/1",
+  "clip_id": "apollo-narrative",
+  "purpose": "evaluation",
+  "output_language": "ru",
+  "content_kind": "story",
+  "episode_id": "apollo13-air",
+  "episode_file": "episodes/apollo13-air.json",
+  "run_id": "78a70249-0eb2-400d-beab-0ba47c23cdba",
+  "script_ref": {
+    "record_kind": "tool_execution",
+    "record_id": "a3487cb8-e79c-5dc3-a056-f66adcb670b5"
+  },
+  "script_hash": "20c770429e5749102dcf96280670673ed996e006335cb17c39e79d859a0e6a86",
+  "first_utterance_index": 0,
+  "last_utterance_index": 1,
+  "render_text_file": "clips/apollo-narrative.txt",
+  "render_text_sha256": "09e3f6bed62f5866364ae86d3753a72e4910b44e77363ffc0429f86dca255be6",
+  "joiner": "\n\n",
+  "trailing_newline": false,
+  "mapping_units": "Unicode code points; start inclusive, end exclusive; utterance indices zero-based",
+  "mappings": [
+    {
+      "utterance_id": "0403a90f-82c9-5018-b183-c7be9bc7a5ae",
+      "utterance_index": 0,
+      "speaker": "РАССКАЗЧИК",
+      "source_start": 0,
+      "source_end": 414,
+      "render_start": 0,
+      "render_end": 414,
+      "source_text_sha256": "6412858cbb8c15d19cc377047eee638ce1f698aa8db745885848e54d67b285be",
+      "transformation": "identity"
+    },
+    {
+      "utterance_id": "d30f2bf6-7bba-52be-8f6c-ea46511f222c",
+      "utterance_index": 1,
+      "speaker": "РАССКАЗЧИК",
+      "source_start": 0,
+      "source_end": 399,
+      "render_start": 416,
+      "render_end": 815,
+      "source_text_sha256": "42b807302df931a9d7a0c6b5dd4d9f5179fd884a1680b9b6fcd7ebd19bee0e96",
+      "transformation": "identity"
+    }
+  ],
+  "critical_spans": [
+    {
+      "category": "date",
+      "utterance_id": "0403a90f-82c9-5018-b183-c7be9bc7a5ae",
+      "utterance_index": 0,
+      "source_start": 0,
+      "source_end": 17,
+      "render_start": 0,
+      "render_end": 17,
+      "expected_source_text": "Апрель 1970 года."
+    },
+    {
+      "category": "name_and_number",
+      "utterance_id": "0403a90f-82c9-5018-b183-c7be9bc7a5ae",
+      "utterance_index": 0,
+      "source_start": 18,
+      "source_end": 30,
+      "render_start": 18,
+      "render_end": 30,
+      "expected_source_text": "«Аполлон-13»"
+    },
+    {
+      "category": "name",
+      "utterance_id": "0403a90f-82c9-5018-b183-c7be9bc7a5ae",
+      "utterance_index": 0,
+      "source_start": 54,
+      "source_end": 65,
+      "render_start": 54,
+      "render_end": 65,
+      "expected_source_text": "Джим Ловелл"
+    },
+    {
+      "category": "name",
+      "utterance_id": "0403a90f-82c9-5018-b183-c7be9bc7a5ae",
+      "utterance_index": 0,
+      "source_start": 89,
+      "source_end": 98,
+      "render_start": 89,
+      "render_end": 98,
+      "expected_source_text": "Фред Хейз"
+    },
+    {
+      "category": "name",
+      "utterance_id": "0403a90f-82c9-5018-b183-c7be9bc7a5ae",
+      "utterance_index": 0,
+      "source_start": 126,
+      "source_end": 135,
+      "render_start": 126,
+      "render_end": 135,
+      "expected_source_text": "Фра Мауро"
+    },
+    {
+      "category": "name",
+      "utterance_id": "0403a90f-82c9-5018-b183-c7be9bc7a5ae",
+      "utterance_index": 0,
+      "source_start": 139,
+      "source_end": 152,
+      "render_start": 139,
+      "render_end": 152,
+      "expected_source_text": "Джек Суайгерт"
+    },
+    {
+      "category": "number",
+      "utterance_id": "0403a90f-82c9-5018-b183-c7be9bc7a5ae",
+      "utterance_index": 0,
+      "source_start": 216,
+      "source_end": 224,
+      "render_start": 216,
+      "render_end": 224,
+      "expected_source_text": "56 часов"
+    },
+    {
+      "category": "negation",
+      "utterance_id": "0403a90f-82c9-5018-b183-c7be9bc7a5ae",
+      "utterance_index": 0,
+      "source_start": 342,
+      "source_end": 367,
+      "render_start": 342,
+      "render_end": 367,
+      "expected_source_text": "о высадке больше нет речи"
+    },
+    {
+      "category": "number",
+      "utterance_id": "d30f2bf6-7bba-52be-8f6c-ea46511f222c",
+      "utterance_index": 1,
+      "source_start": 303,
+      "source_end": 339,
+      "render_start": 719,
+      "render_end": 755,
+      "expected_source_text": "на двоих человек примерно на два дня"
+    },
+    {
+      "category": "number_and_scope",
+      "utterance_id": "d30f2bf6-7bba-52be-8f6c-ea46511f222c",
+      "utterance_index": 1,
+      "source_start": 371,
+      "source_end": 398,
+      "render_start": 787,
+      "render_end": 814,
+      "expected_source_text": "трое, и почти четверо суток"
+    }
+  ],
+  "length": {
+    "unicode_code_points": 815,
+    "utf16_code_units": 815,
+    "utf8_bytes": 1474,
+    "whitespace_token_count": 125
+  },
+  "duration_estimate": {
+    "min_seconds": 50.0,
+    "max_seconds": 68.2,
+    "basis": "110–150 whitespace tokens/minute; numeral expansion and pauses can change actual duration",
+    "measured": false
+  },
+  "listening_duration_window_seconds": [
+    45,
+    75
+  ],
+  "context_policy": "One continuous source span: begin at a sentence boundary and continue through the end of the last selected utterance; no preceding/following synthesis context in the initial comparison.",
+  "source_transformations": [],
+  "direction": {
+    "style": ""
+  },
+  "outcome_ref": {
+    "record_kind": "tool_execution",
+    "record_id": "af96f0e4-edc8-5c8c-b65b-82b358dc55b3"
+  },
+  "selections": [
+    {
+      "utterance_index": 0,
+      "start_char": 0,
+      "end_char": null
+    },
+    {
+      "utterance_index": 1,
+      "start_char": 0,
+      "end_char": null
+    }
+  ],
+  "text_role": "Audit/reference flattening with the recorded joiner; native adapters receive the same exact selected utterances in their supported format. Preserve actual provider request bytes independently.",
+  "native_synthesis_input_hash": "0e5b4dea5d6ed2a3bacb26958ac8fa28a20e084bc078404f53dd713f90571ab7"
+}
