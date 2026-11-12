@@ -113,6 +113,24 @@ def test_eight_sequential_real_auth_mocked_http_and_resume_no_duplicates(tmp_pat
     assert all(c["provider_response"]["raw"] == dict(trace=[1, 2, 3]) for c in report["cases"])
 
 
+def test_two_case_followup_submits_only_requested_cases(tmp_path, monkeypatch):
+    config, store = fixture(tmp_path, monkeypatch)
+    data = config.model_dump()
+    data["cases"] = data["cases"][:2]
+    data["max_credits"] = 2
+    config = Trial.model_validate(data)
+    transport = Transport()
+    run(store, config, transport)
+    run(store, config, transport)
+    report = export(store, config)
+    assert len(transport.calls) == 2
+    assert report["status"] == "responses_saved"
+    assert report["credits_or_reservation"] == 2
+    for cases in ([], data["cases"] * 5):
+        with pytest.raises(ValueError):
+            Trial.model_validate(dict(data, cases=cases))
+
+
 @pytest.mark.parametrize(
     "response",
     [

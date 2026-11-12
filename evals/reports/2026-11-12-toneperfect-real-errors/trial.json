@@ -1,0 +1,53 @@
+{
+  "contract": "toneperfect-qualification/1",
+  "run_id": "79076162-e3d2-4c85-8f83-883af6197bb7",
+  "max_credits": 2,
+  "cases": [
+    {
+      "case_id": "ordinary-district",
+      "audio_path": "/Users/yaroslavabramov/side/podgen/tmp/toneperfect-real-errors-2026-11-12/ordinary-district/audio.wav",
+      "audio_sha256": "10c0f34e4f4dbe2eed8e57b3bf5df54dac5c341eae986de7526d308f98ea2be9",
+      "reference_text": "В обычной округе колонки он насчитал семьдесят три смерти.",
+      "provenance": {
+        "source_path": "/Users/yaroslavabramov/side/podgen/tmp/audio-full-snow-2026-11-12/assembly/export/master.wav",
+        "source_sha256": "fd37ecb9fb4eeeeb810ceefa3855ce5cf30117055f09704a5c402e11e7b4f4c2",
+        "start_frame": 10550400,
+        "end_frame": 10728000,
+        "sample_rate": 48000,
+        "duration_seconds": 3.6999999999999886,
+        "pcm_sha256": "9648a37fe7d6c604e39f198b4a21f679c3dc36eb18da0004ea4e5cf1df1875cd",
+        "extraction": "Exact contiguous PCM, no resampling or other audio edits",
+        "boundary_basis": "Saved recognition word timestamps with margins in pauses",
+        "reference_source": "tmp/audio-full-snow-2026-11-12/fidelity/export/private/manifest.json"
+      },
+      "evaluation": {
+        "target_word": "обычной",
+        "human_observation": "User reports a real mispronunciation at 03:40, approximately обоенной; exact alternate word is uncertain.",
+        "criterion": "Inspect the target word decision, score and phones. review/content mismatch/omission flags detect a deviation; no_correction misses the human-confirmed deviation; uncertain is unresolved. No post-hoc score threshold. Neighboring words are not human-verified."
+      }
+    },
+    {
+      "case_id": "heard-verb",
+      "audio_path": "/Users/yaroslavabramov/side/podgen/tmp/toneperfect-real-errors-2026-11-12/heard-verb/audio.wav",
+      "audio_sha256": "9195e9da4bea4f76445a6bb3e696385854d08814b3125daa3d872c14a2575828",
+      "reference_text": "Когда он услышал, что всё валят на колонку, то сказал знакомому врачу, что тщательное расследование эту версию опровергнет.",
+      "provenance": {
+        "source_path": "/Users/yaroslavabramov/side/podgen/tmp/audio-full-snow-2026-11-12/assembly/export/master.wav",
+        "source_sha256": "fd37ecb9fb4eeeeb810ceefa3855ce5cf30117055f09704a5c402e11e7b4f4c2",
+        "start_frame": 21672000,
+        "end_frame": 22020000,
+        "sample_rate": 48000,
+        "duration_seconds": 7.25,
+        "pcm_sha256": "f428e520af4f798629efaf350289ec2d9096f1d2a0ac806f38c11ec172336311",
+        "extraction": "Exact contiguous PCM, no resampling or other audio edits",
+        "boundary_basis": "Saved recognition word timestamps with margins in pauses",
+        "reference_source": "tmp/audio-full-snow-2026-11-12/fidelity/export/private/manifest.json"
+      },
+      "evaluation": {
+        "target_word": "услышал",
+        "human_observation": "User confirms услыхал is spoken instead of услышал at 07:32.",
+        "criterion": "Inspect the target word decision, score and phones. review/content mismatch/omission flags detect a deviation; no_correction misses the human-confirmed deviation; uncertain is unresolved. No post-hoc score threshold. Neighboring words are not human-verified."
+      }
+    }
+  ]
+}

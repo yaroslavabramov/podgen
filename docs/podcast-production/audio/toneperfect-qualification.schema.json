@@ -97,7 +97,7 @@
         "$ref": "#/$defs/Case"
       },
       "maxItems": 8,
-      "minItems": 8,
+      "minItems": 1,
       "title": "Cases",
       "type": "array"
     }

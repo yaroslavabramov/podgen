@@ -29,7 +29,7 @@ class Trial(Contract):
     credential_env: Text = "TONEPERFECT_API_KEY"
     timeout_seconds: float = Field(default=100, ge=27, le=180)
     max_attempts_per_case: int = Field(default=3, ge=1, le=3)
-    cases: list[Case] = Field(min_length=8, max_length=8)
+    cases: list[Case] = Field(min_length=1, max_length=8)
 
     @model_validator(mode="after")
     def unique(self):

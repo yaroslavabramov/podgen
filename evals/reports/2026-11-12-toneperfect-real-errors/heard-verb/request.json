@@ -1,0 +1,19 @@
+{
+  "adapter_version": "toneperfect-qualification-adapter/1",
+  "method": "POST",
+  "url": "https://api.toneperfect.app/v1/assess",
+  "fields": {
+    "text": "Когда он услышал, что всё валят на колонку, то сказал знакомому врачу, что тщательное расследование эту версию опровергнет.",
+    "language": "ru-RU",
+    "task": "general"
+  },
+  "headers": {
+    "content-type": "multipart/form-data; boundary=podgen-toneperfect-15cc3d7f4339452f416265a41b564f0c39909603c611b869367d2038b6f28474",
+    "accept": "application/json",
+    "accept-encoding": "identity",
+    "Idempotency-Key": "podgen-toneperfect-344391d8-7329-592b-8f7f-b7fd6227110f",
+    "TonePerfect-Fallback": "off",
+    "TonePerfect-Debug": "raw"
+  },
+  "wire_sha256": "a1f501fa00f0065bc516fe35417128ae0971f4c5ba84bda496798e543d30e667"
+}

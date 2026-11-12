@@ -1,4 +1,4 @@
-"""Isolated eight-control qualification operator; never changes production settings."""
+"""Isolated bounded qualification operator; never changes production settings."""
 
 import argparse
 import json
