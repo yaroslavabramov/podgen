@@ -1,0 +1,30 @@
+{
+  "contract": "audio-comparison-export/1",
+  "prepared_samples": 1,
+  "expected_samples": 1,
+  "listening_samples": 1,
+  "requested_matrix_complete": true,
+  "full_five_provider_comparison_complete": false,
+  "availability": [
+    {
+      "provider": "gemini",
+      "configured_profiles": 1,
+      "expected_profiles": 1,
+      "status": "profiles_configured"
+    }
+  ],
+  "samples": [
+    {
+      "cell_id": "b4772235-5d3f-597d-a050-ea36d008574f",
+      "profile_id": "gemini-38-ru-ru-concierge-1-baseline",
+      "fragment_id": "apollo-full",
+      "status": "completed",
+      "unavailable": null,
+      "latest_processing_failure": null
+    }
+  ],
+  "attempts_submitted": 1,
+  "cost_or_reservation_usd": "0",
+  "purpose": "evaluation",
+  "production_ready": false
+}

@@ -1,0 +1,8 @@
+{
+  "credential_env": "JEMINI_API_KEY",
+  "credential_present": true,
+  "model_metadata_http_status": 200,
+  "free_tier_basis": "user supplied free-tier account",
+  "remaining_quota": "not exposed by model metadata; no billing changes",
+  "synthesis_submitted": false
+}
