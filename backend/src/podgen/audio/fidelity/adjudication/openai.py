@@ -8,7 +8,7 @@ from podgen.domain.errors import ContractError
 
 from .contracts import WindowResolution
 
-VERSION = "openai-actual-audio-fidelity-review/1"
+VERSION = "openai-actual-audio-fidelity-review/2"
 
 
 def format_instruction():

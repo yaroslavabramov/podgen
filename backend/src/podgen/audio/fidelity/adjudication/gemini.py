@@ -6,7 +6,7 @@ from podgen.domain.errors import ContractError
 
 from .contracts import WindowResolution
 
-VERSION = "gemini-actual-audio-fidelity-review/1"
+VERSION = "gemini-actual-audio-fidelity-review/2"
 
 
 def prepare(prompt, payload, audio, profile):

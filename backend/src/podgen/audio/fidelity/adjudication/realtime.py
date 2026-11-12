@@ -7,7 +7,7 @@ from podgen.domain.errors import ContractError
 
 from .contracts import WindowResolution
 
-VERSION = "openai-realtime-actual-audio-review/1"
+VERSION = "openai-realtime-actual-audio-review/2"
 URL = "wss://api.openai.com/v1/realtime?model=gpt-realtime-2.1"
 TEXT_ITEM_ID = "item_review_payload"
 TOOL = "submit_audio_review"

@@ -19,7 +19,12 @@ REASONS = dict(
 class HeardSpan(Contract):
     start_seconds: float = Field(ge=0)
     end_seconds: float = Field(gt=0)
-    words: Text
+    words: Text = Field(
+        description=(
+            "Only words actually heard in this audio range. Do not copy unheard script or ASR words, "
+            "and do not use diagnostic labels or placeholders as heard speech."
+        )
+    )
 
     @model_validator(mode="after")
     def positive_span(self):
@@ -30,7 +35,15 @@ class HeardSpan(Contract):
 
 class CaseResolution(Contract):
     case_id: Text
-    status: Literal["confirmed", "dismissed", "inconclusive"]
+    status: Literal["confirmed", "dismissed", "inconclusive"] = Field(
+        description=(
+            "Verdict about actual audio versus the intended script in expected_words and expected_context. "
+            "confirmed means an audible difference from that script; dismissed means the audio matches "
+            "the intended spoken words, including equivalent spoken forms, regardless of ASR differences; "
+            "inconclusive means this comparison cannot be "
+            "established from the available audio evidence."
+        )
+    )
     reason_code: Literal[
         "audible_mismatch",
         "asr_error",
@@ -40,9 +53,27 @@ class CaseResolution(Contract):
         "insufficient_window",
         "audio_unavailable",
         "pronunciation_reference_unresolved",
-    ]
-    heard_spans: list[HeardSpan]
-    explanation: Text
+    ] = Field(
+        description=(
+            "Reason for the audio-versus-script verdict. audible_mismatch requires an audible difference "
+            "from the intended script, not merely from ASR. When audio matches the script, dismiss the "
+            "case even if ASR differs, using the applicable dismissed reason."
+        )
+    )
+    heard_spans: list[HeardSpan] = Field(
+        description=(
+            "Words actually heard, with ranges relative to the supplied audio window, supporting the "
+            "audio-versus-script verdict. Never put diagnostic placeholders in these spans. "
+            "Use an empty list when inconclusive and no words can actually be heard."
+        )
+    )
+    explanation: Text = Field(
+        description=(
+            "Explain the verdict by comparing the actual heard words with expected_words and the intended "
+            "script in expected_context, or state why that comparison remains unresolved. An ASR-versus-audio "
+            "difference alone does not establish a script-reading defect."
+        )
+    )
 
     @model_validator(mode="after")
     def status_basis(self):
