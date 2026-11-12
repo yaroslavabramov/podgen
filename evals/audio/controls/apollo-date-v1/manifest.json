@@ -47,5 +47,35 @@
     "backend/src/podgen/audio/recognition/fish.py": "87e44602e06e82402d37076aed9aee3e07bc1f46a9973110e117c76c7552b450",
     "backend/src/podgen/runtime/evaluation/audio/fidelity/processing.py": "72217743308a5bea5d82e8a02f1a3e893f6dbb22f3497306bb4e51893f00649d",
     "backend/src/podgen/runtime/evaluation/audio/fidelity/export.py": "5acf2ce6b648c909bdcb9962bd60a9b7feeea274520d9d109e4ba8f95c665389"
+  },
+  "asr_corroboration": {
+    "recognition_path": "tmp/audio-fidelity-2026-11-12/apollo/export/private/processing-1/recognition.json",
+    "recognition_file_sha256": "ac157033345818ab1c6d7cfed96f8c5e40b843eefe4ed66622046204bacec4f4",
+    "receipt_ref": {
+      "record_kind": "tool_execution",
+      "record_id": "21d83e13-9e3d-5e5e-83e5-8ad4dbde0aaa"
+    },
+    "submitted_audio_sha256": "1f582175965a123b695f44d72ea8929ef3e59b5a06103f09ba32d5b6bf9c8507",
+    "exact_transcript_prefix": "Апрель 1970 года.",
+    "raw_segments": [
+      {
+        "text": "Апрель",
+        "start": 0.28,
+        "end": 0.76
+      },
+      {
+        "text": "1970",
+        "start": 1.0,
+        "end": 1.96
+      },
+      {
+        "text": "года",
+        "start": 2.5999999999999996,
+        "end": 2.92
+      }
+    ],
+    "independent_unprompted": true,
+    "human_gold": false,
+    "does_not_replace_synthetic_control_hypothesis": true
   }
 }
