@@ -1,3 +1,4 @@
+import json
 from decimal import Decimal
 from typing import Literal
 from uuid import UUID
@@ -14,11 +15,9 @@ class RecognitionPrice(Contract):
     checked_at: Text
 
 
-class FidelityConfig(Contract):
-    contract: Literal["audio-fidelity-evaluation/1"] = "audio-fidelity-evaluation/1"
+class FidelityConfigBase(Contract):
     audit_id: UUID
     comparison_run_id: UUID
-    result_ref: RuntimeRef
     recognition: RecognitionProfile = Field(default_factory=RecognitionProfile)
     credential_env: Text = "FISH_API_KEY"
     price: RecognitionPrice
@@ -36,6 +35,44 @@ class FidelityConfig(Contract):
         ):
             raise ValueError("invalid_recognition_budget")
         return self
+
+
+class FidelityConfig(FidelityConfigBase):
+    contract: Literal["audio-fidelity-evaluation/1"] = "audio-fidelity-evaluation/1"
+    result_ref: RuntimeRef
+
+    @property
+    def subject_ref(self):
+        return self.result_ref
+
+    @property
+    def subject_kind(self):
+        return "comparison_result"
+
+
+class AudioSubject(Contract):
+    kind: Literal["comparison_result", "assembly"]
+    ref: RuntimeRef
+
+
+class FidelityConfigV2(FidelityConfigBase):
+    contract: Literal["audio-fidelity-evaluation/2"] = "audio-fidelity-evaluation/2"
+    subject: AudioSubject
+
+    @property
+    def subject_ref(self):
+        return self.subject.ref
+
+    @property
+    def subject_kind(self):
+        return self.subject.kind
+
+
+def load_fidelity_config(text):
+    raw = json.loads(text)
+    return (
+        FidelityConfigV2 if raw.get("contract") == "audio-fidelity-evaluation/2" else FidelityConfig
+    ).model_validate(raw)
 
 
 def prefix(audit_id):

@@ -11,7 +11,7 @@ from podgen.domain.errors import ContractError
 from podgen.persistence.database import Database
 from podgen.persistence.objects import FileObjectStore
 from podgen.persistence.repository import Repository
-from podgen.runtime.evaluation.audio.fidelity.contracts import FidelityConfig
+from podgen.runtime.evaluation.audio.fidelity.contracts import load_fidelity_config
 from podgen.runtime.evaluation.audio.fidelity.export import bind, export
 from podgen.runtime.evaluation.audio.fidelity.prepare import prepare
 from podgen.runtime.evaluation.audio.fidelity.service import reprocess, run
@@ -40,7 +40,7 @@ def main(argv=None):
         from dotenv import load_dotenv
 
         load_dotenv(args.env_file, override=False)
-    config = FidelityConfig.model_validate_json(args.config.read_text())
+    config = load_fidelity_config(args.config.read_text())
     db = Database(os.environ["PODGEN_DATABASE_URL"])
     journal = AudioJournal(
         Repository(db, FileObjectStore(args.objects), args.actor, purpose="evaluation"),

@@ -1,0 +1,94 @@
+{
+  "$defs": {
+    "RuntimeRef": {
+      "additionalProperties": false,
+      "properties": {
+        "record_kind": {
+          "enum": [
+            "search_record",
+            "tool_execution",
+            "context_assembly",
+            "user_input",
+            "acquisition_record",
+            "evaluation_reading"
+          ],
+          "title": "Record Kind",
+          "type": "string"
+        },
+        "record_id": {
+          "format": "uuid",
+          "title": "Record Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "record_kind",
+        "record_id"
+      ],
+      "title": "RuntimeRef",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "contract": {
+      "const": "audio-evaluation-assembly/1",
+      "default": "audio-evaluation-assembly/1",
+      "title": "Contract",
+      "type": "string"
+    },
+    "assembly_id": {
+      "format": "uuid",
+      "title": "Assembly Id",
+      "type": "string"
+    },
+    "comparison_run_id": {
+      "format": "uuid",
+      "title": "Comparison Run Id",
+      "type": "string"
+    },
+    "part_result_refs": {
+      "items": {
+        "$ref": "#/$defs/RuntimeRef"
+      },
+      "minItems": 1,
+      "title": "Part Result Refs",
+      "type": "array"
+    },
+    "preferred_lufs": {
+      "default": -20,
+      "maximum": -14,
+      "minimum": -40,
+      "title": "Preferred Lufs",
+      "type": "number"
+    },
+    "true_peak_dbtp": {
+      "default": -1,
+      "maximum": -1,
+      "minimum": -6,
+      "title": "True Peak Dbtp",
+      "type": "number"
+    },
+    "headroom_db": {
+      "default": 0.3,
+      "maximum": 3,
+      "minimum": 0.1,
+      "title": "Headroom Db",
+      "type": "number"
+    },
+    "join_context_seconds": {
+      "default": 5,
+      "maximum": 20,
+      "minimum": 1,
+      "title": "Join Context Seconds",
+      "type": "number"
+    }
+  },
+  "required": [
+    "assembly_id",
+    "comparison_run_id",
+    "part_result_refs"
+  ],
+  "title": "AssemblyConfig",
+  "type": "object"
+}

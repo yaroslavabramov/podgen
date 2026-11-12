@@ -409,3 +409,22 @@ python -m podgen.audio_adjudication_cli --project PROJECT --actor ACTOR --object
 `run`/`resume` запускают только ещё не отправленные окна. Явный `retry --window-number N --reason TEXT` создаёт отдельную ограниченную paid attempt для failed/unknown окна с parent/reason; прежние receipts и reservations остаются в ledger. `reprocess --reason TEXT` перечитывает полные успешные receipts без сети/ключа. Budget учитывает все submit intents, включая прежние отказы; отсутствие usage остаётся reservation, известные token counts — estimate, не invoice. `export` сохраняет prompt/schema, aliases, каждый payload/WAV/wire/receipt и все processing versions.
 
 Итог `candidates_dismissed` относится только к переданным cases. `whole_recording_review=not_performed` и `production_ready=false` сохраняются всегда. Confirmed defect разрешает следующий отдельный repair-план; ASR hypothesis или inconclusive такого разрешения не дают. Недоступный сервис оставляет проверку pending и не вызывает скрытой смены модели.
+
+## 17. Evaluation: сборка полного listening master
+
+`python -m podgen.audio_assembly_cli` выполняет только локальную сборку сохранённых synthesis results. [Assembly config](audio/assembly.schema.json) задаёт comparison_run_id, ordered part_result_refs, assembly_id, preferred loudness/true peak/headroom и размер join preview. Ни synthesis, ни ASR/reviewer transport этому CLI не нужны.
+
+До обработки проверяются членство каждого result в выбранном comparison, точное совпадение frozen профиля/style/script ref/hash/outcome и native финальных `keep`. Конкатенация ordered selectors и исходных utterances должна точно равняться всему проверенному сценарию: нельзя пропустить, повторить, переставить или частично скрыть реплику. Это проверка source coverage, не заявление о фактически услышанных словах.
+
+Собираются исходные decoded PCM, без прежних индивидуальных playback gains. Проверяются формат и целые frames; полный PCM каждого входа побитно сохраняется в промежуточной concatenation. Нет cuts/crossfades/вставленной тишины/изменения темпа. Итоговая normalization применяется один раз ко всему assembled PCM, с измерением после mono/48k conversion. При необходимости единый target понижается с заданным запасом true peak; requested/effective target и один applied gain сохраняются.
+
+`audio-evaluation-assembly-result/1` — отдельный immutable runtime record. Он содержит промежуточный PCM до gain, итоговый PCM48/PCM24 master/player, полный decode/metrics, source→final master frame map, profile/source bindings и joins. Карта сохраняет source sample rate/ranges, промежуточные assembly ranges и final master ranges, measured конечный endpoint и правило округления resampling; последовательные master ranges покрывают всю запись без дыр. Для 24k→48k границы имеют точный коэффициент 2. Join preview извлекается из **итогового master** с тем же общим gain и exact frame extraction; его acoustic review остаётся pending. Старые источники/masters не меняются.
+
+```sh
+python -m podgen.audio_assembly_cli --project PROJECT --actor ACTOR --objects OBJECTS \
+  build --config assembly.json --export-dir assembly-export
+```
+
+`build` идемпотентен для frozen assembly_id/config, `export` восстанавливает файлы из сохранённых blobs. `master.wav` и player — конечный сигнал; `private/assembly-pcm-before-gain.wav` — промежуточная PCM concatenation. `frame-map.json` и `status.json` сохраняют измеренную связь источников с master. Каталог привязан к exact assembly ref/manifest hash. Acoustics и spoken fidelity не выводятся из корректности сборки: `acoustic_verdict=pending`, `production_ready=false`.
+
+ASR [audio-fidelity-evaluation/2](audio/fidelity-evaluation-v2.schema.json) имеет явный `subject={kind:assembly,ref:...}`; `result_ref` comparison ему не подделывается. Resolver проверяет зарегистрированный assembly manifest/result, членство, source/hash и full source coverage. В ASR идёт **итоговый master PCM48 после gain/resample**, тот же hash, что у файла проигрывателя; FLAC transport вновь побитно сверяется с ним. `audio_variant=assembled_final_playback_pcm`, `decoded_ref=null` и настоящий assembly subject ref явно сохраняются. Source/full script не режется. Существующий fidelity `/1` и его config/hash остаются прежними: Apollo проверял decoded PCM до gain, что честно отражено в его сохранённых records.

@@ -41,7 +41,7 @@ def run(journal, config, transport):
             reserved = Decimal(config.reservation_usd) * (submitted + 1)
             if submitted >= config.max_requests or reserved > Decimal(config.max_cost_usd):
                 return "budget_exhausted"
-            claim_key = "recognition-subject:" + str(config.result_ref.record_id)
+            claim_key = "recognition-subject:" + str(config.subject_ref.record_id)
             claim = dict(audit_manifest_ref=journal.ref(key + ":manifest").model_dump(mode="json"))
             if journal.get(claim_key) not in (None, claim):
                 raise Conflict("recognition_subject_already_requested_use_original_audit")

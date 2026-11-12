@@ -173,3 +173,7 @@ def test_native_approved_runtime_input_cli_lossless_blind_export_and_resume(
     from tests.audio_fidelity_cases import assert_persisted_fidelity
 
     assert_persisted_fidelity(repo, project, targeted, tmp_path, monkeypatch)
+
+    from tests.audio_assembly_cases import assert_native_assembly
+
+    assert_native_assembly(repo, project, targeted, script, tmp_path, monkeypatch)
