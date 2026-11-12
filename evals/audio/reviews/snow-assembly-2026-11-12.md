@@ -39,4 +39,4 @@
 
 В проверенной сборке, source coverage и фактической frame map actionable находок нет. Метаданные правильно уточняют `basis=source_selections_and_complete_pcm_parts`, `spoken_word_fidelity=pending`, `acoustic_verdict=pending`.
 
-Появившийся рабочий контракт targeted repair прочитан отдельно: `confirmed-fragment-repair-contract-2026-11-12.md`. Необходимая для применения repair акустическая confirmation не получена этим ревью.
+Позднее прежний whole-fragment repair снят с использования. Действующий контракт локальной замены по подтверждению человека описан в [спецификации аудио](../../../docs/podcast-production/05-audio-production.md). Это ревью сборки не подтверждает диапазоны новых замен.

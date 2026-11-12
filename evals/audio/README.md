@@ -21,4 +21,4 @@
 
 Исследование: [speech-synthesis](../../docs/podcast-production/research/2026-11-12-speech-synthesis.md). Исходные прогоны: [two-topic-cycles](../reports/2026-11-12-two-topic-cycles/README.md). Подготовка этого корпуса не выполняла provider calls, ASR или тестовые наборы.
 
-Следующий длинный источник: [принятый Сноу](fixtures/snow-accepted-v1/source.json), [полный текст](fixtures/snow-accepted-v1/source.txt). Предложение для независимой проверки произнесённых слов: [ASR/fidelity protocol](listening/fidelity-protocol.md), [локальный audio-review prompt](listening/local-fidelity-review.prompt.md). Контракт reviewer согласуется через основной чат; это ещё не результат распознавания или прослушивания Сноу.
+Полный Сноу: [принятый сценарий](fixtures/snow-accepted-v1/source.json), [текст](fixtures/snow-accepted-v1/source.txt). Два подтверждённых человеком дефекта записи сохранены в [корпусе локальной замены](repair/snow-human-cases.json). Диапазоны замены ещё требуют отдельного подтверждения. Контракт локального ремонта — [спецификация аудио](../../docs/podcast-production/05-audio-production.md).
