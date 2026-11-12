@@ -117,6 +117,12 @@ def test_frozen_review_preserves_aliases_real_audio_and_resumes_without_repaying
     for w in manifest["windows"]:
         value = j.get(w["key"])
         payload = json.loads(j.bytes(w["key"], value["payload_blob"]))
+        assert "asr_segment_excerpts" in payload
+        assert all("asr_segment_excerpts" not in case for case in payload["cases"])
+        assert all(
+            abs(s["start_seconds"] * 1000 - round(s["start_seconds"] * 1000)) < 1e-8
+            for s in payload["asr_segment_excerpts"]
+        )
         text = json.dumps(payload)
         assert set(value["case_aliases"]) == set(value["case_ids"])
         assert all(original not in text for original in value["case_aliases"].values())

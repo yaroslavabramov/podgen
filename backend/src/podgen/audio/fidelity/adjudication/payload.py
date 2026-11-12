@@ -4,7 +4,7 @@ import re
 
 from ..tokens import expected_tokens, tokens
 
-VERSION = "compact-source-clause-review-packet/1"
+VERSION = "compact-source-clause-review-packet/3"
 SENTENCE_END = re.compile(r"[.!?](?=\s|$)")
 
 
@@ -17,7 +17,11 @@ def parts(text, words, first, last):
     following = SENTENCE_END.search(text, end)
     before = previous[-1] if previous else 0
     after = following.end() if following else len(text)
-    return text[start:end], dict(before=text[before:start], after=text[end:after])
+    anchors = dict(
+        before=text[words[max(0, first - 4)]["char_start"] : start] if first else None,
+        after=text[end : words[min(len(words), last + 4) - 1]["char_end"]] if last < len(words) else None,
+    )
+    return text[start:end], dict(before=text[before:start], after=text[end:after]), anchors
 
 
 def source_parts(source, first, last, stored_tokens=None):
@@ -50,18 +54,12 @@ def case_payload(
     source_tokens=None,
     recognition_tokens=None,
 ):
-    expected, context = source_parts(source, *case["expected_token_range"], source_tokens)
-    excerpt, asr_context = parts(
+    expected, context, source_anchors = source_parts(source, *case["expected_token_range"], source_tokens)
+    excerpt, asr_context, asr_anchors = parts(
         recognition["text"],
         recognition_tokens if recognition_tokens is not None else tokens(recognition["text"]),
         *case["recognized_token_range"],
     )
-    start, end = offset_frames / rate, (offset_frames + frames) / rate
-    segments = [
-        dict(text=s["text"], start_seconds=s["start"] - start, end_seconds=s["end"] - start)
-        for s in recognition["segments"]
-        if s["end"] >= start and s["start"] <= end
-    ]
     value = dict(
         case_id=alias,
         kind=case["kind"],
@@ -69,7 +67,6 @@ def case_payload(
         expected_context=context,
         asr_transcript_excerpt=excerpt,
         asr_context=asr_context,
-        asr_segment_excerpts=segments,
         localization=dict(
             basis=case["audio_range"]["basis"],
             uncertainties=list(dict.fromkeys(i["kind"] for i in case.get("timing_uncertainties", []))),
@@ -77,6 +74,9 @@ def case_payload(
     )
     if case.get("operation"):
         value["operation"] = case["operation"]
+        if case["operation"] in ("insert", "delete"):
+            value["expected_anchors"] = source_anchors
+            value["asr_anchors"] = asr_anchors
     issue = case.get("issue") or {}
     if issue.get("kind") == "transcript_segment_text_mismatch":
         segment_indexes = list(dict.fromkeys(t["segment_index"] for t in issue["segment_tokens"]))
@@ -84,3 +84,14 @@ def case_payload(
             transcript=excerpt, segment_words=[recognition["segments"][i]["text"] for i in segment_indexes]
         )
     return value
+
+
+def window_segments(recognition, offset_frames, frames, rate):
+    start, end = offset_frames / rate, (offset_frames + frames) / rate
+    return [
+        dict(
+            text=s["text"], start_seconds=round(s["start"] - start, 3), end_seconds=round(s["end"] - start, 3)
+        )
+        for s in recognition["segments"]
+        if s["end"] >= start and s["start"] <= end
+    ]

@@ -184,6 +184,13 @@ def test_model_projection_preserves_source_phrase_gap_anchors_and_local_times():
     inserted, _ = packet("Это нужно.", "Это очень нужно.")
     assert inserted["operation"] == "insert" and inserted["expected_words"] == ""
     assert inserted["expected_context"] == dict(before="Это ", after="нужно.")
+    boundary, _ = packet(
+        "Первое предложение. Второе начинается.", "Первое предложение. Добавка Второе начинается."
+    )
+    assert boundary["expected_anchors"]["before"] == "Первое предложение. "
+    assert boundary["expected_anchors"]["after"].strip() == "Второе начинается"
+    beginning, _ = packet("Это нужно.", "Добавка Это нужно.")
+    assert beginning["expected_anchors"]["before"] is None
     deleted, _ = packet("Это не нужно.", "Это нужно.")
     assert deleted["operation"] == "delete" and deleted["expected_words"] == "не"
     assert deleted["asr_transcript_excerpt"] == "" and deleted["asr_context"] == dict(

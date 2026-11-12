@@ -4,7 +4,7 @@ from pathlib import Path
 from podgen.audio.fidelity.adjudication.contracts import WindowResolution
 from podgen.audio.fidelity.adjudication.gemini import prepare as request_for
 from podgen.audio.fidelity.adjudication.payload import VERSION as PAYLOAD_VERSION
-from podgen.audio.fidelity.adjudication.payload import case_payload
+from podgen.audio.fidelity.adjudication.payload import case_payload, window_segments
 from podgen.audio.fidelity.adjudication.windows import group
 from podgen.audio.fidelity.contracts import CandidateReport
 from podgen.audio.media.recognition import clip
@@ -60,7 +60,10 @@ def prepare(journal, config):
         audio_blob = journal.blob(clip_audio, "audio/wav")
         payload = dict(
             output_language=config.output_language,
-            audio_window=dict(duration_seconds=extraction["sample_frames"] / rate),
+            audio_window=dict(duration_seconds=(extraction["sample_frames"] * 1000 // rate) / 1000),
+            asr_segment_excerpts=window_segments(
+                recognition, window["start_frame"], extraction["sample_frames"], rate
+            ),
             asr_segment_time_basis="seconds_relative_to_supplied_audio_window",
             cases=[
                 case_payload(
