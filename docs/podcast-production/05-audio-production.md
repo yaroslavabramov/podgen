@@ -388,3 +388,22 @@ python -m podgen.audio_fidelity_cli --project PROJECT --actor ACTOR --objects OB
 ```
 
 `run`/`resume` используют те же аргументы; только они могут отправить ASR-запрос. `reprocess --reason TEXT` создаёт новую immutable обработку уже полного успешного receipt без ключа/сети. Старые результаты и ошибки сохраняются. `export` выгружает manifest, schemas, точный wire body, FLAC, raw receipt, все обработки и клипы; каталог привязывается до записи и до возможной оплаты. `candidates_generated` означает завершение этого этапа, а не подтверждение качества речи.
+
+## 16. Evaluation: actual-audio adjudication
+
+`python -m podgen.audio_adjudication_cli` проверяет exact candidate-result ref зарегистрированного fidelity audit. [Config](audio/fidelity-adjudication.schema.json) фиксирует reviewer, prompt path/SHA, cases, размер окон, число запросов, цены и бюджет. Профиль — только `gemini-3.8-flash`, max_output_tokens=8192 по умолчанию, явный thinking level, без temperature и fallback. Полный согласованный English prompt передаётся неизменной top-level `system_instruction`; язык объяснений задаёт `output_language=ru` в user payload. Вход и structured output следуют [официальному audio contract](https://aistudio.google.com/docs/audio#inline-audio) и [structured output contract](https://aistudio.google.com/docs/structured-output).
+
+Перекрывающиеся случаи группируются в один реальный WAV до 45 секунд; максимум случаев в окне ограничен конфигом. Это не усреднение результатов: модель отвечает отдельно на каждый короткий ID `C1`, `C2`, … . Immutable alias map связывает его с исходным candidate UUID. Модель получает measured duration, точные исходные подстроки `expected_words`, before/after anchors, operation для insert/delete, raw ASR excerpt/anchors и segment text с явно локальными секундами, compact localization diagnostics. Полные refs/hash/offsets/token dictionaries хранятся в provenance; никакое исходное смысловое поле при persistence не обрезается. Проекция использует сохранённые token offsets, а не пересчитывает их по новой версии normalizer.
+
+Manifest/window records сохраняют exact candidate/source/script refs/hash, decoded/playback identity, реальные WAV с frame extraction proof, полный model-visible payload, wire body, English prompt и schema snapshots. Перед сетью проверяется экспортный каталог, затем сохраняются prepared attempt и submit intent; raw receipt записывается до parsing. Gemini key существует только в transport headers. Каждое окно имеет собственные attempts и локальные processing revisions. Один явный provider refusal, неизвестный исход или invalid model response останавливает остальные окна этого провайдера; они остаются prepared с видимой причиной блокировки. `resume` не повторяет прежнюю неудачную отправку.
+
+[Response schema](audio/fidelity-adjudication-response.schema.json) требует exact case set без дублей, совместимость status/reason, непустые услышанные слова/диапазоны для confirmed/dismissed и интервалы строго внутри фактического WAV. Объяснение не заменяет услышанную опору. Для inconclusive разрешён пустой heard_spans, без выдуманной речи. Это структурная проверка evidence, не semantic blacklist и не попытка угадать звук по ASR. В persistence решение получает исходный candidate UUID, exact window/result refs и source-frame offset; исходный ответ с короткими IDs остаётся неизменным.
+
+```sh
+python -m podgen.audio_adjudication_cli --project PROJECT --actor ACTOR --objects OBJECTS \
+  --env-file .env prepare --config review.json --export-dir review-export
+```
+
+`run`/`resume` запускают только ещё не отправленные окна. Явный `retry --window-number N --reason TEXT` создаёт отдельную ограниченную paid attempt для failed/unknown окна с parent/reason; прежние receipts и reservations остаются в ledger. `reprocess --reason TEXT` перечитывает полные успешные receipts без сети/ключа. Budget учитывает все submit intents, включая прежние отказы; отсутствие usage остаётся reservation, известные token counts — estimate, не invoice. `export` сохраняет prompt/schema, aliases, каждый payload/WAV/wire/receipt и все processing versions.
+
+Итог `candidates_dismissed` относится только к переданным cases. `whole_recording_review=not_performed` и `production_ready=false` сохраняются всегда. Confirmed defect разрешает следующий отдельный repair-план; ASR hypothesis или inconclusive такого разрешения не дают. Недоступный сервис оставляет проверку pending и не вызывает скрытой смены модели.

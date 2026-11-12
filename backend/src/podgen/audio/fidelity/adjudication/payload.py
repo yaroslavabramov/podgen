@@ -1,33 +1,86 @@
-"""Explicit model-facing context; provenance identifiers stay in the immutable manifest."""
+"""Compact clause projection; complete source and raw ASR stay in their persisted records."""
+
+import re
+
+from ..tokens import expected_tokens, tokens
+
+VERSION = "compact-source-clause-review-packet/1"
+SENTENCE_END = re.compile(r"[.!?](?=\s|$)")
 
 
-def case_payload(case, recognition, source, offset_frames, frames, rate, alias):
-    actual = case.get("recognized_tokens", [])
-    excerpt = (
-        recognition["text"][min(t["char_start"] for t in actual) : max(t["char_end"] for t in actual)]
-        if actual
-        else ""
+def parts(text, words, first, last):
+    if first < last:
+        start, end = words[first]["char_start"], words[last - 1]["char_end"]
+    else:
+        start = end = words[first]["char_start"] if first < len(words) else len(text)
+    previous = [m.end() for m in SENTENCE_END.finditer(text, 0, start)]
+    following = SENTENCE_END.search(text, end)
+    before = previous[-1] if previous else 0
+    after = following.end() if following else len(text)
+    return text[start:end], dict(before=text[before:start], after=text[end:after])
+
+
+def source_parts(source, first, last, stored_tokens=None):
+    utterances = source["source"]["utterances"]
+    offsets = []
+    offset = 0
+    for row in utterances:
+        offsets.append(offset)
+        offset += len(row["text"]) + 1
+    words = [
+        dict(
+            t,
+            char_start=t["char_start"] + offsets[t["utterance_index"]],
+            char_end=t["char_end"] + offsets[t["utterance_index"]],
+        )
+        for t in (stored_tokens if stored_tokens is not None else expected_tokens(utterances))
+    ]
+    return parts("\n".join(row["text"] for row in utterances), words, first, last)
+
+
+def case_payload(
+    case,
+    recognition,
+    source,
+    offset_frames,
+    frames,
+    rate,
+    alias,
+    *,
+    source_tokens=None,
+    recognition_tokens=None,
+):
+    expected, context = source_parts(source, *case["expected_token_range"], source_tokens)
+    excerpt, asr_context = parts(
+        recognition["text"],
+        recognition_tokens if recognition_tokens is not None else tokens(recognition["text"]),
+        *case["recognized_token_range"],
     )
     start, end = offset_frames / rate, (offset_frames + frames) / rate
     segments = [
-        dict(
-            text=s["text"], start_in_window_seconds=s["start"] - start, end_in_window_seconds=s["end"] - start
-        )
+        dict(text=s["text"], start_seconds=s["start"] - start, end_seconds=s["end"] - start)
         for s in recognition["segments"]
         if s["end"] >= start and s["start"] <= end
     ]
-    utterance_aliases = {u["utterance_id"]: f"U{i}" for i, u in enumerate(source["source"]["utterances"], 1)}
-    return dict(
+    value = dict(
         case_id=alias,
-        window_duration_seconds=frames / rate,
-        expected_words=[t["text"] for t in case.get("expected_tokens", [])],
-        original_context=[
-            dict(utterance=utterance_aliases[u["utterance_id"]], text=u["text"])
-            for u in case["expected_context"]
-        ],
+        kind=case["kind"],
+        expected_words=expected,
+        expected_context=context,
         asr_transcript_excerpt=excerpt,
+        asr_context=asr_context,
         asr_segment_excerpts=segments,
-        candidate_kind=case["kind"],
-        representation_conflict=(case.get("issue") or {}).get("kind"),
-        localization_notes=[i["kind"] for i in case.get("timing_uncertainties", [])],
+        localization=dict(
+            basis=case["audio_range"]["basis"],
+            uncertainties=list(dict.fromkeys(i["kind"] for i in case.get("timing_uncertainties", []))),
+        ),
     )
+    if case.get("operation"):
+        value["operation"] = case["operation"]
+    issue = case.get("issue") or {}
+    if issue.get("kind") == "transcript_segment_text_mismatch":
+        segment_indexes = list(dict.fromkeys(t["segment_index"] for t in issue["segment_tokens"]))
+        value["asr_representation_conflict"] = dict(
+            transcript=excerpt, segment_words=[recognition["segments"][i]["text"] for i in segment_indexes]
+        )
+    return value

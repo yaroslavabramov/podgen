@@ -1,0 +1,100 @@
+{
+  "$defs": {
+    "CaseResolution": {
+      "additionalProperties": false,
+      "properties": {
+        "case_id": {
+          "minLength": 1,
+          "title": "Case Id",
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "confirmed",
+            "dismissed",
+            "inconclusive"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "reason_code": {
+          "enum": [
+            "audible_mismatch",
+            "asr_error",
+            "asr_representation_conflict",
+            "equivalent_spoken_form",
+            "unclear_speech",
+            "insufficient_window",
+            "audio_unavailable",
+            "pronunciation_reference_unresolved"
+          ],
+          "title": "Reason Code",
+          "type": "string"
+        },
+        "heard_spans": {
+          "items": {
+            "$ref": "#/$defs/HeardSpan"
+          },
+          "title": "Heard Spans",
+          "type": "array"
+        },
+        "explanation": {
+          "minLength": 1,
+          "title": "Explanation",
+          "type": "string"
+        }
+      },
+      "required": [
+        "case_id",
+        "status",
+        "reason_code",
+        "heard_spans",
+        "explanation"
+      ],
+      "title": "CaseResolution",
+      "type": "object"
+    },
+    "HeardSpan": {
+      "additionalProperties": false,
+      "properties": {
+        "start_seconds": {
+          "minimum": 0,
+          "title": "Start Seconds",
+          "type": "number"
+        },
+        "end_seconds": {
+          "exclusiveMinimum": 0,
+          "title": "End Seconds",
+          "type": "number"
+        },
+        "words": {
+          "minLength": 1,
+          "title": "Words",
+          "type": "string"
+        }
+      },
+      "required": [
+        "start_seconds",
+        "end_seconds",
+        "words"
+      ],
+      "title": "HeardSpan",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "results": {
+      "items": {
+        "$ref": "#/$defs/CaseResolution"
+      },
+      "title": "Results",
+      "type": "array"
+    }
+  },
+  "required": [
+    "results"
+  ],
+  "title": "WindowResolution",
+  "type": "object"
+}

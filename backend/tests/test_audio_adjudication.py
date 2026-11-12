@@ -147,3 +147,45 @@ def test_google_key_header_is_in_memory_only_and_wire_is_archived_body():
         WindowResolution.model_json_schema()["$defs"]["CaseResolution"]["properties"]["case_id"]["type"]
         == "string"
     )
+
+
+def test_model_projection_preserves_source_phrase_gap_anchors_and_local_times():
+    from uuid import uuid4
+
+    from podgen.audio.fidelity.adjudication.payload import case_payload
+    from podgen.audio.fidelity.candidates import generate
+    from tests.test_audio_fidelity_candidates import recognition
+
+    def packet(expected, actual):
+        utterances = [dict(utterance_id=str(uuid4()), speaker="HOST", text=expected)]
+        recognized = recognition(actual)
+        report = generate(uuid4(), utterances, recognized, 24000, 120000)
+        case = next(c for c in report["candidates"] if c["kind"] == "script_discrepancy")
+        value = case_payload(
+            case,
+            recognized.model_dump(mode="json"),
+            dict(source=dict(utterances=utterances)),
+            0,
+            120000,
+            24000,
+            "C1",
+            source_tokens=report["expected_tokens"],
+            recognition_tokens=report["recognized_tokens"],
+        )
+        return value, case
+
+    value, case = packet(
+        "Примерно через 94 с половиной часа после старта.", "Примерно через 94,5 часа после старта."
+    )
+    assert value["expected_words"] == "94 с половиной"
+    assert value["expected_context"] == dict(before="Примерно через ", after=" часа после старта.")
+    assert value["asr_transcript_excerpt"] == "94,5" and value["operation"] == "replace"
+    assert case["candidate_id"] not in json.dumps(value)
+    inserted, _ = packet("Это нужно.", "Это очень нужно.")
+    assert inserted["operation"] == "insert" and inserted["expected_words"] == ""
+    assert inserted["expected_context"] == dict(before="Это ", after="нужно.")
+    deleted, _ = packet("Это не нужно.", "Это нужно.")
+    assert deleted["operation"] == "delete" and deleted["expected_words"] == "не"
+    assert deleted["asr_transcript_excerpt"] == "" and deleted["asr_context"] == dict(
+        before="Это ", after="нужно."
+    )
