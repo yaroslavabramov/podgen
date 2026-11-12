@@ -281,12 +281,18 @@
   "additionalProperties": false,
   "properties": {
     "contract": {
-      "const": "literal-fidelity-candidates/1",
+      "enum": [
+        "literal-fidelity-candidates/1",
+        "literal-fidelity-candidates/2"
+      ],
       "title": "Contract",
       "type": "string"
     },
     "normalization_contract": {
-      "const": "literal-ru-case-punctuation-yo/1",
+      "enum": [
+        "literal-ru-case-punctuation-yo/1",
+        "literal-ru-case-punctuation-yo/2"
+      ],
       "title": "Normalization Contract",
       "type": "string"
     },

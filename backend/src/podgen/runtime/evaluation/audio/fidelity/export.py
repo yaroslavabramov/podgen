@@ -52,6 +52,10 @@ def export(journal, config, folder):
     for i, revision in enumerate(processed, 1):
         place = folder / "private" / f"processing-{i}"
         write_json(place / "processing.json", revision)
+        for name in ("recognition", "candidates"):
+            blob = revision["prepared"].get(name + "_schema_blob")
+            if blob:
+                (place / (name + ".schema.json")).write_bytes(journal.bytes(revision["key"], blob))
         recognition = journal.get(revision["key"] + ":recognition")
         write_json(place / "recognition.json", recognition)
         if revision["result"]:

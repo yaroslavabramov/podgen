@@ -15,17 +15,23 @@ def map_timing(recognized, transcript_tokens, sample_rate, frames):
             issues.append(
                 dict(kind="invalid_segment_timeline", segment_index=i, start_frame=start, end_frame=end)
             )
+        if start == end:
+            invalid.add(i)
+            issues.append(
+                dict(kind="zero_length_segment_timestamp", segment_index=i, start_frame=start, end_frame=end)
+            )
         previous = end
         for token in tokens(segment.text, segment_index=i):
             timed.append(dict(token, index=len(timed), start_frame=start, end_frame=end))
     match = SequenceMatcher(
         a=[t["normalized"] for t in transcript_tokens], b=[t["normalized"] for t in timed], autojunk=False
     )
-    mapping = {}
+    mapping, text_alignment = {}, {}
     for tag, i1, i2, j1, j2 in match.get_opcodes():
         if tag == "equal":
             for left, right in zip(range(i1, i2), range(j1, j2), strict=True):
                 token = timed[right]
+                text_alignment.setdefault(token["segment_index"], []).append(left)
                 if (
                     token["segment_index"] not in invalid
                     and 0 <= token["start_frame"] <= token["end_frame"] <= frames
@@ -41,6 +47,10 @@ def map_timing(recognized, transcript_tokens, sample_rate, frames):
                     segment_tokens=timed[j1:j2],
                 )
             )
+    for issue in issues:
+        indexes = text_alignment.get(issue.get("segment_index"), [])
+        if indexes:
+            issue["transcript_token_range"] = [min(indexes), max(indexes) + 1]
     if abs(recognized.duration - frames / sample_rate) > 0.25:
         issues.append(
             dict(

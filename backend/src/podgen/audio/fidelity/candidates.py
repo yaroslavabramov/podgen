@@ -1,10 +1,13 @@
 from difflib import SequenceMatcher
 from uuid import uuid5
 
+from podgen.domain.canonical import digest
+
+from .context import expected_range, source_context
 from .timing import clip_range, map_timing
 from .tokens import VERSION, expected_tokens, tokens
 
-VERSION_CANDIDATES = "literal-fidelity-candidates/1"
+VERSION_CANDIDATES = "literal-fidelity-candidates/2"
 
 
 def generate(audit_id, utterances, recognition, rate, frames, *, margin_seconds=1.5, max_clip_seconds=45):
@@ -14,50 +17,37 @@ def generate(audit_id, utterances, recognition, rate, frames, *, margin_seconds=
     matcher = SequenceMatcher(
         a=[t["normalized"] for t in expected], b=[t["normalized"] for t in actual], autojunk=False
     )
-    for operation, i1, i2, j1, j2 in matcher.get_opcodes():
+    opcodes = matcher.get_opcodes()
+    for operation, i1, i2, j1, j2 in opcodes:
         if operation == "equal":
             continue
-        selected = expected[i1:i2]
         candidates.append(
             dict(
                 kind="script_discrepancy",
                 operation=operation,
-                expected_token_range=[i1, i2],
                 recognized_token_range=[j1, j2],
-                expected_tokens=selected,
                 recognized_tokens=actual[j1:j2],
-                expected_context=utterances[
-                    max(0, (selected[0]["utterance_index"] if selected else 0) - 1) : min(
-                        len(utterances),
-                        (selected[-1]["utterance_index"] if selected else len(utterances) - 1) + 2,
-                    )
-                ],
-                script_selectors=[
-                    dict(
-                        utterance_id=t["utterance_id"],
-                        utterance_index=t["utterance_index"],
-                        char_start=t["char_start"],
-                        char_end=t["char_end"],
-                    )
-                    for t in selected
-                ],
+                **source_context(utterances, expected, i1, i2),
             )
         )
     for issue in issues:
+        j1, j2 = issue.get("transcript_token_range", [0, len(actual)])
+        i1, i2 = expected_range(opcodes, j1, j2, len(expected))
         candidates.append(
             dict(
                 kind="recognition_uncertainty",
                 issue=issue,
-                recognized_token_range=issue.get("transcript_token_range", [0, len(actual)]),
-                script_selectors=[],
+                recognized_token_range=[j1, j2],
+                recognized_tokens=actual[j1:j2],
+                **source_context(utterances, expected, i1, i2),
             )
         )
-    for i, candidate in enumerate(candidates):
+    for candidate in candidates:
         j1, j2 = candidate["recognized_token_range"]
         window = clip_range(j1, j2, mapping, frames, round(margin_seconds * rate))
         usable = window["end_frame"] - window["start_frame"] <= max_clip_seconds * rate
         candidate.update(
-            candidate_id=str(uuid5(audit_id, f"candidate:{i}")),
+            candidate_id=str(uuid5(audit_id, "candidate:" + digest(candidate))),
             audio_range=window,
             status="pending_audio_adjudication" if usable else "inconclusive",
             clip_status="ready_for_extraction" if usable else "range_exceeds_review_limit",

@@ -34,8 +34,8 @@ class Candidate(Contract):
 
 
 class CandidateReport(Contract):
-    contract: Literal["literal-fidelity-candidates/1"]
-    normalization_contract: Literal["literal-ru-case-punctuation-yo/1"]
+    contract: Literal["literal-fidelity-candidates/1", "literal-fidelity-candidates/2"]
+    normalization_contract: Literal["literal-ru-case-punctuation-yo/1", "literal-ru-case-punctuation-yo/2"]
     expected_tokens: list[dict[str, JsonValue]]
     recognized_tokens: list[dict[str, JsonValue]]
     candidates: list[Candidate]

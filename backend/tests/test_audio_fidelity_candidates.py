@@ -116,3 +116,41 @@ def test_fish_request_is_exact_unprompted_multipart_with_model_header_and_raw_pa
     raw = b'{"text":"3.5", "duration":1, "segments":[{"text":"35","start":0,"end":1}],"request_id":"exact-id","other":"preserved in receipt"}'
     parsed = parse(raw)
     assert parsed.text == "3.5" and parsed.segments[0].text == "35"
+
+
+@pytest.mark.parametrize(
+    "expected,actual", [("±12", "12"), ("< 12", "12"), (">12", "12"), ("12%", "12"), ("− 12", "12")]
+)
+def test_meaningful_symbols_do_not_disappear_as_punctuation(expected, actual):
+    result = report(expected, recognition(actual))
+    assert result["candidates"] and result["candidates"][0]["kind"] == "script_discrepancy"
+
+
+def test_zero_length_timestamps_remain_raw_but_use_neighbor_anchors_and_source_context():
+    parsed = recognition(
+        "Текст рядом", [dict(text="Текст", start=0, end=0), dict(text="рядом", start=1, end=2)]
+    )
+    result = report("Текст рядом", parsed)
+    candidate = next(c for c in result["candidates"] if c["issue"]["kind"] == "zero_length_segment_timestamp")
+    assert parsed.segments[0].start == parsed.segments[0].end == 0
+    assert candidate["audio_range"]["basis"] == "neighbor_anchors_or_full_audio_edges"
+    assert candidate["expected_context"][0]["text"] == "Текст рядом" and candidate["script_selectors"]
+    assert candidate["expected_tokens"][0]["text"] == "Текст"
+
+
+def test_timestamp_discrepancy_retains_expected_text_context_even_across_replacement():
+    result = report(
+        "Нужны 3.5 недели",
+        recognition(
+            "Нужны 3.5 недели",
+            [
+                dict(text="Нужны", start=0.1, end=0.3),
+                dict(text="35", start=0.4, end=0.7),
+                dict(text="недели", start=0.8, end=1),
+            ],
+        ),
+    )
+    candidate = next(c for c in result["candidates"] if c["kind"] == "recognition_uncertainty")
+    assert candidate["expected_tokens"][0]["text"] == "3.5"
+    assert candidate["expected_context"][0]["text"] == "Нужны 3.5 недели" and candidate["script_selectors"]
+    assert result["contract"].endswith("/2")
