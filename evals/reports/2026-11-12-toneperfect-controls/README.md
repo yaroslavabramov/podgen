@@ -20,7 +20,7 @@
 | Date altered, тот же WAV | «второе» 70.6, review; r2.definite=true, acoustic_decision=review; несколько phone substitutions | **PASS локального различения дня:** неверный target явно отделён от exact. Overall почти не меняется: 93.6 против 93.8. |
 | Word-boundary split | «по» 97.3, «тому» 99.5, обе no_correction | Нет коррекции из-за раздельного написания. |
 | Word-boundary joined, тот же WAV | «потому» 99.5, no_correction | **PASS проверки согласованности:** оба написания приняты. Human gold артикуляции/ударения W5 нет; качество произношения не сертифицировано. |
-| Digital silence + reference | assessable=false, unassessable, reason=no_audio; scores=null, words=[]; 0 credits | **PASS:** на проверенном all-zero PCM успешное чтение не выдумано. Это не квалификация почти тихой речи или шума. |
+| Digital silence + reference | assessable=false, unassessable, reason=no_audio; объект scores присутствует, все его значения — null; words=[]; 0 credits | **PASS:** на проверенном all-zero PCM успешное чтение не выдумано. Это не квалификация почти тихой речи или шума. |
 | Apollo + Snow reference | completed, assessable=true; warnings content/content_mismatch_suspected; пять из десяти words review; overall=75.2 | **PASS обнаружения чужого текста** по согласованным warnings и word evidence. Не проход точности каждого word score: остальные пять слов всё ещё no_correction, например «сотни» 91.3. HTTP error не требовался. |
 
 ## Phones и raw не превращаем в независимое hearing
