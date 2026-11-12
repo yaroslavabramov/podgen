@@ -115,11 +115,11 @@ def test_fish_header_repair_is_explicit_and_audited_in_separate_batch(monkeypatc
         build(j, c, ListeningConfig(batch_id=uuid4()))
     cfg = ListeningConfig(batch_id=uuid4(), repair_observed_fish_header=True)
     build(j, c, cfg)
-    report = export_batch(j, cfg.batch_id, tmp_path)
+    report = export_batch(j, cfg.batch_id, tmp_path / "edition")
     assert report["listening_samples"] == 1
     assert report["measured_playback"]["container_repairs"] == 1
     assert report["measured_playback"]["all_repaired_pcm_payloads_unchanged"]
-    audit = json.loads((tmp_path / "private/S001/decoded.json").read_text())
+    audit = json.loads((tmp_path / "edition/private/S001/decoded.json").read_text())
     assert audit["repair"]["payload_unchanged"] and audit["receipt_ref"] == j.ref(
         key + ":receipt"
     ).model_dump(mode="json")

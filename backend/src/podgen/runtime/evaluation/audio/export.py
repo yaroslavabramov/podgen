@@ -1,17 +1,14 @@
 """Export anonymous listening material separately from the complete evaluator provenance."""
 
 import html
-import json
 import random
 from pathlib import Path
 
+from podgen.domain.canonical import digest
+
 from .attempts import baseline, history, ledger
+from .export_directory import bind_directory, write_json
 from .matrix import full_comparison_complete
-
-
-def write_json(path, value):
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(value, ensure_ascii=False, indent=2) + "\n")
 
 
 def export(journal, folder):
@@ -19,6 +16,17 @@ def export(journal, folder):
     if manifest is None:
         raise ValueError("audio_comparison_not_prepared")
     folder = Path(folder)
+    bind_directory(
+        folder,
+        "export-binding.json",
+        dict(
+            contract="audio-comparison-export-binding/1",
+            run_id=str(journal.run_id),
+            manifest_ref=journal.ref("manifest").model_dump(mode="json"),
+            manifest_hash=digest(manifest),
+        ),
+        manifest,
+    )
     private = folder / "private"
     private.mkdir(parents=True, exist_ok=True)
     blind = folder / "blind"
@@ -108,10 +116,6 @@ def export(journal, folder):
                     retake_count=len(rows) - 1,
                 )
             )
-    current_files = {item["file"] for item in items}
-    for obsolete in blind.glob("S[0-9][0-9][0-9].wav"):
-        if obsolete.name not in current_files:
-            obsolete.unlink()
     write_json(private / "blind-key.json", mapping)
     write_json(blind / "samples.json", items)
     cards = "".join(

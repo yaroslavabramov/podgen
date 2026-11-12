@@ -4,9 +4,9 @@ from pathlib import Path
 
 from podgen.domain.canonical import digest
 from podgen.domain.contracts.common import RuntimeRef
-from podgen.domain.errors import Conflict, ContractError
+from podgen.domain.errors import ContractError
 
-from ..export import write_json
+from ..export_directory import bind_directory, write_json
 from .batch import batch_key
 
 
@@ -19,13 +19,7 @@ def export_batch(journal, batch_id, folder):
     binding = dict(
         batch_ref=journal.ref(key + ":manifest").model_dump(mode="json"), manifest_hash=digest(manifest)
     )
-    binding_path = folder / "batch.json"
-    if binding_path.exists():
-        import json
-
-        if json.loads(binding_path.read_text()) != binding:
-            raise Conflict("listening_export_directory_bound_to_other_batch")
-    write_json(binding_path, binding)
+    bind_directory(folder, "batch.json", binding, manifest)
     write_json(folder / "private" / "manifest.json", manifest)
     samples = list(manifest["samples"])
     random.Random(manifest["settings"]["blind_seed"]).shuffle(samples)
