@@ -1,0 +1,42 @@
+{
+  "contract": "directed-tts-correction-proposal/1",
+  "status": "not_executable_requires_acoustic_confirmation_and_capability_evidence",
+  "output_language": "ru",
+  "strategy": {
+    "id": "gemini_per_turn_style_lexical_correction",
+    "status": "needs_evidence",
+    "qualification_ref": null
+  },
+  "target": {
+    "utterance_id": "ff2b00b7-a20d-51ad-94be-016e2a5aac58",
+    "utterance_index": 0,
+    "char_start": 171,
+    "char_end": 180,
+    "canonical_intended_words": "с семьями",
+    "context_before": "снимают ",
+    "context_after": " на неделю"
+  },
+  "confirmed_evidence": null,
+  "evidence_note": "The existing Snow ASR deletion of с is only a candidate. This example conditionally demonstrates what to request IF actual audio later confirms that omission. It is not an approved repair.",
+  "action": "restore_omitted_word",
+  "performance_instruction": "Correct the omitted word in “снимают с семьями на неделю”: say “с семьями” fully, including “с”. Keep the current voice and delivery. Speak only the supplied script, verbatim.",
+  "pronunciation_basis": null,
+  "render_scope": "whole_original_synthesis_fragment",
+  "preserve": {
+    "script_text": true,
+    "meaning": true,
+    "model": "gemini-3.8-flash-tts",
+    "voice": "ru-ru-concierge-1",
+    "base_style": ""
+  },
+  "provider_hypothesis": {
+    "channel": "speech_metadata.style",
+    "affected_original_content_index": 0
+  },
+  "verification": {
+    "always_recheck_original_source_span": true,
+    "even_if_new_asr_has_no_diff": true,
+    "require_new_actual_audio_evidence": true,
+    "check_new_errors_and_joins": true
+  }
+}
