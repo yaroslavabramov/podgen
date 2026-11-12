@@ -69,3 +69,6 @@ def assert_persisted_adjudication(journal, project, asr_config, folder, monkeypa
     from tests.audio_adjudication_fallback_cases import assert_persisted_fallback
 
     assert_persisted_fallback(journal, config, args, folder, monkeypatch)
+    from tests.audio_realtime_runtime_cases import assert_persisted_realtime
+
+    assert_persisted_realtime(journal, config, args, folder, monkeypatch)

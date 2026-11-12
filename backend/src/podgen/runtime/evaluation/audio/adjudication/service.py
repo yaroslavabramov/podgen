@@ -8,6 +8,7 @@ from .contracts import ReviewConfigV2
 from .fallback import run_windows, superseded
 from .prepare import prepare
 from .processing import process
+from .receipts import processable
 from .submission import submit
 
 
@@ -97,10 +98,5 @@ def reprocess(journal, config, reason):
                 if isinstance(config, ReviewConfigV2) and superseded(journal, config, row["key"]):
                     continue
                 receipt = row["receipt"]
-                if (
-                    receipt
-                    and receipt["complete"]
-                    and not receipt["error"]
-                    and 200 <= receipt["status_code"] < 300
-                ):
+                if processable(receipt):
                     process(journal, row["key"], config, reason)

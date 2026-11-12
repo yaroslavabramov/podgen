@@ -2,6 +2,7 @@ from datetime import datetime, timezone
 
 from .contracts import prefix
 from .providers import request_for, settings
+from .receipts import fields, media_type
 
 
 def submit(journal, config, window, key, rows, reason, retry, credential, transport, provider=None):
@@ -41,13 +42,9 @@ def submit(journal, config, window, key, rows, reason, retry, credential, transp
     journal.put(
         key + ":receipt",
         dict(
-            contract="audio-review-http-receipt/1",
+            **fields(response),
             submit_ref=journal.ref(key + ":submit").model_dump(mode="json"),
-            status_code=response.status_code,
-            headers=response.headers,
-            raw_response_blob=journal.blob(
-                response.body, response.headers.get("content-type", "application/octet-stream")
-            ),
+            raw_response_blob=journal.blob(response.body, media_type(response)),
             elapsed_ms=response.elapsed_ms,
             complete=response.complete,
             error=response.error,

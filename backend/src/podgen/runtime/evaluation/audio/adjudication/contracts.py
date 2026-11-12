@@ -98,12 +98,29 @@ class ReviewConfigV2(ReviewConfig):
         return self
 
 
+class RealtimeReviewerProfile(Contract):
+    model_id: Literal["gpt-realtime-2.1"] = "gpt-realtime-2.1"
+    max_output_tokens: int = Field(default=4096, ge=1, le=4096)
+    reasoning_effort: Literal["medium"] = "medium"
+    request_timeout_seconds: float = Field(default=180, ge=1, le=1800)
+
+
+class RealtimeAvailabilityFallback(AvailabilityFallback):
+    reviewer: RealtimeReviewerProfile = Field(default_factory=RealtimeReviewerProfile)
+
+
+class ReviewConfigV3(ReviewConfigV2):
+    contract: Literal["audio-fidelity-adjudication/3"] = "audio-fidelity-adjudication/3"
+    fallback: RealtimeAvailabilityFallback
+    zero_pcm_policy: Literal["inconclusive-audio-unavailable/1"]
+
+
 def parse_config(raw):
-    return TypeAdapter(ReviewConfig | ReviewConfigV2).validate_json(raw)
+    return TypeAdapter(ReviewConfig | ReviewConfigV2 | ReviewConfigV3).validate_json(raw)
 
 
 def validate_config(value):
-    return TypeAdapter(ReviewConfig | ReviewConfigV2).validate_python(value)
+    return TypeAdapter(ReviewConfig | ReviewConfigV2 | ReviewConfigV3).validate_python(value)
 
 
 def prefix(review_id):

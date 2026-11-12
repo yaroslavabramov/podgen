@@ -3,7 +3,6 @@ from pathlib import Path
 
 from podgen.audio.fidelity.adjudication.contracts import WindowResolution
 from podgen.audio.fidelity.adjudication.gemini import prepare as request_for
-from podgen.audio.fidelity.adjudication.openai import prepare as fallback_request_for
 from podgen.audio.fidelity.adjudication.payload import VERSION as PAYLOAD_VERSION
 from podgen.audio.fidelity.adjudication.payload import case_payload, window_segments
 from podgen.audio.fidelity.adjudication.windows import group
@@ -15,7 +14,9 @@ from podgen.domain.errors import Conflict, ContractError
 from ..fidelity.contracts import prefix as fidelity_prefix
 from ..fidelity.processing import revisions
 from ..fidelity.snapshots import schema_blob
-from .contracts import ReviewConfigV2, prefix
+from .contracts import ReviewConfigV2, ReviewConfigV3, prefix
+from .local_resolution import resolve_zero
+from .prepared_requests import fallback_request
 
 
 def subject(journal, config):
@@ -95,19 +96,20 @@ def prepare(journal, config):
             wire_blob=journal.blob(wire, "application/json"),
         )
         if isinstance(config, ReviewConfigV2):
-            fallback_request, fallback_wire = fallback_request_for(
-                prompt_bytes.decode("utf-8"), payload, clip_audio, config.fallback.reviewer
-            )
             value.update(
-                contract="audio-review-window/2",
+                contract="audio-review-window/3"
+                if isinstance(config, ReviewConfigV3)
+                else "audio-review-window/2",
                 providers=dict(
                     gemini=dict(request=request, wire_blob=value["wire_blob"]),
-                    openai=dict(
-                        request=fallback_request, wire_blob=journal.blob(fallback_wire, "application/json")
+                    openai=fallback_request(
+                        journal, config, prompt_bytes.decode("utf-8"), payload, clip_audio
                     ),
                 ),
             )
         journal.put(window_key, value)
+        if isinstance(config, ReviewConfigV3):
+            resolve_zero(journal, window_key, value)
         windows.append(
             dict(
                 key=window_key,
@@ -116,7 +118,9 @@ def prepare(journal, config):
             )
         )
     value = dict(
-        contract="audio-review-manifest/2"
+        contract="audio-review-manifest/3"
+        if isinstance(config, ReviewConfigV3)
+        else "audio-review-manifest/2"
         if isinstance(config, ReviewConfigV2)
         else "audio-review-manifest/1",
         configuration=raw,

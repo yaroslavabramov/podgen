@@ -1,4 +1,4 @@
-"""One durable provider transition for all remaining windows in a /2 run."""
+"""One durable provider transition for all remaining windows in a versioned run."""
 
 import os
 from decimal import Decimal
@@ -7,6 +7,7 @@ from podgen.domain.errors import ContractError
 
 from .attempts import exchange_state, history
 from .contracts import prefix
+from .local_resolution import key as local_key
 from .processing import process
 from .providers import settings
 from .submission import submit
@@ -65,6 +66,10 @@ def run_windows(journal, config, manifest, transport, ledger, retry_window, reas
         raise ContractError("audio_review_retry_requires_window_and_reason")
     for number, window in enumerate(manifest["windows"], 1):
         if retry_window is not None and number != retry_window:
+            continue
+        if journal.get(local_key(window["key"])):
+            if retry_window is not None:
+                raise ContractError("audio_review_retry_cannot_override_zero_pcm")
             continue
         rows = history(journal, window["key"])
         retry = retry_window is not None

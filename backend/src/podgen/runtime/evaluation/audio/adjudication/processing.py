@@ -24,7 +24,7 @@ def revisions(journal, key):
 
 def process(journal, key, config, reason=None):
     provider = journal.get(key + ":prepared").get("provider", "gemini")
-    port = adapter(provider)
+    port = adapter(provider, config)
     previous = revisions(journal, key)
     output = f"{key}:processing:{len(previous) + 1}"
     journal.put(

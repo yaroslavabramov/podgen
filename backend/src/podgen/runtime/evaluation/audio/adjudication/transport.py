@@ -1,9 +1,11 @@
 """Credentials never enter frozen requests; authentication is origin-bound."""
 
+from podgen.audio.fidelity.adjudication.realtime import URL
 from podgen.audio.http import RawAudioTransport
+from podgen.audio.realtime_transport import RealtimeTransport
 from podgen.domain.errors import ContractError
 
-from .contracts import ReviewConfigV2
+from .contracts import ReviewConfigV2, ReviewConfigV3
 
 
 class ReviewerTransport:
@@ -16,7 +18,11 @@ class ReviewerTransport:
                 client=client,
             )
         }
-        if isinstance(config, ReviewConfigV2):
+        if isinstance(config, ReviewConfigV3):
+            self.routes[URL] = RealtimeTransport(
+                timeout_seconds=config.fallback.reviewer.request_timeout_seconds
+            )
+        elif isinstance(config, ReviewConfigV2):
             self.routes["https://api.openai.com/v1/chat/completions"] = RawAudioTransport(
                 timeout_seconds=config.fallback.reviewer.request_timeout_seconds,
                 client=client,

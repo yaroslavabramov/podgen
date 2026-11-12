@@ -1,6 +1,8 @@
-"""One window can have explicitly requested paid attempts; resume never adds one."""
+"""Immutable window attempts and their local processing revisions."""
 
+from .local_resolution import key as local_key
 from .processing import revisions
+from .receipts import processable
 
 
 def history(journal, window_key):
@@ -30,6 +32,10 @@ def exchange_state(journal, key):
         return "response_invalid"
     receipt = journal.get(key + ":receipt")
     if receipt:
+        if receipt.get("transport") == "websocket":
+            if not receipt["complete"]:
+                return "outcome_unknown"
+            return "receipt_saved" if processable(receipt) else "provider_rejected"
         if not receipt["complete"] or receipt["error"]:
             return "outcome_unknown"
         return "receipt_saved" if 200 <= receipt["status_code"] < 300 else "provider_rejected"
@@ -37,5 +43,7 @@ def exchange_state(journal, key):
 
 
 def state(journal, window_key):
+    if journal.get(local_key(window_key)):
+        return "reviewed"
     rows = history(journal, window_key)
     return exchange_state(journal, rows[-1]["key"]) if rows else "prepared"
