@@ -1,5 +1,19 @@
 # TonePerfect: восемь сохранённых контролей
 
+Текущий вывод по исходному набору исправлен в [оценке](../../reports/2026-11-12-toneperfect-controls/assessment-supersession.json): контроль безударных «-ая/-ое» не используется для браковки. Исходные запросы и критерии ниже сохранены как история эксперимента.
+
+Последующие проверки могут содержать 1–8 случаев на trial при прежнем потолке 10 credits. В export отдельно показаны `review`, `uncertain`, `no_correction`, прочие и неоценённые слова; баллы не превращаются в допуск. Подтверждение человека хранится отдельно от решения сервиса.
+
+Для просмотра сохранённых фрагментов без API:
+
+```sh
+python3 evals/operator/toneperfect-controls/listening.py \
+  evals/reports/2026-11-12-toneperfect-snow-followup/listening.json \
+  /absolute/path/to/local/listening-directory
+```
+
+Генератор проверяет хеши аудио, копирует исходные клипы и создаёт `index.html`. Сценарий и ответ сервиса раскрываются после прослушивания. Полные результаты 17 новых фраз: [results.json](../../reports/2026-11-12-toneperfect-snow-followup/results.json). У новых случаев ещё нет человеческой разметки; отсутствие замечания сервиса не является подтверждением правильного чтения.
+
 `trial.json` — вход developer operator CLI, contract `toneperfect-qualification/1`: фиксированный run_id, потолок 10 credits и ровно восемь `cases[]` с `case_id`, `audio_path`, `audio_sha256`, `reference_text`, отдельными `provenance`/`evaluation`. Соответствие прочитанному `runtime/evaluation/toneperfect/contracts.py` проверено по полям без импорта или запуска продукта. `manifest.json` — дополнительный индекс assets, contract `toneperfect-saved-controls/1`, с длительностями, хешами и плановым максимумом **8 credits**. Credentials и API здесь не используются; live выполняет root.
 
 Provider request содержит файл `audio` с нейтральным именем `audio.wav`, `text`, `language=ru-RU` и явный документированный default `task=general`, который задаёт developer adapter. Control IDs, provenance, ожидаемые решения, human confirmation, Fish/OpenAI transcripts в request не включать. Для одной попытки сохранять один Idempotency-Key; повтор не должен превращаться в новый оплачиваемый контроль. Fallback выключен adapter header, чтобы не сравнивать разные калибровки незаметно.

@@ -1,0 +1,5401 @@
+{
+  "title": "Сноу: проверка произнесённых слов",
+  "cases": [
+    {
+      "case_id": "snow-01",
+      "audio_path": "/Users/yaroslavabramov/side/podgen/tmp/toneperfect-snow-followup-2026-11-12/snow-01/audio.wav",
+      "audio_sha256": "d2eb9f3e1038ca42b7af5f6de98f23773b100af163036880cadcfca95fcde33a",
+      "reference_text": "Здесь тесно: мастерские, лавки, комнаты, которые портные и рабочие снимают с семьями на неделю.",
+      "timestamp": "00:08",
+      "human_status": "Ещё не проверено",
+      "target_rows": [
+        {
+          "index": 10,
+          "text": "с",
+          "word": "с",
+          "expected_ipa": "s",
+          "score": 84.0,
+          "start_ms": 5186,
+          "end_ms": 5216,
+          "decision": "review",
+          "omission_suspected": false,
+          "phonemes": [
+            {
+              "expected": "s",
+              "phone": "s",
+              "dimension": "phoneme",
+              "heard": "s",
+              "score": 91.8,
+              "start_ms": 5186,
+              "end_ms": 5216,
+              "operation": "M",
+              "diagnosis_status": "experimental",
+              "heard_raw": "tʲ"
+            }
+          ],
+          "mismatch_risk": -5.30729653415932,
+          "p_error": 0.00493087115254552,
+          "assessed": true,
+          "reason": null,
+          "word_evidence": {
+            "channel": "gbm_pooled_all_tail_train7(g2pfix7)",
+            "version": "rc4-wordhead",
+            "native_budget": 0.05,
+            "r2": {
+              "score": 0.35128390052760583,
+              "threshold": -0.3256215007611667,
+              "heard_homophone": false,
+              "definite": true,
+              "acoustic_decision": "no_correction"
+            },
+            "combined_risk": 0.6769054012887725,
+            "rank5": {
+              "mode": "r4h",
+              "r4": 0.6769054012887725,
+              "r4h": 0.6769054012887725,
+              "r3": null
+            }
+          },
+          "phones": [
+            {
+              "expected": "s",
+              "phone": "s",
+              "dimension": "phoneme",
+              "heard": "s",
+              "score": 91.8,
+              "start_ms": 5186,
+              "end_ms": 5216,
+              "operation": "M",
+              "diagnosis_status": "experimental",
+              "heard_raw": "tʲ"
+            }
+          ]
+        }
+      ],
+      "other_flagged_words": [
+        {
+          "index": 11,
+          "text": "семьями",
+          "word": "семьями",
+          "expected_ipa": "sʲemʲjamʲi",
+          "score": 99.5,
+          "start_ms": 5216,
+          "end_ms": 5588,
+          "decision": "partial",
+          "omission_suspected": false,
+          "phonemes": [
+            {
+              "expected": "sʲ",
+              "phone": "sʲ",
+              "dimension": "phoneme",
+              "heard": "sʲ",
+              "score": 99.6,
+              "start_ms": 5216,
+              "end_ms": 5267,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            },
+            {
+              "expected": "e",
+              "phone": "e",
+              "dimension": "phoneme",
+              "heard": "e",
+              "score": 98.9,
+              "start_ms": 5267,
+              "end_ms": 5357,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            },
+            {
+              "expected": "mʲ",
+              "phone": "mʲ",
+              "dimension": "phoneme",
+              "heard": "mʲ",
+              "score": 99.5,
+              "start_ms": 5357,
+              "end_ms": 5427,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            },
+            {
+              "expected": "ja",
+              "phone": "ja",
+              "dimension": "phoneme",
+              "heard": "i",
+              "score": 79.7,
+              "start_ms": 5427,
+              "end_ms": 5487,
+              "operation": "S",
+              "diagnosis_status": "experimental"
+            },
+            {
+              "expected": "mʲ",
+              "phone": "mʲ",
+              "dimension": "phoneme",
+              "heard": "mʲ",
+              "score": 99.6,
+              "start_ms": 5487,
+              "end_ms": 5537,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            },
+            {
+              "expected": "i",
+              "phone": "i",
+              "dimension": "phoneme",
+              "heard": "i",
+              "score": 99.9,
+              "start_ms": 5537,
+              "end_ms": 5588,
+              "operation": "M",
+              "diagnosis_status": "experimental",
+              "heard_by": "transcript"
+            }
+          ],
+          "mismatch_risk": null,
+          "p_error": null,
+          "assessed": false,
+          "reason": "unsupported_phonetic_symbols",
+          "word_evidence": {
+            "channel": "gbm_pooled_all_tail_train7(g2pfix7)",
+            "version": "rc4-wordhead",
+            "native_budget": 0.05,
+            "r2": {
+              "score": -9.501607592706382,
+              "threshold": -0.3256215007611667,
+              "heard_homophone": false,
+              "definite": false,
+              "acoustic_decision": "partial"
+            },
+            "combined_risk": null,
+            "rank5": {
+              "mode": "r4h",
+              "r4": null,
+              "r4h": null,
+              "r3": null
+            }
+          },
+          "phones": [
+            {
+              "expected": "sʲ",
+              "phone": "sʲ",
+              "dimension": "phoneme",
+              "heard": "sʲ",
+              "score": 99.6,
+              "start_ms": 5216,
+              "end_ms": 5267,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            },
+            {
+              "expected": "e",
+              "phone": "e",
+              "dimension": "phoneme",
+              "heard": "e",
+              "score": 98.9,
+              "start_ms": 5267,
+              "end_ms": 5357,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            },
+            {
+              "expected": "mʲ",
+              "phone": "mʲ",
+              "dimension": "phoneme",
+              "heard": "mʲ",
+              "score": 99.5,
+              "start_ms": 5357,
+              "end_ms": 5427,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            },
+            {
+              "expected": "ja",
+              "phone": "ja",
+              "dimension": "phoneme",
+              "heard": "i",
+              "score": 79.7,
+              "start_ms": 5427,
+              "end_ms": 5487,
+              "operation": "S",
+              "diagnosis_status": "experimental"
+            },
+            {
+              "expected": "mʲ",
+              "phone": "mʲ",
+              "dimension": "phoneme",
+              "heard": "mʲ",
+              "score": 99.6,
+              "start_ms": 5487,
+              "end_ms": 5537,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            },
+            {
+              "expected": "i",
+              "phone": "i",
+              "dimension": "phoneme",
+              "heard": "i",
+              "score": 99.9,
+              "start_ms": 5537,
+              "end_ms": 5588,
+              "operation": "M",
+              "diagnosis_status": "experimental",
+              "heard_by": "transcript"
+            }
+          ],
+          "expected_ipa_full": "sʲ|ˈe|mʲ|j|ja|mʲ|ɪ",
+          "unassessed_symbols": [
+            "unjudgeable:ja"
+          ],
+          "score_scope": "supported_sounds"
+        }
+      ]
+    },
+    {
+      "case_id": "snow-02",
+      "audio_path": "/Users/yaroslavabramov/side/podgen/tmp/toneperfect-snow-followup-2026-11-12/snow-02/audio.wav",
+      "audio_sha256": "2e8dc8cd5adfe27da65e93103420c3d1c246b3c62f5083068a07a2aa9082bcbe",
+      "reference_text": "Воду в домах держат в баках, а они нередко стоят без крышек рядом с грязными задворками, так что доверяют им далеко не все.",
+      "timestamp": "00:15",
+      "human_status": "Ещё не проверено",
+      "target_rows": [
+        {
+          "index": 6,
+          "text": "а",
+          "word": "а",
+          "expected_ipa": "ʌ",
+          "score": 97.8,
+          "start_ms": 1845,
+          "end_ms": 2136,
+          "decision": "no_correction",
+          "omission_suspected": false,
+          "phonemes": [
+            {
+              "expected": "ʌ",
+              "phone": "ʌ",
+              "dimension": "phoneme",
+              "heard": "ʌ",
+              "score": 97.8,
+              "start_ms": 1845,
+              "end_ms": 2136,
+              "operation": "M",
+              "diagnosis_status": "experimental",
+              "heard_by": "transcript"
+            }
+          ],
+          "mismatch_risk": -6.084483602032985,
+          "p_error": 0.0022727631255275997,
+          "assessed": true,
+          "reason": null,
+          "word_evidence": {
+            "channel": "gbm_pooled_all_tail_train7(g2pfix7)",
+            "version": "rc4-wordhead",
+            "native_budget": 0.05,
+            "r2": {
+              "score": -7.364275060440237,
+              "threshold": -0.3256215007611667,
+              "heard_homophone": false,
+              "definite": false,
+              "acoustic_decision": "no_correction"
+            },
+            "combined_risk": -7.03865355967907,
+            "rank5": {
+              "mode": "r4h",
+              "r4": -7.03865355967907,
+              "r4h": -7.03865355967907,
+              "r3": null
+            }
+          },
+          "phones": [
+            {
+              "expected": "ʌ",
+              "phone": "ʌ",
+              "dimension": "phoneme",
+              "heard": "ʌ",
+              "score": 97.8,
+              "start_ms": 1845,
+              "end_ms": 2136,
+              "operation": "M",
+              "diagnosis_status": "experimental",
+              "heard_by": "transcript"
+            }
+          ],
+          "sounds_heard": 1.0
+        }
+      ],
+      "other_flagged_words": [
+        {
+          "index": 9,
+          "text": "стоят",
+          "word": "стоят",
+          "expected_ipa": "stʌjat",
+          "score": 99.5,
+          "start_ms": 2838,
+          "end_ms": 3148,
+          "decision": "partial",
+          "omission_suspected": false,
+          "phonemes": [
+            {
+              "expected": "s",
+              "phone": "s",
+              "dimension": "phoneme",
+              "heard": "s",
+              "score": 100.0,
+              "start_ms": 2838,
+              "end_ms": 2898,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            },
+            {
+              "expected": "t",
+              "phone": "t",
+              "dimension": "phoneme",
+              "heard": "t",
+              "score": 100.0,
+              "start_ms": 2898,
+              "end_ms": 2948,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            },
+            {
+              "expected": "ʌ",
+              "phone": "ʌ",
+              "dimension": "phoneme",
+              "heard": "ʌ",
+              "score": 99.2,
+              "start_ms": 2948,
+              "end_ms": 3008,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            },
+            {
+              "expected": "ja",
+              "phone": "ja",
+              "dimension": "phoneme",
+              "heard": "ja",
+              "score": 99.6,
+              "start_ms": 3008,
+              "end_ms": 3088,
+              "operation": "M",
+              "diagnosis_status": "experimental",
+              "heard_raw": "e"
+            },
+            {
+              "expected": "t",
+              "phone": "t",
+              "dimension": "phoneme",
+              "heard": "d",
+              "score": 86.2,
+              "start_ms": 3088,
+              "end_ms": 3148,
+              "operation": "S",
+              "diagnosis_status": "experimental"
+            }
+          ],
+          "mismatch_risk": null,
+          "p_error": null,
+          "assessed": false,
+          "reason": "unsupported_phonetic_symbols",
+          "word_evidence": {
+            "channel": "gbm_pooled_all_tail_train7(g2pfix7)",
+            "version": "rc4-wordhead",
+            "native_budget": 0.05,
+            "r2": {
+              "score": -8.18947977081281,
+              "threshold": -0.3256215007611667,
+              "heard_homophone": false,
+              "definite": false,
+              "acoustic_decision": "partial"
+            },
+            "combined_risk": null,
+            "rank5": {
+              "mode": "r4h",
+              "r4": null,
+              "r4h": null,
+              "r3": null
+            }
+          },
+          "phones": [
+            {
+              "expected": "s",
+              "phone": "s",
+              "dimension": "phoneme",
+              "heard": "s",
+              "score": 100.0,
+              "start_ms": 2838,
+              "end_ms": 2898,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            },
+            {
+              "expected": "t",
+              "phone": "t",
+              "dimension": "phoneme",
+              "heard": "t",
+              "score": 100.0,
+              "start_ms": 2898,
+              "end_ms": 2948,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            },
+            {
+              "expected": "ʌ",
+              "phone": "ʌ",
+              "dimension": "phoneme",
+              "heard": "ʌ",
+              "score": 99.2,
+              "start_ms": 2948,
+              "end_ms": 3008,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            },
+            {
+              "expected": "ja",
+              "phone": "ja",
+              "dimension": "phoneme",
+              "heard": "ja",
+              "score": 99.6,
+              "start_ms": 3008,
+              "end_ms": 3088,
+              "operation": "M",
+              "diagnosis_status": "experimental",
+              "heard_raw": "e"
+            },
+            {
+              "expected": "t",
+              "phone": "t",
+              "dimension": "phoneme",
+              "heard": "d",
+              "score": 86.2,
+              "start_ms": 3088,
+              "end_ms": 3148,
+              "operation": "S",
+              "diagnosis_status": "experimental"
+            }
+          ],
+          "expected_ipa_full": "s|t|ʌ|ˈja|t",
+          "unassessed_symbols": [
+            "unjudgeable:ja"
+          ],
+          "score_scope": "supported_sounds"
+        }
+      ]
+    },
+    {
+      "case_id": "snow-03",
+      "audio_path": "/Users/yaroslavabramov/side/podgen/tmp/toneperfect-snow-followup-2026-11-12/snow-03/audio.wav",
+      "audio_sha256": "4ba972e41985b2f9245ce3bcebfec1432e8816765a74622bd8a114f4e8330cad",
+      "reference_text": "Их смерти Сноу относит к той холере, которая и раньше понемногу встречалась в округе.",
+      "timestamp": "03:07",
+      "human_status": "Ещё не проверено",
+      "target_rows": [
+        {
+          "index": 2,
+          "text": "сноу",
+          "word": "сноу",
+          "expected_ipa": "snou",
+          "score": 99.0,
+          "start_ms": 764,
+          "end_ms": 1015,
+          "decision": "uncertain",
+          "omission_suspected": false,
+          "phonemes": [
+            {
+              "expected": "s",
+              "phone": "s",
+              "dimension": "phoneme",
+              "heard": "s",
+              "score": 100.0,
+              "start_ms": 764,
+              "end_ms": 834,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            },
+            {
+              "expected": "n",
+              "phone": "n",
+              "dimension": "phoneme",
+              "heard": "n",
+              "score": 98.1,
+              "start_ms": 834,
+              "end_ms": 894,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            },
+            {
+              "expected": "o",
+              "phone": "o",
+              "dimension": "phoneme",
+              "heard": "o",
+              "score": 98.8,
+              "start_ms": 894,
+              "end_ms": 954,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            },
+            {
+              "expected": "u",
+              "phone": "u",
+              "dimension": "phoneme",
+              "heard": "v",
+              "score": 71.4,
+              "start_ms": 954,
+              "end_ms": 1015,
+              "operation": "S",
+              "diagnosis_status": "experimental"
+            }
+          ],
+          "mismatch_risk": -2.9004208626687205,
+          "p_error": 0.05213276225555522,
+          "assessed": true,
+          "reason": null,
+          "word_evidence": {
+            "channel": "gbm_pooled_all_tail_train7(g2pfix7)",
+            "version": "rc4-wordhead",
+            "native_budget": 0.05,
+            "r2": {
+              "score": 2.1336415761682606,
+              "threshold": -0.3256215007611667,
+              "heard_homophone": false,
+              "definite": true,
+              "acoustic_decision": "no_correction"
+            },
+            "combined_risk": 2.4592630769294272,
+            "rank5": {
+              "mode": "r4h",
+              "r4": 2.4592630769294272,
+              "r4h": 2.4592630769294272,
+              "r3": null
+            }
+          },
+          "phones": [
+            {
+              "expected": "s",
+              "phone": "s",
+              "dimension": "phoneme",
+              "heard": "s",
+              "score": 100.0,
+              "start_ms": 764,
+              "end_ms": 834,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            },
+            {
+              "expected": "n",
+              "phone": "n",
+              "dimension": "phoneme",
+              "heard": "n",
+              "score": 98.1,
+              "start_ms": 834,
+              "end_ms": 894,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            },
+            {
+              "expected": "o",
+              "phone": "o",
+              "dimension": "phoneme",
+              "heard": "o",
+              "score": 98.8,
+              "start_ms": 894,
+              "end_ms": 954,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            },
+            {
+              "expected": "u",
+              "phone": "u",
+              "dimension": "phoneme",
+              "heard": "v",
+              "score": 71.4,
+              "start_ms": 954,
+              "end_ms": 1015,
+              "operation": "S",
+              "diagnosis_status": "experimental"
+            }
+          ]
+        },
+        {
+          "index": 3,
+          "text": "относит",
+          "word": "относит",
+          "expected_ipa": "ʌtnosʲit",
+          "score": 99.5,
+          "start_ms": 1015,
+          "end_ms": 1366,
+          "decision": "no_correction",
+          "omission_suspected": false,
+          "phonemes": [
+            {
+              "expected": "ʌ",
+              "phone": "ʌ",
+              "dimension": "phoneme",
+              "heard": "ʌ",
+              "score": 98.4,
+              "start_ms": 1015,
+              "end_ms": 1065,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            },
+            {
+              "expected": "t",
+              "phone": "t",
+              "dimension": "phoneme",
+              "heard": "t",
+              "score": 98.0,
+              "start_ms": 1065,
+              "end_ms": 1115,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            },
+            {
+              "expected": "n",
+              "phone": "n",
+              "dimension": "phoneme",
+              "heard": "n",
+              "score": 99.8,
+              "start_ms": 1115,
+              "end_ms": 1145,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            },
+            {
+              "expected": "o",
+              "phone": "o",
+              "dimension": "phoneme",
+              "heard": "o",
+              "score": 99.4,
+              "start_ms": 1145,
+              "end_ms": 1196,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            },
+            {
+              "expected": "sʲ",
+              "phone": "sʲ",
+              "dimension": "phoneme",
+              "heard": "sʲ",
+              "score": 99.3,
+              "start_ms": 1196,
+              "end_ms": 1256,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            },
+            {
+              "expected": "i",
+              "phone": "i",
+              "dimension": "phoneme",
+              "heard": "i",
+              "score": 99.4,
+              "start_ms": 1256,
+              "end_ms": 1306,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            },
+            {
+              "expected": "t",
+              "phone": "t",
+              "dimension": "phoneme",
+              "heard": "t",
+              "score": 97.5,
+              "start_ms": 1306,
+              "end_ms": 1366,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            }
+          ],
+          "mismatch_risk": -4.930422026787746,
+          "p_error": 0.0071716500614869595,
+          "assessed": true,
+          "reason": null,
+          "word_evidence": {
+            "channel": "gbm_pooled_all_tail_train7(g2pfix7)",
+            "version": "rc4-wordhead",
+            "native_budget": 0.05,
+            "r2": {
+              "score": -2.084828895345261,
+              "threshold": -0.3256215007611667,
+              "heard_homophone": false,
+              "definite": false,
+              "acoustic_decision": "no_correction"
+            },
+            "combined_risk": -1.7592073945840943,
+            "rank5": {
+              "mode": "r4h",
+              "r4": -1.7592073945840943,
+              "r4h": -1.7592073945840943,
+              "r3": null
+            }
+          },
+          "phones": [
+            {
+              "expected": "ʌ",
+              "phone": "ʌ",
+              "dimension": "phoneme",
+              "heard": "ʌ",
+              "score": 98.4,
+              "start_ms": 1015,
+              "end_ms": 1065,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            },
+            {
+              "expected": "t",
+              "phone": "t",
+              "dimension": "phoneme",
+              "heard": "t",
+              "score": 98.0,
+              "start_ms": 1065,
+              "end_ms": 1115,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            },
+            {
+              "expected": "n",
+              "phone": "n",
+              "dimension": "phoneme",
+              "heard": "n",
+              "score": 99.8,
+              "start_ms": 1115,
+              "end_ms": 1145,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            },
+            {
+              "expected": "o",
+              "phone": "o",
+              "dimension": "phoneme",
+              "heard": "o",
+              "score": 99.4,
+              "start_ms": 1145,
+              "end_ms": 1196,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            },
+            {
+              "expected": "sʲ",
+              "phone": "sʲ",
+              "dimension": "phoneme",
+              "heard": "sʲ",
+              "score": 99.3,
+              "start_ms": 1196,
+              "end_ms": 1256,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            },
+            {
+              "expected": "i",
+              "phone": "i",
+              "dimension": "phoneme",
+              "heard": "i",
+              "score": 99.4,
+              "start_ms": 1256,
+              "end_ms": 1306,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            },
+            {
+              "expected": "t",
+              "phone": "t",
+              "dimension": "phoneme",
+              "heard": "t",
+              "score": 97.5,
+              "start_ms": 1306,
+              "end_ms": 1366,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            }
+          ]
+        }
+      ],
+      "other_flagged_words": []
+    },
+    {
+      "case_id": "snow-04",
+      "audio_path": "/Users/yaroslavabramov/side/podgen/tmp/toneperfect-snow-followup-2026-11-12/snow-04/audio.wav",
+      "audio_sha256": "c886b17d1717867150aeb5ecba1ee0afec93179bfe82779e7027d21bb2176c1e",
+      "reference_text": "На Поланд-стрит стоит работный дом.",
+      "timestamp": "04:15",
+      "human_status": "Ещё не проверено",
+      "target_rows": [
+        {
+          "index": 1,
+          "text": "поланд-стрит",
+          "word": "поланд-стрит",
+          "expected_ipa": "pʌɭʌntstrʲit",
+          "score": 79.0,
+          "start_ms": 332,
+          "end_ms": 884,
+          "decision": "review",
+          "omission_suspected": false,
+          "phonemes": [
+            {
+              "expected": "p",
+              "phone": "p",
+              "dimension": "phoneme",
+              "heard": "p",
+              "score": 99.8,
+              "start_ms": 332,
+              "end_ms": 392,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            },
+            {
+              "expected": "ʌ",
+              "phone": "ʌ",
+              "dimension": "phoneme",
+              "heard": "ʌ",
+              "score": 96.8,
+              "start_ms": 392,
+              "end_ms": 442,
+              "operation": "M",
+              "diagnosis_status": "experimental",
+              "heard_raw": "o"
+            },
+            {
+              "expected": "ɭ",
+              "phone": "ɭ",
+              "dimension": "phoneme",
+              "heard": "ɭ",
+              "score": 99.9,
+              "start_ms": 442,
+              "end_ms": 482,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            },
+            {
+              "expected": "ʌ",
+              "phone": "ʌ",
+              "dimension": "phoneme",
+              "heard": "ʌ",
+              "score": 97.7,
+              "start_ms": 482,
+              "end_ms": 522,
+              "operation": "M",
+              "diagnosis_status": "experimental",
+              "heard_raw": "u"
+            },
+            {
+              "expected": "n",
+              "phone": "n",
+              "dimension": "phoneme",
+              "heard": "n",
+              "score": 98.3,
+              "start_ms": 522,
+              "end_ms": 573,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            },
+            {
+              "expected": "t",
+              "phone": "t",
+              "dimension": "phoneme",
+              "heard": null,
+              "score": 5.0,
+              "start_ms": 573,
+              "end_ms": 603,
+              "operation": "D",
+              "diagnosis_status": "experimental"
+            },
+            {
+              "expected": "s",
+              "phone": "s",
+              "dimension": "phoneme",
+              "heard": "s",
+              "score": 99.6,
+              "start_ms": 603,
+              "end_ms": 653,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            },
+            {
+              "expected": "t",
+              "phone": "t",
+              "dimension": "phoneme",
+              "heard": "t",
+              "score": 99.0,
+              "start_ms": 653,
+              "end_ms": 723,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            },
+            {
+              "expected": "rʲ",
+              "phone": "rʲ",
+              "dimension": "phoneme",
+              "heard": "rʲ",
+              "score": 99.8,
+              "start_ms": 723,
+              "end_ms": 774,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            },
+            {
+              "expected": "i",
+              "phone": "i",
+              "dimension": "phoneme",
+              "heard": "i",
+              "score": 99.9,
+              "start_ms": 774,
+              "end_ms": 834,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            },
+            {
+              "expected": "t",
+              "phone": "t",
+              "dimension": "phoneme",
+              "heard": null,
+              "score": 5.0,
+              "start_ms": 834,
+              "end_ms": 884,
+              "operation": "D",
+              "diagnosis_status": "experimental"
+            }
+          ],
+          "mismatch_risk": -4.384616451855501,
+          "p_error": 0.012314140538440483,
+          "assessed": true,
+          "reason": null,
+          "word_evidence": {
+            "channel": "gbm_pooled_all_tail_train7(g2pfix7)",
+            "version": "rc4-wordhead",
+            "native_budget": 0.05,
+            "r2": {
+              "score": 0.18737512614229068,
+              "threshold": -0.3256215007611667,
+              "heard_homophone": false,
+              "definite": true,
+              "acoustic_decision": "no_correction"
+            },
+            "combined_risk": 0.5129966269034574,
+            "rank5": {
+              "mode": "r4h",
+              "r4": 0.5129966269034574,
+              "r4h": 0.5129966269034574,
+              "r3": null
+            }
+          },
+          "phones": [
+            {
+              "expected": "p",
+              "phone": "p",
+              "dimension": "phoneme",
+              "heard": "p",
+              "score": 99.8,
+              "start_ms": 332,
+              "end_ms": 392,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            },
+            {
+              "expected": "ʌ",
+              "phone": "ʌ",
+              "dimension": "phoneme",
+              "heard": "ʌ",
+              "score": 96.8,
+              "start_ms": 392,
+              "end_ms": 442,
+              "operation": "M",
+              "diagnosis_status": "experimental",
+              "heard_raw": "o"
+            },
+            {
+              "expected": "ɭ",
+              "phone": "ɭ",
+              "dimension": "phoneme",
+              "heard": "ɭ",
+              "score": 99.9,
+              "start_ms": 442,
+              "end_ms": 482,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            },
+            {
+              "expected": "ʌ",
+              "phone": "ʌ",
+              "dimension": "phoneme",
+              "heard": "ʌ",
+              "score": 97.7,
+              "start_ms": 482,
+              "end_ms": 522,
+              "operation": "M",
+              "diagnosis_status": "experimental",
+              "heard_raw": "u"
+            },
+            {
+              "expected": "n",
+              "phone": "n",
+              "dimension": "phoneme",
+              "heard": "n",
+              "score": 98.3,
+              "start_ms": 522,
+              "end_ms": 573,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            },
+            {
+              "expected": "t",
+              "phone": "t",
+              "dimension": "phoneme",
+              "heard": null,
+              "score": 5.0,
+              "start_ms": 573,
+              "end_ms": 603,
+              "operation": "D",
+              "diagnosis_status": "experimental"
+            },
+            {
+              "expected": "s",
+              "phone": "s",
+              "dimension": "phoneme",
+              "heard": "s",
+              "score": 99.6,
+              "start_ms": 603,
+              "end_ms": 653,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            },
+            {
+              "expected": "t",
+              "phone": "t",
+              "dimension": "phoneme",
+              "heard": "t",
+              "score": 99.0,
+              "start_ms": 653,
+              "end_ms": 723,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            },
+            {
+              "expected": "rʲ",
+              "phone": "rʲ",
+              "dimension": "phoneme",
+              "heard": "rʲ",
+              "score": 99.8,
+              "start_ms": 723,
+              "end_ms": 774,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            },
+            {
+              "expected": "i",
+              "phone": "i",
+              "dimension": "phoneme",
+              "heard": "i",
+              "score": 99.9,
+              "start_ms": 774,
+              "end_ms": 834,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            },
+            {
+              "expected": "t",
+              "phone": "t",
+              "dimension": "phoneme",
+              "heard": null,
+              "score": 5.0,
+              "start_ms": 834,
+              "end_ms": 884,
+              "operation": "D",
+              "diagnosis_status": "experimental"
+            }
+          ],
+          "sounds_heard": 0.82
+        }
+      ],
+      "other_flagged_words": []
+    },
+    {
+      "case_id": "snow-05",
+      "audio_path": "/Users/yaroslavabramov/side/podgen/tmp/toneperfect-snow-followup-2026-11-12/snow-05/audio.wav",
+      "audio_sha256": "dda54dc84bbfb660f28ecb4ea3c71a41fbfdb0bb27284fb3a9e10ab11320de2a",
+      "reference_text": "Он рассказывает им, что показали адреса из реестра и расспросы родных: особенной вспышки холеры в этой части Лондона не было нигде, кроме как среди тех, кто привык пить воду этой колонки.",
+      "timestamp": "04:56",
+      "human_status": "Ещё не проверено",
+      "target_rows": [
+        {
+          "index": 11,
+          "text": "особенной",
+          "word": "особенной",
+          "expected_ipa": "ʌsobʲinnʌ",
+          "score": 99.5,
+          "start_ms": 4028,
+          "end_ms": 4679,
+          "decision": "no_correction",
+          "omission_suspected": false,
+          "phonemes": [
+            {
+              "expected": "ʌ",
+              "phone": "ʌ",
+              "dimension": "phoneme",
+              "heard": "ʌ",
+              "score": 98.6,
+              "start_ms": 4028,
+              "end_ms": 4359,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            },
+            {
+              "expected": "s",
+              "phone": "s",
+              "dimension": "phoneme",
+              "heard": "s",
+              "score": 99.3,
+              "start_ms": 4359,
+              "end_ms": 4429,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            },
+            {
+              "expected": "o",
+              "phone": "o",
+              "dimension": "phoneme",
+              "heard": "o",
+              "score": 99.8,
+              "start_ms": 4429,
+              "end_ms": 4489,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            },
+            {
+              "expected": "bʲ",
+              "phone": "bʲ",
+              "dimension": "phoneme",
+              "heard": "v",
+              "score": 72.1,
+              "start_ms": 4489,
+              "end_ms": 4529,
+              "operation": "S",
+              "diagnosis_status": "experimental"
+            },
+            {
+              "expected": "i",
+              "phone": "i",
+              "dimension": "phoneme",
+              "heard": "i",
+              "score": 99.3,
+              "start_ms": 4529,
+              "end_ms": 4559,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            },
+            {
+              "expected": "n",
+              "phone": "n",
+              "dimension": "phoneme",
+              "heard": "n",
+              "score": 97.9,
+              "start_ms": 4559,
+              "end_ms": 4599,
+              "operation": "M",
+              "diagnosis_status": "experimental",
+              "heard_by": "transcript"
+            },
+            {
+              "expected": "n",
+              "phone": "n",
+              "dimension": "phoneme",
+              "heard": "n",
+              "score": 99.9,
+              "start_ms": 4599,
+              "end_ms": 4629,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            },
+            {
+              "expected": "ʌ",
+              "phone": "ʌ",
+              "dimension": "phoneme",
+              "heard": "ʌ",
+              "score": 97.0,
+              "start_ms": 4629,
+              "end_ms": 4679,
+              "operation": "M",
+              "diagnosis_status": "experimental",
+              "heard_raw": "y"
+            }
+          ],
+          "mismatch_risk": -4.054567589545131,
+          "p_error": 0.017047326442409305,
+          "assessed": true,
+          "reason": null,
+          "word_evidence": {
+            "channel": "gbm_pooled_all_tail_train7(g2pfix7)",
+            "version": "rc4-wordhead",
+            "native_budget": 0.05,
+            "r2": {
+              "score": -6.9344506367855825,
+              "threshold": -0.3256215007611667,
+              "heard_homophone": false,
+              "definite": false,
+              "acoustic_decision": "no_correction"
+            },
+            "combined_risk": -6.608829136024416,
+            "rank5": {
+              "mode": "r4h",
+              "r4": -6.608829136024416,
+              "r4h": -6.608829136024416,
+              "r3": null
+            }
+          },
+          "phones": [
+            {
+              "expected": "ʌ",
+              "phone": "ʌ",
+              "dimension": "phoneme",
+              "heard": "ʌ",
+              "score": 98.6,
+              "start_ms": 4028,
+              "end_ms": 4359,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            },
+            {
+              "expected": "s",
+              "phone": "s",
+              "dimension": "phoneme",
+              "heard": "s",
+              "score": 99.3,
+              "start_ms": 4359,
+              "end_ms": 4429,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            },
+            {
+              "expected": "o",
+              "phone": "o",
+              "dimension": "phoneme",
+              "heard": "o",
+              "score": 99.8,
+              "start_ms": 4429,
+              "end_ms": 4489,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            },
+            {
+              "expected": "bʲ",
+              "phone": "bʲ",
+              "dimension": "phoneme",
+              "heard": "v",
+              "score": 72.1,
+              "start_ms": 4489,
+              "end_ms": 4529,
+              "operation": "S",
+              "diagnosis_status": "experimental"
+            },
+            {
+              "expected": "i",
+              "phone": "i",
+              "dimension": "phoneme",
+              "heard": "i",
+              "score": 99.3,
+              "start_ms": 4529,
+              "end_ms": 4559,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            },
+            {
+              "expected": "n",
+              "phone": "n",
+              "dimension": "phoneme",
+              "heard": "n",
+              "score": 97.9,
+              "start_ms": 4559,
+              "end_ms": 4599,
+              "operation": "M",
+              "diagnosis_status": "experimental",
+              "heard_by": "transcript"
+            },
+            {
+              "expected": "n",
+              "phone": "n",
+              "dimension": "phoneme",
+              "heard": "n",
+              "score": 99.9,
+              "start_ms": 4599,
+              "end_ms": 4629,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            },
+            {
+              "expected": "ʌ",
+              "phone": "ʌ",
+              "dimension": "phoneme",
+              "heard": "ʌ",
+              "score": 97.0,
+              "start_ms": 4629,
+              "end_ms": 4679,
+              "operation": "M",
+              "diagnosis_status": "experimental",
+              "heard_raw": "y"
+            }
+          ]
+        }
+      ],
+      "other_flagged_words": []
+    },
+    {
+      "case_id": "snow-06",
+      "audio_path": "/Users/yaroslavabramov/side/podgen/tmp/toneperfect-snow-followup-2026-11-12/snow-06/audio.wav",
+      "audio_sha256": "1e949e0b8f5c0e789fc57488c2f62292d0e0d8d5a87fade859fc506ce17ac128",
+      "reference_text": "Хорошо бы на этом и закончить: сняли ручку, и эпидемия отступила.",
+      "timestamp": "05:10",
+      "human_status": "Ещё не проверено",
+      "target_rows": [
+        {
+          "index": 8,
+          "text": "и",
+          "word": "и",
+          "expected_ipa": "i",
+          "score": 98.4,
+          "start_ms": 2793,
+          "end_ms": 2954,
+          "decision": "no_correction",
+          "omission_suspected": false,
+          "phonemes": [
+            {
+              "expected": "i",
+              "phone": "i",
+              "dimension": "phoneme",
+              "heard": "i",
+              "score": 98.4,
+              "start_ms": 2793,
+              "end_ms": 2954,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            }
+          ],
+          "mismatch_risk": -6.699203934853599,
+          "p_error": 0.0012303764876953232,
+          "assessed": true,
+          "reason": null,
+          "word_evidence": {
+            "channel": "gbm_pooled_all_tail_train7(g2pfix7)",
+            "version": "rc4-wordhead",
+            "native_budget": 0.05,
+            "r2": {
+              "score": -8.00261971022119,
+              "threshold": -0.3256215007611667,
+              "heard_homophone": false,
+              "definite": false,
+              "acoustic_decision": "no_correction"
+            },
+            "combined_risk": -7.676998209460023,
+            "rank5": {
+              "mode": "r4h",
+              "r4": -7.676998209460023,
+              "r4h": -7.676998209460023,
+              "r3": null
+            }
+          },
+          "phones": [
+            {
+              "expected": "i",
+              "phone": "i",
+              "dimension": "phoneme",
+              "heard": "i",
+              "score": 98.4,
+              "start_ms": 2793,
+              "end_ms": 2954,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            }
+          ]
+        }
+      ],
+      "other_flagged_words": []
+    },
+    {
+      "case_id": "snow-07",
+      "audio_path": "/Users/yaroslavabramov/side/podgen/tmp/toneperfect-snow-followup-2026-11-12/snow-07/audio.wav",
+      "audio_sha256": "16865ac43f52c01bcb52214f63761e708179e4279b1a62c0591231b4359c83ae",
+      "reference_text": "По оценке Сноу, меньше чем за шесть дней с самых пострадавших улиц уехали больше трёх четвертей жителей.",
+      "timestamp": "05:49",
+      "human_status": "Ещё не проверено",
+      "target_rows": [
+        {
+          "index": 8,
+          "text": "с",
+          "word": "с",
+          "expected_ipa": "s",
+          "score": 98.5,
+          "start_ms": 2608,
+          "end_ms": 2849,
+          "decision": "no_correction",
+          "omission_suspected": false,
+          "phonemes": [
+            {
+              "expected": "s",
+              "phone": "s",
+              "dimension": "phoneme",
+              "heard": "s",
+              "score": 98.5,
+              "start_ms": 2608,
+              "end_ms": 2849,
+              "operation": "M",
+              "diagnosis_status": "experimental",
+              "heard_by": "transcript"
+            }
+          ],
+          "mismatch_risk": -6.15260452544554,
+          "p_error": 0.0021234138116746903,
+          "assessed": true,
+          "reason": null,
+          "word_evidence": {
+            "channel": "gbm_pooled_all_tail_train7(g2pfix7)",
+            "version": "rc4-wordhead",
+            "native_budget": 0.05,
+            "r2": {
+              "score": -7.914349515665769,
+              "threshold": -0.3256215007611667,
+              "heard_homophone": false,
+              "definite": false,
+              "acoustic_decision": "no_correction"
+            },
+            "combined_risk": -7.588728014904603,
+            "rank5": {
+              "mode": "r4h",
+              "r4": -7.588728014904603,
+              "r4h": -7.588728014904603,
+              "r3": null
+            }
+          },
+          "phones": [
+            {
+              "expected": "s",
+              "phone": "s",
+              "dimension": "phoneme",
+              "heard": "s",
+              "score": 98.5,
+              "start_ms": 2608,
+              "end_ms": 2849,
+              "operation": "M",
+              "diagnosis_status": "experimental",
+              "heard_by": "transcript"
+            }
+          ],
+          "sounds_heard": 1.0
+        }
+      ],
+      "other_flagged_words": []
+    },
+    {
+      "case_id": "snow-08",
+      "audio_path": "/Users/yaroslavabramov/side/podgen/tmp/toneperfect-snow-followup-2026-11-12/snow-08/audio.wav",
+      "audio_sha256": "93ccfde40674e3a1857b2887f25104a6cd9a34f07b21bcab6e63e260be053b5d",
+      "reference_text": "Бутыль, о которой идёт речь, набрали в четверг, тридцать первого августа.",
+      "timestamp": "06:51",
+      "human_status": "Ещё не проверено",
+      "target_rows": [
+        {
+          "index": 0,
+          "text": "бутыль",
+          "word": "бутыль",
+          "expected_ipa": "butyɭʲ",
+          "score": 98.4,
+          "start_ms": 0,
+          "end_ms": 522,
+          "decision": "no_correction",
+          "omission_suspected": false,
+          "phonemes": [
+            {
+              "expected": "b",
+              "phone": "b",
+              "dimension": "phoneme",
+              "heard": "b",
+              "score": 97.8,
+              "start_ms": 0,
+              "end_ms": 301,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            },
+            {
+              "expected": "u",
+              "phone": "u",
+              "dimension": "phoneme",
+              "heard": "u",
+              "score": 98.9,
+              "start_ms": 301,
+              "end_ms": 362,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            },
+            {
+              "expected": "t",
+              "phone": "t",
+              "dimension": "phoneme",
+              "heard": "t",
+              "score": 98.7,
+              "start_ms": 362,
+              "end_ms": 432,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            },
+            {
+              "expected": "y",
+              "phone": "y",
+              "dimension": "phoneme",
+              "heard": "y",
+              "score": 98.1,
+              "start_ms": 432,
+              "end_ms": 482,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            },
+            {
+              "expected": "ɭʲ",
+              "phone": "ɭʲ",
+              "dimension": "phoneme",
+              "heard": "ɭʲ",
+              "score": 99.0,
+              "start_ms": 482,
+              "end_ms": 522,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            }
+          ],
+          "mismatch_risk": -6.006928056781002,
+          "p_error": 0.0024555938067584416,
+          "assessed": true,
+          "reason": null,
+          "word_evidence": {
+            "channel": "gbm_pooled_all_tail_train7(g2pfix7)",
+            "version": "rc4-wordhead",
+            "native_budget": 0.05,
+            "r2": {
+              "score": -3.5829622278943307,
+              "threshold": -0.3256215007611667,
+              "heard_homophone": false,
+              "definite": false,
+              "acoustic_decision": "no_correction"
+            },
+            "combined_risk": -3.257340727133164,
+            "rank5": {
+              "mode": "r4h",
+              "r4": -3.257340727133164,
+              "r4h": -3.257340727133164,
+              "r3": null
+            }
+          },
+          "phones": [
+            {
+              "expected": "b",
+              "phone": "b",
+              "dimension": "phoneme",
+              "heard": "b",
+              "score": 97.8,
+              "start_ms": 0,
+              "end_ms": 301,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            },
+            {
+              "expected": "u",
+              "phone": "u",
+              "dimension": "phoneme",
+              "heard": "u",
+              "score": 98.9,
+              "start_ms": 301,
+              "end_ms": 362,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            },
+            {
+              "expected": "t",
+              "phone": "t",
+              "dimension": "phoneme",
+              "heard": "t",
+              "score": 98.7,
+              "start_ms": 362,
+              "end_ms": 432,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            },
+            {
+              "expected": "y",
+              "phone": "y",
+              "dimension": "phoneme",
+              "heard": "y",
+              "score": 98.1,
+              "start_ms": 432,
+              "end_ms": 482,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            },
+            {
+              "expected": "ɭʲ",
+              "phone": "ɭʲ",
+              "dimension": "phoneme",
+              "heard": "ɭʲ",
+              "score": 99.0,
+              "start_ms": 482,
+              "end_ms": 522,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            }
+          ]
+        },
+        {
+          "index": 2,
+          "text": "которой",
+          "word": "которой",
+          "expected_ipa": "kʌtorʌ",
+          "score": 79.0,
+          "start_ms": 563,
+          "end_ms": 854,
+          "decision": "no_correction",
+          "omission_suspected": false,
+          "phonemes": [
+            {
+              "expected": "k",
+              "phone": "k",
+              "dimension": "phoneme",
+              "heard": "k",
+              "score": 99.5,
+              "start_ms": 563,
+              "end_ms": 613,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            },
+            {
+              "expected": "ʌ",
+              "phone": "ʌ",
+              "dimension": "phoneme",
+              "heard": "ʌ",
+              "score": 98.2,
+              "start_ms": 613,
+              "end_ms": 673,
+              "operation": "M",
+              "diagnosis_status": "experimental",
+              "heard_raw": "a"
+            },
+            {
+              "expected": "t",
+              "phone": "t",
+              "dimension": "phoneme",
+              "heard": "t",
+              "score": 99.8,
+              "start_ms": 673,
+              "end_ms": 733,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            },
+            {
+              "expected": "o",
+              "phone": "o",
+              "dimension": "phoneme",
+              "heard": "o",
+              "score": 99.2,
+              "start_ms": 733,
+              "end_ms": 774,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            },
+            {
+              "expected": "r",
+              "phone": "r",
+              "dimension": "phoneme",
+              "heard": "r",
+              "score": 99.9,
+              "start_ms": 774,
+              "end_ms": 814,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            },
+            {
+              "expected": "ʌ",
+              "phone": "ʌ",
+              "dimension": "phoneme",
+              "heard": null,
+              "score": 5.0,
+              "start_ms": 814,
+              "end_ms": 854,
+              "operation": "D",
+              "diagnosis_status": "experimental"
+            }
+          ],
+          "mismatch_risk": -4.879363476351954,
+          "p_error": 0.007544499086220268,
+          "assessed": true,
+          "reason": null,
+          "word_evidence": {
+            "channel": "gbm_pooled_all_tail_train7(g2pfix7)",
+            "version": "rc4-wordhead",
+            "native_budget": 0.05,
+            "r2": {
+              "score": -3.8021707740790074,
+              "threshold": -0.3256215007611667,
+              "heard_homophone": false,
+              "definite": false,
+              "acoustic_decision": "no_correction"
+            },
+            "combined_risk": -3.4765492733178407,
+            "rank5": {
+              "mode": "r4h",
+              "r4": -3.4765492733178407,
+              "r4h": -3.4765492733178407,
+              "r3": null
+            }
+          },
+          "phones": [
+            {
+              "expected": "k",
+              "phone": "k",
+              "dimension": "phoneme",
+              "heard": "k",
+              "score": 99.5,
+              "start_ms": 563,
+              "end_ms": 613,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            },
+            {
+              "expected": "ʌ",
+              "phone": "ʌ",
+              "dimension": "phoneme",
+              "heard": "ʌ",
+              "score": 98.2,
+              "start_ms": 613,
+              "end_ms": 673,
+              "operation": "M",
+              "diagnosis_status": "experimental",
+              "heard_raw": "a"
+            },
+            {
+              "expected": "t",
+              "phone": "t",
+              "dimension": "phoneme",
+              "heard": "t",
+              "score": 99.8,
+              "start_ms": 673,
+              "end_ms": 733,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            },
+            {
+              "expected": "o",
+              "phone": "o",
+              "dimension": "phoneme",
+              "heard": "o",
+              "score": 99.2,
+              "start_ms": 733,
+              "end_ms": 774,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            },
+            {
+              "expected": "r",
+              "phone": "r",
+              "dimension": "phoneme",
+              "heard": "r",
+              "score": 99.9,
+              "start_ms": 774,
+              "end_ms": 814,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            },
+            {
+              "expected": "ʌ",
+              "phone": "ʌ",
+              "dimension": "phoneme",
+              "heard": null,
+              "score": 5.0,
+              "start_ms": 814,
+              "end_ms": 854,
+              "operation": "D",
+              "diagnosis_status": "experimental"
+            }
+          ],
+          "sounds_heard": 0.83
+        }
+      ],
+      "other_flagged_words": [
+        {
+          "index": 1,
+          "text": "о",
+          "word": "о",
+          "expected_ipa": "o",
+          "score": 14.0,
+          "start_ms": 522,
+          "end_ms": 563,
+          "decision": "uncertain",
+          "omission_suspected": false,
+          "phonemes": [
+            {
+              "expected": "o",
+              "phone": "o",
+              "dimension": "phoneme",
+              "heard": "i",
+              "score": 37.6,
+              "start_ms": 522,
+              "end_ms": 563,
+              "operation": "S",
+              "diagnosis_status": "experimental"
+            }
+          ],
+          "mismatch_risk": 0.7409076494147265,
+          "p_error": 0.6771943022810811,
+          "assessed": true,
+          "reason": null,
+          "word_evidence": {
+            "channel": "gbm_pooled_all_tail_train7(g2pfix7)",
+            "version": "rc4-wordhead",
+            "native_budget": 0.05,
+            "r2": {
+              "score": -9.426052597472141,
+              "threshold": -0.3256215007611667,
+              "heard_homophone": false,
+              "definite": false,
+              "acoustic_decision": "review"
+            },
+            "combined_risk": -9.100431096710974,
+            "rank5": {
+              "mode": "r4h",
+              "r4": -9.100431096710974,
+              "r4h": -9.100431096710974,
+              "r3": null
+            }
+          },
+          "phones": [
+            {
+              "expected": "o",
+              "phone": "o",
+              "dimension": "phoneme",
+              "heard": "i",
+              "score": 37.6,
+              "start_ms": 522,
+              "end_ms": 563,
+              "operation": "S",
+              "diagnosis_status": "experimental"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "case_id": "snow-09",
+      "audio_path": "/Users/yaroslavabramov/side/podgen/tmp/toneperfect-snow-followup-2026-11-12/snow-09/audio.wav",
+      "audio_sha256": "c35165ed1b3d46b51830dfc48715913045ae90fe33c3bb70b4b2aa426f0d678b",
+      "reference_text": "Потом она вернулась домой, в Ислингтон, где холеры тоже не было, и умерла от холеры.",
+      "timestamp": "07:06",
+      "human_status": "Ещё не проверено",
+      "target_rows": [
+        {
+          "index": 5,
+          "text": "ислингтон",
+          "word": "ислингтон",
+          "expected_ipa": "isɭʲinktʌn",
+          "score": 97.7,
+          "start_ms": 1616,
+          "end_ms": 2328,
+          "decision": "no_correction",
+          "omission_suspected": false,
+          "phonemes": [
+            {
+              "expected": "i",
+              "phone": "i",
+              "dimension": "phoneme",
+              "heard": "i",
+              "score": 98.0,
+              "start_ms": 1616,
+              "end_ms": 1656,
+              "operation": "M",
+              "diagnosis_status": "experimental",
+              "heard_raw": "y"
+            },
+            {
+              "expected": "s",
+              "phone": "s",
+              "dimension": "phoneme",
+              "heard": "s",
+              "score": 98.3,
+              "start_ms": 1656,
+              "end_ms": 1716,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            },
+            {
+              "expected": "ɭʲ",
+              "phone": "ɭʲ",
+              "dimension": "phoneme",
+              "heard": "ɭʲ",
+              "score": 99.3,
+              "start_ms": 1716,
+              "end_ms": 1766,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            },
+            {
+              "expected": "i",
+              "phone": "i",
+              "dimension": "phoneme",
+              "heard": "i",
+              "score": 98.7,
+              "start_ms": 1766,
+              "end_ms": 1806,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            },
+            {
+              "expected": "n",
+              "phone": "n",
+              "dimension": "phoneme",
+              "heard": "n",
+              "score": 97.9,
+              "start_ms": 1806,
+              "end_ms": 1856,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            },
+            {
+              "expected": "k",
+              "phone": "k",
+              "dimension": "phoneme",
+              "heard": "k",
+              "score": 97.6,
+              "start_ms": 1856,
+              "end_ms": 1917,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            },
+            {
+              "expected": "t",
+              "phone": "t",
+              "dimension": "phoneme",
+              "heard": "t",
+              "score": 99.8,
+              "start_ms": 1917,
+              "end_ms": 1977,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            },
+            {
+              "expected": "ʌ",
+              "phone": "ʌ",
+              "dimension": "phoneme",
+              "heard": "o",
+              "score": 81.2,
+              "start_ms": 1977,
+              "end_ms": 2037,
+              "operation": "S",
+              "diagnosis_status": "experimental"
+            },
+            {
+              "expected": "n",
+              "phone": "n",
+              "dimension": "phoneme",
+              "heard": "n",
+              "score": 97.9,
+              "start_ms": 2037,
+              "end_ms": 2328,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            }
+          ],
+          "mismatch_risk": -3.692773447380274,
+          "p_error": 0.024297756336997503,
+          "assessed": true,
+          "reason": null,
+          "word_evidence": {
+            "channel": "gbm_pooled_all_tail_train7(g2pfix7)",
+            "version": "rc4-wordhead",
+            "native_budget": 0.05,
+            "r2": {
+              "score": -9.148797242383974,
+              "threshold": -0.3256215007611667,
+              "heard_homophone": false,
+              "definite": false,
+              "acoustic_decision": "no_correction"
+            },
+            "combined_risk": -8.823175741622808,
+            "rank5": {
+              "mode": "r4h",
+              "r4": -8.823175741622808,
+              "r4h": -8.823175741622808,
+              "r3": null
+            }
+          },
+          "phones": [
+            {
+              "expected": "i",
+              "phone": "i",
+              "dimension": "phoneme",
+              "heard": "i",
+              "score": 98.0,
+              "start_ms": 1616,
+              "end_ms": 1656,
+              "operation": "M",
+              "diagnosis_status": "experimental",
+              "heard_raw": "y"
+            },
+            {
+              "expected": "s",
+              "phone": "s",
+              "dimension": "phoneme",
+              "heard": "s",
+              "score": 98.3,
+              "start_ms": 1656,
+              "end_ms": 1716,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            },
+            {
+              "expected": "ɭʲ",
+              "phone": "ɭʲ",
+              "dimension": "phoneme",
+              "heard": "ɭʲ",
+              "score": 99.3,
+              "start_ms": 1716,
+              "end_ms": 1766,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            },
+            {
+              "expected": "i",
+              "phone": "i",
+              "dimension": "phoneme",
+              "heard": "i",
+              "score": 98.7,
+              "start_ms": 1766,
+              "end_ms": 1806,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            },
+            {
+              "expected": "n",
+              "phone": "n",
+              "dimension": "phoneme",
+              "heard": "n",
+              "score": 97.9,
+              "start_ms": 1806,
+              "end_ms": 1856,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            },
+            {
+              "expected": "k",
+              "phone": "k",
+              "dimension": "phoneme",
+              "heard": "k",
+              "score": 97.6,
+              "start_ms": 1856,
+              "end_ms": 1917,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            },
+            {
+              "expected": "t",
+              "phone": "t",
+              "dimension": "phoneme",
+              "heard": "t",
+              "score": 99.8,
+              "start_ms": 1917,
+              "end_ms": 1977,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            },
+            {
+              "expected": "ʌ",
+              "phone": "ʌ",
+              "dimension": "phoneme",
+              "heard": "o",
+              "score": 81.2,
+              "start_ms": 1977,
+              "end_ms": 2037,
+              "operation": "S",
+              "diagnosis_status": "experimental"
+            },
+            {
+              "expected": "n",
+              "phone": "n",
+              "dimension": "phoneme",
+              "heard": "n",
+              "score": 97.9,
+              "start_ms": 2037,
+              "end_ms": 2328,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            }
+          ]
+        }
+      ],
+      "other_flagged_words": []
+    },
+    {
+      "case_id": "snow-10",
+      "audio_path": "/Users/yaroslavabramov/side/podgen/tmp/toneperfect-snow-followup-2026-11-12/snow-10/audio.wav",
+      "audio_sha256": "aacaf8707ffd65d440d47e8e1d345d7d0c7f77f68ece978af1834c58b9ed02fa",
+      "reference_text": "К одним и тем же семьям возвращается по четыре-пять раз, потому что задним числом понимает, о чём забыл спросить.",
+      "timestamp": "08:09",
+      "human_status": "Ещё не проверено",
+      "target_rows": [
+        {
+          "index": 0,
+          "text": "к",
+          "word": "к",
+          "expected_ipa": "k",
+          "score": 98.2,
+          "start_ms": 0,
+          "end_ms": 271,
+          "decision": "no_correction",
+          "omission_suspected": false,
+          "phonemes": [
+            {
+              "expected": "k",
+              "phone": "k",
+              "dimension": "phoneme",
+              "heard": "k",
+              "score": 98.2,
+              "start_ms": 0,
+              "end_ms": 271,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            }
+          ],
+          "mismatch_risk": -8.04974980982962,
+          "p_error": 0.0003190799241389801,
+          "assessed": true,
+          "reason": null,
+          "word_evidence": {
+            "channel": "gbm_pooled_all_tail_train7(g2pfix7)",
+            "version": "rc4-wordhead",
+            "native_budget": 0.05,
+            "r2": {
+              "score": -9.422894165730682,
+              "threshold": -0.3256215007611667,
+              "heard_homophone": false,
+              "definite": false,
+              "acoustic_decision": "no_correction"
+            },
+            "combined_risk": -9.097272664969516,
+            "rank5": {
+              "mode": "r4h",
+              "r4": -9.097272664969516,
+              "r4h": -9.097272664969516,
+              "r3": null
+            }
+          },
+          "phones": [
+            {
+              "expected": "k",
+              "phone": "k",
+              "dimension": "phoneme",
+              "heard": "k",
+              "score": 98.2,
+              "start_ms": 0,
+              "end_ms": 271,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            }
+          ]
+        },
+        {
+          "index": 1,
+          "text": "одним",
+          "word": "одним",
+          "expected_ipa": "ʌdnʲim",
+          "score": 99.5,
+          "start_ms": 271,
+          "end_ms": 522,
+          "decision": "no_correction",
+          "omission_suspected": false,
+          "phonemes": [
+            {
+              "expected": "ʌ",
+              "phone": "ʌ",
+              "dimension": "phoneme",
+              "heard": "ʌ",
+              "score": 99.5,
+              "start_ms": 271,
+              "end_ms": 331,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            },
+            {
+              "expected": "d",
+              "phone": "d",
+              "dimension": "phoneme",
+              "heard": "d",
+              "score": 98.5,
+              "start_ms": 331,
+              "end_ms": 391,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            },
+            {
+              "expected": "nʲ",
+              "phone": "nʲ",
+              "dimension": "phoneme",
+              "heard": "nʲ",
+              "score": 99.8,
+              "start_ms": 391,
+              "end_ms": 422,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            },
+            {
+              "expected": "i",
+              "phone": "i",
+              "dimension": "phoneme",
+              "heard": "i",
+              "score": 98.0,
+              "start_ms": 422,
+              "end_ms": 472,
+              "operation": "M",
+              "diagnosis_status": "experimental",
+              "heard_raw": "e"
+            },
+            {
+              "expected": "m",
+              "phone": "m",
+              "dimension": "phoneme",
+              "heard": "m",
+              "score": 99.8,
+              "start_ms": 472,
+              "end_ms": 522,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            }
+          ],
+          "mismatch_risk": -4.43468905548016,
+          "p_error": 0.011719770883409713,
+          "assessed": true,
+          "reason": null,
+          "word_evidence": {
+            "channel": "gbm_pooled_all_tail_train7(g2pfix7)",
+            "version": "rc4-wordhead",
+            "native_budget": 0.05,
+            "r2": {
+              "score": -9.026959840896621,
+              "threshold": -0.3256215007611667,
+              "heard_homophone": false,
+              "definite": false,
+              "acoustic_decision": "no_correction"
+            },
+            "combined_risk": -8.701338340135454,
+            "rank5": {
+              "mode": "r4h",
+              "r4": -8.701338340135454,
+              "r4h": -8.701338340135454,
+              "r3": null
+            }
+          },
+          "phones": [
+            {
+              "expected": "ʌ",
+              "phone": "ʌ",
+              "dimension": "phoneme",
+              "heard": "ʌ",
+              "score": 99.5,
+              "start_ms": 271,
+              "end_ms": 331,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            },
+            {
+              "expected": "d",
+              "phone": "d",
+              "dimension": "phoneme",
+              "heard": "d",
+              "score": 98.5,
+              "start_ms": 331,
+              "end_ms": 391,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            },
+            {
+              "expected": "nʲ",
+              "phone": "nʲ",
+              "dimension": "phoneme",
+              "heard": "nʲ",
+              "score": 99.8,
+              "start_ms": 391,
+              "end_ms": 422,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            },
+            {
+              "expected": "i",
+              "phone": "i",
+              "dimension": "phoneme",
+              "heard": "i",
+              "score": 98.0,
+              "start_ms": 422,
+              "end_ms": 472,
+              "operation": "M",
+              "diagnosis_status": "experimental",
+              "heard_raw": "e"
+            },
+            {
+              "expected": "m",
+              "phone": "m",
+              "dimension": "phoneme",
+              "heard": "m",
+              "score": 99.8,
+              "start_ms": 472,
+              "end_ms": 522,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            }
+          ]
+        }
+      ],
+      "other_flagged_words": [
+        {
+          "index": 2,
+          "text": "и",
+          "word": "и",
+          "expected_ipa": "i",
+          "score": 26.5,
+          "start_ms": 522,
+          "end_ms": 572,
+          "decision": "uncertain",
+          "omission_suspected": false,
+          "phonemes": [
+            {
+              "expected": "i",
+              "phone": "i",
+              "dimension": "phoneme",
+              "heard": "u",
+              "score": 71.4,
+              "start_ms": 522,
+              "end_ms": 572,
+              "operation": "S",
+              "diagnosis_status": "experimental"
+            }
+          ],
+          "mismatch_risk": -2.769607095677928,
+          "p_error": 0.05898881946655987,
+          "assessed": true,
+          "reason": null,
+          "word_evidence": {
+            "channel": "gbm_pooled_all_tail_train7(g2pfix7)",
+            "version": "rc4-wordhead",
+            "native_budget": 0.05,
+            "r2": {
+              "score": -7.493257430377654,
+              "threshold": -0.3256215007611667,
+              "heard_homophone": false,
+              "definite": false,
+              "acoustic_decision": "no_correction"
+            },
+            "combined_risk": -7.1676359296164875,
+            "rank5": {
+              "mode": "r4h",
+              "r4": -7.1676359296164875,
+              "r4h": -7.1676359296164875,
+              "r3": null
+            }
+          },
+          "phones": [
+            {
+              "expected": "i",
+              "phone": "i",
+              "dimension": "phoneme",
+              "heard": "u",
+              "score": 71.4,
+              "start_ms": 522,
+              "end_ms": 572,
+              "operation": "S",
+              "diagnosis_status": "experimental"
+            }
+          ]
+        },
+        {
+          "index": 5,
+          "text": "семьям",
+          "word": "семьям",
+          "expected_ipa": "sʲemʲjam",
+          "score": 99.5,
+          "start_ms": 843,
+          "end_ms": 1164,
+          "decision": "partial",
+          "omission_suspected": false,
+          "phonemes": [
+            {
+              "expected": "sʲ",
+              "phone": "sʲ",
+              "dimension": "phoneme",
+              "heard": "sʲ",
+              "score": 99.9,
+              "start_ms": 843,
+              "end_ms": 913,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            },
+            {
+              "expected": "e",
+              "phone": "e",
+              "dimension": "phoneme",
+              "heard": "e",
+              "score": 99.3,
+              "start_ms": 913,
+              "end_ms": 1004,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            },
+            {
+              "expected": "mʲ",
+              "phone": "mʲ",
+              "dimension": "phoneme",
+              "heard": "mʲ",
+              "score": 100.0,
+              "start_ms": 1004,
+              "end_ms": 1074,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            },
+            {
+              "expected": "ja",
+              "phone": "ja",
+              "dimension": "phoneme",
+              "heard": "ja",
+              "score": 90.8,
+              "start_ms": 1074,
+              "end_ms": 1124,
+              "operation": "M",
+              "diagnosis_status": "experimental",
+              "heard_raw": "i"
+            },
+            {
+              "expected": "m",
+              "phone": "m",
+              "dimension": "phoneme",
+              "heard": "m",
+              "score": 97.7,
+              "start_ms": 1124,
+              "end_ms": 1164,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            }
+          ],
+          "mismatch_risk": null,
+          "p_error": null,
+          "assessed": false,
+          "reason": "unsupported_phonetic_symbols",
+          "word_evidence": {
+            "channel": "gbm_pooled_all_tail_train7(g2pfix7)",
+            "version": "rc4-wordhead",
+            "native_budget": 0.05,
+            "r2": {
+              "score": -8.655181543095111,
+              "threshold": -0.3256215007611667,
+              "heard_homophone": false,
+              "definite": false,
+              "acoustic_decision": "partial"
+            },
+            "combined_risk": null,
+            "rank5": {
+              "mode": "r4h",
+              "r4": null,
+              "r4h": null,
+              "r3": null
+            }
+          },
+          "phones": [
+            {
+              "expected": "sʲ",
+              "phone": "sʲ",
+              "dimension": "phoneme",
+              "heard": "sʲ",
+              "score": 99.9,
+              "start_ms": 843,
+              "end_ms": 913,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            },
+            {
+              "expected": "e",
+              "phone": "e",
+              "dimension": "phoneme",
+              "heard": "e",
+              "score": 99.3,
+              "start_ms": 913,
+              "end_ms": 1004,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            },
+            {
+              "expected": "mʲ",
+              "phone": "mʲ",
+              "dimension": "phoneme",
+              "heard": "mʲ",
+              "score": 100.0,
+              "start_ms": 1004,
+              "end_ms": 1074,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            },
+            {
+              "expected": "ja",
+              "phone": "ja",
+              "dimension": "phoneme",
+              "heard": "ja",
+              "score": 90.8,
+              "start_ms": 1074,
+              "end_ms": 1124,
+              "operation": "M",
+              "diagnosis_status": "experimental",
+              "heard_raw": "i"
+            },
+            {
+              "expected": "m",
+              "phone": "m",
+              "dimension": "phoneme",
+              "heard": "m",
+              "score": 97.7,
+              "start_ms": 1124,
+              "end_ms": 1164,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            }
+          ],
+          "expected_ipa_full": "sʲ|ˈe|mʲ|j|ja|m",
+          "unassessed_symbols": [
+            "unjudgeable:ja"
+          ],
+          "score_scope": "supported_sounds"
+        },
+        {
+          "index": 8,
+          "text": "четыре-пять",
+          "word": "четыре-пять",
+          "expected_ipa": "tʃʲityrʲipʲɑtʲ",
+          "score": 99.4,
+          "start_ms": 1847,
+          "end_ms": 2449,
+          "decision": "uncertain",
+          "omission_suspected": false,
+          "phonemes": [
+            {
+              "expected": "tʃʲ",
+              "phone": "tʃʲ",
+              "dimension": "phoneme",
+              "heard": "tʃʲ",
+              "score": 99.2,
+              "start_ms": 1847,
+              "end_ms": 1907,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            },
+            {
+              "expected": "i",
+              "phone": "i",
+              "dimension": "phoneme",
+              "heard": "i",
+              "score": 99.9,
+              "start_ms": 1907,
+              "end_ms": 1987,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            },
+            {
+              "expected": "t",
+              "phone": "t",
+              "dimension": "phoneme",
+              "heard": "t",
+              "score": 98.5,
+              "start_ms": 1987,
+              "end_ms": 2057,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            },
+            {
+              "expected": "y",
+              "phone": "y",
+              "dimension": "phoneme",
+              "heard": "y",
+              "score": 96.9,
+              "start_ms": 2057,
+              "end_ms": 2108,
+              "operation": "M",
+              "diagnosis_status": "experimental",
+              "heard_raw": "i"
+            },
+            {
+              "expected": "rʲ",
+              "phone": "rʲ",
+              "dimension": "phoneme",
+              "heard": "rʲ",
+              "score": 99.1,
+              "start_ms": 2108,
+              "end_ms": 2158,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            },
+            {
+              "expected": "i",
+              "phone": "i",
+              "dimension": "phoneme",
+              "heard": "i",
+              "score": 99.5,
+              "start_ms": 2158,
+              "end_ms": 2218,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            },
+            {
+              "expected": "pʲ",
+              "phone": "pʲ",
+              "dimension": "phoneme",
+              "heard": "pʲ",
+              "score": 99.5,
+              "start_ms": 2218,
+              "end_ms": 2278,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            },
+            {
+              "expected": "ɑ",
+              "phone": "ɑ",
+              "dimension": "phoneme",
+              "heard": "e",
+              "score": 79.7,
+              "start_ms": 2278,
+              "end_ms": 2359,
+              "operation": "S",
+              "diagnosis_status": "experimental"
+            },
+            {
+              "expected": "tʲ",
+              "phone": "tʲ",
+              "dimension": "phoneme",
+              "heard": "tʲ",
+              "score": 98.7,
+              "start_ms": 2359,
+              "end_ms": 2449,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            }
+          ],
+          "mismatch_risk": -4.534072880039092,
+          "p_error": 0.01062280146795116,
+          "assessed": true,
+          "reason": null,
+          "word_evidence": {
+            "channel": "gbm_pooled_all_tail_train7(g2pfix7)",
+            "version": "rc4-wordhead",
+            "native_budget": 0.05,
+            "r2": {
+              "score": 2.1460317094397254,
+              "threshold": -0.3256215007611667,
+              "heard_homophone": false,
+              "definite": true,
+              "acoustic_decision": "no_correction"
+            },
+            "combined_risk": 2.471653210200892,
+            "rank5": {
+              "mode": "r4h",
+              "r4": 2.471653210200892,
+              "r4h": 2.471653210200892,
+              "r3": null
+            }
+          },
+          "phones": [
+            {
+              "expected": "tʃʲ",
+              "phone": "tʃʲ",
+              "dimension": "phoneme",
+              "heard": "tʃʲ",
+              "score": 99.2,
+              "start_ms": 1847,
+              "end_ms": 1907,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            },
+            {
+              "expected": "i",
+              "phone": "i",
+              "dimension": "phoneme",
+              "heard": "i",
+              "score": 99.9,
+              "start_ms": 1907,
+              "end_ms": 1987,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            },
+            {
+              "expected": "t",
+              "phone": "t",
+              "dimension": "phoneme",
+              "heard": "t",
+              "score": 98.5,
+              "start_ms": 1987,
+              "end_ms": 2057,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            },
+            {
+              "expected": "y",
+              "phone": "y",
+              "dimension": "phoneme",
+              "heard": "y",
+              "score": 96.9,
+              "start_ms": 2057,
+              "end_ms": 2108,
+              "operation": "M",
+              "diagnosis_status": "experimental",
+              "heard_raw": "i"
+            },
+            {
+              "expected": "rʲ",
+              "phone": "rʲ",
+              "dimension": "phoneme",
+              "heard": "rʲ",
+              "score": 99.1,
+              "start_ms": 2108,
+              "end_ms": 2158,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            },
+            {
+              "expected": "i",
+              "phone": "i",
+              "dimension": "phoneme",
+              "heard": "i",
+              "score": 99.5,
+              "start_ms": 2158,
+              "end_ms": 2218,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            },
+            {
+              "expected": "pʲ",
+              "phone": "pʲ",
+              "dimension": "phoneme",
+              "heard": "pʲ",
+              "score": 99.5,
+              "start_ms": 2218,
+              "end_ms": 2278,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            },
+            {
+              "expected": "ɑ",
+              "phone": "ɑ",
+              "dimension": "phoneme",
+              "heard": "e",
+              "score": 79.7,
+              "start_ms": 2278,
+              "end_ms": 2359,
+              "operation": "S",
+              "diagnosis_status": "experimental"
+            },
+            {
+              "expected": "tʲ",
+              "phone": "tʲ",
+              "dimension": "phoneme",
+              "heard": "tʲ",
+              "score": 98.7,
+              "start_ms": 2359,
+              "end_ms": 2449,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "case_id": "snow-11",
+      "audio_path": "/Users/yaroslavabramov/side/podgen/tmp/toneperfect-snow-followup-2026-11-12/snow-11/audio.wav",
+      "audio_sha256": "23818e2f2bcb8e41c09d0e6c21b55cb2dced3ed68b566e8cb073dfa77fe7f83d",
+      "reference_text": "Выходит, в его подсчёте среди пивших заболела больше чем половина, а среди остальных — примерно каждый пятнадцатый.",
+      "timestamp": "09:39",
+      "human_status": "Ещё не проверено",
+      "target_rows": [
+        {
+          "index": 6,
+          "text": "заболела",
+          "word": "заболела",
+          "expected_ipa": "zʌbʌɭʲeɭʌ",
+          "score": 99.5,
+          "start_ms": 2447,
+          "end_ms": 2959,
+          "decision": "no_correction",
+          "omission_suspected": false,
+          "phonemes": [
+            {
+              "expected": "z",
+              "phone": "z",
+              "dimension": "phoneme",
+              "heard": "z",
+              "score": 98.2,
+              "start_ms": 2447,
+              "end_ms": 2518,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            },
+            {
+              "expected": "ʌ",
+              "phone": "ʌ",
+              "dimension": "phoneme",
+              "heard": "ʌ",
+              "score": 99.2,
+              "start_ms": 2518,
+              "end_ms": 2568,
+              "operation": "M",
+              "diagnosis_status": "experimental",
+              "heard_by": "transcript"
+            },
+            {
+              "expected": "b",
+              "phone": "b",
+              "dimension": "phoneme",
+              "heard": "b",
+              "score": 99.4,
+              "start_ms": 2568,
+              "end_ms": 2618,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            },
+            {
+              "expected": "ʌ",
+              "phone": "ʌ",
+              "dimension": "phoneme",
+              "heard": "ʌ",
+              "score": 98.0,
+              "start_ms": 2618,
+              "end_ms": 2688,
+              "operation": "M",
+              "diagnosis_status": "experimental",
+              "heard_raw": "ɑ"
+            },
+            {
+              "expected": "ɭʲ",
+              "phone": "ɭʲ",
+              "dimension": "phoneme",
+              "heard": "ɭʲ",
+              "score": 99.3,
+              "start_ms": 2688,
+              "end_ms": 2748,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            },
+            {
+              "expected": "e",
+              "phone": "e",
+              "dimension": "phoneme",
+              "heard": "e",
+              "score": 99.5,
+              "start_ms": 2748,
+              "end_ms": 2819,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            },
+            {
+              "expected": "ɭ",
+              "phone": "ɭ",
+              "dimension": "phoneme",
+              "heard": "ɭ",
+              "score": 99.0,
+              "start_ms": 2819,
+              "end_ms": 2889,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            },
+            {
+              "expected": "ʌ",
+              "phone": "ʌ",
+              "dimension": "phoneme",
+              "heard": "ʌ",
+              "score": 99.7,
+              "start_ms": 2889,
+              "end_ms": 2959,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            }
+          ],
+          "mismatch_risk": -4.92368581313081,
+          "p_error": 0.007219772944063153,
+          "assessed": true,
+          "reason": null,
+          "word_evidence": {
+            "channel": "gbm_pooled_all_tail_train7(g2pfix7)",
+            "version": "rc4-wordhead",
+            "native_budget": 0.05,
+            "r2": {
+              "score": -2.462619688814602,
+              "threshold": -0.3256215007611667,
+              "heard_homophone": false,
+              "definite": false,
+              "acoustic_decision": "no_correction"
+            },
+            "combined_risk": -2.136998188053435,
+            "rank5": {
+              "mode": "r4h",
+              "r4": -2.136998188053435,
+              "r4h": -2.136998188053435,
+              "r3": null
+            }
+          },
+          "phones": [
+            {
+              "expected": "z",
+              "phone": "z",
+              "dimension": "phoneme",
+              "heard": "z",
+              "score": 98.2,
+              "start_ms": 2447,
+              "end_ms": 2518,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            },
+            {
+              "expected": "ʌ",
+              "phone": "ʌ",
+              "dimension": "phoneme",
+              "heard": "ʌ",
+              "score": 99.2,
+              "start_ms": 2518,
+              "end_ms": 2568,
+              "operation": "M",
+              "diagnosis_status": "experimental",
+              "heard_by": "transcript"
+            },
+            {
+              "expected": "b",
+              "phone": "b",
+              "dimension": "phoneme",
+              "heard": "b",
+              "score": 99.4,
+              "start_ms": 2568,
+              "end_ms": 2618,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            },
+            {
+              "expected": "ʌ",
+              "phone": "ʌ",
+              "dimension": "phoneme",
+              "heard": "ʌ",
+              "score": 98.0,
+              "start_ms": 2618,
+              "end_ms": 2688,
+              "operation": "M",
+              "diagnosis_status": "experimental",
+              "heard_raw": "ɑ"
+            },
+            {
+              "expected": "ɭʲ",
+              "phone": "ɭʲ",
+              "dimension": "phoneme",
+              "heard": "ɭʲ",
+              "score": 99.3,
+              "start_ms": 2688,
+              "end_ms": 2748,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            },
+            {
+              "expected": "e",
+              "phone": "e",
+              "dimension": "phoneme",
+              "heard": "e",
+              "score": 99.5,
+              "start_ms": 2748,
+              "end_ms": 2819,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            },
+            {
+              "expected": "ɭ",
+              "phone": "ɭ",
+              "dimension": "phoneme",
+              "heard": "ɭ",
+              "score": 99.0,
+              "start_ms": 2819,
+              "end_ms": 2889,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            },
+            {
+              "expected": "ʌ",
+              "phone": "ʌ",
+              "dimension": "phoneme",
+              "heard": "ʌ",
+              "score": 99.7,
+              "start_ms": 2889,
+              "end_ms": 2959,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            }
+          ]
+        }
+      ],
+      "other_flagged_words": []
+    },
+    {
+      "case_id": "snow-12",
+      "audio_path": "/Users/yaroslavabramov/side/podgen/tmp/toneperfect-snow-followup-2026-11-12/snow-12/audio.wav",
+      "audio_sha256": "1ff49ef2726bfee7d5f499706790de9689b85778f4ca985b0b66bb31ef3a2134",
+      "reference_text": "Колодец вскрывали, и смотритель работ сообщил Сноу, что в кладке нет ни дыр, ни трещин.",
+      "timestamp": "09:59",
+      "human_status": "Ещё не проверено",
+      "target_rows": [
+        {
+          "index": 2,
+          "text": "и",
+          "word": "и",
+          "expected_ipa": "i",
+          "score": 97.9,
+          "start_ms": 1135,
+          "end_ms": 1185,
+          "decision": "no_correction",
+          "omission_suspected": false,
+          "phonemes": [
+            {
+              "expected": "i",
+              "phone": "i",
+              "dimension": "phoneme",
+              "heard": "i",
+              "score": 97.9,
+              "start_ms": 1135,
+              "end_ms": 1185,
+              "operation": "M",
+              "diagnosis_status": "experimental",
+              "heard_raw": "ɪ"
+            }
+          ],
+          "mismatch_risk": -6.0212244749956,
+          "p_error": 0.0024208217467765404,
+          "assessed": true,
+          "reason": null,
+          "word_evidence": {
+            "channel": "gbm_pooled_all_tail_train7(g2pfix7)",
+            "version": "rc4-wordhead",
+            "native_budget": 0.05,
+            "r2": {
+              "score": -7.572022298551643,
+              "threshold": -0.3256215007611667,
+              "heard_homophone": false,
+              "definite": false,
+              "acoustic_decision": "no_correction"
+            },
+            "combined_risk": -7.246400797790477,
+            "rank5": {
+              "mode": "r4h",
+              "r4": -7.246400797790477,
+              "r4h": -7.246400797790477,
+              "r3": null
+            }
+          },
+          "phones": [
+            {
+              "expected": "i",
+              "phone": "i",
+              "dimension": "phoneme",
+              "heard": "i",
+              "score": 97.9,
+              "start_ms": 1135,
+              "end_ms": 1185,
+              "operation": "M",
+              "diagnosis_status": "experimental",
+              "heard_raw": "ɪ"
+            }
+          ]
+        }
+      ],
+      "other_flagged_words": []
+    },
+    {
+      "case_id": "snow-13",
+      "audio_path": "/Users/yaroslavabramov/side/podgen/tmp/toneperfect-snow-followup-2026-11-12/snow-13/audio.wav",
+      "audio_sha256": "307c1b358bc6d512e31f614ccc3a2ccb345005bb29ccb95e685bd43ea7255168",
+      "reference_text": "О её смерти Уайтхед знал и дату записал.",
+      "timestamp": "10:25",
+      "human_status": "Ещё не проверено",
+      "target_rows": [
+        {
+          "index": 5,
+          "text": "и",
+          "word": "и",
+          "expected_ipa": "i",
+          "score": 99.4,
+          "start_ms": 1546,
+          "end_ms": 1626,
+          "decision": "no_correction",
+          "omission_suspected": false,
+          "phonemes": [
+            {
+              "expected": "i",
+              "phone": "i",
+              "dimension": "phoneme",
+              "heard": "i",
+              "score": 98.9,
+              "start_ms": 1546,
+              "end_ms": 1626,
+              "operation": "M",
+              "diagnosis_status": "experimental",
+              "heard_raw": "ɪ"
+            }
+          ],
+          "mismatch_risk": -6.538733839881899,
+          "p_error": 0.0014442297946812626,
+          "assessed": true,
+          "reason": null,
+          "word_evidence": {
+            "channel": "gbm_pooled_all_tail_train7(g2pfix7)",
+            "version": "rc4-wordhead",
+            "native_budget": 0.05,
+            "r2": {
+              "score": -8.197766332323372,
+              "threshold": -0.3256215007611667,
+              "heard_homophone": false,
+              "definite": false,
+              "acoustic_decision": "no_correction"
+            },
+            "combined_risk": -7.872144831562205,
+            "rank5": {
+              "mode": "r4h",
+              "r4": -7.872144831562205,
+              "r4h": -7.872144831562205,
+              "r3": null
+            }
+          },
+          "phones": [
+            {
+              "expected": "i",
+              "phone": "i",
+              "dimension": "phoneme",
+              "heard": "i",
+              "score": 98.9,
+              "start_ms": 1546,
+              "end_ms": 1626,
+              "operation": "M",
+              "diagnosis_status": "experimental",
+              "heard_raw": "ɪ"
+            }
+          ]
+        }
+      ],
+      "other_flagged_words": [
+        {
+          "index": 0,
+          "text": "о",
+          "word": "о",
+          "expected_ipa": "o",
+          "score": 39.8,
+          "start_ms": 0,
+          "end_ms": 331,
+          "decision": "uncertain",
+          "omission_suspected": false,
+          "phonemes": [
+            {
+              "expected": "o",
+              "phone": "o",
+              "dimension": "phoneme",
+              "heard": "a",
+              "score": 76.6,
+              "start_ms": 0,
+              "end_ms": 331,
+              "operation": "S",
+              "diagnosis_status": "experimental"
+            }
+          ],
+          "mismatch_risk": -1.7251876579539187,
+          "p_error": 0.15120416663559033,
+          "assessed": true,
+          "reason": null,
+          "word_evidence": {
+            "channel": "gbm_pooled_all_tail_train7(g2pfix7)",
+            "version": "rc4-wordhead",
+            "native_budget": 0.05,
+            "r2": {
+              "score": -7.025744130400785,
+              "threshold": -0.3256215007611667,
+              "heard_homophone": false,
+              "definite": false,
+              "acoustic_decision": "review"
+            },
+            "combined_risk": -6.700122629639618,
+            "rank5": {
+              "mode": "r4h",
+              "r4": -6.700122629639618,
+              "r4h": -6.700122629639618,
+              "r3": null
+            }
+          },
+          "phones": [
+            {
+              "expected": "o",
+              "phone": "o",
+              "dimension": "phoneme",
+              "heard": "a",
+              "score": 76.6,
+              "start_ms": 0,
+              "end_ms": 331,
+              "operation": "S",
+              "diagnosis_status": "experimental"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "case_id": "snow-14",
+      "audio_path": "/Users/yaroslavabramov/side/podgen/tmp/toneperfect-snow-followup-2026-11-12/snow-14/audio.wav",
+      "audio_sha256": "67e76f63cfb1de2facecd4488a4b1c09ec45111ee1d3463c117f2fc5de969ae5",
+      "reference_text": "Йорк заключает, что жидкость из стоков долго и постоянно просачивалась в колодец.",
+      "timestamp": "11:21",
+      "human_status": "Ещё не проверено",
+      "target_rows": [
+        {
+          "index": 3,
+          "text": "жидкость",
+          "word": "жидкость",
+          "expected_ipa": "ʒytkʌstʲ",
+          "score": 99.0,
+          "start_ms": 1282,
+          "end_ms": 1753,
+          "decision": "no_correction",
+          "omission_suspected": false,
+          "phonemes": [
+            {
+              "expected": "ʒ",
+              "phone": "ʒ",
+              "dimension": "phoneme",
+              "heard": "ʒ",
+              "score": 99.7,
+              "start_ms": 1282,
+              "end_ms": 1383,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            },
+            {
+              "expected": "y",
+              "phone": "y",
+              "dimension": "phoneme",
+              "heard": "y",
+              "score": 100.0,
+              "start_ms": 1383,
+              "end_ms": 1463,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            },
+            {
+              "expected": "t",
+              "phone": "t",
+              "dimension": "phoneme",
+              "heard": "t",
+              "score": 97.8,
+              "start_ms": 1463,
+              "end_ms": 1543,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            },
+            {
+              "expected": "k",
+              "phone": "k",
+              "dimension": "phoneme",
+              "heard": "k",
+              "score": 97.8,
+              "start_ms": 1543,
+              "end_ms": 1593,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            },
+            {
+              "expected": "ʌ",
+              "phone": "ʌ",
+              "dimension": "phoneme",
+              "heard": "ʌ",
+              "score": 94.9,
+              "start_ms": 1593,
+              "end_ms": 1643,
+              "operation": "M",
+              "diagnosis_status": "experimental",
+              "heard_raw": "y"
+            },
+            {
+              "expected": "s",
+              "phone": "s",
+              "dimension": "phoneme",
+              "heard": "s",
+              "score": 96.3,
+              "start_ms": 1643,
+              "end_ms": 1703,
+              "operation": "M",
+              "diagnosis_status": "experimental",
+              "heard_raw": "sʲ"
+            },
+            {
+              "expected": "tʲ",
+              "phone": "tʲ",
+              "dimension": "phoneme",
+              "heard": "tʲ",
+              "score": 99.7,
+              "start_ms": 1703,
+              "end_ms": 1753,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            }
+          ],
+          "mismatch_risk": -4.196296151519012,
+          "p_error": 0.014828041025671904,
+          "assessed": true,
+          "reason": null,
+          "word_evidence": {
+            "channel": "gbm_pooled_all_tail_train7(g2pfix7)",
+            "version": "rc4-wordhead",
+            "native_budget": 0.05,
+            "r2": {
+              "score": -8.27516304182043,
+              "threshold": -0.3256215007611667,
+              "heard_homophone": false,
+              "definite": false,
+              "acoustic_decision": "no_correction"
+            },
+            "combined_risk": -7.949541541059264,
+            "rank5": {
+              "mode": "r4h",
+              "r4": -7.949541541059264,
+              "r4h": -7.949541541059264,
+              "r3": null
+            }
+          },
+          "phones": [
+            {
+              "expected": "ʒ",
+              "phone": "ʒ",
+              "dimension": "phoneme",
+              "heard": "ʒ",
+              "score": 99.7,
+              "start_ms": 1282,
+              "end_ms": 1383,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            },
+            {
+              "expected": "y",
+              "phone": "y",
+              "dimension": "phoneme",
+              "heard": "y",
+              "score": 100.0,
+              "start_ms": 1383,
+              "end_ms": 1463,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            },
+            {
+              "expected": "t",
+              "phone": "t",
+              "dimension": "phoneme",
+              "heard": "t",
+              "score": 97.8,
+              "start_ms": 1463,
+              "end_ms": 1543,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            },
+            {
+              "expected": "k",
+              "phone": "k",
+              "dimension": "phoneme",
+              "heard": "k",
+              "score": 97.8,
+              "start_ms": 1543,
+              "end_ms": 1593,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            },
+            {
+              "expected": "ʌ",
+              "phone": "ʌ",
+              "dimension": "phoneme",
+              "heard": "ʌ",
+              "score": 94.9,
+              "start_ms": 1593,
+              "end_ms": 1643,
+              "operation": "M",
+              "diagnosis_status": "experimental",
+              "heard_raw": "y"
+            },
+            {
+              "expected": "s",
+              "phone": "s",
+              "dimension": "phoneme",
+              "heard": "s",
+              "score": 96.3,
+              "start_ms": 1643,
+              "end_ms": 1703,
+              "operation": "M",
+              "diagnosis_status": "experimental",
+              "heard_raw": "sʲ"
+            },
+            {
+              "expected": "tʲ",
+              "phone": "tʲ",
+              "dimension": "phoneme",
+              "heard": "tʲ",
+              "score": 99.7,
+              "start_ms": 1703,
+              "end_ms": 1753,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            }
+          ]
+        },
+        {
+          "index": 4,
+          "text": "из",
+          "word": "из",
+          "expected_ipa": "is",
+          "score": 99.5,
+          "start_ms": 1753,
+          "end_ms": 1854,
+          "decision": "no_correction",
+          "omission_suspected": false,
+          "phonemes": [
+            {
+              "expected": "i",
+              "phone": "i",
+              "dimension": "phoneme",
+              "heard": "i",
+              "score": 99.5,
+              "start_ms": 1753,
+              "end_ms": 1803,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            },
+            {
+              "expected": "s",
+              "phone": "s",
+              "dimension": "phoneme",
+              "heard": "s",
+              "score": 70.5,
+              "start_ms": 1803,
+              "end_ms": 1854,
+              "operation": "M",
+              "diagnosis_status": "experimental",
+              "heard_by": "transcript"
+            }
+          ],
+          "mismatch_risk": -3.3038096508639,
+          "p_error": 0.03544072683464309,
+          "assessed": true,
+          "reason": null,
+          "word_evidence": {
+            "channel": "gbm_pooled_all_tail_train7(g2pfix7)",
+            "version": "rc4-wordhead",
+            "native_budget": 0.05,
+            "r2": {
+              "score": -7.100654843852672,
+              "threshold": -0.3256215007611667,
+              "heard_homophone": false,
+              "definite": false,
+              "acoustic_decision": "no_correction"
+            },
+            "combined_risk": -6.775033343091505,
+            "rank5": {
+              "mode": "r4h",
+              "r4": -6.775033343091505,
+              "r4h": -6.775033343091505,
+              "r3": null
+            }
+          },
+          "phones": [
+            {
+              "expected": "i",
+              "phone": "i",
+              "dimension": "phoneme",
+              "heard": "i",
+              "score": 99.5,
+              "start_ms": 1753,
+              "end_ms": 1803,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            },
+            {
+              "expected": "s",
+              "phone": "s",
+              "dimension": "phoneme",
+              "heard": "s",
+              "score": 70.5,
+              "start_ms": 1803,
+              "end_ms": 1854,
+              "operation": "M",
+              "diagnosis_status": "experimental",
+              "heard_by": "transcript"
+            }
+          ]
+        }
+      ],
+      "other_flagged_words": [
+        {
+          "index": 8,
+          "text": "постоянно",
+          "word": "постоянно",
+          "expected_ipa": "pʌstʌjannʌ",
+          "score": 99.5,
+          "start_ms": 3176,
+          "end_ms": 3787,
+          "decision": "partial",
+          "omission_suspected": false,
+          "phonemes": [
+            {
+              "expected": "p",
+              "phone": "p",
+              "dimension": "phoneme",
+              "heard": "p",
+              "score": 99.3,
+              "start_ms": 3176,
+              "end_ms": 3246,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            },
+            {
+              "expected": "ʌ",
+              "phone": "ʌ",
+              "dimension": "phoneme",
+              "heard": "ʌ",
+              "score": 99.6,
+              "start_ms": 3246,
+              "end_ms": 3286,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            },
+            {
+              "expected": "s",
+              "phone": "s",
+              "dimension": "phoneme",
+              "heard": "s",
+              "score": 99.8,
+              "start_ms": 3286,
+              "end_ms": 3356,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            },
+            {
+              "expected": "t",
+              "phone": "t",
+              "dimension": "phoneme",
+              "heard": "t",
+              "score": 99.6,
+              "start_ms": 3356,
+              "end_ms": 3416,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            },
+            {
+              "expected": "ʌ",
+              "phone": "ʌ",
+              "dimension": "phoneme",
+              "heard": "ʌ",
+              "score": 98.2,
+              "start_ms": 3416,
+              "end_ms": 3517,
+              "operation": "M",
+              "diagnosis_status": "experimental",
+              "heard_raw": "ɑ"
+            },
+            {
+              "expected": "ja",
+              "phone": "ja",
+              "dimension": "phoneme",
+              "heard": "ja",
+              "score": 99.6,
+              "start_ms": 3517,
+              "end_ms": 3637,
+              "operation": "M",
+              "diagnosis_status": "experimental",
+              "heard_raw": "ɑ"
+            },
+            {
+              "expected": "n",
+              "phone": "n",
+              "dimension": "phoneme",
+              "heard": "n",
+              "score": 98.1,
+              "start_ms": 3637,
+              "end_ms": 3697,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            },
+            {
+              "expected": "n",
+              "phone": "n",
+              "dimension": "phoneme",
+              "heard": "n",
+              "score": 99.9,
+              "start_ms": 3697,
+              "end_ms": 3727,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            },
+            {
+              "expected": "ʌ",
+              "phone": "ʌ",
+              "dimension": "phoneme",
+              "heard": "ʌ",
+              "score": 99.9,
+              "start_ms": 3727,
+              "end_ms": 3787,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            }
+          ],
+          "mismatch_risk": null,
+          "p_error": null,
+          "assessed": false,
+          "reason": "unsupported_phonetic_symbols",
+          "word_evidence": {
+            "channel": "gbm_pooled_all_tail_train7(g2pfix7)",
+            "version": "rc4-wordhead",
+            "native_budget": 0.05,
+            "r2": {
+              "score": -6.362280610384575,
+              "threshold": -0.3256215007611667,
+              "heard_homophone": false,
+              "definite": false,
+              "acoustic_decision": "partial"
+            },
+            "combined_risk": null,
+            "rank5": {
+              "mode": "r4h",
+              "r4": null,
+              "r4h": null,
+              "r3": null
+            }
+          },
+          "phones": [
+            {
+              "expected": "p",
+              "phone": "p",
+              "dimension": "phoneme",
+              "heard": "p",
+              "score": 99.3,
+              "start_ms": 3176,
+              "end_ms": 3246,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            },
+            {
+              "expected": "ʌ",
+              "phone": "ʌ",
+              "dimension": "phoneme",
+              "heard": "ʌ",
+              "score": 99.6,
+              "start_ms": 3246,
+              "end_ms": 3286,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            },
+            {
+              "expected": "s",
+              "phone": "s",
+              "dimension": "phoneme",
+              "heard": "s",
+              "score": 99.8,
+              "start_ms": 3286,
+              "end_ms": 3356,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            },
+            {
+              "expected": "t",
+              "phone": "t",
+              "dimension": "phoneme",
+              "heard": "t",
+              "score": 99.6,
+              "start_ms": 3356,
+              "end_ms": 3416,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            },
+            {
+              "expected": "ʌ",
+              "phone": "ʌ",
+              "dimension": "phoneme",
+              "heard": "ʌ",
+              "score": 98.2,
+              "start_ms": 3416,
+              "end_ms": 3517,
+              "operation": "M",
+              "diagnosis_status": "experimental",
+              "heard_raw": "ɑ"
+            },
+            {
+              "expected": "ja",
+              "phone": "ja",
+              "dimension": "phoneme",
+              "heard": "ja",
+              "score": 99.6,
+              "start_ms": 3517,
+              "end_ms": 3637,
+              "operation": "M",
+              "diagnosis_status": "experimental",
+              "heard_raw": "ɑ"
+            },
+            {
+              "expected": "n",
+              "phone": "n",
+              "dimension": "phoneme",
+              "heard": "n",
+              "score": 98.1,
+              "start_ms": 3637,
+              "end_ms": 3697,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            },
+            {
+              "expected": "n",
+              "phone": "n",
+              "dimension": "phoneme",
+              "heard": "n",
+              "score": 99.9,
+              "start_ms": 3697,
+              "end_ms": 3727,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            },
+            {
+              "expected": "ʌ",
+              "phone": "ʌ",
+              "dimension": "phoneme",
+              "heard": "ʌ",
+              "score": 99.9,
+              "start_ms": 3727,
+              "end_ms": 3787,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            }
+          ],
+          "expected_ipa_full": "p|ʌ|s|t|ʌ|ˈja|n|n|ʌ",
+          "unassessed_symbols": [
+            "unjudgeable:ja"
+          ],
+          "score_scope": "supported_sounds"
+        }
+      ]
+    },
+    {
+      "case_id": "snow-15",
+      "audio_path": "/Users/yaroslavabramov/side/podgen/tmp/toneperfect-snow-followup-2026-11-12/snow-15/audio.wav",
+      "audio_sha256": "0354d57be2b82faed8b8e4d337678e3157274b953290ac7332e91ad180bbef23",
+      "reference_text": "Врач, который лечил девочку, записей не вёл и восстанавливал подробности по памяти.",
+      "timestamp": "11:42",
+      "human_status": "Ещё не проверено",
+      "target_rows": [
+        {
+          "index": 4,
+          "text": "записей",
+          "word": "записей",
+          "expected_ipa": "zɑpʲisʲi",
+          "score": 99.5,
+          "start_ms": 1493,
+          "end_ms": 1935,
+          "decision": "no_correction",
+          "omission_suspected": false,
+          "phonemes": [
+            {
+              "expected": "z",
+              "phone": "z",
+              "dimension": "phoneme",
+              "heard": "z",
+              "score": 99.9,
+              "start_ms": 1493,
+              "end_ms": 1564,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            },
+            {
+              "expected": "ɑ",
+              "phone": "ɑ",
+              "dimension": "phoneme",
+              "heard": "ɑ",
+              "score": 98.4,
+              "start_ms": 1564,
+              "end_ms": 1644,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            },
+            {
+              "expected": "pʲ",
+              "phone": "pʲ",
+              "dimension": "phoneme",
+              "heard": "pʲ",
+              "score": 99.3,
+              "start_ms": 1644,
+              "end_ms": 1714,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            },
+            {
+              "expected": "i",
+              "phone": "i",
+              "dimension": "phoneme",
+              "heard": "i",
+              "score": 99.9,
+              "start_ms": 1714,
+              "end_ms": 1764,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            },
+            {
+              "expected": "sʲ",
+              "phone": "sʲ",
+              "dimension": "phoneme",
+              "heard": "sʲ",
+              "score": 99.9,
+              "start_ms": 1764,
+              "end_ms": 1834,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            },
+            {
+              "expected": "i",
+              "phone": "i",
+              "dimension": "phoneme",
+              "heard": "i",
+              "score": 99.4,
+              "start_ms": 1834,
+              "end_ms": 1935,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            }
+          ],
+          "mismatch_risk": -7.458083713747355,
+          "p_error": 0.0005764278903667362,
+          "assessed": true,
+          "reason": null,
+          "word_evidence": {
+            "channel": "gbm_pooled_all_tail_train7(g2pfix7)",
+            "version": "rc4-wordhead",
+            "native_budget": 0.05,
+            "r2": {
+              "score": -9.220484134074802,
+              "threshold": -0.3256215007611667,
+              "heard_homophone": false,
+              "definite": false,
+              "acoustic_decision": "no_correction"
+            },
+            "combined_risk": -8.894862633313636,
+            "rank5": {
+              "mode": "r4h",
+              "r4": -8.894862633313636,
+              "r4h": -8.894862633313636,
+              "r3": null
+            }
+          },
+          "phones": [
+            {
+              "expected": "z",
+              "phone": "z",
+              "dimension": "phoneme",
+              "heard": "z",
+              "score": 99.9,
+              "start_ms": 1493,
+              "end_ms": 1564,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            },
+            {
+              "expected": "ɑ",
+              "phone": "ɑ",
+              "dimension": "phoneme",
+              "heard": "ɑ",
+              "score": 98.4,
+              "start_ms": 1564,
+              "end_ms": 1644,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            },
+            {
+              "expected": "pʲ",
+              "phone": "pʲ",
+              "dimension": "phoneme",
+              "heard": "pʲ",
+              "score": 99.3,
+              "start_ms": 1644,
+              "end_ms": 1714,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            },
+            {
+              "expected": "i",
+              "phone": "i",
+              "dimension": "phoneme",
+              "heard": "i",
+              "score": 99.9,
+              "start_ms": 1714,
+              "end_ms": 1764,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            },
+            {
+              "expected": "sʲ",
+              "phone": "sʲ",
+              "dimension": "phoneme",
+              "heard": "sʲ",
+              "score": 99.9,
+              "start_ms": 1764,
+              "end_ms": 1834,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            },
+            {
+              "expected": "i",
+              "phone": "i",
+              "dimension": "phoneme",
+              "heard": "i",
+              "score": 99.4,
+              "start_ms": 1834,
+              "end_ms": 1935,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            }
+          ]
+        }
+      ],
+      "other_flagged_words": []
+    },
+    {
+      "case_id": "snow-16",
+      "audio_path": "/Users/yaroslavabramov/side/podgen/tmp/toneperfect-snow-followup-2026-11-12/snow-16/audio.wav",
+      "audio_sha256": "e4bf376e2a40e4a650e5b0b6a4ded6a7af4f2020907dfd9f7af82efc0fac96db",
+      "reference_text": "Комиссия признала, что настоящая природа болезни вызывает сомнения, хотя и заметила, что у маленьких детей холера часто проявляется неотчётливо.",
+      "timestamp": "11:51",
+      "human_status": "Ещё не проверено",
+      "target_rows": [
+        {
+          "index": 7,
+          "text": "сомнения",
+          "word": "сомнения",
+          "expected_ipa": "sʌmnʲenʲi",
+          "score": 99.0,
+          "start_ms": 3249,
+          "end_ms": 3750,
+          "decision": "no_correction",
+          "omission_suspected": false,
+          "phonemes": [
+            {
+              "expected": "s",
+              "phone": "s",
+              "dimension": "phoneme",
+              "heard": "s",
+              "score": 97.4,
+              "start_ms": 3249,
+              "end_ms": 3289,
+              "operation": "M",
+              "diagnosis_status": "experimental",
+              "heard_raw": "ts"
+            },
+            {
+              "expected": "ʌ",
+              "phone": "ʌ",
+              "dimension": "phoneme",
+              "heard": "ʌ",
+              "score": 98.1,
+              "start_ms": 3289,
+              "end_ms": 3359,
+              "operation": "M",
+              "diagnosis_status": "experimental",
+              "heard_raw": "ɑ"
+            },
+            {
+              "expected": "m",
+              "phone": "m",
+              "dimension": "phoneme",
+              "heard": "m",
+              "score": 99.5,
+              "start_ms": 3359,
+              "end_ms": 3429,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            },
+            {
+              "expected": "nʲ",
+              "phone": "nʲ",
+              "dimension": "phoneme",
+              "heard": "nʲ",
+              "score": 99.5,
+              "start_ms": 3429,
+              "end_ms": 3489,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            },
+            {
+              "expected": "e",
+              "phone": "e",
+              "dimension": "phoneme",
+              "heard": "e",
+              "score": 99.4,
+              "start_ms": 3489,
+              "end_ms": 3569,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            },
+            {
+              "expected": "nʲ",
+              "phone": "nʲ",
+              "dimension": "phoneme",
+              "heard": "nʲ",
+              "score": 98.0,
+              "start_ms": 3569,
+              "end_ms": 3640,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            },
+            {
+              "expected": "i",
+              "phone": "i",
+              "dimension": "phoneme",
+              "heard": "i",
+              "score": 98.9,
+              "start_ms": 3640,
+              "end_ms": 3750,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            }
+          ],
+          "mismatch_risk": -4.9717310371299686,
+          "p_error": 0.006883429573045526,
+          "assessed": true,
+          "reason": null,
+          "word_evidence": {
+            "channel": "gbm_pooled_all_tail_train7(g2pfix7)",
+            "version": "rc4-wordhead",
+            "native_budget": 0.05,
+            "r2": {
+              "score": -7.87802450065782,
+              "threshold": -0.3256215007611667,
+              "heard_homophone": false,
+              "definite": false,
+              "acoustic_decision": "no_correction"
+            },
+            "combined_risk": -7.552402999896653,
+            "rank5": {
+              "mode": "r4h",
+              "r4": -7.552402999896653,
+              "r4h": -7.552402999896653,
+              "r3": null
+            }
+          },
+          "phones": [
+            {
+              "expected": "s",
+              "phone": "s",
+              "dimension": "phoneme",
+              "heard": "s",
+              "score": 97.4,
+              "start_ms": 3249,
+              "end_ms": 3289,
+              "operation": "M",
+              "diagnosis_status": "experimental",
+              "heard_raw": "ts"
+            },
+            {
+              "expected": "ʌ",
+              "phone": "ʌ",
+              "dimension": "phoneme",
+              "heard": "ʌ",
+              "score": 98.1,
+              "start_ms": 3289,
+              "end_ms": 3359,
+              "operation": "M",
+              "diagnosis_status": "experimental",
+              "heard_raw": "ɑ"
+            },
+            {
+              "expected": "m",
+              "phone": "m",
+              "dimension": "phoneme",
+              "heard": "m",
+              "score": 99.5,
+              "start_ms": 3359,
+              "end_ms": 3429,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            },
+            {
+              "expected": "nʲ",
+              "phone": "nʲ",
+              "dimension": "phoneme",
+              "heard": "nʲ",
+              "score": 99.5,
+              "start_ms": 3429,
+              "end_ms": 3489,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            },
+            {
+              "expected": "e",
+              "phone": "e",
+              "dimension": "phoneme",
+              "heard": "e",
+              "score": 99.4,
+              "start_ms": 3489,
+              "end_ms": 3569,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            },
+            {
+              "expected": "nʲ",
+              "phone": "nʲ",
+              "dimension": "phoneme",
+              "heard": "nʲ",
+              "score": 98.0,
+              "start_ms": 3569,
+              "end_ms": 3640,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            },
+            {
+              "expected": "i",
+              "phone": "i",
+              "dimension": "phoneme",
+              "heard": "i",
+              "score": 98.9,
+              "start_ms": 3640,
+              "end_ms": 3750,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            }
+          ]
+        }
+      ],
+      "other_flagged_words": [
+        {
+          "index": 3,
+          "text": "настоящая",
+          "word": "настоящая",
+          "expected_ipa": "nʌstʌjaɕʌ",
+          "score": 99.5,
+          "start_ms": 1133,
+          "end_ms": 1755,
+          "decision": "partial",
+          "omission_suspected": false,
+          "phonemes": [
+            {
+              "expected": "n",
+              "phone": "n",
+              "dimension": "phoneme",
+              "heard": "n",
+              "score": 97.7,
+              "start_ms": 1133,
+              "end_ms": 1203,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            },
+            {
+              "expected": "ʌ",
+              "phone": "ʌ",
+              "dimension": "phoneme",
+              "heard": "ʌ",
+              "score": 99.1,
+              "start_ms": 1203,
+              "end_ms": 1233,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            },
+            {
+              "expected": "s",
+              "phone": "s",
+              "dimension": "phoneme",
+              "heard": "s",
+              "score": 100.0,
+              "start_ms": 1233,
+              "end_ms": 1283,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            },
+            {
+              "expected": "t",
+              "phone": "t",
+              "dimension": "phoneme",
+              "heard": "t",
+              "score": 99.9,
+              "start_ms": 1283,
+              "end_ms": 1333,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            },
+            {
+              "expected": "ʌ",
+              "phone": "ʌ",
+              "dimension": "phoneme",
+              "heard": "ʌ",
+              "score": 99.2,
+              "start_ms": 1333,
+              "end_ms": 1434,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            },
+            {
+              "expected": "ja",
+              "phone": "ja",
+              "dimension": "phoneme",
+              "heard": "ja",
+              "score": 99.1,
+              "start_ms": 1434,
+              "end_ms": 1564,
+              "operation": "M",
+              "diagnosis_status": "experimental",
+              "heard_raw": "e"
+            },
+            {
+              "expected": "ɕ",
+              "phone": "ɕ",
+              "dimension": "phoneme",
+              "heard": "ɕ",
+              "score": 99.4,
+              "start_ms": 1564,
+              "end_ms": 1664,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            },
+            {
+              "expected": "ʌ",
+              "phone": "ʌ",
+              "dimension": "phoneme",
+              "heard": "i",
+              "score": 78.6,
+              "start_ms": 1664,
+              "end_ms": 1755,
+              "operation": "S",
+              "diagnosis_status": "experimental"
+            }
+          ],
+          "mismatch_risk": null,
+          "p_error": null,
+          "assessed": false,
+          "reason": "unsupported_phonetic_symbols",
+          "word_evidence": {
+            "channel": "gbm_pooled_all_tail_train7(g2pfix7)",
+            "version": "rc4-wordhead",
+            "native_budget": 0.05,
+            "r2": {
+              "score": -7.804971936219559,
+              "threshold": -0.3256215007611667,
+              "heard_homophone": false,
+              "definite": false,
+              "acoustic_decision": "partial"
+            },
+            "combined_risk": null,
+            "rank5": {
+              "mode": "r4h",
+              "r4": null,
+              "r4h": null,
+              "r3": null
+            }
+          },
+          "phones": [
+            {
+              "expected": "n",
+              "phone": "n",
+              "dimension": "phoneme",
+              "heard": "n",
+              "score": 97.7,
+              "start_ms": 1133,
+              "end_ms": 1203,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            },
+            {
+              "expected": "ʌ",
+              "phone": "ʌ",
+              "dimension": "phoneme",
+              "heard": "ʌ",
+              "score": 99.1,
+              "start_ms": 1203,
+              "end_ms": 1233,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            },
+            {
+              "expected": "s",
+              "phone": "s",
+              "dimension": "phoneme",
+              "heard": "s",
+              "score": 100.0,
+              "start_ms": 1233,
+              "end_ms": 1283,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            },
+            {
+              "expected": "t",
+              "phone": "t",
+              "dimension": "phoneme",
+              "heard": "t",
+              "score": 99.9,
+              "start_ms": 1283,
+              "end_ms": 1333,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            },
+            {
+              "expected": "ʌ",
+              "phone": "ʌ",
+              "dimension": "phoneme",
+              "heard": "ʌ",
+              "score": 99.2,
+              "start_ms": 1333,
+              "end_ms": 1434,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            },
+            {
+              "expected": "ja",
+              "phone": "ja",
+              "dimension": "phoneme",
+              "heard": "ja",
+              "score": 99.1,
+              "start_ms": 1434,
+              "end_ms": 1564,
+              "operation": "M",
+              "diagnosis_status": "experimental",
+              "heard_raw": "e"
+            },
+            {
+              "expected": "ɕ",
+              "phone": "ɕ",
+              "dimension": "phoneme",
+              "heard": "ɕ",
+              "score": 99.4,
+              "start_ms": 1564,
+              "end_ms": 1664,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            },
+            {
+              "expected": "ʌ",
+              "phone": "ʌ",
+              "dimension": "phoneme",
+              "heard": "i",
+              "score": 78.6,
+              "start_ms": 1664,
+              "end_ms": 1755,
+              "operation": "S",
+              "diagnosis_status": "experimental"
+            }
+          ],
+          "expected_ipa_full": "n|ʌ|s|t|ʌ|ˈja|ɕ|ʌ|ja",
+          "unassessed_symbols": [
+            "unjudgeable:ja"
+          ],
+          "score_scope": "supported_sounds"
+        },
+        {
+          "index": 17,
+          "text": "проявляется",
+          "word": "проявляется",
+          "expected_ipa": "prʌjavɭʲɑitsʌ",
+          "score": 99.0,
+          "start_ms": 5996,
+          "end_ms": 6667,
+          "decision": "partial",
+          "omission_suspected": false,
+          "phonemes": [
+            {
+              "expected": "p",
+              "phone": "p",
+              "dimension": "phoneme",
+              "heard": "p",
+              "score": 99.9,
+              "start_ms": 5996,
+              "end_ms": 6056,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            },
+            {
+              "expected": "r",
+              "phone": "r",
+              "dimension": "phoneme",
+              "heard": "r",
+              "score": 99.2,
+              "start_ms": 6056,
+              "end_ms": 6096,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            },
+            {
+              "expected": "ʌ",
+              "phone": "ʌ",
+              "dimension": "phoneme",
+              "heard": "ʌ",
+              "score": 98.0,
+              "start_ms": 6096,
+              "end_ms": 6126,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            },
+            {
+              "expected": "ja",
+              "phone": "ja",
+              "dimension": "phoneme",
+              "heard": "ja",
+              "score": 98.2,
+              "start_ms": 6126,
+              "end_ms": 6166,
+              "operation": "M",
+              "diagnosis_status": "experimental",
+              "heard_raw": "u"
+            },
+            {
+              "expected": "v",
+              "phone": "v",
+              "dimension": "phoneme",
+              "heard": "v",
+              "score": 93.1,
+              "start_ms": 6166,
+              "end_ms": 6206,
+              "operation": "M",
+              "diagnosis_status": "experimental",
+              "heard_raw": "ɭ"
+            },
+            {
+              "expected": "ɭʲ",
+              "phone": "ɭʲ",
+              "dimension": "phoneme",
+              "heard": "ɭʲ",
+              "score": 98.5,
+              "start_ms": 6206,
+              "end_ms": 6256,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            },
+            {
+              "expected": "ɑ",
+              "phone": "ɑ",
+              "dimension": "phoneme",
+              "heard": "ɑ",
+              "score": 99.0,
+              "start_ms": 6256,
+              "end_ms": 6307,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            },
+            {
+              "expected": "i",
+              "phone": "i",
+              "dimension": "phoneme",
+              "heard": "i",
+              "score": 99.2,
+              "start_ms": 6307,
+              "end_ms": 6377,
+              "operation": "M",
+              "diagnosis_status": "experimental",
+              "heard_by": "transcript"
+            },
+            {
+              "expected": "ts",
+              "phone": "ts",
+              "dimension": "phoneme",
+              "heard": "ts",
+              "score": 99.9,
+              "start_ms": 6377,
+              "end_ms": 6437,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            },
+            {
+              "expected": "ʌ",
+              "phone": "ʌ",
+              "dimension": "phoneme",
+              "heard": "ʌ",
+              "score": 98.3,
+              "start_ms": 6437,
+              "end_ms": 6667,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            }
+          ],
+          "mismatch_risk": null,
+          "p_error": null,
+          "assessed": false,
+          "reason": "unsupported_phonetic_symbols",
+          "word_evidence": {
+            "channel": "gbm_pooled_all_tail_train7(g2pfix7)",
+            "version": "rc4-wordhead",
+            "native_budget": 0.05,
+            "r2": {
+              "score": -7.410602332934446,
+              "threshold": -0.3256215007611667,
+              "heard_homophone": false,
+              "definite": false,
+              "acoustic_decision": "partial"
+            },
+            "combined_risk": null,
+            "rank5": {
+              "mode": "r4h",
+              "r4": null,
+              "r4h": null,
+              "r3": null
+            }
+          },
+          "phones": [
+            {
+              "expected": "p",
+              "phone": "p",
+              "dimension": "phoneme",
+              "heard": "p",
+              "score": 99.9,
+              "start_ms": 5996,
+              "end_ms": 6056,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            },
+            {
+              "expected": "r",
+              "phone": "r",
+              "dimension": "phoneme",
+              "heard": "r",
+              "score": 99.2,
+              "start_ms": 6056,
+              "end_ms": 6096,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            },
+            {
+              "expected": "ʌ",
+              "phone": "ʌ",
+              "dimension": "phoneme",
+              "heard": "ʌ",
+              "score": 98.0,
+              "start_ms": 6096,
+              "end_ms": 6126,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            },
+            {
+              "expected": "ja",
+              "phone": "ja",
+              "dimension": "phoneme",
+              "heard": "ja",
+              "score": 98.2,
+              "start_ms": 6126,
+              "end_ms": 6166,
+              "operation": "M",
+              "diagnosis_status": "experimental",
+              "heard_raw": "u"
+            },
+            {
+              "expected": "v",
+              "phone": "v",
+              "dimension": "phoneme",
+              "heard": "v",
+              "score": 93.1,
+              "start_ms": 6166,
+              "end_ms": 6206,
+              "operation": "M",
+              "diagnosis_status": "experimental",
+              "heard_raw": "ɭ"
+            },
+            {
+              "expected": "ɭʲ",
+              "phone": "ɭʲ",
+              "dimension": "phoneme",
+              "heard": "ɭʲ",
+              "score": 98.5,
+              "start_ms": 6206,
+              "end_ms": 6256,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            },
+            {
+              "expected": "ɑ",
+              "phone": "ɑ",
+              "dimension": "phoneme",
+              "heard": "ɑ",
+              "score": 99.0,
+              "start_ms": 6256,
+              "end_ms": 6307,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            },
+            {
+              "expected": "i",
+              "phone": "i",
+              "dimension": "phoneme",
+              "heard": "i",
+              "score": 99.2,
+              "start_ms": 6307,
+              "end_ms": 6377,
+              "operation": "M",
+              "diagnosis_status": "experimental",
+              "heard_by": "transcript"
+            },
+            {
+              "expected": "ts",
+              "phone": "ts",
+              "dimension": "phoneme",
+              "heard": "ts",
+              "score": 99.9,
+              "start_ms": 6377,
+              "end_ms": 6437,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            },
+            {
+              "expected": "ʌ",
+              "phone": "ʌ",
+              "dimension": "phoneme",
+              "heard": "ʌ",
+              "score": 98.3,
+              "start_ms": 6437,
+              "end_ms": 6667,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            }
+          ],
+          "expected_ipa_full": "p||r|ʌ|ja|v|ɭʲ|ˈɑ|j|i|ts|ʌ",
+          "unassessed_symbols": [
+            "unjudgeable:ja"
+          ],
+          "score_scope": "supported_sounds"
+        }
+      ]
+    },
+    {
+      "case_id": "snow-17",
+      "audio_path": "/Users/yaroslavabramov/side/podgen/tmp/toneperfect-snow-followup-2026-11-12/snow-17/audio.wav",
+      "audio_sha256": "7e87bbe8d0a140d32587f198d13656884a30154bb6d4fe5922336d033ea6bd7e",
+      "reference_text": "Но опасную колонку Сноу нашёл, так и не увидев саму заразу: не в стакане и не под микроскопом, а по адресам умерших и словам живых.",
+      "timestamp": "12:09",
+      "human_status": "Ещё не проверено",
+      "target_rows": [
+        {
+          "index": 3,
+          "text": "сноу",
+          "word": "сноу",
+          "expected_ipa": "snou",
+          "score": 99.5,
+          "start_ms": 1153,
+          "end_ms": 1484,
+          "decision": "no_correction",
+          "omission_suspected": false,
+          "phonemes": [
+            {
+              "expected": "s",
+              "phone": "s",
+              "dimension": "phoneme",
+              "heard": "s",
+              "score": 98.8,
+              "start_ms": 1153,
+              "end_ms": 1243,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            },
+            {
+              "expected": "n",
+              "phone": "n",
+              "dimension": "phoneme",
+              "heard": "n",
+              "score": 99.0,
+              "start_ms": 1243,
+              "end_ms": 1313,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            },
+            {
+              "expected": "o",
+              "phone": "o",
+              "dimension": "phoneme",
+              "heard": "o",
+              "score": 99.9,
+              "start_ms": 1313,
+              "end_ms": 1383,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            },
+            {
+              "expected": "u",
+              "phone": "u",
+              "dimension": "phoneme",
+              "heard": "u",
+              "score": 98.2,
+              "start_ms": 1383,
+              "end_ms": 1484,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            }
+          ],
+          "mismatch_risk": -7.618572821590786,
+          "p_error": 0.0004910012210092152,
+          "assessed": true,
+          "reason": null,
+          "word_evidence": {
+            "channel": "gbm_pooled_all_tail_train7(g2pfix7)",
+            "version": "rc4-wordhead",
+            "native_budget": 0.05,
+            "r2": {
+              "score": -3.0150194356985653,
+              "threshold": -0.3256215007611667,
+              "heard_homophone": false,
+              "definite": false,
+              "acoustic_decision": "no_correction"
+            },
+            "combined_risk": -2.6893979349373986,
+            "rank5": {
+              "mode": "r4h",
+              "r4": -2.6893979349373986,
+              "r4h": -2.6893979349373986,
+              "r3": null
+            }
+          },
+          "phones": [
+            {
+              "expected": "s",
+              "phone": "s",
+              "dimension": "phoneme",
+              "heard": "s",
+              "score": 98.8,
+              "start_ms": 1153,
+              "end_ms": 1243,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            },
+            {
+              "expected": "n",
+              "phone": "n",
+              "dimension": "phoneme",
+              "heard": "n",
+              "score": 99.0,
+              "start_ms": 1243,
+              "end_ms": 1313,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            },
+            {
+              "expected": "o",
+              "phone": "o",
+              "dimension": "phoneme",
+              "heard": "o",
+              "score": 99.9,
+              "start_ms": 1313,
+              "end_ms": 1383,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            },
+            {
+              "expected": "u",
+              "phone": "u",
+              "dimension": "phoneme",
+              "heard": "u",
+              "score": 98.2,
+              "start_ms": 1383,
+              "end_ms": 1484,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            }
+          ]
+        },
+        {
+          "index": 11,
+          "text": "не",
+          "word": "не",
+          "expected_ipa": "nʲi",
+          "score": 99.5,
+          "start_ms": 3829,
+          "end_ms": 4090,
+          "decision": "no_correction",
+          "omission_suspected": false,
+          "phonemes": [
+            {
+              "expected": "nʲ",
+              "phone": "nʲ",
+              "dimension": "phoneme",
+              "heard": "nʲ",
+              "score": 99.0,
+              "start_ms": 3829,
+              "end_ms": 4040,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            },
+            {
+              "expected": "i",
+              "phone": "i",
+              "dimension": "phoneme",
+              "heard": "i",
+              "score": 99.9,
+              "start_ms": 4040,
+              "end_ms": 4090,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            }
+          ],
+          "mismatch_risk": -7.903661126851637,
+          "p_error": 0.00036925228537853545,
+          "assessed": true,
+          "reason": null,
+          "word_evidence": {
+            "channel": "gbm_pooled_all_tail_train7(g2pfix7)",
+            "version": "rc4-wordhead",
+            "native_budget": 0.05,
+            "r2": {
+              "score": -3.5888187932597737,
+              "threshold": -0.3256215007611667,
+              "heard_homophone": false,
+              "definite": false,
+              "acoustic_decision": "no_correction"
+            },
+            "combined_risk": -3.263197292498607,
+            "rank5": {
+              "mode": "r4h",
+              "r4": -3.263197292498607,
+              "r4h": -3.263197292498607,
+              "r3": null
+            }
+          },
+          "phones": [
+            {
+              "expected": "nʲ",
+              "phone": "nʲ",
+              "dimension": "phoneme",
+              "heard": "nʲ",
+              "score": 99.0,
+              "start_ms": 3829,
+              "end_ms": 4040,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            },
+            {
+              "expected": "i",
+              "phone": "i",
+              "dimension": "phoneme",
+              "heard": "i",
+              "score": 99.9,
+              "start_ms": 4040,
+              "end_ms": 4090,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            }
+          ]
+        },
+        {
+          "index": 14,
+          "text": "и",
+          "word": "и",
+          "expected_ipa": "i",
+          "score": 98.3,
+          "start_ms": 4641,
+          "end_ms": 4701,
+          "decision": "no_correction",
+          "omission_suspected": false,
+          "phonemes": [
+            {
+              "expected": "i",
+              "phone": "i",
+              "dimension": "phoneme",
+              "heard": "i",
+              "score": 98.3,
+              "start_ms": 4641,
+              "end_ms": 4701,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            }
+          ],
+          "mismatch_risk": -6.263773646088174,
+          "p_error": 0.0019004285175031194,
+          "assessed": true,
+          "reason": null,
+          "word_evidence": {
+            "channel": "gbm_pooled_all_tail_train7(g2pfix7)",
+            "version": "rc4-wordhead",
+            "native_budget": 0.05,
+            "r2": {
+              "score": -3.0841129643551435,
+              "threshold": -0.3256215007611667,
+              "heard_homophone": false,
+              "definite": false,
+              "acoustic_decision": "no_correction"
+            },
+            "combined_risk": -2.758491463593977,
+            "rank5": {
+              "mode": "r4h",
+              "r4": -2.758491463593977,
+              "r4h": -2.758491463593977,
+              "r3": null
+            }
+          },
+          "phones": [
+            {
+              "expected": "i",
+              "phone": "i",
+              "dimension": "phoneme",
+              "heard": "i",
+              "score": 98.3,
+              "start_ms": 4641,
+              "end_ms": 4701,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            }
+          ]
+        },
+        {
+          "index": 15,
+          "text": "не",
+          "word": "не",
+          "expected_ipa": "nʲi",
+          "score": 99.5,
+          "start_ms": 4701,
+          "end_ms": 4822,
+          "decision": "no_correction",
+          "omission_suspected": false,
+          "phonemes": [
+            {
+              "expected": "nʲ",
+              "phone": "nʲ",
+              "dimension": "phoneme",
+              "heard": "nʲ",
+              "score": 99.4,
+              "start_ms": 4701,
+              "end_ms": 4761,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            },
+            {
+              "expected": "i",
+              "phone": "i",
+              "dimension": "phoneme",
+              "heard": "i",
+              "score": 99.9,
+              "start_ms": 4761,
+              "end_ms": 4822,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            }
+          ],
+          "mismatch_risk": -7.658851823516862,
+          "p_error": 0.00047162632931605414,
+          "assessed": true,
+          "reason": null,
+          "word_evidence": {
+            "channel": "gbm_pooled_all_tail_train7(g2pfix7)",
+            "version": "rc4-wordhead",
+            "native_budget": 0.05,
+            "r2": {
+              "score": -3.6341586019829095,
+              "threshold": -0.3256215007611667,
+              "heard_homophone": false,
+              "definite": false,
+              "acoustic_decision": "no_correction"
+            },
+            "combined_risk": -3.308537101221743,
+            "rank5": {
+              "mode": "r4h",
+              "r4": -3.308537101221743,
+              "r4h": -3.308537101221743,
+              "r3": null
+            }
+          },
+          "phones": [
+            {
+              "expected": "nʲ",
+              "phone": "nʲ",
+              "dimension": "phoneme",
+              "heard": "nʲ",
+              "score": 99.4,
+              "start_ms": 4701,
+              "end_ms": 4761,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            },
+            {
+              "expected": "i",
+              "phone": "i",
+              "dimension": "phoneme",
+              "heard": "i",
+              "score": 99.9,
+              "start_ms": 4761,
+              "end_ms": 4822,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            }
+          ]
+        }
+      ],
+      "other_flagged_words": []
+    },
+    {
+      "case_id": "ordinary-district",
+      "audio_path": "/Users/yaroslavabramov/side/podgen/tmp/toneperfect-real-errors-2026-11-12/ordinary-district/audio.wav",
+      "audio_sha256": "10c0f34e4f4dbe2eed8e57b3bf5df54dac5c341eae986de7526d308f98ea2be9",
+      "reference_text": "В обычной округе колонки он насчитал семьдесят три смерти.",
+      "timestamp": "03:40",
+      "human_status": "Ошибка подтверждена пользователем",
+      "target_rows": [
+        {
+          "index": 1,
+          "text": "обычной",
+          "word": "обычной",
+          "expected_ipa": "ʌbytʃʲnʌ",
+          "score": 84.0,
+          "start_ms": 392,
+          "end_ms": 865,
+          "decision": "review",
+          "omission_suspected": false,
+          "phonemes": [
+            {
+              "expected": "ʌ",
+              "phone": "ʌ",
+              "dimension": "phoneme",
+              "heard": "ʌ",
+              "score": 98.3,
+              "start_ms": 392,
+              "end_ms": 463,
+              "operation": "M",
+              "diagnosis_status": "experimental",
+              "heard_raw": "a"
+            },
+            {
+              "expected": "b",
+              "phone": "b",
+              "dimension": "phoneme",
+              "heard": "b",
+              "score": 99.7,
+              "start_ms": 463,
+              "end_ms": 533,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            },
+            {
+              "expected": "y",
+              "phone": "y",
+              "dimension": "phoneme",
+              "heard": "o",
+              "score": 80.8,
+              "start_ms": 533,
+              "end_ms": 603,
+              "operation": "S",
+              "diagnosis_status": "experimental"
+            },
+            {
+              "expected": "tʃʲ",
+              "phone": "tʃʲ",
+              "dimension": "phoneme",
+              "heard": "i",
+              "score": 41.7,
+              "start_ms": 603,
+              "end_ms": 694,
+              "operation": "S",
+              "diagnosis_status": "experimental"
+            },
+            {
+              "expected": "n",
+              "phone": "n",
+              "dimension": "phoneme",
+              "heard": "n",
+              "score": 98.7,
+              "start_ms": 694,
+              "end_ms": 754,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            },
+            {
+              "expected": "ʌ",
+              "phone": "ʌ",
+              "dimension": "phoneme",
+              "heard": "y",
+              "score": 73.8,
+              "start_ms": 754,
+              "end_ms": 865,
+              "operation": "S",
+              "diagnosis_status": "experimental"
+            }
+          ],
+          "mismatch_risk": 2.130255168317537,
+          "p_error": 0.8938092298784673,
+          "assessed": true,
+          "reason": null,
+          "word_evidence": {
+            "channel": "gbm_pooled_all_tail_train7(g2pfix7)",
+            "version": "rc4-wordhead",
+            "native_budget": 0.05,
+            "r2": {
+              "score": 6.291489536739595,
+              "threshold": -0.3256215007611667,
+              "heard_homophone": false,
+              "definite": true,
+              "acoustic_decision": "review"
+            },
+            "combined_risk": 6.617111037500762,
+            "rank5": {
+              "mode": "r4h",
+              "r4": 6.617111037500762,
+              "r4h": 6.617111037500762,
+              "r3": null
+            }
+          },
+          "phones": [
+            {
+              "expected": "ʌ",
+              "phone": "ʌ",
+              "dimension": "phoneme",
+              "heard": "ʌ",
+              "score": 98.3,
+              "start_ms": 392,
+              "end_ms": 463,
+              "operation": "M",
+              "diagnosis_status": "experimental",
+              "heard_raw": "a"
+            },
+            {
+              "expected": "b",
+              "phone": "b",
+              "dimension": "phoneme",
+              "heard": "b",
+              "score": 99.7,
+              "start_ms": 463,
+              "end_ms": 533,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            },
+            {
+              "expected": "y",
+              "phone": "y",
+              "dimension": "phoneme",
+              "heard": "o",
+              "score": 80.8,
+              "start_ms": 533,
+              "end_ms": 603,
+              "operation": "S",
+              "diagnosis_status": "experimental"
+            },
+            {
+              "expected": "tʃʲ",
+              "phone": "tʃʲ",
+              "dimension": "phoneme",
+              "heard": "i",
+              "score": 41.7,
+              "start_ms": 603,
+              "end_ms": 694,
+              "operation": "S",
+              "diagnosis_status": "experimental"
+            },
+            {
+              "expected": "n",
+              "phone": "n",
+              "dimension": "phoneme",
+              "heard": "n",
+              "score": 98.7,
+              "start_ms": 694,
+              "end_ms": 754,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            },
+            {
+              "expected": "ʌ",
+              "phone": "ʌ",
+              "dimension": "phoneme",
+              "heard": "y",
+              "score": 73.8,
+              "start_ms": 754,
+              "end_ms": 865,
+              "operation": "S",
+              "diagnosis_status": "experimental"
+            }
+          ]
+        }
+      ],
+      "other_flagged_words": []
+    },
+    {
+      "case_id": "heard-verb",
+      "audio_path": "/Users/yaroslavabramov/side/podgen/tmp/toneperfect-real-errors-2026-11-12/heard-verb/audio.wav",
+      "audio_sha256": "9195e9da4bea4f76445a6bb3e696385854d08814b3125daa3d872c14a2575828",
+      "reference_text": "Когда он услышал, что всё валят на колонку, то сказал знакомому врачу, что тщательное расследование эту версию опровергнет.",
+      "timestamp": "07:32",
+      "human_status": "Ошибка подтверждена пользователем",
+      "target_rows": [
+        {
+          "index": 2,
+          "text": "услышал",
+          "word": "услышал",
+          "expected_ipa": "usɭyʃʌɭ",
+          "score": 99.5,
+          "start_ms": 691,
+          "end_ms": 1122,
+          "decision": "uncertain",
+          "omission_suspected": false,
+          "phonemes": [
+            {
+              "expected": "u",
+              "phone": "u",
+              "dimension": "phoneme",
+              "heard": "u",
+              "score": 99.9,
+              "start_ms": 691,
+              "end_ms": 741,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            },
+            {
+              "expected": "s",
+              "phone": "s",
+              "dimension": "phoneme",
+              "heard": "s",
+              "score": 99.7,
+              "start_ms": 741,
+              "end_ms": 811,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            },
+            {
+              "expected": "ɭ",
+              "phone": "ɭ",
+              "dimension": "phoneme",
+              "heard": "ɭ",
+              "score": 99.7,
+              "start_ms": 811,
+              "end_ms": 871,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            },
+            {
+              "expected": "y",
+              "phone": "y",
+              "dimension": "phoneme",
+              "heard": "y",
+              "score": 99.4,
+              "start_ms": 871,
+              "end_ms": 931,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            },
+            {
+              "expected": "ʃ",
+              "phone": "ʃ",
+              "dimension": "phoneme",
+              "heard": "x",
+              "score": 48.9,
+              "start_ms": 931,
+              "end_ms": 1001,
+              "operation": "S",
+              "diagnosis_status": "experimental"
+            },
+            {
+              "expected": "ʌ",
+              "phone": "ʌ",
+              "dimension": "phoneme",
+              "heard": "ʌ",
+              "score": 99.3,
+              "start_ms": 1001,
+              "end_ms": 1051,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            },
+            {
+              "expected": "ɭ",
+              "phone": "ɭ",
+              "dimension": "phoneme",
+              "heard": "ɭ",
+              "score": 99.8,
+              "start_ms": 1051,
+              "end_ms": 1122,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            }
+          ],
+          "mismatch_risk": -0.13723333037245283,
+          "p_error": 0.46574541022708243,
+          "assessed": true,
+          "reason": null,
+          "word_evidence": {
+            "channel": "gbm_pooled_all_tail_train7(g2pfix7)",
+            "version": "rc4-wordhead",
+            "native_budget": 0.05,
+            "r2": {
+              "score": -0.07518231060501446,
+              "threshold": -0.3256215007611667,
+              "heard_homophone": false,
+              "definite": true,
+              "acoustic_decision": "review"
+            },
+            "combined_risk": 0.25043919015615224,
+            "rank5": {
+              "mode": "r4h",
+              "r4": 0.25043919015615224,
+              "r4h": 0.25043919015615224,
+              "r3": null
+            }
+          },
+          "phones": [
+            {
+              "expected": "u",
+              "phone": "u",
+              "dimension": "phoneme",
+              "heard": "u",
+              "score": 99.9,
+              "start_ms": 691,
+              "end_ms": 741,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            },
+            {
+              "expected": "s",
+              "phone": "s",
+              "dimension": "phoneme",
+              "heard": "s",
+              "score": 99.7,
+              "start_ms": 741,
+              "end_ms": 811,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            },
+            {
+              "expected": "ɭ",
+              "phone": "ɭ",
+              "dimension": "phoneme",
+              "heard": "ɭ",
+              "score": 99.7,
+              "start_ms": 811,
+              "end_ms": 871,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            },
+            {
+              "expected": "y",
+              "phone": "y",
+              "dimension": "phoneme",
+              "heard": "y",
+              "score": 99.4,
+              "start_ms": 871,
+              "end_ms": 931,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            },
+            {
+              "expected": "ʃ",
+              "phone": "ʃ",
+              "dimension": "phoneme",
+              "heard": "x",
+              "score": 48.9,
+              "start_ms": 931,
+              "end_ms": 1001,
+              "operation": "S",
+              "diagnosis_status": "experimental"
+            },
+            {
+              "expected": "ʌ",
+              "phone": "ʌ",
+              "dimension": "phoneme",
+              "heard": "ʌ",
+              "score": 99.3,
+              "start_ms": 1001,
+              "end_ms": 1051,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            },
+            {
+              "expected": "ɭ",
+              "phone": "ɭ",
+              "dimension": "phoneme",
+              "heard": "ɭ",
+              "score": 99.8,
+              "start_ms": 1051,
+              "end_ms": 1122,
+              "operation": "M",
+              "diagnosis_status": "experimental"
+            }
+          ]
+        }
+      ],
+      "other_flagged_words": []
+    }
+  ]
+}

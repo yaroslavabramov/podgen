@@ -1,0 +1,361 @@
+{
+  "contract": "toneperfect-qualification/1",
+  "run_id": "363bb475-8fc7-40db-9dda-2cbd93535c1f",
+  "max_credits": 8,
+  "cases": [
+    {
+      "case_id": "snow-01",
+      "audio_path": "/Users/yaroslavabramov/side/podgen/tmp/toneperfect-snow-followup-2026-11-12/snow-01/audio.wav",
+      "audio_sha256": "d2eb9f3e1038ca42b7af5f6de98f23773b100af163036880cadcfca95fcde33a",
+      "reference_text": "Здесь тесно: мастерские, лавки, комнаты, которые портные и рабочие снимают с семьями на неделю.",
+      "provenance": {
+        "source_path": "/Users/yaroslavabramov/side/podgen/tmp/audio-full-snow-2026-11-12/assembly/export/master.wav",
+        "source_sha256": "fd37ecb9fb4eeeeb810ceefa3855ce5cf30117055f09704a5c402e11e7b4f4c2",
+        "start_frame": 388320,
+        "end_frame": 692640,
+        "sample_rate_hz": 48000,
+        "duration_seconds": 6.34,
+        "pcm_sha256": "80fad938c555aa8ffda92b3e1515a45e92bf0f39da846d19d3ef21d8ab64450e",
+        "utterance_id": "ff2b00b7-a20d-51ad-94be-016e2a5aac58",
+        "source_char_range": [
+          96,
+          191
+        ],
+        "recognition_path": "/Users/yaroslavabramov/side/podgen/tmp/audio-full-snow-2026-11-12/fidelity/export/private/processing-2/recognition.json",
+        "candidate_report_path": "/Users/yaroslavabramov/side/podgen/tmp/kaldialign-replay-2026-11-12/snow/export/candidates.json",
+        "boundaries": "Saved ASR sentence boundary words; up to250ms pause margins, exact contiguous PCM"
+      },
+      "evaluation": {
+        "targets": [
+          {
+            "candidate_id": "d14958c9-b355-5218-bfd8-d091e2eaa0dd",
+            "candidate_index": 0,
+            "expected": "с",
+            "asr_hypothesis": "",
+            "reference_char_ranges": [
+              [
+                75,
+                76
+              ]
+            ],
+            "acoustic_ambiguity_possible": false,
+            "human_status": "not_reviewed"
+          }
+        ],
+        "criterion": "Record word decisions review, uncertain, no_correction and other separately. No score thresholds; no claim of real error or false alarm without human listening. Possible homophony is not a mandatory discrimination test."
+      }
+    },
+    {
+      "case_id": "snow-02",
+      "audio_path": "/Users/yaroslavabramov/side/podgen/tmp/toneperfect-snow-followup-2026-11-12/snow-02/audio.wav",
+      "audio_sha256": "2e8dc8cd5adfe27da65e93103420c3d1c246b3c62f5083068a07a2aa9082bcbe",
+      "reference_text": "Воду в домах держат в баках, а они нередко стоят без крышек рядом с грязными задворками, так что доверяют им далеко не все.",
+      "provenance": {
+        "source_path": "/Users/yaroslavabramov/side/podgen/tmp/audio-full-snow-2026-11-12/assembly/export/master.wav",
+        "source_sha256": "fd37ecb9fb4eeeeb810ceefa3855ce5cf30117055f09704a5c402e11e7b4f4c2",
+        "start_frame": 699360,
+        "end_frame": 1061280,
+        "sample_rate_hz": 48000,
+        "duration_seconds": 7.54,
+        "pcm_sha256": "b93a6db41cba76bd924ae0f68c8d9a70b9808dfeae11b585909ad91c8a84f184",
+        "utterance_id": "ff2b00b7-a20d-51ad-94be-016e2a5aac58",
+        "source_char_range": [
+          192,
+          315
+        ],
+        "recognition_path": "/Users/yaroslavabramov/side/podgen/tmp/audio-full-snow-2026-11-12/fidelity/export/private/processing-2/recognition.json",
+        "candidate_report_path": "/Users/yaroslavabramov/side/podgen/tmp/kaldialign-replay-2026-11-12/snow/export/candidates.json",
+        "boundaries": "Saved ASR sentence boundary words; up to250ms pause margins, exact contiguous PCM"
+      },
+      "evaluation": {
+        "targets": [
+          {
+            "candidate_id": "46de6390-0c81-5199-8182-1a2af38333cf",
+            "candidate_index": 1,
+            "expected": "а",
+            "asr_hypothesis": "",
+            "reference_char_ranges": [
+              [
+                29,
+                30
+              ]
+            ],
+            "acoustic_ambiguity_possible": false,
+            "human_status": "not_reviewed"
+          }
+        ],
+        "criterion": "Record word decisions review, uncertain, no_correction and other separately. No score thresholds; no claim of real error or false alarm without human listening. Possible homophony is not a mandatory discrimination test."
+      }
+    },
+    {
+      "case_id": "snow-03",
+      "audio_path": "/Users/yaroslavabramov/side/podgen/tmp/toneperfect-snow-followup-2026-11-12/snow-03/audio.wav",
+      "audio_sha256": "4ba972e41985b2f9245ce3bcebfec1432e8816765a74622bd8a114f4e8330cad",
+      "reference_text": "Их смерти Сноу относит к той холере, которая и раньше понемногу встречалась в округе.",
+      "provenance": {
+        "source_path": "/Users/yaroslavabramov/side/podgen/tmp/audio-full-snow-2026-11-12/assembly/export/master.wav",
+        "source_sha256": "fd37ecb9fb4eeeeb810ceefa3855ce5cf30117055f09704a5c402e11e7b4f4c2",
+        "start_frame": 8965440,
+        "end_frame": 9172800,
+        "sample_rate_hz": 48000,
+        "duration_seconds": 4.32,
+        "pcm_sha256": "332d644fba11dfa7afebd31b905c60f7c2b8e9cbd780ea64b5197edd2298d8c6",
+        "utterance_id": "6c381858-49bd-5755-9218-e7d0fd867a6f",
+        "source_char_range": [
+          283,
+          368
+        ],
+        "recognition_path": "/Users/yaroslavabramov/side/podgen/tmp/audio-full-snow-2026-11-12/fidelity/export/private/processing-2/recognition.json",
+        "candidate_report_path": "/Users/yaroslavabramov/side/podgen/tmp/kaldialign-replay-2026-11-12/snow/export/candidates.json",
+        "boundaries": "Saved ASR sentence boundary words; up to250ms pause margins, exact contiguous PCM"
+      },
+      "evaluation": {
+        "targets": [
+          {
+            "candidate_id": "9134ec02-572f-5d10-becf-1b6e93be3625",
+            "candidate_index": 5,
+            "expected": "Сноу относит",
+            "asr_hypothesis": "снова относят",
+            "reference_char_ranges": [
+              [
+                10,
+                14
+              ],
+              [
+                15,
+                22
+              ]
+            ],
+            "acoustic_ambiguity_possible": false,
+            "human_status": "not_reviewed"
+          }
+        ],
+        "criterion": "Record word decisions review, uncertain, no_correction and other separately. No score thresholds; no claim of real error or false alarm without human listening. Possible homophony is not a mandatory discrimination test."
+      }
+    },
+    {
+      "case_id": "snow-04",
+      "audio_path": "/Users/yaroslavabramov/side/podgen/tmp/toneperfect-snow-followup-2026-11-12/snow-04/audio.wav",
+      "audio_sha256": "c886b17d1717867150aeb5ecba1ee0afec93179bfe82779e7027d21bb2176c1e",
+      "reference_text": "На Поланд-стрит стоит работный дом.",
+      "provenance": {
+        "source_path": "/Users/yaroslavabramov/side/podgen/tmp/audio-full-snow-2026-11-12/assembly/export/master.wav",
+        "source_sha256": "fd37ecb9fb4eeeeb810ceefa3855ce5cf30117055f09704a5c402e11e7b4f4c2",
+        "start_frame": 12217920,
+        "end_frame": 12318240,
+        "sample_rate_hz": 48000,
+        "duration_seconds": 2.09,
+        "pcm_sha256": "a35db46db0cc76e53241aec6cffd9df7571b2e8fb810a9a8a887aa8bb50f86c8",
+        "utterance_id": "76107aad-7210-560c-a34a-462206678118",
+        "source_char_range": [
+          0,
+          35
+        ],
+        "recognition_path": "/Users/yaroslavabramov/side/podgen/tmp/audio-full-snow-2026-11-12/fidelity/export/private/processing-2/recognition.json",
+        "candidate_report_path": "/Users/yaroslavabramov/side/podgen/tmp/kaldialign-replay-2026-11-12/snow/export/candidates.json",
+        "boundaries": "Saved ASR sentence boundary words; up to250ms pause margins, exact contiguous PCM"
+      },
+      "evaluation": {
+        "targets": [
+          {
+            "candidate_id": "1a1f168a-07d8-5fc1-8d5b-c971d2751dc7",
+            "candidate_index": 8,
+            "expected": "Поланд",
+            "asr_hypothesis": "Полн",
+            "reference_char_ranges": [
+              [
+                3,
+                9
+              ]
+            ],
+            "acoustic_ambiguity_possible": false,
+            "human_status": "not_reviewed"
+          }
+        ],
+        "criterion": "Record word decisions review, uncertain, no_correction and other separately. No score thresholds; no claim of real error or false alarm without human listening. Possible homophony is not a mandatory discrimination test."
+      }
+    },
+    {
+      "case_id": "snow-05",
+      "audio_path": "/Users/yaroslavabramov/side/podgen/tmp/toneperfect-snow-followup-2026-11-12/snow-05/audio.wav",
+      "audio_sha256": "dda54dc84bbfb660f28ecb4ea3c71a41fbfdb0bb27284fb3a9e10ab11320de2a",
+      "reference_text": "Он рассказывает им, что показали адреса из реестра и расспросы родных: особенной вспышки холеры в этой части Лондона не было нигде, кроме как среди тех, кто привык пить воду этой колонки.",
+      "provenance": {
+        "source_path": "/Users/yaroslavabramov/side/podgen/tmp/audio-full-snow-2026-11-12/assembly/export/master.wav",
+        "source_sha256": "fd37ecb9fb4eeeeb810ceefa3855ce5cf30117055f09704a5c402e11e7b4f4c2",
+        "start_frame": 14193120,
+        "end_frame": 14682720,
+        "sample_rate_hz": 48000,
+        "duration_seconds": 10.2,
+        "pcm_sha256": "cd8160c3cd728a86d828db9b51f0224cf17f68c49a9e26cd99d30383208e25c8",
+        "utterance_id": "7405ea40-f826-5b7b-aeac-262a8a4d7e2e",
+        "source_char_range": [
+          180,
+          367
+        ],
+        "recognition_path": "/Users/yaroslavabramov/side/podgen/tmp/audio-full-snow-2026-11-12/fidelity/export/private/processing-2/recognition.json",
+        "candidate_report_path": "/Users/yaroslavabramov/side/podgen/tmp/kaldialign-replay-2026-11-12/snow/export/candidates.json",
+        "boundaries": "Saved ASR sentence boundary words; up to250ms pause margins, exact contiguous PCM"
+      },
+      "evaluation": {
+        "targets": [
+          {
+            "candidate_id": "6be5aa15-f625-5ef8-8ab9-09eba2396938",
+            "candidate_index": 10,
+            "expected": "особенной",
+            "asr_hypothesis": "Особенно",
+            "reference_char_ranges": [
+              [
+                71,
+                80
+              ]
+            ],
+            "acoustic_ambiguity_possible": true,
+            "human_status": "not_reviewed"
+          }
+        ],
+        "criterion": "Record word decisions review, uncertain, no_correction and other separately. No score thresholds; no claim of real error or false alarm without human listening. Possible homophony is not a mandatory discrimination test."
+      }
+    },
+    {
+      "case_id": "snow-06",
+      "audio_path": "/Users/yaroslavabramov/side/podgen/tmp/toneperfect-snow-followup-2026-11-12/snow-06/audio.wav",
+      "audio_sha256": "1e949e0b8f5c0e789fc57488c2f62292d0e0d8d5a87fade859fc506ce17ac128",
+      "reference_text": "Хорошо бы на этом и закончить: сняли ручку, и эпидемия отступила.",
+      "provenance": {
+        "source_path": "/Users/yaroslavabramov/side/podgen/tmp/audio-full-snow-2026-11-12/assembly/export/master.wav",
+        "source_sha256": "fd37ecb9fb4eeeeb810ceefa3855ce5cf30117055f09704a5c402e11e7b4f4c2",
+        "start_frame": 14868960,
+        "end_frame": 15070560,
+        "sample_rate_hz": 48000,
+        "duration_seconds": 4.2,
+        "pcm_sha256": "9dae2815f7e4effbda17d532f7dbb4e1ac079ad370df63a3dc1499fdde4a130c",
+        "utterance_id": "9f24f14c-3a2a-5ab6-acb8-85a390912833",
+        "source_char_range": [
+          0,
+          65
+        ],
+        "recognition_path": "/Users/yaroslavabramov/side/podgen/tmp/audio-full-snow-2026-11-12/fidelity/export/private/processing-2/recognition.json",
+        "candidate_report_path": "/Users/yaroslavabramov/side/podgen/tmp/kaldialign-replay-2026-11-12/snow/export/candidates.json",
+        "boundaries": "Saved ASR sentence boundary words; up to250ms pause margins, exact contiguous PCM"
+      },
+      "evaluation": {
+        "targets": [
+          {
+            "candidate_id": "9a5949e5-3b85-52f4-b12e-df6ac7751cd2",
+            "candidate_index": 11,
+            "expected": "и",
+            "asr_hypothesis": "",
+            "reference_char_ranges": [
+              [
+                44,
+                45
+              ]
+            ],
+            "acoustic_ambiguity_possible": false,
+            "human_status": "not_reviewed"
+          }
+        ],
+        "criterion": "Record word decisions review, uncertain, no_correction and other separately. No score thresholds; no claim of real error or false alarm without human listening. Possible homophony is not a mandatory discrimination test."
+      }
+    },
+    {
+      "case_id": "snow-07",
+      "audio_path": "/Users/yaroslavabramov/side/podgen/tmp/toneperfect-snow-followup-2026-11-12/snow-07/audio.wav",
+      "audio_sha256": "16865ac43f52c01bcb52214f63761e708179e4279b1a62c0591231b4359c83ae",
+      "reference_text": "По оценке Сноу, меньше чем за шесть дней с самых пострадавших улиц уехали больше трёх четвертей жителей.",
+      "provenance": {
+        "source_path": "/Users/yaroslavabramov/side/podgen/tmp/audio-full-snow-2026-11-12/assembly/export/master.wav",
+        "source_sha256": "fd37ecb9fb4eeeeb810ceefa3855ce5cf30117055f09704a5c402e11e7b4f4c2",
+        "start_frame": 16748160,
+        "end_frame": 17056320,
+        "sample_rate_hz": 48000,
+        "duration_seconds": 6.42,
+        "pcm_sha256": "fa96017233d8de3a4445e8b9c2f869252b35db55a1a35ad93248faef41c8d759",
+        "utterance_id": "0fe22983-8819-52d7-bfb7-59aaaf219563",
+        "source_char_range": [
+          189,
+          293
+        ],
+        "recognition_path": "/Users/yaroslavabramov/side/podgen/tmp/audio-full-snow-2026-11-12/fidelity/export/private/processing-2/recognition.json",
+        "candidate_report_path": "/Users/yaroslavabramov/side/podgen/tmp/kaldialign-replay-2026-11-12/snow/export/candidates.json",
+        "boundaries": "Saved ASR sentence boundary words; up to250ms pause margins, exact contiguous PCM"
+      },
+      "evaluation": {
+        "targets": [
+          {
+            "candidate_id": "3f91736c-6f6b-5b75-aa08-497f7f451350",
+            "candidate_index": 15,
+            "expected": "с",
+            "asr_hypothesis": "",
+            "reference_char_ranges": [
+              [
+                41,
+                42
+              ]
+            ],
+            "acoustic_ambiguity_possible": false,
+            "human_status": "not_reviewed"
+          }
+        ],
+        "criterion": "Record word decisions review, uncertain, no_correction and other separately. No score thresholds; no claim of real error or false alarm without human listening. Possible homophony is not a mandatory discrimination test."
+      }
+    },
+    {
+      "case_id": "snow-08",
+      "audio_path": "/Users/yaroslavabramov/side/podgen/tmp/toneperfect-snow-followup-2026-11-12/snow-08/audio.wav",
+      "audio_sha256": "93ccfde40674e3a1857b2887f25104a6cd9a34f07b21bcab6e63e260be053b5d",
+      "reference_text": "Бутыль, о которой идёт речь, набрали в четверг, тридцать первого августа.",
+      "provenance": {
+        "source_path": "/Users/yaroslavabramov/side/podgen/tmp/audio-full-snow-2026-11-12/assembly/export/master.wav",
+        "source_sha256": "fd37ecb9fb4eeeeb810ceefa3855ce5cf30117055f09704a5c402e11e7b4f4c2",
+        "start_frame": 19710720,
+        "end_frame": 19922880,
+        "sample_rate_hz": 48000,
+        "duration_seconds": 4.42,
+        "pcm_sha256": "2ef2db138b13bd3c4cd9c60ac6c1be8651394fb99ffa46b0fcff05f4075d4d62",
+        "utterance_id": "9f12f628-1a07-5fb6-8795-819c77da96b9",
+        "source_char_range": [
+          189,
+          262
+        ],
+        "recognition_path": "/Users/yaroslavabramov/side/podgen/tmp/audio-full-snow-2026-11-12/fidelity/export/private/processing-2/recognition.json",
+        "candidate_report_path": "/Users/yaroslavabramov/side/podgen/tmp/kaldialign-replay-2026-11-12/snow/export/candidates.json",
+        "boundaries": "Saved ASR sentence boundary words; up to250ms pause margins, exact contiguous PCM"
+      },
+      "evaluation": {
+        "targets": [
+          {
+            "candidate_id": "ff4585a9-ebc4-542a-b391-4a229d41742b",
+            "candidate_index": 19,
+            "expected": "Бутыль",
+            "asr_hypothesis": "Бутыли",
+            "reference_char_ranges": [
+              [
+                0,
+                6
+              ]
+            ],
+            "acoustic_ambiguity_possible": true,
+            "human_status": "not_reviewed"
+          },
+          {
+            "candidate_id": "a792a422-9c1d-5e86-92f6-db65ea5b10a0",
+            "candidate_index": 20,
+            "expected": "которой",
+            "asr_hypothesis": "которых",
+            "reference_char_ranges": [
+              [
+                10,
+                17
+              ]
+            ],
+            "acoustic_ambiguity_possible": true,
+            "human_status": "not_reviewed"
+          }
+        ],
+        "criterion": "Record word decisions review, uncertain, no_correction and other separately. No score thresholds; no claim of real error or false alarm without human listening. Possible homophony is not a mandatory discrimination test."
+      }
+    }
+  ]
+}
