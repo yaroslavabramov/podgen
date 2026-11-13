@@ -32,6 +32,9 @@ class MemoryJournal:
         self.roots = {self.root["invocation_id"]: self.root}
         self.repo = SimpleNamespace(actor_id=uuid4())
 
+    def runtime_graph(self):
+        return nullcontext()
+
     def read_operation(self):
         return nullcontext()
 

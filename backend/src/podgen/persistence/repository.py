@@ -47,6 +47,7 @@ class Repository:
         self.database, self.objects, self.actor_id = database, object_store, actor_id
         self.purpose, self.inline_limit = purpose, inline_limit
         self._read_authorization = ContextVar("podgen_read_authorization", default=None)
+        self._runtime_graph = ContextVar("podgen_runtime_graph", default=None)
         self._read_path = ContextVar("podgen_read_path", default=frozenset())
 
     @contextmanager
@@ -166,8 +167,13 @@ class Repository:
         return save_blob(self, project_id, stream, media_type, **kwargs)
 
     def _check_blob(self, tx, project_id, ref, *, public_only=False):
+        from .access_facts import access_facts
         from .blob_publication import check_identity
 
+        facts = access_facts(self, tx)
+        if facts is not None:
+            facts.blobs.check(project_id, ref, public_only=public_only)
+            return
         check_identity(self, tx, project_id, ref.sha256, public_only=public_only)
 
         row = one(

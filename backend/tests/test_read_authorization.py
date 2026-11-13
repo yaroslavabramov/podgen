@@ -8,7 +8,9 @@ from sqlalchemy import event
 
 from podgen.domain.contracts.common import RuntimeRef
 from podgen.domain.errors import AccessDenied
+from podgen.persistence.access_facts import access_facts
 from podgen.persistence.database import json_text, query
+from podgen.persistence.read_authorization import read_operation
 from podgen.persistence.repository import Repository
 
 
@@ -45,15 +47,17 @@ def test_diamond_visits_each_runtime_once_per_public_read(repo, scope):
     fetches = []
 
     def record(conn, cursor, statement, parameters, context, many):
-        if "SELECT project_id,record_id,record_kind,audience FROM runtime_records" in statement:
-            fetches.extend(parameters["ids"])
+        if "WITH RECURSIVE runtime_reach" in statement:
+            fetches.append(parameters)
 
     event.listen(repo.database.engine, "before_cursor_execute", record)
     try:
-        repo.get_runtime(project, root)
-        assert len(fetches) == len(nodes)
-        repo.get_runtime(project, root)
-        assert len(fetches) == 2 * len(nodes)
+        for count in (1, 2):
+            with read_operation(repo):
+                repo.get_runtime(project, root)
+                state = repo._read_authorization.get()
+                assert len(access_facts(repo, state.transaction).runtimes.rows) == len(nodes)
+            assert len(fetches) == count
     finally:
         event.remove(repo.database.engine, "before_cursor_execute", record)
 

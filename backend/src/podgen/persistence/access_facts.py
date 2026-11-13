@@ -24,7 +24,14 @@ class AccessFacts:
         self.repo, self.tx, self.roles = repo, tx, {}
         self.blobs = BlobFacts(repo, tx, self.role)
         self.artifacts = ArtifactFacts(tx, self.blobs)
-        self.runtimes = RuntimeFacts(tx, self.blobs, self.artifacts)
+        state = repo._read_authorization.get()
+        self.runtimes = RuntimeFacts(
+            tx,
+            self.blobs,
+            self.artifacts,
+            graph=repo._runtime_graph.get(),
+            cache_writes=state is not None and state.transaction is tx and state.owner is not None,
+        )
 
     def role(self, project):
         if project not in self.roles:

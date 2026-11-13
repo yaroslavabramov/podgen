@@ -20,6 +20,11 @@ class EvaluationJournal:
     def __init__(self, repo, project):
         self.repo, self.project = repo, project
 
+    def runtime_graph(self):
+        from podgen.persistence.runtime_graph import runtime_graph
+
+        return runtime_graph(self.repo)
+
     def read_operation(self):
         from podgen.persistence.read_authorization import read_operation
 

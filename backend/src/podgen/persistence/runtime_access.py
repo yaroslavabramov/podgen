@@ -1,18 +1,18 @@
 """Frontier reads of typed runtime references, without retaining semantic payloads."""
 
-from collections import defaultdict
-
 from podgen.domain.contracts.common import ArtifactRef, BlobRef, RuntimeRef
 
 from .database import query
 
-FRONTIER = 64
-
 
 class RuntimeFacts:
-    def __init__(self, tx, blobs, artifacts):
-        self.tx, self.blobs, self.artifacts = tx, blobs, artifacts
+    def __init__(self, tx, blobs, artifacts, *, graph=None, cache_writes=False):
+        self.tx, self.blobs, self.artifacts, self.graph = tx, blobs, artifacts, graph
         self.rows, self.references, self.missing = {}, {}, set()
+        # Only the owned READ ONLY transaction can publish positive metadata.
+        # A writable archive transaction may reuse committed metadata, but its
+        # inserts must never escape a rollback through this invocation owner.
+        self.cache_writes = cache_writes
 
     def prefetch(self, project, references):
         self._closure(project, [reference.record_id for reference in references])
@@ -23,63 +23,59 @@ class RuntimeFacts:
         return row if row is not None and row["record_kind"] == reference.record_kind else None
 
     def _closure(self, project, identities):
-        pending = set(identities) - {identity for owner, identity in self.rows if owner == project}
-        pending -= {identity for owner, identity in self.missing if owner == project}
+        from .runtime_frontier import load
+
+        graph = self.graph
+        pending = {
+            identity
+            for identity in identities
+            if (project, identity) not in self.rows and (project, identity) not in self.missing
+        }
+        if not pending:
+            return
         artifact_ids, blob_keys = set(), set()
         while pending:
-            ids = list(pending)[:FRONTIER]
-            pending.difference_update(ids)
-            rows = list(
-                query(
-                    self.tx,
-                    """SELECT project_id,record_id,record_kind,audience FROM runtime_records
-                WHERE project_id=:p AND record_id=ANY(:ids)""",
-                    p=project,
-                    ids=ids,
-                ).mappings()
-            )
-            self.rows.update(((project, row["record_id"]), row) for row in rows)
-            self.missing.update(
-                (project, identity) for identity in ids if (project, identity) not in self.rows
-            )
-            found = [row["record_id"] for row in rows]
-            if not found:
+            requested = pending
+            pending = set()
+            unknown = set()
+            for identity in requested:
+                key = project, identity
+                if key in self.rows or key in self.missing:
+                    continue
+                node = graph.nodes.get(key) if graph is not None else None
+                if node is None:
+                    unknown.add(identity)
+                else:
+                    self.rows[key] = node.header()
+                    self.references[key] = node.references
+                    pending.update(ref.record_id for ref in node.references if isinstance(ref, RuntimeRef))
+            if not unknown:
                 continue
-            references = defaultdict(list)
-            for value in query(
-                self.tx,
-                "SELECT record_id,artifact_id,revision_id,kind FROM runtime_artifact_refs WHERE project_id=:p AND record_id=ANY(:ids)",
-                p=project,
-                ids=found,
-            ).mappings():
-                reference = ArtifactRef(**{key: value[key] for key in ("artifact_id", "revision_id", "kind")})
-                references[value["record_id"]].append(reference)
-                artifact_ids.add(reference.revision_id)
-            for value in query(
-                self.tx,
-                "SELECT record_id,target_record_id,record_kind FROM runtime_runtime_refs WHERE project_id=:p AND record_id=ANY(:ids)",
-                p=project,
-                ids=found,
-            ).mappings():
-                reference = RuntimeRef(record_id=value["target_record_id"], record_kind=value["record_kind"])
-                references[value["record_id"]].append(reference)
-                if (project, reference.record_id) not in self.rows and (
-                    project,
-                    reference.record_id,
-                ) not in self.missing:
-                    pending.add(reference.record_id)
-            for value in query(
-                self.tx,
-                "SELECT record_id,storage_key,sha256,byte_length,media_type FROM runtime_blob_refs WHERE project_id=:p AND record_id=ANY(:ids)",
-                p=project,
-                ids=found,
-            ).mappings():
-                reference = BlobRef(
-                    **{key: value[key] for key in ("storage_key", "sha256", "byte_length", "media_type")}
-                )
-                references[value["record_id"]].append(reference)
-                blob_keys.add(reference.storage_key)
-            self.references.update(((project, identity), references[identity]) for identity in found)
+            known = {identity for owner, identity in self.rows if owner == project}
+            if graph is not None:
+                known.update(identity for owner, identity in graph.nodes if owner == project)
+            found = set()
+            for row in load(self.tx, project, unknown, known):
+                key = project, row["record_id"]
+                header = {
+                    field: row[field] for field in ("project_id", "record_id", "record_kind", "audience")
+                }
+                references = [ArtifactRef.model_validate(value) for value in row["artifact_references"]]
+                references.extend(RuntimeRef.model_validate(value) for value in row["runtime_references"])
+                references.extend(BlobRef.model_validate(value) for value in row["blob_references"])
+                self.rows[key], self.references[key] = header, references
+                found.add(row["record_id"])
+                pending.update(ref.record_id for ref in references if isinstance(ref, RuntimeRef))
+                if graph is not None and self.cache_writes:
+                    graph.remember(header, references)
+            self.missing.update((project, identity) for identity in unknown - found)
+        # Live blob/role/privacy facts are loaded into this snapshot only, even
+        # when every immutable runtime edge came from the invocation owner.
+        for (owner, _), references in self.references.items():
+            if owner != project:
+                continue
+            artifact_ids.update(ref.revision_id for ref in references if isinstance(ref, ArtifactRef))
+            blob_keys.update(ref.storage_key for ref in references if isinstance(ref, BlobRef))
         self.artifacts.expand(artifact_ids)
         self.blobs.load(project, blob_keys)
 

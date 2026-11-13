@@ -19,6 +19,11 @@ from .tool_gateway import _account, _calls, _execute
 
 
 def invoke(gateway, root, profile, contract, *, limits, totals, guard):
+    with gateway.journal.runtime_graph():
+        return _invoke(gateway, root, profile, contract, limits=limits, totals=totals, guard=guard)
+
+
+def _invoke(gateway, root, profile, contract, *, limits, totals, guard):
     journal = gateway.journal
     if root["status"] in {"failed", "validation_failed", "outcome_unknown"}:
         gateway._fail(root, "invocation_requires_new_attempt_or_reconciliation", status=root["status"])

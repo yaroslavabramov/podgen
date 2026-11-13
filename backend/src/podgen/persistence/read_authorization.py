@@ -19,6 +19,17 @@ _SNAPSHOTS = ContextVar("podgen_fixed_authorization_snapshots", default=())
 
 @contextmanager
 def authorized_read(repo, transaction):
+    existing = repo._read_authorization.get()
+    if (
+        existing is not None
+        and existing.transaction is transaction
+        and existing.actor == repo.actor_id
+        and existing.purpose == repo.purpose
+    ):
+        # A nested pre-publication check shares this exact local snapshot.
+        # Publication clears its facts before classification can change access.
+        yield
+        return
     state = ReadAuthorization(transaction, repo.actor_id, repo.purpose)
     token = repo._read_authorization.set(state)
     active = _SNAPSHOTS.set((*_SNAPSHOTS.get(), state))
