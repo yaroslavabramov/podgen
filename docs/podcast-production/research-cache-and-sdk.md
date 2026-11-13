@@ -1,0 +1,53 @@
+# Research transport, cache and read-budget update
+
+Verified against official sources on 2026-11-13. This change does not alter the production prompts, editorial assignment, role output schemas, model selection, effort, context/output limits, tool-call/turn limits or the two permitted script rewrites.
+
+## Dependency and API evidence
+
+- [OpenAI Python 3.50.0](https://github.com/openai/openai-python/releases/tag/v3.50.0), released 2026-11-12, is the current stable SDK. The [PyPI wheel](https://pypi.org/project/openai/3.50.0/) was inspected without installation during research and its published SHA-256 verified. The old local 2.54.0 establishes only compatibility with that environment, not the current API.
+- [OpenAI 3.0 migration](https://github.com/openai/openai-python/blob/main/httpx2.md) requires native HTTPX2 clients, transport mocks and exceptions, and changes the default TLS trust store. The OpenAI adapter and its real-SDK tests use HTTPX2; the SDK retains retries=0. Existing HTTPX remains for the independent REST transports.
+- [Responses create](https://developers.openai.com/api/reference/resources/responses/methods/create) accepts `function_call_output.output` as a string or content array; its text blocks accept `prompt_cache_breakpoint`. The [cache guide](https://developers.openai.com/api/docs/guides/prompt-caching) demonstrates this exact representation. The guide's current lookup rules take precedence over stale SDK prose; no lookup-count assumption is encoded here.
+- [Google GenAI 3.3.0](https://github.com/googleapis/python-genai/releases/tag/v3.3.0) was released 2026-11-12. This application uses REST, not that SDK. Its [current Deep Research guide](https://aistudio.google.com/docs/deep-research) still specifies the chosen agent, `/v1beta/interactions` and `Api-Revision: 2026-05-20`; these remain unchanged. The SDK 3.x default switch to v1 must not silently change research requests.
+- [Anthropic Python 2.8.0](https://github.com/anthropics/anthropic-sdk-python/releases/tag/v2.8.0) was released 2026-11-10. This application uses REST, not that SDK. New profiles select `anthropic-messages-v2`, explicitly mapping to [API 2026-10-21](https://platform.claude.com/docs/en/api/migration-2026-10-21). Retained v1 profiles continue to send 2023-06-01. Removed sampling parameters, assistant document blocks and user text citations are rejected for the new contract.
+
+New manifests explicitly record per-stage provider/adapter/API selection in `provider_contracts`, separately from `runtime_versions.openai_sdk`. Historical manifests without this extra pin continue to resolve their immutable profile's adapter; installation of a newer SDK does not select a newer Anthropic API for them.
+
+The dependency update changes OpenAI 2.54.0→3.50.0 and regex 2024.11.6→2026.11.9; the obsolete OpenAI dependency distro is removed. The prior regex lock had no CPython 3.14 macOS wheel and attempted a failing native build with the machine's old compiler SDK. The main environment was already running regex 2026.11.9 rather than that lock version. Updating this necessary transitive dependency makes an isolated `uv sync --python 3.14 --dev --frozen` reproducible, without changing dateparser/htmldate/trafilatura. Python 3.13 was only an intermediate investigation environment.
+
+## Pinned research cache v2
+
+`research-role-prefix/2` is selected only at admission of new research runs. `stable-role-prefix/1` and missing historical pins keep their exact prior assembly. Reader-only work never marks the changing script/audit tail as reusable.
+
+The stable block contains the assignment and role-appropriate research/source catalogs. Draft adds its immutable story and full selected sections. Revision keeps plan-selected full sections stable and places repair-specific added sections in `additional_support`, using the existing semantic decoder. `accepted_plan`, when offered, is stable. The actual `editorial_frame` can reflect changed composition and remains with the current task rather than pretending to be an immutable approved plan.
+
+The second boundary ends the current invocation's task: candidate/review or script/audit/revision work. It is reused inside its tool loop, not promised reusable across changing tasks. The previous and latest completed tool-result groups supply two sliding boundaries. Each group receives only one marker, on its last result. Earlier result text and assistant signed content remain unchanged.
+
+OpenAI uses one text-content array shape for **every** v2 tool result from its first appearance. Moving a marker never changes historical results from arrays back to strings. Anthropic puts `cache_control` beside `tool_result.content`; no cache field is inserted into JSON evidence text. Count and submit share the same native conversion. Internal count routing metadata is removed before the provider count call.
+
+The [Anthropic cache contract](https://platform.claude.com/docs/en/build-with-claude/prompt-caching) allows four breakpoints across the whole request, including system/tools and automatic caching. Our two fixed and up to two sliding points consume that common budget; no extra system/tool/automatic marker is added. Native-boundary validation checks the whole request. The prefix includes preceding tools and system content without separate markers on them.
+
+Prepared requests are journaled before transmission. Resume reconstructs the same boundaries from the pinned layout and saved receipts; it does not reread a source or reinterpret a v1 request as v2. The old SDK's actual longitude initial, continuation and count wires are retained as regression fixtures. Re-serializing them through SDK 2.54.0 reproduces those fixture bytes. SDK 3.50.0 changes only key order at the root JSON object (`$`): submit moves `model` and `stream` forward, and count moves `model` forward. All values, nested key order, arrays, instructions, embedded JSON strings, schemas and historical tool data remain exact. Regression tests compare those properties explicitly; they do not claim byte-identical HTTP envelopes or bypass SDK serialization.
+
+## Pinned research readers v6 and technical input headroom
+
+`frozen-corpus-tools/6` explicitly records `default_read_chars=9600`. Both readers use that existing permitted budget for `end=null`; R reserves its surrounding-context budget within the same 9600 characters. Existing v1–v5 defaults remain 2400. Explicit ranges, Unicode offsets, continuation, original-source evidence receipts and complete persisted text keep their meanings.
+
+The actual longitude plan review used 11 report reads (M6 three times; M5/M7/M8/M3 twice each), leaving no original-source read before the forced final turn. These sections require five v6 reads. The subsequent factual review likewise used eleven source pages (S27 four, S56 three, S49 three, S36 one) before reaching S11. Larger default pages leave room for source coverage; they do not establish that an agent will perform a sufficient factual audit.
+
+New production runs have an input ceiling of 4,194,304 tokens. The observed permitted cycle consumed 1,960,511 input tokens over 72 generations/11 editorial stages and exhausted the former 1,048,576 ceiling before its first rewrite. Cached/repeated inputs still count; the new ceiling is technical headroom, not an instruction to consume it. Explicit user limits and all frozen manifests retain their values. Output/context/tool/round limits are unchanged.
+
+## Validation boundary
+
+Use one pytest process and an isolated PostgreSQL instance. Tests exercise the installed current SDK over local HTTP mocks, native Messages conversion, 3+ tool continuations, interruption after delivered reads, resume without repeat calls, exact tool text, global marker count, legacy request values and nested order, v5/v6 pagination and full writing/export. These checks establish assembly/protocol behavior, not actual provider cache hits. No paid calls are required or made by them.
+
+No savings from the new layout have been measured. In the retained pre-change live run, plan/draft reported zero cached tokens; factual loops reported 127154 / 135679 / 135591 cache-read tokens. Both rewrites reported zero cache-read tokens despite roughly 20k cache-write tokens. Cross-stage reuse is only possible when the entire preceding model-facing prefix (including instructions, tools and schema) matches and the cache entry remains live. Anthropic currently uses a five-minute TTL; intervening reviews may outlive it. This change does not alter TTL or infer savings from a structurally stable block.
+
+## Local verification results
+
+The isolated Python 3.14.2 environment completed frozen dependency synchronization with OpenAI 3.50.0, HTTPX2 2.16.0 and regex 2026.11.9. One owned PostgreSQL 17 instance was used per run and stopped afterward; the main checkout's environment and database were not modified.
+
+- Expanded writing/preview/replay coverage: **55 passed in 289.37s** (`test_openai_provider`, `test_research_cache_wire`, `test_research_materials`, `test_research_material_runtime`, `test_prompt_cache_layout`, `test_cache_revision_schema`, `test_reading_audit_runtime`, `test_planning_v9_runtime`, `test_production_entrypoint`, `test_production_model_provider`, `test_planning_schema_resume`).
+- Final transport/paging/API/workflow coverage after strengthening assertions: **50 passed in 38.50s** (`test_research_cache_wire`, `test_research_paging_versions`, `test_messages_api_versions`, `test_openai_provider`, `test_anthropic_provider`, `test_source_tool_runtime`, `test_source_tool_recovery`, `test_research_material_runtime`). These sets overlap; they are not 105 distinct tests.
+- Ruff check passed over production code and affected tests. All 33 changed Python files passed formatting checks; `git diff --check` passed. The repository-wide format check also exposed an unchanged pre-existing format difference in `recheck_source.py`, which was left untouched.
+
+The final native-wire test compares every prior conversation item across all five turns for both providers, removing only cache-marker keys. It also compares system/tool prefixes, count versus submit histories, uniform OpenAI result arrays, distinct Anthropic thinking/signatures, interruption after two saved reads and completed replay without repeated reads/submissions. The complete research workflow asserts admission pins for cache v2, tools v6/default 9600 and the current Messages API, then checks snapshot equality and full report/source export. Historical cache tests use genuinely historical pre-audit snapshots rather than weakening current audit validation for obsolete fixtures.
