@@ -52,11 +52,7 @@ def _calls(response):
 
 
 def _execute(journal, root, corpus, contract, call, index, turn, guard, history):
-    saved = [
-        record
-        for record in history.of_kind("source_tool_result")
-        if record["data"].get("call_index") == index
-    ]
+    saved = history.for_call("source_tool_result", index)
     if saved:
         data = saved[0]["data"]
         if (
@@ -79,9 +75,7 @@ def _execute(journal, root, corpus, contract, call, index, turn, guard, history)
         raw_arguments=call["arguments"],
         arguments=arguments,
     )
-    intents = [
-        record for record in history.of_kind("source_tool_call") if record["data"].get("call_index") == index
-    ]
+    intents = history.for_call("source_tool_call", index)
     if not intents:
         ref = journal.event(root, "source_tool_call", data=data)
         history.appended(ref, "source_tool_call")
@@ -118,6 +112,15 @@ def _execute(journal, root, corpus, contract, call, index, turn, guard, history)
                     str(error), run_id=root["run_id"], invocation_id=root["invocation_id"]
                 ) from None
 
+    if (
+        isinstance(result, dict)
+        and result.get("status") == "pending"
+        and call["name"] in ("request_source", "request_research")
+    ):
+        journal.event(root, "source_material_pending", data=dict(data, result=result))
+        raise RunFailure(
+            "source_material_handoff_pending", run_id=root["run_id"], invocation_id=root["invocation_id"]
+        )
     if not isinstance(result, dict):
         raise ContractError("invalid_source_tool_result")
     if "passage" in result and (
@@ -128,7 +131,7 @@ def _execute(journal, root, corpus, contract, call, index, turn, guard, history)
         raise ContractError("source_tool_read_binding_mismatch")
     if "material_passage" in result and (
         "error" in result
-        or call["name"] != "read_material"
+        or call["name"] not in ("read_material", "read_research_result")
         or result["material_passage"].get("read_id") != "R" + data["read_id"].removeprefix("E")
     ):
         raise ContractError("material_tool_read_binding_mismatch")
@@ -142,6 +145,10 @@ def _execute(journal, root, corpus, contract, call, index, turn, guard, history)
 
 
 def invoke_tools(gateway, root, profile, contract, *, limits, totals, guard):
+    if contract["version"] == "frozen-corpus-tools/7":
+        from .research_tool_gateway import invoke
+
+        return invoke(gateway, root, profile, contract, limits=limits, totals=totals, guard=guard)
     journal = gateway.journal
     if root["status"] in ("failed", "validation_failed", "outcome_unknown"):
         gateway._fail(root, "invocation_requires_new_attempt_or_reconciliation", status=root["status"])

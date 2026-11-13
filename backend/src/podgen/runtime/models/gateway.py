@@ -106,6 +106,9 @@ class ModelGateway:
         local_limits = (
             input_limits if input_limits is not None else effective_limits(j, invocation, manifest=manifest)
         )
+        from podgen.runtime.evaluation.wire_budget import resolved_limits
+
+        local_limits = resolved_limits(local_limits, profile)
         if contract == "editorial-role-packets/1" and invocation["status"] == "prepared":
             j.event(
                 invocation,

@@ -50,6 +50,9 @@ class EventHistory:
     def of_kind(self, kind):
         return [record for record in self.records if record["event_kind"] == kind]
 
+    def for_call(self, kind, index):
+        return [row for row in self.of_kind(kind) if row["data"].get("call_index") == index]
+
     def appended(self, ref, kind):
         if kind in self.KINDS:
             self.records.append(dict(self.journal.read(ref), _record_id=ref.record_id))
