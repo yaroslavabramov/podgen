@@ -17,7 +17,9 @@ def main():
     parser.add_argument("--trace", required=True, type=Path)
     parser.add_argument("--out", required=True, type=Path)
     parser.add_argument("--pg-bin", required=True, type=Path)
-    parser.add_argument("--operation", choices=("replay", "artifact-diagnosis"), default="replay")
+    parser.add_argument(
+        "--operation", choices=("replay", "artifact-diagnosis", "finalization-diagnosis"), default="replay"
+    )
     args = parser.parse_args()
     source = json.loads(args.state.read_text())
     pg = args.pg_bin
@@ -102,7 +104,9 @@ def main():
                     sys.executable,
                     str(
                         Path(__file__).with_name(
-                            "worker.py" if args.operation == "replay" else "artifact_diagnosis.py"
+                            "worker.py"
+                            if args.operation == "replay"
+                            else args.operation.replace("-", "_") + ".py"
                         )
                     ),
                 ],

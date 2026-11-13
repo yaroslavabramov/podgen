@@ -4,6 +4,7 @@ from copy import deepcopy
 
 from podgen.domain.canonical import digest
 from podgen.domain.errors import Conflict, ContractError
+from podgen.persistence.source_reading import read_sources
 from podgen.writing.model_references import context_references
 from podgen.writing.reading_audit import VERSION
 from podgen.writing.reading_audit.validation import validate
@@ -35,6 +36,12 @@ def _locator(value, materials, snapshot_index, corpus):
 
 
 def finalize(journal, invocation, parsed, audit, materials, script):
+    documents = (*materials.documents, *getattr(materials, "runtime_admissions", ()))
+    with journal.read_operation(), read_sources(documents):
+        return _finalize(journal, invocation, parsed, audit, materials, script)
+
+
+def _finalize(journal, invocation, parsed, audit, materials, script):
     fact = base_stage(invocation["stage"]) == "fact-review"
     parsed.validate_against(WriteOutput.model_validate(script))
     output = parsed.model_dump(mode="json")
@@ -67,6 +74,16 @@ def finalize(journal, invocation, parsed, audit, materials, script):
 
 
 def verify_saved(
+    journal, run_id, stage, manifest, materials, script, script_ref, invocation, context, record
+):
+    documents = (*materials.documents, *getattr(materials, "runtime_admissions", ()))
+    with journal.read_operation(), read_sources(documents):
+        return _verify_saved(
+            journal, run_id, stage, manifest, materials, script, script_ref, invocation, context, record
+        )
+
+
+def _verify_saved(
     journal, run_id, stage, manifest, materials, script, script_ref, invocation, context, record
 ):
     audit = prepare(journal, run_id, stage, manifest, materials, script, script_ref)

@@ -27,6 +27,10 @@ class Metrics(Measurements):
         self.executions[self.phase_name] += executions
         self.operations[self.phase_name + ":" + name]["sql"] += executions
         self.operations[self.phase_name + ":" + name]["sql_driver_calls"] += 1
+        if "AS access_graph" in statement:
+            self.operations[self.phase_name + ":" + name]["artifact_frontier_selects"] += executions
+        if statement.lstrip().startswith("SET TRANSACTION"):
+            self.operations[self.phase_name + ":" + name]["snapshot_sets"] += executions
         self.templates[(self.phase_name, " ".join(statement.split()))] += executions
         if self.phase_name == "fact_review":
             self.turns[str(self.turn)] += executions
