@@ -81,12 +81,48 @@ def simple_pdf(text="The saved PDF document contains searchable original text.")
         b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
         b"<< /Length " + str(len(stream)).encode() + b" >>\nstream\n" + stream + b"\nendstream",
     ]
+    return _pdf_objects(objects)
+
+
+def _pdf_objects(objects):
     body = b"%PDF-1.4\n"
     offsets = [0]
     for i, value in enumerate(objects, 1):
         offsets.append(len(body))
         body += f"{i} 0 obj\n".encode() + value + b"\nendobj\n"
     xref = len(body)
-    body += b"xref\n0 6\n0000000000 65535 f \n"
+    body += f"xref\n0 {len(objects) + 1}\n0000000000 65535 f \n".encode()
     body += b"".join(f"{offset:010d} 00000 n \n".encode() for offset in offsets[1:])
-    return body + b"trailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n" + str(xref).encode() + b"\n%%EOF\n"
+    return (
+        body
+        + f"trailer\n<< /Size {len(objects) + 1} /Root 1 0 R >>\nstartxref\n".encode()
+        + str(xref).encode()
+        + b"\n%%EOF\n"
+    )
+
+
+def unicode_pdf(text):
+    """A real text layer with explicit Unicode mapping, including non-BMP characters."""
+    codes = "".join(f"{i:02X}" for i in range(1, len(text) + 1))
+    stream = f"BT /F1 12 Tf 72 720 Td <{codes}> Tj ET".encode()
+    mapping = "\n".join(
+        f"<{i:02X}> <{character.encode('utf-16-be').hex().upper()}>" for i, character in enumerate(text, 1)
+    )
+    cmap = (
+        "/CIDInit /ProcSet findresource begin 12 dict begin begincmap "
+        "/CIDSystemInfo << /Registry (Test) /Ordering (Unicode) /Supplement 0 >> def "
+        "/CMapName /TestUnicode def /CMapType 2 def "
+        "1 begincodespacerange <00> <FF> endcodespacerange "
+        f"{len(text)} beginbfchar\n{mapping}\nendbfchar "
+        "endcmap CMapName currentdict /CMap defineresource pop end end"
+    ).encode()
+    return _pdf_objects(
+        [
+            b"<< /Type /Catalog /Pages 2 0 R >>",
+            b"<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+            b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>",
+            b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /ToUnicode 6 0 R >>",
+            b"<< /Length " + str(len(stream)).encode() + b" >>\nstream\n" + stream + b"\nendstream",
+            b"<< /Length " + str(len(cmap)).encode() + b" >>\nstream\n" + cmap + b"\nendstream",
+        ]
+    )

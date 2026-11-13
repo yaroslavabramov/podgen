@@ -324,3 +324,41 @@ async def test_browser_capture_is_separate_and_uses_same_technical_checks(
     source = repo.get(scope[0], result.sources[0].source_revision_ref).payload
     assert source["acquisition_kind"] == "browser_snapshot"
     assert "rendered_dom_snapshot_not_http_original" in source["limitations"]
+
+
+@pytest.mark.asyncio
+async def test_native_pdfium_unicode_acquisition_preserves_original_text_and_replay(
+    repo, scope, producer, monkeypatch
+):
+    from importlib.metadata import version
+
+    from podgen.sources.extraction import pdf
+    from tests.source_acquisition_support import unicode_pdf
+
+    request, _ = setup(repo, scope, producer, pdf_mode="text_layer_only", min_text_chars=10)
+    text = "Exact source: Привет 🚀 retained in full."
+    original = unicode_pdf(text)
+    fetcher = Fetcher({request.url: document(original, content_type="application/pdf")})
+
+    def forbidden(*args):
+        pytest.fail("native PDFium extraction must succeed without Marker or PyPDF2")
+
+    monkeypatch.setattr(pdf, "_run_marker_with_hard_timeout", forbidden)
+    monkeypatch.setattr(pdf, "_fallback_pypdf2", forbidden)
+    result = await service.acquire_source(repo, scope[0], request, fetcher=fetcher)
+    assert result.status == "available"
+    source = result.sources[0]
+    ref = source.representation_refs[0]
+    representation = repo.get(scope[0], ref).payload
+    assert representation["extractor"]["name"] == "pypdfium2"
+    assert representation["extractor"]["version"] == version("pypdfium2")
+    assert contents(repo, scope[0], ref) == "## Page 1\n\n" + text
+    revision = repo.get(scope[0], source.source_revision_ref).payload
+    assert (
+        repo.read_blob(
+            scope[0], source.source_revision_ref, BlobRef.model_validate(revision["original_blob"])
+        )
+        == original
+    )
+    assert await service.acquire_source(repo, scope[0], request, fetcher=fetcher) == result
+    assert len(fetcher.calls) == 1
