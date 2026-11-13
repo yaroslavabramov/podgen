@@ -8,14 +8,14 @@ from uuid import uuid4
 
 import pytest
 from sqlalchemy import event, text
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.exc import DataError, IntegrityError
 
 from podgen.domain.references import walk_values
 from podgen.persistence.classification import classify_evaluator
 from podgen.persistence.database import json_text, one, query
 from podgen.persistence.privacy_graph import protected_hashes
 from tests.privacy_graph_cases import Graph, checksum, identity
-from tests.privacy_projection_support import projection, seed_graph
+from tests.privacy_projection_support import normalized_reference_payload, projection, seed_graph
 
 
 def test_sql_projection_exact_shapes_full_unicode_and_old_insert_writer(repo, scope):
@@ -73,6 +73,44 @@ def test_sql_projection_exact_shapes_full_unicode_and_old_insert_writer(repo, sc
                 assert projection(tx, project, uncommitted)
                 raise RuntimeError("rollback")
         assert not projection(tx, project, uncommitted)
+
+
+def test_old_insert_normalizes_contract_accepted_reference_scalars_without_rewriting_payload(repo, scope):
+    project, _ = scope
+    payload, record = normalized_reference_payload(project), uuid4()
+    expected = sorted({ref for _, _, ref in walk_values(payload)}, key=lambda ref: json_text(ref))
+    raw = json_text(payload)
+    with repo.database.transaction() as tx:
+        query(
+            tx,
+            "INSERT INTO runtime_records VALUES(:p,:r,'tool_execution',CAST(:body AS json),'project')",
+            p=project,
+            r=record,
+            body=raw,
+        )
+        assert projection(tx, project, record) == [ref.model_dump(mode="json") for ref in expected]
+        assert (
+            one(
+                tx,
+                "SELECT payload::text AS raw FROM runtime_records WHERE project_id=:p AND record_id=:r",
+                p=project,
+                r=record,
+            )["raw"].encode()
+            == raw.encode()
+        )
+
+    for value in (4.5, "4.5", "4e0"):
+        invalid = {**payload["blobs"][0], "byte_length": value}
+        with pytest.raises(ValueError):
+            list(walk_values(invalid))
+        with pytest.raises(DataError), repo.database.transaction() as tx:
+            query(
+                tx,
+                "INSERT INTO runtime_records VALUES(:p,:r,'tool_execution',CAST(:body AS json),'project')",
+                p=project,
+                r=uuid4(),
+                body=json_text({"blob": invalid}),
+            )
 
 
 def test_projection_preserves_literal_escapes_and_rejects_nul_inside_typed_ref(repo, scope):
@@ -315,7 +353,14 @@ def test_migration_backfills_legacy_payloads_and_preserves_old_witnesses(databas
     # without dropping or rewriting the shared test database's canonical tables.
     schema, project, record = "privacy_" + uuid4().hex, uuid4(), uuid4()
     blob = dict(storage_key=f"{project}/old", sha256=checksum(1), byte_length=4, media_type="text/plain")
-    payload = {"full_text": "Legacy \0 text 🛰️", "original_blob": blob}
+    payload = {
+        "full_text": "Legacy \0 text 🛰️",
+        "original_blob": blob,
+        "normalized": normalized_reference_payload(project),
+    }
+    expected = sorted(
+        [ref.model_dump(mode="json") for ref in {ref for _, _, ref in walk_values(payload)}], key=json_text
+    )
     sql = (
         Path(__file__).resolve().parents[1] / "migrations/versions/0025_runtime_reference_projection.sql"
     ).read_text()
@@ -359,7 +404,13 @@ def test_migration_backfills_legacy_payloads_and_preserves_old_witnesses(databas
                 r2=uuid4(),
             )
             tx.execute(text(sql))
-            assert projection(tx, project, record) == [blob]
+            assert projection(tx, project, record) == expected
+            assert (
+                one(tx, "SELECT payload::text AS raw FROM runtime_records WHERE record_id=:r", r=record)[
+                    "raw"
+                ].encode()
+                == json_text(payload).encode()
+            )
             assert one(tx, "SELECT count(*) AS n FROM evaluator_blob_classifications")["n"] == 2
             assert one(tx, "SELECT count(*) AS n FROM evaluator_protected_hashes")["n"] == 1
             query(

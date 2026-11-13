@@ -129,3 +129,44 @@ def projection(tx, project, record):
                 ref["record_id"] = ref.pop("target_record_id")
             result.append({key: str(value) if key.endswith("_id") else value for key, value in ref.items()})
     return sorted(result, key=json_text)
+
+
+def normalized_reference_payload(project):
+    """Raw JSON accepted by walk_values, before its Pydantic scalar coercions."""
+    a, r = uuid4(), uuid4()
+    payload = {
+        "raw": "Original \0 text",
+        "artifacts": [dict(artifact_id=a.urn, revision_id=r.urn, kind="Policy")],
+        "runtimes": [
+            dict(record_id=value, record_kind="tool_execution")
+            for value in (r.urn, str(r).upper(), r.hex, "{" + str(r) + "}")
+        ],
+        "blobs": [
+            dict(
+                storage_key=f"{project}/raw-{index}",
+                sha256=checksum(index),
+                byte_length=value,
+                media_type="text/plain",
+            )
+            for index, value in enumerate(
+                (
+                    4,
+                    4.0,
+                    "4.0",
+                    "004.00",
+                    "+4.0",
+                    "4_0",
+                    "1_000.0",
+                    "\u20034.0\u00a0",
+                    True,
+                    False,
+                    "-0.0",
+                    1e18,
+                    1.2345678901234568e18,
+                    9223372036854775807,
+                    "9223372036854775807",
+                )
+            )
+        ],
+    }
+    return payload

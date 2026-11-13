@@ -80,22 +80,64 @@ LANGUAGE sql IMMUTABLE STRICT PARALLEL SAFE AS $$
  FROM tree WHERE podgen_runtime_reference_kind(value) IS NOT NULL
 $$;
 
+-- walk_values validates/coerces refs but persists the caller's original JSON.
+-- Normalize the accepted scalar representations only in the typed projection.
+CREATE FUNCTION podgen_runtime_reference_uuid(value text) RETURNS uuid
+LANGUAGE sql IMMUTABLE STRICT PARALLEL SAFE AS $$
+ SELECT (CASE WHEN value ~ '^urn:uuid:[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}$'
+   THEN substring(value FROM 10) ELSE value END)::uuid
+$$;
+
+CREATE FUNCTION podgen_runtime_reference_length(value json) RETURNS bigint
+LANGUAGE plpgsql IMMUTABLE STRICT PARALLEL SAFE AS $function$
+DECLARE lexeme text; floating double precision; result bigint;
+BEGIN
+ CASE json_typeof(value)
+ WHEN 'boolean' THEN RETURN CASE value::text WHEN 'true' THEN 1 ELSE 0 END;
+ WHEN 'number' THEN
+   lexeme := value::text;
+   IF lexeme ~ '[.eE]' THEN
+     -- Match int(float), not decimal rounding of its serialized spelling.
+     floating := lexeme::double precision;
+     IF floating <> trunc(floating) OR floating < 0 THEN
+       RAISE EXCEPTION 'invalid runtime reference byte_length' USING ERRCODE='22023';
+     END IF;
+     RETURN floating::bigint;
+   END IF;
+ WHEN 'string' THEN
+   -- Rust/Pydantic's Unicode White_Space trim; the raw string stays in payload.
+   lexeme := btrim(value #>> '{}',
+     U&'\0009\000A\000B\000C\000D\0020\0085\00A0\1680\2000\2001\2002\2003\2004\2005\2006\2007\2008\2009\200A\2028\2029\202F\205F\3000');
+   IF lexeme !~ '^[+-]?[0-9]+(_[0-9]+)*(\.0+)?$' THEN
+     RAISE EXCEPTION 'invalid runtime reference byte_length' USING ERRCODE='22023';
+   END IF;
+   lexeme := replace(split_part(lexeme,'.',1),'_','');
+ ELSE RETURN NULL;
+ END CASE;
+ result := lexeme::bigint;
+ IF result < 0 THEN
+   RAISE EXCEPTION 'invalid runtime reference byte_length' USING ERRCODE='22023';
+ END IF;
+ RETURN result;
+END
+$function$;
+
 CREATE FUNCTION project_runtime_references() RETURNS trigger LANGUAGE plpgsql AS $$
 BEGIN
  WITH refs AS MATERIALIZED (SELECT * FROM podgen_runtime_references(NEW.payload)),
  artifacts AS (
    INSERT INTO runtime_artifact_refs
-   SELECT NEW.project_id,NEW.record_id,(reference->>'artifact_id')::uuid,
-     (reference->>'revision_id')::uuid,reference->>'kind'
+   SELECT NEW.project_id,NEW.record_id,podgen_runtime_reference_uuid(reference->>'artifact_id'),
+     podgen_runtime_reference_uuid(reference->>'revision_id'),reference->>'kind'
    FROM refs WHERE reference_kind='artifact' ON CONFLICT DO NOTHING
  ), runtimes AS (
    INSERT INTO runtime_runtime_refs
-   SELECT NEW.project_id,NEW.record_id,(reference->>'record_id')::uuid,reference->>'record_kind'
+   SELECT NEW.project_id,NEW.record_id,podgen_runtime_reference_uuid(reference->>'record_id'),reference->>'record_kind'
    FROM refs WHERE reference_kind='runtime' ON CONFLICT DO NOTHING
  )
  INSERT INTO runtime_blob_refs
  SELECT NEW.project_id,NEW.record_id,reference->>'storage_key',reference->>'sha256',
-   (reference->>'byte_length')::bigint,reference->>'media_type'
+   podgen_runtime_reference_length(reference->'byte_length'),reference->>'media_type'
  FROM refs WHERE reference_kind='blob' ON CONFLICT DO NOTHING;
  RETURN NEW;
 END
@@ -110,17 +152,17 @@ WITH refs AS MATERIALIZED (
  FROM runtime_records AS owner CROSS JOIN LATERAL podgen_runtime_references(owner.payload) AS ref
 ), artifacts AS (
  INSERT INTO runtime_artifact_refs
- SELECT project_id,record_id,(reference->>'artifact_id')::uuid,
-   (reference->>'revision_id')::uuid,reference->>'kind'
+ SELECT project_id,record_id,podgen_runtime_reference_uuid(reference->>'artifact_id'),
+   podgen_runtime_reference_uuid(reference->>'revision_id'),reference->>'kind'
  FROM refs WHERE reference_kind='artifact' ON CONFLICT DO NOTHING
 ), runtimes AS (
  INSERT INTO runtime_runtime_refs
- SELECT project_id,record_id,(reference->>'record_id')::uuid,reference->>'record_kind'
+ SELECT project_id,record_id,podgen_runtime_reference_uuid(reference->>'record_id'),reference->>'record_kind'
  FROM refs WHERE reference_kind='runtime' ON CONFLICT DO NOTHING
 )
 INSERT INTO runtime_blob_refs
 SELECT project_id,record_id,reference->>'storage_key',reference->>'sha256',
-  (reference->>'byte_length')::bigint,reference->>'media_type'
+  podgen_runtime_reference_length(reference->'byte_length'),reference->>'media_type'
 FROM refs WHERE reference_kind='blob' ON CONFLICT DO NOTHING;
 
 DO $$ DECLARE t text; BEGIN
