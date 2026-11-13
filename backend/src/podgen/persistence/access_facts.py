@@ -1,0 +1,40 @@
+"""One owner for reachable authorization facts in a bounded snapshot."""
+
+from .artifact_access import ArtifactFacts
+from .blob_access import BlobFacts
+from .database import query
+from .read_authorization import checked_node
+from .runtime_access import RuntimeFacts
+
+
+def access_facts(repo, tx):
+    state = repo._read_authorization.get()
+    if (
+        state is None
+        or state.transaction is not tx
+        or state.actor != repo.actor_id
+        or state.purpose != repo.purpose
+    ):
+        return None
+    return checked_node(repo, tx, ("access_facts",), lambda: AccessFacts(repo, tx))
+
+
+class AccessFacts:
+    def __init__(self, repo, tx):
+        self.repo, self.tx, self.roles = repo, tx, {}
+        self.blobs = BlobFacts(repo, tx, self.role)
+        self.artifacts = ArtifactFacts(tx, self.blobs)
+        self.runtimes = RuntimeFacts(tx, self.blobs, self.artifacts)
+
+    def role(self, project):
+        if project not in self.roles:
+            rows = list(
+                query(
+                    self.tx,
+                    "SELECT role FROM project_members WHERE project_id=:p AND actor_id=:a",
+                    p=project,
+                    a=self.repo.actor_id,
+                ).mappings()
+            )
+            self.roles[project] = dict(rows[0]) if rows else None
+        return self.roles[project]

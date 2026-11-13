@@ -45,8 +45,8 @@ def test_diamond_visits_each_runtime_once_per_public_read(repo, scope):
     fetches = []
 
     def record(conn, cursor, statement, parameters, context, many):
-        if "SELECT * FROM runtime_records WHERE" in statement:
-            fetches.append(parameters)
+        if "SELECT project_id,record_id,record_kind,audience FROM runtime_records" in statement:
+            fetches.extend(parameters["ids"])
 
     event.listen(repo.database.engine, "before_cursor_execute", record)
     try:

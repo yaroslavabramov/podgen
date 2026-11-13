@@ -70,6 +70,17 @@ class ResearchMaterials:
 
 
 def load_materials(repo, project, ref, *, case_id, fixed_ref=None):
+    from podgen.persistence.read_authorization import read_operation
+
+    with read_operation(repo):
+        materials = _load_materials(repo, project, ref, case_id=case_id, fixed_ref=fixed_ref)
+        # A remote report/plan read may have closed the first metadata snapshot.
+        # Reauthorize the complete frozen input before publishing this view.
+        repo.authorize_runtime_many(project, [ref] + ([fixed_ref] if fixed_ref is not None else []))
+        return materials
+
+
+def _load_materials(repo, project, ref, *, case_id, fixed_ref=None):
     from uuid import uuid5
 
     payload = repo.get_runtime(project, ref)
@@ -90,12 +101,14 @@ def load_materials(repo, project, ref, *, case_id, fixed_ref=None):
         raise ContractError("research_material_document_bindings_mismatch")
     lazy = payload.get("preparation", {}).get("contract") == "research-material-preparation/2"
     documents = []
+    representations = {}
     for spec in packet.documents:
         row = payload["bindings"][spec.key]
         origin = SOURCE_REF.validate_python(row["ref"])
         blob = BlobRef.model_validate(row["blob"])
         if isinstance(origin, ArtifactRef):
             value = repo.get(project, origin).payload
+            representations[origin] = value
             if origin.kind != "SourceRepresentation" or blob.model_dump(mode="json") != (
                 value.get("canonical_text_blob") or value["content_blob"]
             ):
@@ -147,12 +160,12 @@ def load_materials(repo, project, ref, *, case_id, fixed_ref=None):
         binding = payload["bindings"][source.document]
         if binding["ref"] != source.representation_ref.model_dump(mode="json"):
             raise ContractError("research_source_document_binding_mismatch")
-        representation = repo.get(project, source.representation_ref).payload
+        representation = representations[source.representation_ref]
         if representation["source_revision_ref"] != source.source_revision_ref.model_dump(mode="json"):
             raise ContractError("research_source_representation_mismatch")
 
     def authorize():
-        return repo.get_runtime(project, ref)
+        return repo.authorize_runtime(project, ref)
 
     materials = ResearchMaterials(
         packet,

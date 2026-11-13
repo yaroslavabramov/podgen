@@ -16,7 +16,7 @@ from tests.test_read_authorization import diamond
 
 def test_cold_restore_reuses_provenance_discards_bodies_and_rechecks_withdrawal(repo, scope):
     project, _ = scope
-    provenance, _, blob, nodes = diamond(repo, project, depth=3)
+    provenance, _, blob, _ = diamond(repo, project, depth=3)
     journal = EvaluationJournal(repo, project)
     profile = create_profile(repo, project, model="gpt-6.1-sol", context_limit=100000).ref
     command = WritingRunCommand(
@@ -59,20 +59,21 @@ def test_cold_restore_reuses_provenance_discards_bodies_and_rechecks_withdrawal(
     fetches = []
 
     def capture(conn, cursor, statement, parameters, context, many):
-        if "SELECT * FROM runtime_records WHERE" in statement:
+        if "SELECT payload FROM runtime_records WHERE" in statement:
             fetches.append(parameters)
 
     event.listen(repo.database.engine, "before_cursor_execute", capture)
     try:
         for metadata in journal.event_metadata([root]):
             memo = repo._read_authorization.get().completed
-            assert all(
-                ("runtime", project, ref.record_kind, ref.record_id) not in memo
-                for ref in physical + receipts
-            )
+            from podgen.persistence.access_facts import access_facts
+
+            facts = access_facts(repo, repo._read_authorization.get().transaction)
+            assert all("payload" not in row for row in facts.runtimes.rows.values())
+            assert full not in repr(memo)
             assert full not in repr(metadata)
         # Every common provenance node is loaded once, despite twenty events.
-        assert len(fetches) == len(nodes) + 1 + len(physical) + len(receipts)
+        assert len(fetches) == len(receipts)
     finally:
         event.remove(repo.database.engine, "before_cursor_execute", capture)
     assert repo._read_authorization.get() is None

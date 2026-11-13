@@ -4,7 +4,6 @@ from dataclasses import dataclass
 
 from podgen.domain.contracts.common import RuntimeRef
 from podgen.domain.errors import Conflict
-from podgen.domain.references import walk_values
 from podgen.persistence.read_authorization import authorized_read
 
 FIELDS = {
@@ -53,14 +52,12 @@ def stream(journal, roots):
     removed from that memo after projection, so restore retains only references.
     """
     events = [(root, event) for root in roots for event in journal.events(root)]
-    event_ids = {event["record_id"] for _, event in events}
     repo = journal.repo
     with repo.database.read_transaction() as tx, authorized_read(repo, tx):
         journal.authorize(tx)
-        memo = repo._read_authorization.get().completed
         for root, event in events:
             reference = RuntimeRef(record_kind="tool_execution", record_id=event["record_id"])
-            record = repo._runtime(tx, journal.project, reference)["payload"]
+            record = repo.get_runtime(journal.project, reference)
             if (
                 record["event_kind"] != event["event_kind"]
                 or record["invocation_id"] != str(root["invocation_id"])
@@ -68,19 +65,6 @@ def stream(journal, roots):
             ):
                 raise Conflict("research_history_event_binding_changed")
             metadata = from_record(reference, record)
-            # A segment can authorize a previous checkpoint event as a linked
-            # dependency. Discard those full bodies too; their graph ancestors
-            # remain memoized, while later raw reads still reauthorize normally.
-            linked_nodes = [reference] + [
-                value for _, _, value in walk_values(record) if isinstance(value, RuntimeRef)
-            ]
-            for linked in linked_nodes:
-                key = ("runtime", journal.project, linked.record_kind, linked.record_id)
-                cached = memo.get(key)
-                payload = cached["payload"] if cached is not None else {}
-                physical_request = payload.get(
-                    "contract"
-                ) == "model-request-v1" and "source_tool_turn" in payload.get("context", {})
-                if linked.record_id in event_ids or physical_request:
-                    memo.pop(key, None)
+            # Authorization facts hold only typed references and node metadata.
+            # The full selected event body remains local to this iteration.
             yield metadata

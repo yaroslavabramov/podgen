@@ -2,9 +2,10 @@
 
 from contextlib import contextmanager
 
-from podgen.domain.contracts.common import ArtifactRef, BlobRef, RuntimeRef
+from podgen.domain.contracts.common import BlobRef, RuntimeRef
 from podgen.domain.errors import AccessDenied
 from podgen.domain.references import walk_values
+from podgen.persistence.access_facts import access_facts
 from podgen.persistence.database import one, query
 from podgen.persistence.read_authorization import authorized_read
 
@@ -29,6 +30,11 @@ class IndexAccess:
             )
             with authorized_read(journal.repo, tx):
                 journal.authorize(tx)
+                facts = access_facts(journal.repo, tx)
+                runtime_roots = [
+                    ref for ref in [self.reference, *self.admission_references] if isinstance(ref, RuntimeRef)
+                ]
+                facts.runtimes.prefetch(journal.project, runtime_roots)
                 hashes = set(self.source_hashes)
                 seen = set()
 
@@ -38,17 +44,17 @@ class IndexAccess:
                         return
                     seen.add(identity)
                     if isinstance(reference, BlobRef):
-                        journal.repo._check_blob(tx, journal.project, reference)
+                        facts.blobs.check(journal.project, reference)
                         hashes.add(reference.sha256)
                         return
-                    row = (
+                    if isinstance(reference, RuntimeRef):
                         journal.repo._runtime(tx, journal.project, reference)
-                        if isinstance(reference, RuntimeRef)
-                        else journal.repo._resolve(tx, journal.project, reference)
-                    )
-                    for _, _, linked in walk_values(row["payload"]):
-                        if isinstance(linked, (ArtifactRef, BlobRef, RuntimeRef)):
-                            visit(linked)
+                        references = facts.runtimes.references[journal.project, reference.record_id]
+                    else:
+                        row = journal.repo._resolve(tx, journal.project, reference)
+                        references = [linked for _, _, linked in walk_values(row["payload"])]
+                    for linked in references:
+                        visit(linked)
 
                 visit(self.reference)
                 for reference in self.admission_references:

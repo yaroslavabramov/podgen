@@ -1,31 +1,28 @@
 """Publish verified bytes only after fresh authorization; no network inside SQL transactions."""
 
 from podgen.domain.contracts.common import BlobRef
-from podgen.domain.errors import AccessDenied, ContractError
+from podgen.domain.errors import ContractError
 
 from .database import one, query
 
 
 def check_identity(repo, tx, project_id, sha256, *, public_only=False):
-    classified = one(
+    from .blob_access import validate_identity
+
+    facts = one(
         tx,
-        "SELECT 1 FROM evaluator_blob_classifications WHERE project_id=:p AND sha256=:sha",
+        """SELECT
+        EXISTS(SELECT 1 FROM evaluator_blob_classifications WHERE project_id=:p AND sha256=:sha) AS evaluator_only,
+        EXISTS(SELECT 1 FROM blob_access_revocations WHERE project_id=:p AND sha256=:sha) AS access_revoked""",
         p=project_id,
         sha=sha256,
     )
-    if classified and (
-        public_only
-        or repo.purpose != "evaluation"
-        or repo._acl(tx, project_id) not in ("owner", "evaluator", "operator")
-    ):
-        raise AccessDenied()
-    if one(
-        tx,
-        "SELECT 1 FROM blob_access_revocations WHERE project_id=:p AND sha256=:sha",
-        p=project_id,
-        sha=sha256,
-    ):
-        raise AccessDenied()
+    role = (
+        repo._acl(tx, project_id)
+        if facts["evaluator_only"] and not public_only and repo.purpose == "evaluation"
+        else None
+    )
+    validate_identity(**dict(facts), purpose=repo.purpose, role=role, public_only=public_only)
 
 
 def lookup(tx, project_id, staged):

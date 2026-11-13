@@ -21,15 +21,18 @@ class ResearchJournal:
 
     def get(self, key):
         ref = self.ref(key)
-        with self.repo.database.read_transaction() as tx:
-            self.repo._acl(tx, self.project)
-            found = one(
-                tx,
-                "SELECT record_id FROM runtime_records WHERE project_id=:p AND record_id=:r",
-                p=self.project,
-                r=ref.record_id,
-            )
-        return self.repo.get_runtime(self.project, ref) if found else None
+        from podgen.persistence.read_authorization import _read_connection, read_operation
+
+        with read_operation(self.repo):
+            with _read_connection(self.repo) as tx:
+                self.repo._acl(tx, self.project)
+                found = one(
+                    tx,
+                    "SELECT record_id FROM runtime_records WHERE project_id=:p AND record_id=:r",
+                    p=self.project,
+                    r=ref.record_id,
+                )
+            return self.repo.get_runtime(self.project, ref) if found else None
 
     def put(self, key, value):
         with self.repo.database.transaction() as tx:

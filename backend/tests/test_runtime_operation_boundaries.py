@@ -61,7 +61,7 @@ def test_remote_io_cannot_invalidate_a_borrowed_sql_connection(repo, scope):
 
 def test_turn_selection_reads_only_target_bodies_and_enforces_projection_binding(repo, scope):
     project, _ = scope
-    provenance, _, _, nodes = diamond(repo, project, depth=2)
+    provenance, _, _, _ = diamond(repo, project, depth=2)
     journal = EvaluationJournal(repo, project)
     profile = create_profile(repo, project, model="gpt-6.1-sol", context_limit=100000).ref
     command = WritingRunCommand(
@@ -89,7 +89,7 @@ def test_turn_selection_reads_only_target_bodies_and_enforces_projection_binding
     fetched = []
 
     def capture(conn, cursor, statement, parameters, context, many):
-        if "SELECT * FROM runtime_records WHERE" in statement:
+        if "SELECT payload FROM runtime_records WHERE" in statement:
             fetched.append(parameters)
 
     event.listen(repo.database.engine, "before_cursor_execute", capture)
@@ -98,7 +98,7 @@ def test_turn_selection_reads_only_target_bodies_and_enforces_projection_binding
         assert len(evidence.events(evidence.turn)) == 3
     finally:
         event.remove(repo.database.engine, "before_cursor_execute", capture)
-    assert len(fetched) <= len(nodes) + 5
+    assert len(fetched) == 3
     assert not any(str(ref.record_id) in repr(fetched) for ref in other_refs)
     malformed = journal.read(selected_refs[0])
     malformed["data"]["source_turn_index"] = 62

@@ -28,6 +28,12 @@ def effective_edges(tx, project_id, revision_id):
         p=project_id,
         r=revision_id,
     ).mappings()
+    return apply_dispositions(edges.values(), events)
+
+
+def apply_dispositions(rows, events):
+    """One definition of effective provenance for scalar and batched readers."""
+    edges = {(r["input_id"], r["relation"]): dict(r) for r in rows}
     for event in events:
         for disposition in event["payload"]["dispositions"]:
             old = ArtifactRef.model_validate(disposition["prior_input_ref"])

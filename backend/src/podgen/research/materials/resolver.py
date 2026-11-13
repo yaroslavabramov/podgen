@@ -36,14 +36,22 @@ class ResearchMaterialResolver:
         store = self.store(run_id)
         from .inheritance import freeze
 
-        freeze(self.journal, store, self.materials, guard, self.parent_run_ids)
-        admissions = []
-        for row in entries(store):
-            guard()
-            if row["shared_input_ref"] != self.materials.shared_ref.model_dump(mode="json"):
-                raise ContractError("research_added_source_input_mismatch")
-            admissions.append(load_admission(store, row))
-        return tuple(admissions)
+        # Freeze may publish inheritance. Finish it before the read-only batch.
+        guard()
+        freeze(self.journal, store, self.materials, lambda: None, self.parent_run_ids)
+        from podgen.persistence.read_authorization import read_operation
+
+        with read_operation(self.journal.repo):
+            admissions, references = [], [self.materials.shared_ref]
+            for row in entries(store):
+                if row["shared_input_ref"] != self.materials.shared_ref.model_dump(mode="json"):
+                    raise ContractError("research_added_source_input_mismatch")
+                admissions.append(load_admission(store, row))
+                from podgen.domain.contracts.common import RuntimeRef
+
+                references.append(RuntimeRef.model_validate(row["_admission_ref"]))
+            self.journal.repo.authorize_runtime_many(self.journal.project, references)
+            return tuple(admissions)
 
     def resolve(self, name, arguments, *, operation_id, run_id, guard):
         guard()

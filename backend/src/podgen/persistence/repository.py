@@ -8,7 +8,6 @@ from uuid import UUID
 from podgen.domain.canonical import content_hash
 from podgen.domain.contracts import ArtifactRef, ArtifactRevision
 from podgen.domain.errors import AccessDenied, ContractError
-from podgen.domain.references import walk_values
 
 from .database import Database, one, query
 from .read_authorization import _read_connection, checked_node
@@ -63,12 +62,18 @@ class Repository:
             self._read_path.reset(token)
 
     def _acl(self, tx, project_id, *, write=False, operator=False):
-        member = one(
-            tx,
-            "SELECT role FROM project_members WHERE project_id=:p AND actor_id=:a",
-            p=project_id,
-            a=self.actor_id,
-        )
+        from .access_facts import access_facts
+
+        facts = access_facts(self, tx)
+        if facts is not None:
+            member = facts.role(project_id)
+        else:
+            member = one(
+                tx,
+                "SELECT role FROM project_members WHERE project_id=:p AND actor_id=:a",
+                p=project_id,
+                a=self.actor_id,
+            )
         if (
             member is None
             or (write and member["role"] not in WRITE_ROLES)
@@ -98,10 +103,10 @@ class Repository:
 
         return ScopeAccess(self).publication(tx, consumer_project, row)
 
-    def _access_invalid(self, tx, row, visited=None):
+    def _access_invalid(self, tx, row):
         from .scope import ScopeAccess
 
-        return ScopeAccess(self).access_invalid(tx, row, visited)
+        return ScopeAccess(self).access_invalid(tx, row)
 
     def _resolve(self, tx, project_id, ref, seen=None):
         from .scope import ScopeAccess
@@ -124,19 +129,27 @@ class Repository:
         )
 
     def _verify_hash(self, tx, row):
-        blobs = query(
-            tx,
-            """SELECT a.purpose,b.sha256 FROM artifact_blobs a JOIN blobs b USING(project_id,storage_key)
-                            WHERE a.project_id=:p AND a.revision_id=:r""",
-            p=row["project_id"],
-            r=row["revision_id"],
-        ).mappings()
+        from .access_facts import access_facts
+
+        facts = access_facts(self, tx)
+        if facts is not None:
+            facts.artifacts.load([row["revision_id"]])
+            blob_hashes = facts.artifacts.integrity_blobs[row["revision_id"]]
+        else:
+            blobs = query(
+                tx,
+                """SELECT a.purpose,b.sha256 FROM artifact_blobs a JOIN blobs b USING(project_id,storage_key)
+                                WHERE a.project_id=:p AND a.revision_id=:r""",
+                p=row["project_id"],
+                r=row["revision_id"],
+            ).mappings()
+            blob_hashes = [dict(purpose=b["purpose"], hash=b["sha256"]) for b in blobs]
         actual = content_hash(
             row["kind"],
             row["schema_version"],
             row["payload"],
             [ArtifactRef.model_validate(v) for v in row["input_refs"]],
-            [dict(purpose=b["purpose"], hash=b["sha256"]) for b in blobs],
+            blob_hashes,
         )
         if actual != row["content_hash"]:
             raise ContractError("artifact_integrity_error")
@@ -160,12 +173,9 @@ class Repository:
         row = one(
             tx, "SELECT * FROM blobs WHERE project_id=:p AND storage_key=:k", p=project_id, k=ref.storage_key
         )
-        if row is None or (row["sha256"], row["byte_length"], row["media_type"]) != (
-            ref.sha256,
-            ref.byte_length,
-            ref.media_type,
-        ):
-            raise AccessDenied()
+        from .blob_access import validate_binding
+
+        validate_binding(ref, row)
 
     def read_blob(self, project_id, artifact_ref, blob_ref):
         from .read_authorization import object_io
@@ -248,6 +258,7 @@ class Repository:
         )
 
     def _runtime(self, tx, project_id, ref):
+        """Authorize a runtime closure and return only its short immutable header."""
         from .scope import ScopeAccess
 
         with self._reading("runtime", (project_id, ref.record_id)):
@@ -260,15 +271,25 @@ class Repository:
         with self.database.transaction() as tx:
             return append_runtime(self, tx, project_id, ref, payload, audience)
 
+    def authorize_runtime(self, project_id, ref):
+        """Freshly authorize a frozen reference without fetching its semantic body."""
+        self.authorize_runtime_many(project_id, [ref])
+
+    def authorize_runtime_many(self, project_id, references):
+        from .access_facts import access_facts
+
+        with _read_connection(self) as tx:
+            access_facts(self, tx).runtimes.prefetch(project_id, references)
+            for reference in references:
+                self._runtime(tx, project_id, reference)
+
     def get_runtime(self, project_id, ref):
         with _read_connection(self) as tx:
-            row = self._runtime(tx, project_id, ref)
-            for _, _, linked in walk_values(row["payload"]):
-                if isinstance(linked, ArtifactRef):
-                    self._resolve(tx, project_id, linked)
-            from copy import deepcopy
+            self._runtime(tx, project_id, ref)
+            from .access_facts import access_facts
 
-            return deepcopy(row["payload"])
+            facts = access_facts(self, tx)
+            return facts.runtimes.payload(project_id, ref)
 
     def read_runtime_blob(self, project_id, runtime_ref, blob_ref):
         from .read_authorization import object_io

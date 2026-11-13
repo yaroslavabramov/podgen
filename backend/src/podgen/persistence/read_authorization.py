@@ -64,9 +64,11 @@ class ReadOperation:
     def release(self):
         if self.borrowers:
             raise RuntimeError("object_io_inside_metadata_phase")
-        self.resources.close()
-        self.state.transaction = None
-        self.state.completed.clear()
+        try:
+            self.resources.close()
+        finally:
+            self.state.transaction = None
+            self.state.completed.clear()
 
 
 @contextmanager
@@ -86,9 +88,11 @@ def read_operation(repo):
     try:
         yield
     finally:
-        operation.release()
-        _OPERATIONS.reset(active)
-        repo._read_authorization.reset(token)
+        try:
+            operation.release()
+        finally:
+            _OPERATIONS.reset(active)
+            repo._read_authorization.reset(token)
 
 
 @contextmanager

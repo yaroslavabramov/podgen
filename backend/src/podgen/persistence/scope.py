@@ -13,6 +13,11 @@ class ScopeAccess:
         self.repo = repository
 
     def row(self, tx, ref):
+        from .access_facts import access_facts
+
+        facts = access_facts(self.repo, tx)
+        if facts is not None:
+            return facts.artifacts.row(ref)
         return one(
             tx,
             """SELECT * FROM artifact_revisions WHERE revision_id=:r AND artifact_id=:a AND kind=:k""",
@@ -43,57 +48,15 @@ class ScopeAccess:
             raise AccessDenied()
         return publication
 
-    def access_invalid(self, tx, row, visited=None):
-        visited = set() if visited is None else visited
-        if row["revision_id"] in visited:
-            return False
-        visited.add(row["revision_id"])
-        if one(
-            tx,
-            "SELECT 1 FROM invalidations WHERE project_id=:p AND revision_id=:r AND category='access'",
-            p=row["project_id"],
-            r=row["revision_id"],
-        ):
-            return True
-        if one(
-            tx,
-            """SELECT 1 FROM artifact_blobs a JOIN blobs b USING(project_id,storage_key)
-                  JOIN blob_access_revocations v ON v.project_id=b.project_id AND v.sha256=b.sha256
-                  WHERE a.project_id=:p AND a.revision_id=:r""",
-            p=row["project_id"],
-            r=row["revision_id"],
-        ):
-            return True
-        for link in query(
-            tx,
-            "SELECT input_id FROM revalidation_privacy_links WHERE project_id=:p AND subject_id=:r",
-            p=row["project_id"],
-            r=row["revision_id"],
-        ).mappings():
-            child = one(
-                tx,
-                "SELECT * FROM artifact_revisions WHERE project_id=:p AND revision_id=:r",
-                p=row["project_id"],
-                r=link["input_id"],
-            )
-            if child is None or self.repo._access_invalid(tx, child, visited):
-                return True
-        # Privacy follows ALL provenance, including removed quality dependencies.
-        for value in row["input_refs"]:
-            ref = ArtifactRef.model_validate(value)
-            child = self.repo._row(tx, ref)
-            if child is None or self.repo._access_invalid(tx, child, visited):
-                return True
-        for edge in self.repo._effective_edges(tx, row["project_id"], row["revision_id"]):
-            child = one(
-                tx,
-                "SELECT * FROM artifact_revisions WHERE project_id=:p AND revision_id=:r",
-                p=row["project_id"],
-                r=edge["input_id"],
-            )
-            if child is None or self.repo._access_invalid(tx, child, visited):
-                return True
-        return False
+    def access_invalid(self, tx, row):
+        from .access_facts import AccessFacts, access_facts
+
+        # One complete-graph privacy rule. Callers without an operation own a
+        # short-lived fact set; bounded operations share their existing set.
+        facts = access_facts(self.repo, tx)
+        if facts is None:
+            facts = AccessFacts(self.repo, tx)
+        return facts.artifacts.invalid(row)
 
     def resolve(self, tx, project_id, ref, seen=None):
         self.repo._acl(tx, project_id)
@@ -110,35 +73,52 @@ class ScopeAccess:
             raise AccessDenied()
         from podgen.domain.contracts.common import BlobRef
 
-        for blob in query(
-            tx,
-            "SELECT b.* FROM artifact_blobs a JOIN blobs b USING(project_id,storage_key) WHERE a.project_id=:p AND a.revision_id=:r",
-            p=row["project_id"],
-            r=row["revision_id"],
-        ).mappings():
-            self.repo._check_blob(
+        from .access_facts import access_facts
+
+        facts = access_facts(self.repo, tx)
+        if facts is not None:
+            for blob in facts.artifacts.bindings[row["revision_id"]]:
+                facts.blobs.check(row["project_id"], blob)
+        else:
+            for blob in query(
                 tx,
-                row["project_id"],
-                BlobRef(
-                    storage_key=blob["storage_key"],
-                    sha256=blob["sha256"],
-                    byte_length=blob["byte_length"],
-                    media_type=blob["media_type"],
-                ),
-            )
+                "SELECT b.* FROM artifact_blobs a JOIN blobs b USING(project_id,storage_key) WHERE a.project_id=:p AND a.revision_id=:r",
+                p=row["project_id"],
+                r=row["revision_id"],
+            ).mappings():
+                self.repo._check_blob(
+                    tx,
+                    row["project_id"],
+                    BlobRef(
+                        storage_key=blob["storage_key"],
+                        sha256=blob["sha256"],
+                        byte_length=blob["byte_length"],
+                        media_type=blob["media_type"],
+                    ),
+                )
         # A pinned grant does not confer perpetual catalog access, including nested inputs.
         seen = set() if seen is None else seen
         if row["revision_id"] not in seen:
             seen.add(row["revision_id"])
             for value in row["input_refs"]:
                 self.repo._resolve(tx, project_id, ArtifactRef.model_validate(value), seen)
-            for edge in self.repo._effective_edges(tx, row["project_id"], row["revision_id"]):
-                child = one(
-                    tx,
-                    "SELECT * FROM artifact_revisions WHERE project_id=:p AND revision_id=:r",
-                    p=row["project_id"],
-                    r=edge["input_id"],
-                )
+            for edge in (
+                facts.artifacts.edges[row["revision_id"]]
+                if facts is not None
+                else self.repo._effective_edges(tx, row["project_id"], row["revision_id"])
+            ):
+                if facts is not None:
+                    facts.artifacts.load([edge["input_id"]])
+                    child = facts.artifacts.rows.get(edge["input_id"])
+                else:
+                    child = one(
+                        tx,
+                        "SELECT * FROM artifact_revisions WHERE project_id=:p AND revision_id=:r",
+                        p=row["project_id"],
+                        r=edge["input_id"],
+                    )
+                if child is None or child["project_id"] != row["project_id"]:
+                    raise AccessDenied()
                 self.repo._resolve(
                     tx,
                     project_id,
@@ -147,12 +127,17 @@ class ScopeAccess:
                     ),
                     seen,
                 )
-        for link in query(
-            tx,
-            "SELECT record_id,record_kind FROM runtime_links WHERE project_id=:p AND revision_id=:r",
-            p=row["project_id"],
-            r=row["revision_id"],
-        ).mappings():
+        runtime_links = (
+            facts.artifacts.runtime_links[row["revision_id"]]
+            if facts is not None
+            else query(
+                tx,
+                "SELECT record_id,record_kind FROM runtime_links WHERE project_id=:p AND revision_id=:r",
+                p=row["project_id"],
+                r=row["revision_id"],
+            ).mappings()
+        )
+        for link in runtime_links:
             self.repo._runtime(
                 tx,
                 row["project_id"],
@@ -162,13 +147,19 @@ class ScopeAccess:
 
     def runtime(self, tx, project_id, ref):
         self.repo._acl(tx, project_id)
-        row = one(
-            tx,
-            "SELECT * FROM runtime_records WHERE project_id=:p AND record_id=:r AND record_kind=:k",
-            p=project_id,
-            r=ref.record_id,
-            k=ref.record_kind,
-        )
+        from .access_facts import access_facts
+
+        facts = access_facts(self.repo, tx)
+        if facts is not None:
+            row = facts.runtimes.row(project_id, ref)
+        else:
+            row = one(
+                tx,
+                "SELECT * FROM runtime_records WHERE project_id=:p AND record_id=:r AND record_kind=:k",
+                p=project_id,
+                r=ref.record_id,
+                k=ref.record_kind,
+            )
         if row is None or (
             row["audience"] == "evaluator"
             and (
@@ -177,11 +168,22 @@ class ScopeAccess:
             )
         ):
             raise AccessDenied()
-        for _, _, linked in walk_values(row["payload"]):
+        references = (
+            facts.runtimes.references[project_id, ref.record_id]
+            if facts is not None
+            else (linked for _, _, linked in walk_values(row["payload"]))
+        )
+        for linked in references:
             if isinstance(linked, ArtifactRef):
                 self.repo._resolve(tx, project_id, linked)
             elif isinstance(linked, RuntimeRef):
                 self.repo._runtime(tx, project_id, linked)
             else:
-                self.repo._check_blob(tx, project_id, linked)
-        return row
+                from .access_facts import access_facts
+
+                facts = access_facts(self.repo, tx)
+                if facts is not None:
+                    facts.blobs.check(project_id, linked)
+                else:
+                    self.repo._check_blob(tx, project_id, linked)
+        return {key: row[key] for key in ("project_id", "record_id", "record_kind", "audience")}

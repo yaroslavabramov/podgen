@@ -6,9 +6,8 @@ from contextlib import contextmanager
 from pathlib import Path
 from threading import Lock
 
-from podgen.domain.contracts.common import ArtifactRef, BlobRef
+from podgen.domain.contracts.common import ArtifactRef
 from podgen.domain.errors import AccessDenied
-from podgen.domain.references import walk_values
 
 from .database import one
 from .read_authorization import _read_connection, checked_node, object_io, read_operation
@@ -32,10 +31,11 @@ def _authorize_binding(repo, project, reference, blob):
                 ):
                     raise AccessDenied()
             else:
-                row = repo._runtime(tx, project, reference)
-                if blob not in [
-                    value for _, _, value in walk_values(row["payload"]) if isinstance(value, BlobRef)
-                ]:
+                repo._runtime(tx, project, reference)
+                from .access_facts import access_facts
+
+                facts = access_facts(repo, tx)
+                if blob not in facts.runtimes.references[project, reference.record_id]:
                     raise AccessDenied()
             repo._check_blob(tx, project, blob)
             return True

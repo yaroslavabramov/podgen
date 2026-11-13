@@ -134,6 +134,36 @@ class SourceCorpus:
             self.retrieval.refresh()
 
     def execute(self, name, arguments, *, read_id, max_read_chars=PAGE_CHARS, default_read_chars=PAGE_CHARS):
+        from contextlib import ExitStack
+
+        from podgen.persistence.read_authorization import read_operation
+        from podgen.persistence.text_source import VerifiedText
+
+        # This entry point executes local retained-source tools only. Acquisition
+        # and provider calls have separate guards, outside these snapshots.
+        repositories = {
+            id(doc.text.repo): doc.text.repo
+            for doc in self.documents.values()
+            if isinstance(doc.text, VerifiedText)
+        }
+        for document in getattr(self._materials, "documents", ()):
+            if isinstance(document.text, VerifiedText):
+                repositories[id(document.text.repo)] = document.text.repo
+        with ExitStack() as stack:
+            for repo in repositories.values():
+                stack.enter_context(read_operation(repo))
+            result = self._execute(
+                name,
+                arguments,
+                read_id=read_id,
+                max_read_chars=max_read_chars,
+                default_read_chars=default_read_chars,
+            )
+            if self.research_materials is not None and self.research_materials.authorize is not None:
+                self.research_materials.authorize()
+            return result
+
+    def _execute(self, name, arguments, *, read_id, max_read_chars, default_read_chars):
         if self.research_materials is not None and self.research_materials.authorize is not None:
             self.research_materials.authorize()
         if self.retrieval is not None and name in ("read_source", "read_material"):

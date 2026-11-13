@@ -343,10 +343,7 @@ class WritingEvaluation:
                 manifest.get("editorial_continuation", {}).get("inherited_usage", {"input": 0, "output": 0})
             )
 
-            def guard():
-                current = self._materials(command)
-                if materials_hash(current.as_payload()) != manifest["materials_hash"]:
-                    raise Conflict("frozen_materials_changed")
+            def checkpoint_guard():
                 now = datetime.now(timezone.utc)
                 elapsed = (
                     now - datetime.fromisoformat(manifest["created_at"]) - checkpoint.wait_time(now)
@@ -354,6 +351,17 @@ class WritingEvaluation:
                 if elapsed > command.limits.max_elapsed_seconds:
                     raise RunFailure("run_elapsed_budget_exceeded", run_id=command.run_id)
 
+            from .operation_guard import OperationGuard
+
+            guard = OperationGuard(
+                generation=self.generation,
+                journal=journal,
+                command=command,
+                manifest=manifest,
+                materials=materials,
+                loader=self._materials,
+                checkpoint=checkpoint_guard,
+            )
             authorize_recovery(
                 journal,
                 command,
