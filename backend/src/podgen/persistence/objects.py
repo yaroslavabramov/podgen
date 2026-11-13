@@ -69,6 +69,16 @@ class FileObjectStore:
         verify(data, ref)
         return data
 
+    def iter_read(self, project_id, ref, *, block_size=1024 * 1024):
+        checksum, size = hashlib.sha256(), 0
+        with self._path(project_id, ref.storage_key).open("rb") as stream:
+            while chunk := stream.read(block_size):
+                checksum.update(chunk)
+                size += len(chunk)
+                yield chunk
+        if size != ref.byte_length or checksum.hexdigest() != ref.sha256:
+            raise ContractError("blob_integrity_error")
+
 
 class S3ObjectStore:
     """Finalize with an unpredictable immutable key; DB publication happens afterwards."""
@@ -110,3 +120,18 @@ class S3ObjectStore:
             result["Body"].close()
         verify(data, ref)
         return data
+
+    def iter_read(self, project_id, ref, *, block_size=1024 * 1024):
+        if not ref.storage_key.startswith(f"{project_id}/"):
+            raise ContractError("invalid_blob_scope")
+        result = self.client.get_object(Bucket=self.bucket, Key=ref.storage_key)
+        checksum, size = hashlib.sha256(), 0
+        try:
+            while chunk := result["Body"].read(block_size):
+                checksum.update(chunk)
+                size += len(chunk)
+                yield chunk
+        finally:
+            result["Body"].close()
+        if size != ref.byte_length or checksum.hexdigest() != ref.sha256:
+            raise ContractError("blob_integrity_error")

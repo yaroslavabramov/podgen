@@ -23,6 +23,11 @@ class ResearchMaterials:
     fixed_ref: RuntimeRef | None = None
     authorize: Callable[[], object] | None = field(default=None, compare=False, repr=False)
 
+    # Run-local admissions never participate in the frozen packet/material hash.
+    runtime_admissions: list = field(default_factory=list, compare=False, repr=False)
+    runtime_annex: dict = field(default_factory=dict, compare=False, repr=False)
+    document_bindings: dict | None = field(default=None, compare=False, repr=False)
+
     @property
     def case_id(self):
         return self.packet.assignment.key
@@ -44,17 +49,24 @@ class ResearchMaterials:
         return [section.material_id for section in self.packet.sections]
 
     def as_payload(self):
-        return dict(
+        payload = dict(
             contract="editorial-role-packets/1",
             shared_input_ref=self.shared_ref.model_dump(mode="json"),
             editorial_input=self.packet.model_dump(mode="json"),
             fixed_input_ref=self.fixed_ref.model_dump(mode="json") if self.fixed_ref else None,
             fixed_input=self.fixed.model_dump(mode="json") if self.fixed else None,
-            documents=[
-                dict(path=d.path, sha256=d.sha256, ref=d.ref.model_dump(mode="json"), text=d.text)
-                for d in self.documents
-            ],
+            documents=[],
         )
+        for spec, document in zip(self.packet.documents, self.documents, strict=True):
+            item = dict(path=document.path, sha256=document.sha256, ref=document.ref.model_dump(mode="json"))
+            if self.document_bindings is None:
+                item["text"] = document.text
+            else:
+                item["blob"] = self.document_bindings[spec.key]["blob"]
+            payload["documents"].append(item)
+        if self.document_bindings is not None:
+            payload["source_access"] = "content-addressed-research-text/2"
+        return payload
 
 
 def load_materials(repo, project, ref, *, case_id, fixed_ref=None):
@@ -76,6 +88,7 @@ def load_materials(repo, project, ref, *, case_id, fixed_ref=None):
         raise ContractError("editorial_assignment_mismatch")
     if set(payload["bindings"]) != {doc.key for doc in packet.documents}:
         raise ContractError("research_material_document_bindings_mismatch")
+    lazy = payload.get("preparation", {}).get("contract") == "research-material-preparation/2"
     documents = []
     for spec in packet.documents:
         row = payload["bindings"][spec.key]
@@ -87,17 +100,22 @@ def load_materials(repo, project, ref, *, case_id, fixed_ref=None):
                 value.get("canonical_text_blob") or value["content_blob"]
             ):
                 raise ContractError("research_source_blob_binding_mismatch")
-            raw = repo.read_blob(project, origin, blob)
+            raw = None if lazy else repo.read_blob(project, origin, blob)
         else:
             value = repo.get_runtime(project, origin)
             if origin != packet.report_result_ref or value.get("report_text_blob") != blob.model_dump(
                 mode="json"
             ):
                 raise ContractError("research_report_blob_binding_mismatch")
-            raw = repo.read_runtime_blob(project, origin, blob)
-        if sha256(raw).hexdigest() != spec.sha256 or blob.sha256 != spec.sha256:
+            raw = None if lazy else repo.read_runtime_blob(project, origin, blob)
+        if (raw is not None and sha256(raw).hexdigest() != spec.sha256) or blob.sha256 != spec.sha256:
             raise ContractError("research_material_hash_mismatch")
-        documents.append(AuthorDocument(spec.source_path, raw.decode("utf-8"), spec.sha256, origin))
+        from podgen.persistence.text_source import verified_text
+
+        text = verified_text(repo, project, origin, blob) if lazy else raw.decode("utf-8")
+        if spec.key == "report" and lazy:
+            text = str(text)
+        documents.append(AuthorDocument(spec.source_path, text, spec.sha256, origin))
     loaded = {spec.key: doc.text for spec, doc in zip(packet.documents, documents, strict=True)}
     for section in packet.sections:
         if section.document not in loaded or not 0 <= section.start < section.end <= len(
@@ -136,10 +154,24 @@ def load_materials(repo, project, ref, *, case_id, fixed_ref=None):
     def authorize():
         return repo.get_runtime(project, ref)
 
-    materials = ResearchMaterials(packet, ref, tuple(documents), authorize=authorize)
+    materials = ResearchMaterials(
+        packet,
+        ref,
+        tuple(documents),
+        authorize=authorize,
+        document_bindings=payload["bindings"] if lazy else None,
+    )
     if fixed_ref is not None:
         from podgen.runtime.evaluation.reusable_plan import load_approved_plan
 
         plan = load_approved_plan(repo, project, ref, packet, fixed_ref)
-        materials = ResearchMaterials(packet, ref, tuple(documents), plan, fixed_ref, authorize)
+        materials = ResearchMaterials(
+            packet,
+            ref,
+            tuple(documents),
+            plan,
+            fixed_ref,
+            authorize,
+            document_bindings=payload["bindings"] if lazy else None,
+        )
     return materials
