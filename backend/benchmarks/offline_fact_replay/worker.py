@@ -151,6 +151,8 @@ try:
         metrics.operations.clear()
         metrics.templates.clear()
         metrics.turns.clear()
+        metrics.driver_calls.clear()
+        metrics.executions.clear()
         metrics.turn = None
         traffic = Traffic(archive, run_id)
         try:
