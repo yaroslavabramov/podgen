@@ -1,6 +1,8 @@
-# Full offline fact-review replay — intermediate
+# Full offline fact-review replay — verified changes and remaining costs
 
-This is an intermediate engineering result, **not acceptance of the complete runtime cost**.
+This records verified engineering changes, **not acceptance of the complete runtime cost**.
+The initial intermediate receipts are retained unchanged; `post-metadata-*.json` records
+the reviewed `305ecac5` implementation in a new isolated replay.
 It replays the saved report-off fact review: 43 provider responses and 42 actual tool
 operations, with PostgreSQL persistence and the complete export. No external provider
 or source API calls are made. The real OpenAI SDK uses an HTTP MockTransport oracle.
@@ -34,13 +36,13 @@ The historical first baseline matches the previously recorded 212,684 SQL exactl
 
 ## Absolute measurements
 
-| Operation | Baseline first | Intermediate first | New repeat | Completed resume |
+| Operation | Baseline first | Post-metadata first | New repeat | Completed resume |
 | --- | ---: | ---: | ---: | ---: |
-| Startup SQL | 100,150 | 1,226 | 640 | 612 |
-| Stage SQL | 65,375 | 14,956 | 15,214 | 1,211 |
+| Startup SQL | 100,150 | 1,178 | 641 | 613 |
+| Stage SQL | 65,375 | 14,468 | 14,726 | 1,119 |
 | Export SQL | 47,155 | 478 | 478 | 478 |
-| Whole phase SQL | 212,684 | 16,664 | 16,336 | 2,305 |
-| Whole phase seconds | 394.58 | 217.11 | 212.97 | 6.40 |
+| Whole phase SQL | 212,684 | 16,128 | 15,849 | 2,214 |
+| Whole phase seconds | 394.58 | 187.22 | 186.56 | 3.99 |
 | Count / submit mock requests | 43 / 43 | 43 / 43 | 43 / 43 | 0 / 0 |
 | Real tool results verified | 42 | 42 | 42 | 0 |
 
@@ -50,11 +52,16 @@ coordination statements; `sql_including_coordination` includes those three. The
 baseline templates likewise total 212,687 including coordination.
 
 A normal first physical turn costs 1,081 SQL before and 279 after this patch; ordinary
-later turns cost 298 after it. Last-turn attribution also includes final publication
-and audit work, and is reported separately in each JSON's `turn_sql`. The first
-intermediate stage still spends 60.45 seconds outside its 151.97 seconds of retrieval
-search. Both new full passes perform zero passage-embedding calls. Repeated new-run
-query ranking remains real CPU inference, not a replayed tool answer.
+later turns generally cost 297 after it. The new repeat starts at 285 SQL/turn.
+Last-turn attribution also includes final publication and audit work, and is reported
+separately in each JSON's `turn_sql`. The post-metadata first whole operation still
+spends **38.39 seconds outside its
+148.82 seconds of retrieval search** (35.20 seconds within the fact stage itself).
+The fact stage still issues 14,468 SQL; 4,078 artifact-frontier reads now contain
+metadata, with no artifact body. This remaining cost is not declared optimal or
+resolved by the overall percentage improvement. Both new full passes perform zero
+passage-embedding calls. Repeated new-run query ranking remains real CPU inference,
+not a replayed tool answer.
 
 Byte counters cover raw object reads, staging and publication API calls. First raw
 reads remain 90,798,027 bytes; no semantic bytes were removed. The instrumented
@@ -70,8 +77,10 @@ with the saved result. The only routing changes for the second run are run/invoc
 identities and the matching response metadata; outputs, tool calls and usage remain
 unchanged. The 43 saved count response bodies are served without alteration.
 
-Every export contains 370 files. First baseline and intermediate first verify 322
-files byte-for-byte; 48 verify as JSON after explicit technical substitutions.
+Every export contains 370 files. The first post-metadata pass and completed replay
+verify 322 files byte-for-byte and 48 as JSON after explicit technical substitutions.
+The new repeat verifies 146 byte-for-byte and 224 after the same allowed routing
+substitutions. Initial baseline/intermediate export counts are retained separately.
 Substitutions pair event IDs by ordered event identity, derived run/request/output
 IDs, the newly created prompt reference and derived hashes. Changed blob references
 are allowed only after their actual exported content matches. Only the manifest's
@@ -79,37 +88,69 @@ creation time and technical event-envelope HTTP request IDs are normalized. File
 without an actual allowed substitution must retain bytes, not just equivalent JSON.
 All individual mappings and counts are saved in the JSON evidence.
 
-Peak RSS is cumulative within one worker, not an independent peak per pass. It grew
-from baseline 1,202,143,232 to 1,447,526,400 bytes; **no memory improvement is claimed**.
+Peak RSS is cumulative within one worker, not an independent peak per pass. The
+post-metadata worker reports **1,376,272,384 bytes**; the initial intermediate worker
+reported 1,447,526,400. The original baseline harness reports 1,202,143,232 but did not
+retain ExportOracle, so it is **not directly comparable** with the newer oracle harness.
+No overall memory improvement or complete attribution of the difference is claimed.
 An isolated helper-only probe retained about 35.3 MB in ExportOracle and 36.3 MB in
 Traffic. RSS grew by 38.3 MB on loading ExportOracle, 50.9 MB on loading Traffic and
 62.7 MB during export verification. This establishes substantial measurement overhead,
 but cannot explain/subtract the complete cross-process high-water difference. Runtime
 versus model allocator versus oracle peak remains incompletely attributed.
 
-## Remaining repeated work and next review
+## Artifact authorization diagnosis and verified fix
 
-The first stage still loads artifact frontiers 4,078 times, actor roles 2,145 times
-and blob facts 1,061 times. `artifact-diagnosis.json` measures three read-only input
-validations of one actual saved event, then a generation guard, against the completed
-dump. Each event validation reads the same 259 artifact IDs in five frontiers
-(64/64/10/64/57), transferring 992,232 payload bytes unnecessarily for authorization.
-The guard reads another 805,081 payload bytes. This is many modest payloads, not one
-multi-megabyte document.
+The initial intermediate first stage loaded artifact frontiers 4,078 times, roles
+2,145 times and blob facts 1,061 times. `artifact-diagnosis.json` measures three
+read-only validations of one actual saved event, then one generation guard, against
+the completed dump. Each event validation reads the same 259 artifact IDs in five
+frontiers (64/64/10/64/57), fetching 992,232 payload bytes. The guard fetches 805,081.
+These are many modest payloads, not one multi-megabyte document.
 
-Three validations took 0.444 s wall / 0.411 s process CPU under cProfile.
-`ArtifactFacts.load` was entered 2,847 times; UUID hashing 816,186 times. Its set
-subtraction repeatedly walks already loaded IDs. Metadata/full-body separation and
-snapshot-local completed-closure reuse are the proposed next patch. No semantic
-payload cache or permission cache across transactions is proposed.
+The reviewed patch separates metadata authorization from explicit full reads.
+`_resolve`/`_row` retain their full-row contracts; ordinary get still checks integrity.
+Runtime/input/recursive/blob authorization uses one metadata-only ScopeAccess path.
+Catalog VoiceProfile stock checking uses a narrow derived field. Snapshot-local
+closure completion uses one flat marker set, with incremental denial propagation;
+lookup work depends on requested IDs, not the count of already loaded artifacts.
+No semantic body or cross-transaction permission cache was added.
+
+| Three saved-event validations under cProfile | Before | After |
+| --- | ---: | ---: |
+| Wall seconds | 0.4441 | 0.1810 |
+| Process CPU seconds | 0.4113 | 0.1552 |
+| UUID hash calls | 816,186 | 82,206 |
+| Event/guard artifact payload bytes fetched | 992,232 / 805,081 | 0 / 0 |
+
+`artifact-metadata-diagnosis.json` preserves the new CPU profile and the same
+frontier IDs. It distinguishes stored payload sizes, observed transferred payload
+bytes and 3,781,777 avoided bytes across these four checks. Observed bytes derive
+only from cursor columns actually returned, not the size of an unfetched body.
+The diagnostic script emits those fields automatically on subsequent runs.
+
+Metadata reference enumeration conservatively includes declared local input,
+producer, runtime/blob references and effective edges. Foreign catalog configuration
+is fully authorized (including its blobs, grant and stock restrictions) but its
+bytes are not tenant-local indexed text and are excluded from the tenant purge
+registry. Tests verify grant/blob revocation denies subsequent access, while a local
+source blob withdrawal physically purges documents, chunks and results. Raw source,
+request, response and export bodies remain unchanged as verified by the oracle.
 
 For the read-only diagnosis, add `--operation artifact-diagnosis` and use the completed
 dump instead of the pre-experiment dump. `memory_diagnosis.py --trace ... --export ...
 --out ...` measures oracle overhead without a database or model inference.
 
-Validation so far: 107 core tests; 40 migration/index/export tests (including real
-migration round-trips); 13 provenance/streaming checks. Some files overlap across
-batches. Ruff and diff checks passed. The source-admission fixture correction uses
-project-visible provenance; it does not weaken evaluator-only access protection.
-Runtime immutable topology is capped at 4,096 nodes / 32,768 links, stores no payload
+Validation after the metadata patch: 76 affected core/catalog/index/export tests and
+48 migration/recovery/immutable-ownership tests passed. Real migration round-trips
+were enabled. Tests assert linear graph visits/bounded hash lookups, no semantic
+payload in authorization facts, full-get hash rejection, catalog scope and fresh
+revocation/rollback. Earlier batches are recorded above/in the commit history;
+counts from overlapping batches are not combined into a unique-test total.
+Ruff and diff checks passed.
+
+Immutable runtime topology is capped at 4,096 nodes / 32,768 links, contains no body
 or permission result, admits only committed read-only metadata and clears in finally.
+All probe/replay PostgreSQL servers were task-owned, stopped and deleted by their
+runners. The pre-existing original source server was neither started nor stopped.
+No batch-write implementation or additional runs after this verified pass were performed.
