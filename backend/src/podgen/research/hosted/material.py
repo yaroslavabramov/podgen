@@ -81,5 +81,5 @@ def report(value):
         blocks=blocks,
         reported_sources=sources,
         source_list_scope="links_reported_by_provider_not_complete_reading_history",
-        annotation_offsets="provider_native_bytes_within_content_block",
+        annotation_offsets="provider_native_unvalidated",
     )

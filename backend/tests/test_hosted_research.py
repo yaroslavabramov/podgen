@@ -150,7 +150,7 @@ def test_missing_report_is_error_and_raw_receipt_survives(monkeypatch):
     assert len(provider.calls) == 1
 
 
-def test_url_annotations_preserve_native_byte_offsets():
+def test_url_annotations_preserve_native_offsets_without_inferred_units():
     native = dict(type="url_citation", url="https://example.org", start_index=0, end_index=12)
     material = report(
         dict(
@@ -236,3 +236,28 @@ def test_report_source_acquisition_is_resumable_and_not_evidence(monkeypatch):
                 acquire=acquire,
             )
         )
+
+
+def test_cross_block_and_out_of_range_annotation_offsets_stay_unvalidated():
+    native = [
+        dict(type="url_citation", url="https://example.org/first", start_index=10, end_index=140),
+        dict(type="url_citation", url="https://example.org/second", start_index=600, end_index=900),
+    ]
+    material = report(
+        dict(
+            steps=[
+                dict(
+                    type="model_output",
+                    content=[
+                        dict(type="text", text="Кратко", annotations=native),
+                        dict(type="text", text="A longer following block. " * 10),
+                    ],
+                )
+            ]
+        )
+    )
+    assert material["blocks"][0]["annotations"] == native
+    assert material["annotation_offsets"] == "provider_native_unvalidated"
+    assert material["blocks"][0]["report_end"] == len("Кратко")
+    assert all(source["evidence_status"] == "reported_only" for source in material["reported_sources"])
+    assert all("report_range" not in source for source in material["reported_sources"])
