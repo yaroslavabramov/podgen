@@ -2,6 +2,7 @@
 
 import json
 from copy import deepcopy
+from dataclasses import replace
 from hashlib import sha256
 from pathlib import Path
 from types import SimpleNamespace
@@ -383,7 +384,17 @@ def test_admitted_url_alias_is_searchable_within_its_original_material(
     research_materials, reported_url, linked
 ):
     source = next(row for row in research_materials.packet.sources if row.source_id == "S2")
-    source.reported_url = reported_url
+    source = source.model_copy(update={"reported_url": reported_url})
+    research_materials = replace(
+        research_materials,
+        packet=research_materials.packet.model_copy(
+            update={
+                "sources": [
+                    source if row.source_id == "S2" else row for row in research_materials.packet.sources
+                ],
+            }
+        ),
+    )
     corpus = SourceCorpus(research_materials)
     scope = next(
         alias
