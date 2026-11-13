@@ -61,6 +61,7 @@ def reading_payload(
     author_source_excerpts=None,
     prompt_cache_layout=None,
     fact_context_contract=None,
+    research_navigation=False,
 ):
     fact_context.validate(fact_context_contract, projection_version)
     validate_cache_layout(prompt_cache_layout, projection_version)
@@ -107,9 +108,17 @@ def reading_payload(
                 card.pop("limitations", None)
             payload.update(
                 evidence=primary_evidence,
-                source_bibliography=fact_context.bibliography(materials),
+                source_bibliography=(
+                    dict(tool="list_sources", offset=0)
+                    if research_navigation
+                    else fact_context.bibliography(materials)
+                ),
                 context=context,
-                research_cautions=fact_context.research_cautions(packet),
+                research_cautions=(
+                    dict(tool="list_sources", includes="coverage_and_limitations")
+                    if research_navigation
+                    else fact_context.research_cautions(packet)
+                ),
             )
             if packet.contract == "research-editorial-input/1":
                 payload["research_contents"] = payload.pop("context")
@@ -163,6 +172,7 @@ def reading_payload(
                 author_plan_handoff=author_plan_handoff,
                 author_source_excerpts=author_source_excerpts,
                 research_materials=materials,
+                research_navigation=research_navigation,
                 selected=selected,
                 projection_version=projection_version,
                 plan_selection_contract=plan_selection_contract,

@@ -26,10 +26,11 @@ def contents(packet):
     ]
 
 
-def source_catalog(materials):
-    loaded = texts(materials)
+def source_catalog(materials, *, offset=0, limit=None, include_reported_url=False):
+    loaded = {doc.path: doc for doc in materials.documents}
+    specs = {spec.key: spec for spec in materials.packet.documents}
     result = []
-    for source in materials.packet.sources:
+    for source in materials.packet.sources[offset : None if limit is None else offset + limit]:
         resolved = source.resolved_url
         if resolved and urlsplit(resolved).hostname == "vertexaisearch.cloud.google.com":
             resolved = None
@@ -42,19 +43,29 @@ def source_catalog(materials):
                 reported_domain=source.reported_label,
                 status=source.status,
                 retained_version=source.acquisition_role,
-                length=len(loaded[source.document]) if source.document else None,
+                length=len(loaded[specs[source.document].source_path].text) if source.document else None,
                 resolved_url=resolved,
                 coverage=source.coverage,
                 limitations=list(source.limitations),
             )
         )
+    if include_reported_url:
+        for row, source in zip(
+            result, materials.packet.sources[offset : None if limit is None else offset + limit], strict=True
+        ):
+            row["reported_url"] = source.reported_url
     return result
 
 
-def planning_view(materials):
+def planning_view(materials, *, paginated=False):
     from podgen.writing.projections import assignment_view, validate_model_content
 
-    view = dict(research_contents=contents(materials.packet), source_catalog=source_catalog(materials))
+    catalog = (
+        dict(tool="list_sources", offset=0, initial_source_count=len(materials.packet.sources))
+        if paginated
+        else source_catalog(materials)
+    )
+    view = dict(research_contents=contents(materials.packet), source_catalog=catalog)
     validate_model_content(dict(assignment=assignment_view(materials.packet), **view), materials.documents)
     return view
 

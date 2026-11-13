@@ -13,7 +13,8 @@ READ_BUDGET_VERSION = "frozen-corpus-tools/3"
 VERSION = "frozen-corpus-tools/4"
 RESEARCH_VERSION = "frozen-corpus-tools/5"
 PAGED_RESEARCH_VERSION = "frozen-corpus-tools/6"
-RESEARCH_VERSIONS = (RESEARCH_VERSION, PAGED_RESEARCH_VERSION)
+DURABLE_RESEARCH_VERSION = "frozen-corpus-tools/7"
+RESEARCH_VERSIONS = (RESEARCH_VERSION, PAGED_RESEARCH_VERSION, DURABLE_RESEARCH_VERSION)
 RESEARCH_ROLES = (
     "plan",
     "plan-review",
@@ -42,6 +43,18 @@ def create(behavior, materials=None):
         from podgen.writing.research_materials.tools import definitions as research_definitions
 
         declarations = research_definitions(declarations)
+        from podgen.retrieval.config import streaming_profile
+        from podgen.writing.research_materials.runtime_tools import definitions as runtime_definitions
+        from podgen.writing.research_materials.runtime_tools import source_definitions
+
+        return dict(
+            version=DURABLE_RESEARCH_VERSION,
+            definitions=source_definitions(declarations) + runtime_definitions(),
+            retrieval=streaming_profile(),
+            max_read_chars=9600,
+            default_read_chars=9600,
+            context_policy="durable-model-window/1",
+        )
     return dict(
         **({"default_read_chars": 9600} if research else {}),
         version=PAGED_RESEARCH_VERSION if research else VERSION,
@@ -60,6 +73,8 @@ def from_manifest(manifest):
         return None
     if not isinstance(value, dict):
         raise ContractError("unsupported_source_tool_contract")
+    if value.get("version") == DURABLE_RESEARCH_VERSION:
+        return validate_durable(manifest, value)
     fields = {"version", "definitions", "max_model_turns", "max_tool_calls"}
     if value.get("version") in (FINAL_TURN_VERSION, READ_BUDGET_VERSION, VERSION, *RESEARCH_VERSIONS):
         fields.add("final_turn")
@@ -124,6 +139,44 @@ def applies(stage, contract):
 def bind(body, stage, profile, contract):
     if applies(stage, contract):
         body.update(tools=deepcopy(contract["definitions"]), tool_choice="auto", parallel_tool_calls=False)
+        if contract["version"] == DURABLE_RESEARCH_VERSION:
+            body["metadata"]["podgen_context_policy"] = contract["context_policy"]
         if profile.provider == "openai":
             body["include"] = ["reasoning.encrypted_content"]
+    return body
+
+
+def validate_durable(manifest, value):
+    from podgen.retrieval.config import streaming_profile
+    from podgen.writing.research_materials.runtime_tools import definitions as runtime_definitions
+    from podgen.writing.research_materials.runtime_tools import source_definitions
+
+    if (
+        manifest.get("behavior_profile") != "production/1"
+        or set(value)
+        != {"version", "definitions", "retrieval", "max_read_chars", "default_read_chars", "context_policy"}
+        or value["retrieval"] != streaming_profile()
+        or value["context_policy"] != "durable-model-window/1"
+        or type(value["max_read_chars"]) is not int
+        or value["max_read_chars"] != 9600
+        or type(value["default_read_chars"]) is not int
+        or value["default_read_chars"] != 9600
+    ):
+        raise ContractError("unsupported_durable_source_tool_contract")
+    from podgen.writing.research_materials.tools import definitions as research_definitions
+    from podgen.writing.source_tools import definitions
+
+    if (
+        value["definitions"]
+        != source_definitions(research_definitions(definitions(retrieval=True))) + runtime_definitions()
+    ):
+        raise ContractError("durable_source_tool_definitions_changed")
+    return value
+
+
+def instructions(body, stage, contract):
+    if contract is not None and contract["version"] == DURABLE_RESEARCH_VERSION and applies(stage, contract):
+        from podgen.writing.research_materials.runtime_instructions import attach
+
+        return attach(body)
     return body

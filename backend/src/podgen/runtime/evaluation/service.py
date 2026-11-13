@@ -54,13 +54,27 @@ class WritingEvaluation:
                 and command.editorial_parent_run_id is None
             ):
                 raise ContractError("fixed_editorial_input_required")
-            return load_editorial_materials(
+            materials = load_editorial_materials(
                 self.generation,
                 command.project_id,
                 command.author_ref,
                 case_id=command.case_id,
                 fixed_ref=command.fixed_plan_input_ref,
             )
+            if getattr(materials.packet, "contract", None) == "research-editorial-input/1":
+                from podgen.research.materials.resolver import ResearchMaterialResolver
+
+                journal = EvaluationJournal(self.repo, command.project_id)
+                materials.runtime_admissions[:] = ResearchMaterialResolver(
+                    journal,
+                    materials,
+                    parent_run_ids=tuple(
+                        parent
+                        for parent in (command.planning_parent_run_id, command.editorial_parent_run_id)
+                        if parent is not None
+                    ),
+                ).restore(run_id=command.run_id, guard=lambda: None)
+            return materials
         loader = load_own_plan_materials if command.plan_mode == "own-plan" else self.materials_loader
         return loader(self.generation, command.project_id, command.author_ref, case_id=command.case_id)
 
@@ -295,8 +309,26 @@ class WritingEvaluation:
                     if retrieval is not None:
                         from .source_search_index import PostgresSearchIndex
 
-                        index = PostgresSearchIndex(journal, materials.shared_ref, retrieval)
+                        index_type = PostgresSearchIndex
+                        if retrieval.get("version") == "hybrid-local/2":
+                            from .streaming_search_index import StreamingSearchIndex
+
+                            index_type = StreamingSearchIndex
+                        index = index_type(
+                            journal,
+                            materials.shared_ref,
+                            retrieval,
+                            **(
+                                {"run_id": command.run_id}
+                                if retrieval.get("version") == "hybrid-local/2"
+                                else {}
+                            ),
+                        )
                     corpus = SourceCorpus(materials, retrieval=retrieval, index=index)
+                    if source_contract(manifest)["version"] == "frozen-corpus-tools/7":
+                        from podgen.research.materials.resolver import ResearchMaterialResolver
+
+                        corpus.material_resolver = ResearchMaterialResolver(journal, materials)
                 except ImportError:
                     journal.status(command.run_id, "needs_attention", "source_search_dependencies_missing")
                     raise RunFailure("source_search_dependencies_missing", run_id=command.run_id) from None

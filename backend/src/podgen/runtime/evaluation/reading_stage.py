@@ -50,6 +50,9 @@ def execute_reading_stage(
     approved_plan=None,
     repair_review_anchors=False,
 ):
+    from .research_annex import restore as restore_annex
+
+    restore_annex(journal, command.run_id, materials)
     references = run_references(materials, manifest)
     base = base_stage(stage)
     from .reading_audit.source import prepare as prepare_audit

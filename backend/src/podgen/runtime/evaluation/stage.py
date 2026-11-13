@@ -56,8 +56,10 @@ def execute_stage(
     prompt_ref = ArtifactRef.model_validate(manifest["prompt_refs"][stage])
     instructions = generation.get(command.project_id, prompt_ref).payload["template"]
     if command.input_contract == "editorial-role-packets/1":
+        from .research_annex import restore as restore_annex
         from .role_request import compile_role_request
 
+        restore_annex(journal, command.run_id, materials)
         body = compile_role_request(
             command.run_id,
             stage,

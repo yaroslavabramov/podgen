@@ -144,13 +144,14 @@ def attach_author_support(
     author_plan_handoff=None,
     author_source_excerpts=None,
     research_materials=None,
+    research_navigation=False,
 ):
     if packet.contract == "research-editorial-input/1":
         from .research_materials.views import planning_view, selected_sections
 
         # The owning materials object supplies complete section text, never whole source documents.
         payload["support"] = selected_sections(research_materials, selected)
-        payload.update(planning_view(research_materials))
+        payload.update(planning_view(research_materials, paginated=research_navigation))
         return
     if not creative_materials(projection_version):
         payload["support"] = knowledge_view(packet, labels=False, selected=selected)
@@ -216,6 +217,7 @@ def role_payload(
     planning_duration_contract=None,
     author_plan_handoff=None,
     author_source_excerpts=None,
+    research_navigation=False,
 ):
     validate_version(projection_version)
     validate_excerpt_strategy(author_source_excerpts, projection_version)
@@ -233,7 +235,7 @@ def role_payload(
         if packet.contract == "research-editorial-input/1":
             from .research_materials.views import planning_view
 
-            payload.update(planning_view(materials))
+            payload.update(planning_view(materials, paginated=research_navigation))
         else:
             payload["dossier"] = dict(
                 summary=packet.dossier.summary,
@@ -329,6 +331,7 @@ def role_payload(
                 selected=selected_labels(plan, packet),
                 author_plan_handoff=author_plan_handoff,
                 research_materials=materials,
+                research_navigation=research_navigation,
                 author_source_excerpts=author_source_excerpts,
                 projection_version=projection_version,
                 plan_selection_contract=plan_selection_contract,

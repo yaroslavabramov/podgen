@@ -25,6 +25,15 @@ def load_preview_snapshot(journal, generation, run_id, stage, materials):
     if journal.run(run_id) is None:
         return None
     manifest = journal.manifest(run_id)
+    if manifest.get("source_tool_contract", {}).get("version") == "frozen-corpus-tools/7":
+        from podgen.research.materials.resolver import ResearchMaterialResolver
+
+        materials.runtime_admissions[:] = ResearchMaterialResolver(journal, materials).restore(
+            run_id=run_id, guard=lambda: None
+        )
+        from .research_annex import restore as restore_annex
+
+        restore_annex(journal, run_id, materials)
     if materials_hash(materials.as_payload()) != manifest["materials_hash"]:
         raise Conflict("preview_frozen_materials_mismatch")
     prompt = manifest["prompt_refs"].get(stage)

@@ -184,6 +184,7 @@ def preview_request(
             instructions = adapt_instructions(
                 materials, role, behavior.instructions(role, materials.format).body
             )
+            instructions = source_tool_contract.instructions(instructions, stage, tools)
         readings = None
         revision = None
         if base == "revise":
@@ -247,6 +248,7 @@ def preview_request(
             instructions = adapt_instructions(
                 materials, role, behavior.instructions(role, materials.format).body
             )
+            instructions = source_tool_contract.instructions(instructions, stage, tools)
         return compile_role_request(
             run_id,
             stage,

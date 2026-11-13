@@ -88,7 +88,9 @@ def create_manifest(repo, generation, command, journal, materials):
         prompt = behavior.instructions(role, materials.format)
         from podgen.writing.research_materials.pinning import instructions as adapt_instructions
 
-        instructions = adapt_instructions(materials, role, prompt.body)
+        instructions = source_tool_contract.instructions(
+            adapt_instructions(materials, role, prompt.body), stage, tools
+        )
         prompt_versions[stage] = prompt.version
         prompt = repo.create(
             command.project_id,
@@ -169,6 +171,14 @@ def create_manifest(repo, generation, command, journal, materials):
     research = research_pin(materials)
     if research is not None:
         manifest[RESEARCH_KEY] = research
+        preparation = journal.repo.get_runtime(command.project_id, materials.shared_ref).get(
+            "preparation", {}
+        )
+        manifest["corpus_preparation"] = dict(
+            contract=preparation.get("contract", "research-material-preparation/1"),
+            complete_report_urls=preparation.get("contract") == "research-material-preparation/2",
+            source_acquisition=bool(preparation.get("acquisition")),
+        )
     manifest[PROVIDER_KEY] = provider_contracts
     if editorial and behavior.plan_review_schema is not None:
         manifest[PRESERVE_KEY] = behavior.plan_review_schema
@@ -229,7 +239,7 @@ def create_manifest(repo, generation, command, journal, materials):
             manifest[SELECTION_KEY] = selection
         if offered("draft", behavior.projection):
             manifest["writer_response_contract"] = contract_pin(manifest, materials.speaker_labels)
-        manifest["role_input_budget"] = input_budget_for_profile(behavior.name)
+        manifest["role_input_budget"] = input_budget_for_profile(behavior.name, model_window=bool(research))
     if command.plan_mode == "own-plan":
         manifest["plan_review_target_catalog"] = "planning-output-pointers-v1"
         manifest["plan_target_repair_instructions"] = asdict(

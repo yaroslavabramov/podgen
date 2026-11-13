@@ -23,7 +23,7 @@ def snapshots(materials):
         if (
             doc is None
             or source.sha256 != doc.sha256
-            or sha256(doc.text.encode()).hexdigest() != source.sha256
+            or (getattr(doc.text, "sha256", None) or sha256(doc.text.encode()).hexdigest()) != source.sha256
         ):
             raise ContractError("audit_source_snapshot_mismatch")
         result.append(
@@ -39,10 +39,35 @@ def snapshots(materials):
     return result
 
 
+def admission_snapshots(materials):
+    result = []
+    for admission in getattr(materials, "runtime_admissions", ()):
+        if admission.catalog.get("kind") != "research_report":
+            result.append(
+                dict(
+                    key="admission:" + admission.source_id,
+                    source=admission.title,
+                    purpose="primary",
+                    sha256=admission.sha256,
+                    ref=admission.reference.model_dump(mode="json"),
+                    text=admission.text,
+                )
+            )
+    return result
+
+
+def available_snapshots(materials, snapshot_index=None):
+    available = dict(snapshot_index or {})
+    for row in (snapshots(materials) if snapshot_index is None else []) + admission_snapshots(materials):
+        previous = available.get(row["key"])
+        if previous is not None and previous != row:
+            raise ContractError("audit_source_snapshot_changed")
+        available[row["key"]] = row
+    return available
+
+
 def validate_retained(value, materials, snapshot_index=None):
-    available = (
-        snapshot_index if snapshot_index is not None else {row["key"]: row for row in snapshots(materials)}
-    )
+    available = available_snapshots(materials, snapshot_index)
     for selector in value["source_selectors"]:
         doc = available.get(selector["key"])
         if doc is None or any(doc[k] != selector[k] for k in ("sha256", "ref")):
@@ -58,7 +83,26 @@ def validate_retained(value, materials, snapshot_index=None):
 
 def _selectors(content, materials, snapshot_index=None):
     result = []
-    for doc in snapshot_index.values() if snapshot_index is not None else snapshots(materials):
+    available = available_snapshots(materials, snapshot_index)
+    if all(key in content for key in ("source_id", "start", "end")):
+        source_id = content["source_id"]
+        if getattr(materials.packet, "contract", None) == "research-editorial-input/1":
+            source = next((row for row in materials.packet.sources if row.source_id == source_id), None)
+            key = source.document if source is not None and source.document else "admission:" + source_id
+        else:
+            primary = [row.key for row in materials.packet.documents if row.purpose == "primary"]
+            position = int(source_id[1:]) - 1
+            key = primary[position] if 0 <= position < len(primary) else None
+        doc = available.get(key)
+        start, end = content["start"], content["end"]
+        if (
+            doc is None
+            or not 0 <= start < end <= len(doc["text"])
+            or doc["text"][start:end] != content["text"]
+        ):
+            raise ContractError("audit_exact_source_selector_mismatch")
+        return [dict(key=key, sha256=doc["sha256"], ref=doc["ref"], start=start, end=end)]
+    for doc in available.values():
         if doc["source"] != content["source"]:
             continue
         start = doc["text"].find(content["text"])

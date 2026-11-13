@@ -24,7 +24,30 @@ def compile_role_request(
     **inputs,
 ):
     prompt_cache.validate(prompt_cache_layout, projection_version)
-    payload = role_payload(stage, materials, projection_version=projection_version, **inputs)
+    payload = role_payload(
+        stage,
+        materials,
+        projection_version=projection_version,
+        research_navigation=bool(
+            source_tool_contract and source_tool_contract["version"] == "frozen-corpus-tools/7"
+        ),
+        **inputs,
+    )
+    if (
+        source_tool_contract
+        and source_tool_contract["version"] == "frozen-corpus-tools/7"
+        and stage == "draft"
+    ):
+        from .research_annex import attach as attach_annex
+
+        attach_annex(
+            payload,
+            materials,
+            inputs.get("approved_plan")
+            or (materials.fixed.plan.model_dump(mode="json") if materials.fixed else None),
+        )
+    if source_tool_contract and source_tool_contract["version"] == "frozen-corpus-tools/7":
+        payload["research_results"] = dict(tool="list_research_results", offset=0, version=None)
     references = reference_catalog or preview_references(materials, projection_version)
     if references is not None:
         payload = references.translate(payload)
@@ -59,7 +82,34 @@ def compile_reading_request(
 
     from .reading_workflow import base_stage
 
-    payload = reading_payload(base_stage(stage), materials, prompt_cache_layout=prompt_cache_layout, **inputs)
+    payload = reading_payload(
+        base_stage(stage),
+        materials,
+        prompt_cache_layout=prompt_cache_layout,
+        research_navigation=bool(
+            source_tool_contract and source_tool_contract["version"] == "frozen-corpus-tools/7"
+        ),
+        **inputs,
+    )
+    if (
+        source_tool_contract
+        and source_tool_contract["version"] == "frozen-corpus-tools/7"
+        and base_stage(stage) == "revise"
+    ):
+        from .research_annex import attach as attach_annex
+
+        attach_annex(
+            payload,
+            materials,
+            inputs.get("approved_plan")
+            or (materials.fixed.plan.model_dump(mode="json") if materials.fixed else None),
+        )
+    if (
+        source_tool_contract
+        and source_tool_contract["version"] == "frozen-corpus-tools/7"
+        and base_stage(stage) != "reader-review"
+    ):
+        payload["research_results"] = dict(tool="list_research_results", offset=0, version=None)
     if reading_audit_context is not None:
         from podgen.writing.reading_audit.input import attach
         from podgen.writing.revision.verification import bind_assignments

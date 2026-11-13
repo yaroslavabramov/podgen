@@ -28,6 +28,10 @@ class SourceCorpus:
         self.cards = {}
         source_ids = {}
         self.research_materials = None
+        self.material_resolver = None
+        self.supplemental_reports = {}
+        self.admission_catalog = {}
+        self._materials = materials
         if getattr(materials.packet, "contract", None) == "research-editorial-input/1":
             from podgen.writing.research_materials.tools import initialize
 
@@ -55,14 +59,68 @@ class SourceCorpus:
                     )
                 )
 
-        self.last_search_diagnostics = None
         self.retrieval = None
+        for admission in getattr(materials, "runtime_admissions", ()):
+            self.admit(admission)
+        self.last_search_diagnostics = None
         if retrieval is not None:
             from podgen.retrieval.hybrid import HybridSearch
 
             if index is None:
                 raise ContractError("source_search_index_required")
-            self.retrieval = HybridSearch(self.documents, self.cards, retrieval, index=index)
+            search_type = HybridSearch
+            if retrieval.get("version") == "hybrid-local/2":
+                from podgen.retrieval.streaming import StreamingSearch
+
+                search_type = StreamingSearch
+                index.access.admission_references.extend(
+                    row.reference for row in getattr(materials, "runtime_admissions", ())
+                )
+            self.retrieval = search_type(self.documents, self.cards, retrieval, index=index)
+
+    def admit(self, admission):
+        from podgen.persistence.text_source import VerifiedText
+
+        actual = (
+            admission.text.sha256
+            if isinstance(admission.text, VerifiedText)
+            else sha256(admission.text.encode()).hexdigest()
+        )
+        if actual != admission.sha256:
+            raise ContractError("source_admission_hash_mismatch")
+        report = admission.catalog.get("kind") == "research_report"
+        target = self.supplemental_reports if report else self.documents
+        import re
+
+        if not re.fullmatch(r"X[1-9]\d*" if report else r"S[1-9]\d*", admission.source_id):
+            raise ContractError("source_admission_identifier_invalid")
+        value = Source(admission.title, admission.text, admission.sha256)
+        if admission.source_id in target and (
+            target[admission.source_id].digest,
+            target[admission.source_id].title,
+        ) != (value.digest, value.title):
+            raise ContractError("source_admission_binding_changed")
+        target[admission.source_id] = value
+        self.admission_catalog[admission.source_id] = admission.catalog
+        if not report and self.research_materials is not None:
+            reported_url = admission.catalog.get("reported_url")
+            aliases = {
+                key
+                for key, source in self.research_sources.items()
+                if reported_url and source.reported_url == reported_url
+            }
+            for alias, section in self.research_sections.items():
+                if aliases & {item.source_id for item in section.occurrences} and admission.source_id not in {
+                    key for key, _, _ in self.cards[alias]
+                }:
+                    self.cards[alias].append((admission.source_id, 0, len(admission.text)))
+        if self.retrieval is not None:
+            if admission.reference not in self.retrieval.index.access.admission_references:
+                self.retrieval.index.access.admission_references.append(admission.reference)
+
+    def refresh(self):
+        if self.retrieval is not None:
+            self.retrieval.refresh()
 
     def execute(self, name, arguments, *, read_id, max_read_chars=PAGE_CHARS, default_read_chars=PAGE_CHARS):
         if self.research_materials is not None and self.research_materials.authorize is not None:
@@ -83,7 +141,16 @@ class SourceCorpus:
         if name not in METHODS:
             return {"error": "unknown_source_tool"}
         try:
-            args = METHODS[name][0].model_validate(arguments)
+            model = METHODS[name][0]
+            if (
+                name == "search_sources"
+                and self.retrieval is not None
+                and self.retrieval.profile["version"] == "hybrid-local/2"
+            ):
+                from podgen.writing.research_materials.runtime_tools import PersistentSearch
+
+                model = PersistentSearch
+            args = model.model_validate(arguments)
         except ValidationError as error:
             return {
                 "error": "invalid_source_tool_arguments",
