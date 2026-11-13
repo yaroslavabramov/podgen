@@ -16,7 +16,7 @@ from .sections import SECTIONING, partition, source_mapping
 from .sources import freeze_sources
 
 
-def prepare_materials(repo, project, config):
+def prepare_materials(repo, project, config, *, preparation=None):
     config = PrepareResearchMaterials.model_validate(config)
     journal = ResearchJournal(repo, project, config.research_run_id)
     result = journal.get("result")
@@ -68,7 +68,7 @@ def prepare_materials(repo, project, config):
         report_result_ref=journal.ref("result"),
         source_result_refs=[ref for ref, _ in source_results],
     )
-    full = config.model_dump(mode="json")
+    full = preparation if preparation is not None else config.model_dump(mode="json")
     original = repo.save_blob(
         project, io.BytesIO(json.dumps(full, ensure_ascii=False).encode()), "application/json"
     )

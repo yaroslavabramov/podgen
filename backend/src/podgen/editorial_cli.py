@@ -86,9 +86,16 @@ def execute(args, repo, wire_ref):
     if args.command == "research-materials-prepare":
         from podgen.research.materials.admission import prepare_materials
 
-        result = prepare_materials(repo, args.project, load_unique_json(args.input.read_text())).model_dump(
-            mode="json"
-        )
+        config = load_unique_json(args.input.read_text())
+        if config.get("contract") == "research-material-preparation/2":
+            import asyncio
+
+            from podgen.research.materials.preparation import prepare_complete_materials
+
+            ref = asyncio.run(prepare_complete_materials(repo, args.project, config))
+        else:
+            ref = prepare_materials(repo, args.project, config)
+        result = ref.model_dump(mode="json")
     elif args.command == "editorial-source-import":
         from podgen.persistence.editorial_documents import import_document
 
@@ -205,7 +212,7 @@ def execute(args, repo, wire_ref):
         budget = (
             snapshot.manifest.get("role_input_budget", input_budget_for_profile("existing/1"))
             if snapshot
-            else input_budget_for_profile(selected_behavior or "production/1")
+            else input_budget_for_profile(selected_behavior or "production/1", model_window=bool(result["request"].get("metadata", {}).get("podgen_context_policy")))
         )
         check_visible(result["request"], CONTRACT, max_visible_bytes=budget["visible_bytes"])
     return {key: value for key, value in result.items() if key != "request"}
