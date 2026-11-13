@@ -82,3 +82,47 @@ def test_existing_postgres_legacy_key_is_retained_without_upload(repo, scope, tm
         )
     assert actual.save_blob(project, io.BytesIO(raw), ref.media_type) == ref
     assert s3.counts["get"] == 1 and s3.counts["put"] == 0 and len(s3.objects) == 1
+
+
+def test_legacy_winner_verification_rechecks_other_blob_after_withdrawal(repo, scope, tmp_path, monkeypatch):
+    from podgen.persistence.blob_batch import save_blobs
+    from tests.authorization_helpers import withdraw_blob
+
+    actual, s3 = stored_repo(repo, tmp_path)
+    project, _ = scope
+    first, second = b"SYNTHETIC first race bytes", b"SYNTHETIC second race bytes"
+    legacy = BlobRef(
+        storage_key=f"{project}/{uuid4()}/legacy-race",
+        sha256=hashlib.sha256(second).hexdigest(),
+        byte_length=len(second),
+        media_type="text/plain",
+    )
+    published, original_publish = {}, actual.objects.publish
+    original_verify = actual.objects.verify_existing
+
+    def publish(project_id, staged):
+        ref = original_publish(project_id, staged)
+        published[staged.sha256] = ref
+        if staged.sha256 == legacy.sha256:
+            s3.legacy(legacy.storage_key, second, legacy.media_type)
+            with repo.database.transaction() as tx:
+                query(
+                    tx,
+                    "INSERT INTO blobs VALUES(:p,:key,:sha,:n,:media)",
+                    p=project,
+                    key=legacy.storage_key,
+                    sha=legacy.sha256,
+                    n=legacy.byte_length,
+                    media=legacy.media_type,
+                )
+        return ref
+
+    def verify(project_id, ref, staged):
+        original_verify(project_id, ref, staged)
+        if ref == legacy:
+            withdraw_blob(actual, project, published[hashlib.sha256(first).hexdigest()])
+
+    monkeypatch.setattr(actual.objects, "publish", publish)
+    monkeypatch.setattr(actual.objects, "verify_existing", verify)
+    with pytest.raises(AccessDenied):
+        save_blobs(actual, project, [(first, "text/plain"), (second, "text/plain")])

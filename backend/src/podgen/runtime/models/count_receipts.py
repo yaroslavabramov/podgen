@@ -80,6 +80,7 @@ class ExactCount:
             or not 200 <= record.get("provider_http_status", 0) < 300
             or data.get("count_identity") != self.identity
             or type(data.get("input_tokens")) is not int
+            or not 0 <= data["input_tokens"] <= 2**63 - 1
             or data["input_tokens"] != self.input_tokens
         ):
             raise Conflict("count_receipt_binding_changed")

@@ -66,7 +66,7 @@ class ResearchHistory:
                 continue
             self._index(entry)
 
-    def appended(self, ref, kind, *, data=None):
+    def appended(self, ref, kind, *, data=None, record=None):
         entry = (
             from_record(ref, self.journal.read(ref))
             if data is None
@@ -108,6 +108,9 @@ class ResearchHistory:
 
     def context_segment(self, next_turn):
         return self.segments.get(next_turn)
+
+    def is_submitted(self, index):
+        return index in self.submitted
 
     def submitted_turns(self):
         return frozenset(self.submitted)

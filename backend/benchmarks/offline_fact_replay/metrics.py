@@ -17,14 +17,19 @@ class Metrics(Measurements):
         self.phase_name = "outside"
         self.turn = None
         self.turns = Counter()
+        self.driver_calls, self.executions = Counter(), Counter()
         event.listen(database.engine, "before_cursor_execute", self.sql)
 
     def sql(self, connection, cursor, statement, parameters, context, many):
         name = "/".join(self.stack) or "other"
-        self.operations[self.phase_name + ":" + name]["sql"] += 1
-        self.templates[(self.phase_name, " ".join(statement.split()))] += 1
+        executions = len(parameters) if many else 1
+        self.driver_calls[self.phase_name] += 1
+        self.executions[self.phase_name] += executions
+        self.operations[self.phase_name + ":" + name]["sql"] += executions
+        self.operations[self.phase_name + ":" + name]["sql_driver_calls"] += 1
+        self.templates[(self.phase_name, " ".join(statement.split()))] += executions
         if self.phase_name == "fact_review":
-            self.turns[str(self.turn)] += 1
+            self.turns[str(self.turn)] += executions
 
     @contextmanager
     def phase(self, name):
@@ -63,6 +68,8 @@ class Metrics(Measurements):
         return dict(
             super().snapshot(),
             sql_including_coordination=sum(self.templates.values()),
+            sql_executions=dict(self.executions),
+            sql_driver_calls=dict(self.driver_calls),
             turn_sql=dict(self.turns),
             operations=dict(self.operations),
             sql_templates=[

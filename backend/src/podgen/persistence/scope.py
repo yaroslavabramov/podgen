@@ -79,6 +79,7 @@ class ScopeAccess:
         from .access_facts import access_facts
 
         facts = access_facts(self.repo, tx)
+        facts.prefetch_runtime_links()
         for blob in facts.artifacts.bindings[row["revision_id"]]:
             facts.blobs.check(row["project_id"], blob)
         # A pinned grant does not confer perpetual catalog access, including nested inputs.
@@ -114,6 +115,7 @@ class ScopeAccess:
 
         facts = access_facts(self.repo, tx)
         row = facts.runtimes.row(project_id, ref)
+        facts.prefetch_runtime_links()
         if row is None or (
             row["audience"] == "evaluator"
             and (

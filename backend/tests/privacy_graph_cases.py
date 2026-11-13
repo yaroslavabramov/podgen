@@ -32,19 +32,30 @@ class Graph:
                 return hashes
 
     def expand(self, args):
-        artifacts, runtimes, hashes = set(args["artifacts"]), set(args["runtimes"]), set(args["hashes"])
-        found = set()
-        found.update(
-            ("artifact", c) for c, source in self.original | self.revalidation if source in artifacts
-        )
-        found.update(("runtime", r) for r, source in self.runtime_artifacts if source in artifacts)
-        found.update(("runtime", r) for r, source in self.runtime_inputs if source in runtimes)
-        found.update(("artifact", a) for a, source in self.artifact_runtimes if source in runtimes)
-        found.update(("blob", sha) for r, sha in self.runtime_blobs if r in runtimes)
-        found.update(("blob", sha) for a, sha in self.artifact_blobs | self.catalog_blobs if a in artifacts)
-        found.update(("runtime", r) for r, sha in self.runtime_blobs if sha in hashes)
-        found.update(("artifact", a) for a, sha in self.artifact_blobs | self.catalog_blobs if sha in hashes)
-        return [dict(node_kind=k, identity=str(i)) for k, i in found]
+        found = {}
+        for source_kind, input_key, target_kind, edges in (
+            ("artifact", "artifacts", "artifact", self.original | self.revalidation),
+            ("artifact", "artifacts", "runtime", self.runtime_artifacts),
+            ("runtime", "runtimes", "runtime", self.runtime_inputs),
+            ("runtime", "runtimes", "artifact", self.artifact_runtimes),
+            ("runtime", "runtimes", "blob", {(sha, r) for r, sha in self.runtime_blobs}),
+            (
+                "artifact",
+                "artifacts",
+                "blob",
+                {(sha, a) for a, sha in self.artifact_blobs | self.catalog_blobs},
+            ),
+            ("blob", "hashes", "runtime", self.runtime_blobs),
+            ("blob", "hashes", "artifact", self.artifact_blobs | self.catalog_blobs),
+        ):
+            frontier = set(args[input_key])
+            for target, source in edges:
+                if source in frontier:
+                    found.setdefault((target_kind, target), (source_kind, source))
+        return [
+            dict(node_kind=k, identity=str(i), source_kind=source_kind, source_identity=str(source))
+            for (k, i), (source_kind, source) in found.items()
+        ]
 
 
 class Rows:

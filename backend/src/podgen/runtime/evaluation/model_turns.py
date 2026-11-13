@@ -1,9 +1,6 @@
 """Durable physical turns; the semantic stage and operational attempt lineage do not change."""
 
-from uuid import uuid5
-
 from podgen.domain.contracts.common import BlobRef, RuntimeRef
-from podgen.domain.errors import Conflict
 from podgen.persistence.database import one, query
 
 
@@ -47,22 +44,37 @@ class EventHistory:
     def __init__(self, journal, root):
         self.journal = journal
         self.records = events(journal, root, kinds=self.KINDS)
+        self.submitted = {
+            record["data"]["source_turn_index"]
+            for record in self.records
+            if record["event_kind"] == "submit_intent" and "source_turn_index" in record["data"]
+        }
 
     def of_kind(self, kind):
         return [record for record in self.records if record["event_kind"] == kind]
 
+    def is_submitted(self, index):
+        return index in self.submitted
+
+    def submitted_turns(self):
+        return frozenset(self.submitted)
+
     def for_call(self, kind, index):
         return [row for row in self.of_kind(kind) if row["data"].get("call_index") == index]
 
-    def appended(self, ref, kind, *, data=None):
+    def appended(self, ref, kind, *, data=None, record=None):
+        if kind == "submit_intent" and data is not None and "source_turn_index" in data:
+            self.submitted.add(data["source_turn_index"])
         if kind in self.KINDS:
-            self.records.append(dict(self.journal.read(ref), _record_id=ref.record_id))
+            self.records.append(
+                dict(record if record is not None else self.journal.read(ref), _record_id=ref.record_id)
+            )
 
 
 class TurnJournal:
-    def __init__(self, journal, root, index, *, history=None):
+    def __init__(self, journal, root, index, *, history=None, ledger=None):
         self.journal, self.root, self.index = journal, root, index
-        self.history = history
+        self.history, self.ledger = history, ledger
 
     def __getattr__(self, name):
         return getattr(self.journal, name)
@@ -82,76 +94,82 @@ class TurnJournal:
         return row
 
     def prepare(self, body):
-        with self.journal.repo.database.transaction() as tx:
-            self.journal.authorize(tx)
-            previous = self._row(tx)
-        if previous is not None:
-            if self.journal.request(previous) != body:
-                raise Conflict("source_tool_turn_request_changed")
-            return previous
-        identity = uuid5(self.root["invocation_id"], f"source-turn:{self.index}")
-        import json
+        turn, phase, _ = self.stage_prepare(body)
+        if phase is not None:
+            phase.commit()
+        return turn
 
-        blob = self.journal.blob(
-            json.dumps(body, ensure_ascii=False, allow_nan=False, separators=(",", ":")).encode()
-        )
-        original = self.journal.read(
-            RuntimeRef(record_kind="tool_execution", record_id=self.root["request_record_id"])
-        )
-        ref = self.journal.record(
-            dict(
-                contract="model-request-v1",
-                invocation_id=str(identity),
-                run_id=str(self.root["run_id"]),
-                stage=self.root["stage"],
-                request_blob=blob.model_dump(mode="json"),
-                request_hash=blob.sha256,
-                context=dict(
-                    original["context"],
-                    source_tool_turn=dict(
-                        root_invocation_id=str(self.root["invocation_id"]), turn_index=self.index
-                    ),
-                ),
-            ),
-            record_id=uuid5(identity, "request"),
-        )
-        with self.journal.repo.database.transaction() as tx:
-            self.journal.authorize(tx)
-            query(
-                tx,
-                "INSERT INTO evaluation_model_turns(project_id,root_invocation_id,turn_index,invocation_id,status,request_record_id) VALUES(:p,:i,:n,:t,'prepared',:r)",
-                p=self.journal.project,
-                i=self.root["invocation_id"],
-                n=self.index,
-                t=identity,
-                r=ref.record_id,
-            )
-            return self._row(tx)
+    def stage_prepare(self, body, **options):
+        from .turn_preparation import stage_prepare
 
-    def transition(
-        self, invocation, status, *, provider_id=None, input_tokens=None, output_tokens=None, output_ref=None
+        return stage_prepare(self, body, **options)
+
+    def publication(self, invocation):
+        from .publication import Publication
+
+        return Publication(self, invocation)
+
+    def transition(self, invocation, status, **fields):
+        phase = self.publication(invocation)
+        phase.transition(status, **fields)
+        return phase.commit()
+
+    def write_transition(
+        self,
+        tx,
+        invocation,
+        status,
+        *,
+        provider_id=None,
+        input_tokens=None,
+        output_tokens=None,
+        output_ref=None,
     ):
-        with self.journal.repo.database.transaction() as tx:
-            self.journal.authorize(tx)
+        value = one(
+            tx,
+            """UPDATE evaluation_model_turns SET status=:s,
+                provider_response_id=COALESCE(:provider,provider_response_id),
+                input_tokens=COALESCE(:input,input_tokens),
+                output_tokens=COALESCE(:output,output_tokens)
+                WHERE project_id=:p AND root_invocation_id=:i AND turn_index=:n RETURNING *""",
+            s=status,
+            provider=provider_id,
+            input=input_tokens,
+            output=output_tokens,
+            p=self.journal.project,
+            i=self.root["invocation_id"],
+            n=self.index,
+        )
+        row = dict(self.root)
+        row.update(dict(value), stage=self.root["stage"], attempt_index=0, output_record_id=None)
+        if self.ledger is not None and (
+            self.ledger.history.is_submitted(self.index)
+            or status in ("submitting", "waiting", "response_completed", "outcome_unknown")
+        ):
+            usage = self.ledger.projected(row)
+            overflow = usage["input"] > 2**63 - 1 or usage["known_output"] > 2**63 - 1
             query(
                 tx,
-                """UPDATE evaluation_model_turns SET status=:s,provider_response_id=COALESCE(:provider,provider_response_id),input_tokens=COALESCE(:input,input_tokens),output_tokens=COALESCE(:output,output_tokens) WHERE project_id=:p AND root_invocation_id=:i AND turn_index=:n""",
-                s=status,
-                provider=provider_id,
-                input=input_tokens,
-                output=output_tokens,
+                """UPDATE evaluation_model_invocations
+                SET status=:s,input_tokens=:input,output_tokens=:output
+                WHERE project_id=:p AND invocation_id=:i""",
                 p=self.journal.project,
                 i=self.root["invocation_id"],
-                n=self.index,
+                s="validation_failed"
+                if overflow
+                else (
+                    status if status in ("failed", "validation_failed", "outcome_unknown") else "tool_running"
+                ),
+                input=None if overflow else usage["input"],
+                output=None if overflow or usage["unknown"] else usage["known_output"],
             )
-            return self._row(tx)
+        return row
 
-    def event(self, invocation, kind, *, reply=None, data=None):
+    def event_binding(self, invocation, data):
         value = dict(data or {})
         provider = value.pop("provider_response_id", None)
         if provider:
             value["turn_provider_response_id"] = provider
-            self.transition(invocation, invocation["status"], provider_id=provider)
         value.update(
             source_turn_index=self.index,
             source_turn_id=str(invocation["invocation_id"]),
@@ -159,9 +177,12 @@ class TurnJournal:
                 record_kind="tool_execution", record_id=invocation["request_record_id"]
             ).model_dump(mode="json"),
         )
-        ref = self.journal.event(self.root, kind, reply=reply, data=value)
-        if self.history is not None:
-            self.history.appended(ref, kind, data=value)
+        return self.root, value
+
+    def event(self, invocation, kind, *, reply=None, data=None):
+        phase = self.publication(invocation)
+        ref = phase.event(kind, reply=reply, data=data)
+        phase.commit()
         return ref
 
     def last_response(self, invocation):
@@ -183,8 +204,8 @@ class TurnJournal:
         return None
 
 
-def charged_rows(journal, root, *, history=None):
-    all_rows = rows(journal, root)
+def charged_rows(journal, root, *, history=None, all_rows=None):
+    all_rows = rows(journal, root) if all_rows is None else all_rows
     if history is not None and hasattr(history, "submitted_turns"):
         submitted = history.submitted_turns()
     else:

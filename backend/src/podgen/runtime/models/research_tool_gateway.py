@@ -5,6 +5,7 @@ from copy import deepcopy
 from itertools import count
 from uuid import uuid5
 
+from podgen.domain.contracts.common import RuntimeRef
 from podgen.domain.errors import ContractError
 from podgen.runtime.evaluation import model_turns
 from podgen.runtime.evaluation.contracts import RunFailure
@@ -42,19 +43,31 @@ def _invoke(gateway, root, profile, contract, *, limits, totals, guard):
     input_policy = turn_input_policy(journal, root)
     ancestors = lineage(journal, root)
     original = journal.request(root)
+    original_record = journal.read(
+        RuntimeRef(record_kind="tool_execution", record_id=root["request_record_id"])
+    )
+    manifest_snapshot = journal.manifest(root["run_id"])
     task = (
         original if ancestors[0]["invocation_id"] == root["invocation_id"] else journal.request(ancestors[0])
     )
     history = ResearchHistory(journal, root)
+    from podgen.runtime.evaluation.turn_ledger import TurnLedger
+
+    ledger = TurnLedger(journal, root, profile.output_limit, history)
     final = history.latest("source_tools_final_response")
     if final:
-        from podgen.domain.contracts.common import BlobRef, RuntimeRef
+        from podgen.domain.contracts.common import BlobRef
 
         ref = RuntimeRef(record_kind="tool_execution", record_id=final["_record_id"])
         response = json.loads(journal.read_blob(ref, BlobRef.model_validate(final["response_blob"])))
-        usage = _account(journal, root, profile, history)
-        model_turns.aggregate(journal, root, usage, "response_completed")
-        journal.transition(root, "response_completed", provider_id=response["id"])
+        usage = ledger.usage()
+        journal.transition(
+            root,
+            "response_completed",
+            provider_id=response["id"],
+            input_tokens=usage["input"],
+            output_tokens=None if usage["unknown"] else usage["known_output"],
+        )
         return gateway._output_text(root, response)
     proxy = ResearchTools(journal, root, corpus, history, guard, history_view=contract.get("history_view"))
     if corpus.material_resolver is not None:
@@ -94,9 +107,15 @@ def _invoke(gateway, root, profile, contract, *, limits, totals, guard):
             body["tool_choice"] = "auto"
             mark_turn(body)
             body, checkpoint_requested = context.request(body, index, segment_start)
-        turn_journal = model_turns.TurnJournal(journal, root, index, history=history)
-        turn = turn_journal.prepare(body)
-        previous = [row for row in model_turns.rows(journal, root) if row["turn_index"] < index]
+        turn_journal = model_turns.TurnJournal(journal, root, index, history=history, ledger=ledger)
+        turn, prepared_phase, request_snapshot = turn_journal.stage_prepare(
+            body,
+            original_record=original_record,
+            admission_refs=getattr(guard, "admission_refs", lambda: [])(),
+            pending_events=context.pending_events,
+        )
+        context.pending_events = []
+        prior = ledger.before(index)
         physical = type(gateway)(
             turn_journal,
             gateway.provider_factory,
@@ -110,24 +129,22 @@ def _invoke(gateway, root, profile, contract, *, limits, totals, guard):
                 profile,
                 limits=limits,
                 totals=dict(
-                    input=totals["input"] + sum(row["input_tokens"] or 0 for row in previous),
-                    output=totals["output"]
-                    + sum(
-                        row["output_tokens"] if row["output_tokens"] is not None else profile.output_limit
-                        for row in previous
-                    ),
+                    input=totals["input"] + prior["input"], output=totals["output"] + prior["output"]
                 ),
                 guard=guard,
                 full_response=True,
                 count_receipt=context.receipt(body),
+                prepared_phase=prepared_phase,
+                request_snapshot=request_snapshot,
+                manifest_snapshot=manifest_snapshot,
                 input_limits=input_policy.get(index, input_policy[None]),
             )
         except RunFailure as error:
-            _account(journal, root, profile, history)
+            _account(journal, root, profile, history, ledger=ledger)
             current = model_turns.rows(journal, root)[-1]
             journal.transition(root, current["status"])
             raise RunFailure(error.code, run_id=root["run_id"], invocation_id=root["invocation_id"]) from None
-        usage = _account(journal, root, profile, history)
+        usage = _account(journal, root, profile, history, ledger=ledger)
         calls = _calls(response)
         if not calls:
             if checkpoint_requested:
@@ -162,16 +179,21 @@ def _invoke(gateway, root, profile, contract, *, limits, totals, guard):
             final["usage"] = dict(
                 input_tokens=usage["input"], output_tokens=None if usage["unknown"] else usage["known_output"]
             )
-            journal.event(
-                root,
+            phase = journal.publication(root)
+            phase.event(
                 "source_tools_final_response",
                 reply=WireReply(json.dumps(final, ensure_ascii=False, allow_nan=False).encode()),
                 data=dict(
                     provider_response_id=final["id"], turn_index=index, turn_id=str(turn["invocation_id"])
                 ),
             )
-            model_turns.aggregate(journal, root, usage, "response_completed")
-            journal.transition(root, "response_completed", provider_id=final["id"])
+            phase.transition(
+                "response_completed",
+                provider_id=final["id"],
+                input_tokens=usage["input"],
+                output_tokens=None if usage["unknown"] else usage["known_output"],
+            )
+            phase.commit()
             return text
         checkpoints = [call for call in calls if call["name"] == "save_working_state"]
         if checkpoints and len(calls) != 1 or checkpoint_requested and not checkpoints:

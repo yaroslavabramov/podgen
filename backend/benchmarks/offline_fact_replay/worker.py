@@ -10,6 +10,7 @@ from metrics import Metrics
 from traffic import Traffic
 
 from podgen.domain.canonical import digest
+from podgen.persistence import classification, runtime_publication
 from podgen.persistence.database import Database, query
 from podgen.persistence.repository import Repository
 from podgen.persistence.text_source import VerifiedText
@@ -19,6 +20,7 @@ from podgen.runtime.evaluation.fact_source_experiment.service import run
 from podgen.runtime.evaluation.journal import EvaluationJournal
 from podgen.runtime.evaluation.model_turns import TurnJournal
 from podgen.runtime.evaluation.operation_guard import OperationGuard
+from podgen.runtime.evaluation.publication import Publication
 from podgen.runtime.models.research_context import ResearchContext
 from podgen.runtime.models.research_tools import ResearchTools
 from podgen.writing.source_tools import SourceCorpus
@@ -76,6 +78,9 @@ for cls, method in [
     (EvaluationJournal, "manifest"),
     (EvaluationJournal, "record"),
     (TurnJournal, "prepare"),
+    (TurnJournal, "stage_prepare"),
+    (EvaluationJournal, "blob_many"),
+    (OperationGuard, "authorize_publication"),
     (TurnJournal, "transition"),
     (Repository, "save_blob"),
     (OperationGuard, "__call__"),
@@ -83,6 +88,25 @@ for cls, method in [
     (ResearchContext, "receipt"),
 ]:
     metrics.wrap(cls, method)
+metrics.wrap(
+    Publication,
+    "commit",
+    lambda phase, **kw: "publication:" + ("+".join(event["event_kind"] for event in phase.events) or "state"),
+)
+
+
+def instrument_function(module, name, tag):
+    original = getattr(module, name)
+
+    def wrapped(*args, **kwargs):
+        with metrics.operation(tag):
+            return original(*args, **kwargs)
+
+    setattr(module, name, wrapped)
+
+
+instrument_function(runtime_publication, "_validate_inputs", "input_union")
+instrument_function(classification, "classify_evaluator_batch", "classification_union")
 metrics.wrap(Models, "embed", lambda self, texts, **kw: "embedding:" + kw.get("prefix", "passage: ").strip())
 metrics.wrap(EvaluationJournal, "event", lambda self, invocation, kind, **kw: "event:" + kind)
 metrics.wrap(SourceCorpus, "execute", lambda self, name, *args, **kw: "tool:" + name)

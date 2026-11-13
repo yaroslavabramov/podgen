@@ -35,6 +35,9 @@ class Rows:
     def mappings(self):
         return self
 
+    def __iter__(self):
+        return iter(self.rows)
+
     def first(self):
         return self.rows[0] if self.rows else None
 
@@ -77,6 +80,36 @@ class BlobDatabase:
             return Rows([{"exists": 1}] if self.classified else [])
         if sql.startswith("SELECT 1 FROM blob_access_revocations"):
             return Rows([{"exists": 1}] if self.revoked else [])
+        if sql.startswith("SELECT sha AS sha256"):
+            return Rows(
+                [
+                    dict(sha256=sha, evaluator_only=self.classified, access_revoked=self.revoked)
+                    for sha in params["hashes"]
+                ]
+            )
+        if sql.startswith("SELECT * FROM blobs") and "hashes" in params:
+            return Rows(
+                [
+                    row
+                    for (project, _), row in self.rows.items()
+                    if project == params["p"]
+                    and row["sha256"] in params["hashes"]
+                    and row["media_type"] in params["media"]
+                ]
+            )
+        if sql.startswith("INSERT INTO blobs") and "project_id_0" in params:
+            for index in range(sum(key.startswith("project_id_") for key in params)):
+                row = {
+                    key: params[f"{key}_{index}"]
+                    for key in ("project_id", "storage_key", "sha256", "byte_length", "media_type")
+                }
+                duplicate = any(
+                    (p, r["sha256"], r["media_type"]) == (row["project_id"], row["sha256"], row["media_type"])
+                    for (p, _), r in self.rows.items()
+                )
+                if not duplicate:
+                    self.rows[row["project_id"], row["storage_key"]] = row
+            return Rows([])
         if sql.startswith("SELECT * FROM blobs"):
             return Rows(
                 [

@@ -6,6 +6,7 @@ from uuid import uuid5
 
 from jsonschema import Draft202012Validator, ValidationError
 
+from podgen.domain.contracts.common import RuntimeRef
 from podgen.domain.errors import Conflict, ContractError
 from podgen.runtime.evaluation import model_turns
 from podgen.runtime.evaluation.contracts import RunFailure
@@ -14,9 +15,24 @@ from podgen.runtime.evaluation.validation import load_unique_json
 from .contracts import WireReply
 
 
-def _account(journal, root, profile, history):
-    value = model_turns.usage(journal, root, profile.output_limit, history=history)
-    model_turns.aggregate(journal, root, value, "tool_running")
+def _account(journal, root, profile, history, *, ledger=None):
+    value = (
+        ledger.usage()
+        if ledger is not None
+        else model_turns.usage(journal, root, profile.output_limit, history=history)
+    )
+    if value["input"] > 2**63 - 1 or value["known_output"] > 2**63 - 1:
+        phase = journal.publication(root)
+        phase.event("failure", data=dict(code="run_token_usage_overflow", status="validation_failed"))
+        phase.transition("validation_failed")
+        phase.commit()
+        raise RunFailure(
+            "run_token_usage_overflow", run_id=root["run_id"], invocation_id=root["invocation_id"]
+        )
+    if ledger is None or ledger.needs_reconciliation:
+        model_turns.aggregate(journal, root, value, "tool_running")
+        if ledger is not None:
+            ledger.needs_reconciliation = False
     return value
 
 
@@ -77,8 +93,9 @@ def _execute(journal, root, corpus, contract, call, index, turn, guard, history)
     )
     intents = history.for_call("source_tool_call", index)
     if not intents:
-        ref = journal.event(root, "source_tool_call", data=data)
-        history.appended(ref, "source_tool_call", data=data)
+        phase = journal.publication(root)
+        phase.event("source_tool_call", data=data, history=history)
+        phase.commit(guard=guard)
     elif intents[0]["data"] != data:
         raise Conflict("source_tool_call_changed")
     definition = next((tool for tool in contract["definitions"] if tool["name"] == call["name"]), None)
@@ -90,7 +107,8 @@ def _execute(journal, root, corpus, contract, call, index, turn, guard, history)
         except ValidationError:
             result = dict(error="invalid_source_tool_arguments")
         else:
-            guard()
+            if intents:
+                guard()
             from podgen.retrieval import RetrievalUnavailable
 
             try:
@@ -136,11 +154,12 @@ def _execute(journal, root, corpus, contract, call, index, turn, guard, history)
     ):
         raise ContractError("material_tool_read_binding_mismatch")
     diagnostics = getattr(corpus, "last_search_diagnostics", None)
+    phase = journal.publication(root)
     if call["name"] == "search_sources" and diagnostics is not None:
-        journal.event(root, "source_search_diagnostics", data=dict(call_index=index, **diagnostics))
+        phase.event("source_search_diagnostics", data=dict(call_index=index, **diagnostics))
     json.dumps(result, ensure_ascii=False, allow_nan=False)
-    ref = journal.event(root, "source_tool_result", data=dict(data, result=result))
-    history.appended(ref, "source_tool_result", data=dict(data, result=result))
+    phase.event("source_tool_result", data=dict(data, result=result), history=history)
+    phase.commit()
     return result
 
 
@@ -159,6 +178,10 @@ def invoke_tools(gateway, root, profile, contract, *, limits, totals, guard):
     start_turn, prefix_receipts = continuation(journal, root)
     input_policy = turn_input_policy(journal, root)
     original = journal.request(root)
+    original_record = journal.read(
+        RuntimeRef(record_kind="tool_execution", record_id=root["request_record_id"])
+    )
+    manifest_snapshot = journal.manifest(root["run_id"])
     allowed_choices = {"auto"}
     if (
         start_turn == contract["max_model_turns"] - 1
@@ -169,6 +192,9 @@ def invoke_tools(gateway, root, profile, contract, *, limits, totals, guard):
         raise Conflict("source_tool_request_contract_changed")
     conversation = deepcopy(original["input"])
     history = model_turns.EventHistory(journal, root)
+    from podgen.runtime.evaluation.turn_ledger import TurnLedger
+
+    ledger = TurnLedger(journal, root, profile.output_limit, history)
     call_ids = {record["data"]["call_id"] for record in prefix_receipts}
     call_index = len(prefix_receipts)
     for index in range(start_turn, contract["max_model_turns"]):
@@ -186,15 +212,14 @@ def invoke_tools(gateway, root, profile, contract, *, limits, totals, guard):
         from podgen.runtime.evaluation.research_cache_layout import mark_turn
 
         mark_turn(body)
-        turn_journal = model_turns.TurnJournal(journal, root, index, history=history)
-        turn = turn_journal.prepare(body)
-        # Current turn is not included twice when resuming an already submitted step.
-        previous = [row for row in model_turns.rows(journal, root) if row["turn_index"] < index]
-        prior_input = sum(row["input_tokens"] or 0 for row in previous)
-        prior_output = sum(
-            row["output_tokens"] if row["output_tokens"] is not None else profile.output_limit
-            for row in previous
+        turn_journal = model_turns.TurnJournal(journal, root, index, history=history, ledger=ledger)
+        turn, prepared_phase, request_snapshot = turn_journal.stage_prepare(
+            body,
+            original_record=original_record,
+            admission_refs=getattr(guard, "admission_refs", lambda: [])(),
         )
+        # Current turn is not included twice when resuming an already submitted step.
+        prior = ledger.before(index)
         physical = type(gateway)(
             turn_journal,
             gateway.provider_factory,
@@ -207,17 +232,22 @@ def invoke_tools(gateway, root, profile, contract, *, limits, totals, guard):
                 turn,
                 profile,
                 limits=limits,
-                totals=dict(input=totals["input"] + prior_input, output=totals["output"] + prior_output),
+                totals=dict(
+                    input=totals["input"] + prior["input"], output=totals["output"] + prior["output"]
+                ),
                 guard=guard,
                 full_response=True,
+                prepared_phase=prepared_phase,
+                request_snapshot=request_snapshot,
+                manifest_snapshot=manifest_snapshot,
                 input_limits=input_policy.get(index, input_policy[None]),
             )
         except RunFailure as error:
-            _account(journal, root, profile, history)
+            _account(journal, root, profile, history, ledger=ledger)
             current = model_turns.rows(journal, root)[-1]
             journal.transition(root, current["status"])
             raise RunFailure(error.code, run_id=root["run_id"], invocation_id=root["invocation_id"]) from None
-        usage = _account(journal, root, profile, history)
+        usage = _account(journal, root, profile, history, ledger=ledger)
         calls = _calls(response)
         if final_turn and calls:
             gateway._fail(root, "tool_call_after_tools_closed", status="validation_failed")
@@ -229,17 +259,22 @@ def invoke_tools(gateway, root, profile, contract, *, limits, totals, guard):
                 input_tokens=usage["input"], output_tokens=None if usage["unknown"] else usage["known_output"]
             )
             existing = history.of_kind("source_tools_final_response")
+            phase = journal.publication(root)
             if not existing:
-                journal.event(
-                    root,
+                phase.event(
                     "source_tools_final_response",
                     reply=WireReply(json.dumps(final, ensure_ascii=False, allow_nan=False).encode()),
                     data=dict(
                         provider_response_id=final["id"], turn_index=index, turn_id=str(turn["invocation_id"])
                     ),
                 )
-            model_turns.aggregate(journal, root, usage, "response_completed")
-            journal.transition(root, "response_completed", provider_id=final["id"])
+            phase.transition(
+                "response_completed",
+                provider_id=final["id"],
+                input_tokens=usage["input"],
+                output_tokens=None if usage["unknown"] else usage["known_output"],
+            )
+            phase.commit()
             return text
         if call_index + len(calls) > contract["max_tool_calls"]:
             gateway._fail(root, "source_tool_call_limit_exceeded", status="validation_failed")

@@ -58,6 +58,11 @@ class EvaluationJournal:
     def blob(self, data, media="application/json"):
         return self.repo.save_blob(self.project, io.BytesIO(data), media)
 
+    def blob_many(self, values):
+        from podgen.persistence.blob_batch import save_blobs
+
+        return save_blobs(self.repo, self.project, values)
+
     def record(self, payload, *, record_id=None, kind="tool_execution"):
         ref = RuntimeRef(record_kind=kind, record_id=record_id or uuid4())
 
@@ -241,54 +246,18 @@ class EvaluationJournal:
             record = self.read(ref)
             return json.loads(self.read_blob(ref, BlobRef.model_validate(record["request_blob"])))
 
+    def publication(self, invocation):
+        from .publication import Publication
+
+        return Publication(self, invocation)
+
+    def event_binding(self, invocation, data):
+        return invocation, dict(data or {})
+
     def event(self, invocation, kind, *, reply=None, data=None):
-        payload = dict(
-            contract="model-invocation-event-v1",
-            invocation_id=str(invocation["invocation_id"]),
-            event_kind=kind,
-            request_ref=RuntimeRef(
-                record_kind="tool_execution", record_id=invocation["request_record_id"]
-            ).model_dump(mode="json"),
-            data=data or {},
-        )
-        if reply:
-            blob = self.blob(reply.body)
-            payload.update(
-                response_blob=blob.model_dump(mode="json"),
-                provider_http_status=reply.status_code,
-                provider_request_id=reply.request_id,
-                secret_redacted=reply.redacted,
-            )
-            if getattr(reply, "wire_response", None) is not None:
-                payload["wire_response_blob"] = self.blob(reply.wire_response).model_dump(mode="json")
-            if getattr(reply, "request_body", None) is not None:
-                wire = self.blob(reply.request_body)
-                payload["wire_request_blob"] = wire.model_dump(mode="json")
-        ref = RuntimeRef(record_kind="tool_execution", record_id=uuid4())
-
-        def write(tx):
-            self.authorize(tx)
-            append_runtime(self.repo, tx, self.project, ref, payload, "evaluator")
-            query(
-                tx,
-                "INSERT INTO evaluation_invocation_events(project_id,invocation_id,event_id,record_id,event_kind,source_turn_index) VALUES(:p,:i,:e,:r,:k,:turn)",
-                p=self.project,
-                i=invocation["invocation_id"],
-                e=uuid4(),
-                r=ref.record_id,
-                k=kind,
-                turn=(data or {}).get("source_turn_index"),
-            )
-            if data and data.get("provider_response_id"):
-                query(
-                    tx,
-                    "UPDATE evaluation_model_invocations SET provider_response_id=:id WHERE project_id=:p AND invocation_id=:i",
-                    p=self.project,
-                    i=invocation["invocation_id"],
-                    id=data["provider_response_id"],
-                )
-
-        archive_write(self.repo, self.project, write)
+        phase = self.publication(invocation)
+        ref = phase.event(kind, reply=reply, data=data)
+        phase.commit()
         return ref
 
     def last_response(self, invocation):
@@ -299,16 +268,31 @@ class EvaluationJournal:
                 return self.read_blob(ref, BlobRef.model_validate(record["response_blob"]))
         return None
 
-    def transition(
-        self, invocation, status, *, provider_id=None, input_tokens=None, output_tokens=None, output_ref=None
+    def transition(self, invocation, status, **fields):
+        phase = self.publication(invocation)
+        phase.transition(status, **fields)
+        return phase.commit()
+
+    def write_transition(
+        self,
+        tx,
+        invocation,
+        status,
+        *,
+        provider_id=None,
+        input_tokens=None,
+        output_tokens=None,
+        output_ref=None,
     ):
-        with self.repo.database.transaction() as tx:
-            self.authorize(tx)
-            query(
+        return dict(
+            one(
                 tx,
-                """UPDATE evaluation_model_invocations SET status=:s,provider_response_id=COALESCE(:provider,provider_response_id),
-                         input_tokens=COALESCE(:input,input_tokens),output_tokens=COALESCE(:output,output_tokens),output_record_id=COALESCE(:ref,output_record_id)
-                         WHERE project_id=:p AND invocation_id=:i""",
+                """UPDATE evaluation_model_invocations SET status=:s,
+                     provider_response_id=COALESCE(:provider,provider_response_id),
+                     input_tokens=COALESCE(:input,input_tokens),
+                     output_tokens=COALESCE(:output,output_tokens),
+                     output_record_id=COALESCE(:ref,output_record_id)
+                 WHERE project_id=:p AND invocation_id=:i RETURNING *""",
                 p=self.project,
                 i=invocation["invocation_id"],
                 s=status,
@@ -317,7 +301,7 @@ class EvaluationJournal:
                 output=output_tokens,
                 ref=output_ref.record_id if output_ref else None,
             )
-            return self.invocation_after(tx, invocation)
+        )
 
     def invocation_after(self, tx, invocation):
         return dict(

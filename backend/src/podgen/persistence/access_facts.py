@@ -33,6 +33,26 @@ class AccessFacts:
             cache_writes=state is not None and state.transaction is tx and state.owner is not None,
         )
 
+    def prefetch_runtime_links(self):
+        """Load artifact→runtime frontiers as a union, before scalar authorization.
+
+        This fetches metadata only. Every owner, kind, audience, grant, withdrawal
+        and active-path check still runs at the existing authorization boundary.
+        New runtime frontiers can discover more artifacts; each artifact's links
+        enter the queue once in this snapshot.
+        """
+        from collections import defaultdict
+
+        from podgen.domain.contracts.common import RuntimeRef
+
+        while self.artifacts.runtime_frontiers:
+            groups = defaultdict(set)
+            while self.artifacts.runtime_frontiers:
+                owner, links = self.artifacts.runtime_frontiers.popleft()
+                groups[owner].update(RuntimeRef(**link) for link in links)
+            for owner, references in groups.items():
+                self.runtimes.prefetch(owner, references)
+
     def role(self, project):
         if project not in self.roles:
             rows = list(

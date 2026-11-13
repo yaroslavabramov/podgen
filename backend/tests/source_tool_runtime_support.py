@@ -7,11 +7,13 @@ from uuid import UUID, uuid4, uuid5
 
 from podgen.domain.contracts.common import BlobRef, RuntimeRef
 from podgen.runtime.evaluation import model_turns
+from podgen.runtime.evaluation.publication import Publication
 
 
 class MemoryJournal:
     def __init__(self, manifest, body):
         self.snapshot = manifest
+        self.project = uuid4()
         self.records, self.blobs, self.receipts, self.turns = {}, {}, [], []
         self.read_count = 0
         self.root = dict(
@@ -38,7 +40,16 @@ class MemoryJournal:
     def read_operation(self):
         return nullcontext()
 
-    def blob(self, data):
+    def publication(self, invocation):
+        return MemoryPublication(self, invocation)
+
+    def event_binding(self, invocation, data):
+        return invocation, dict(data or {})
+
+    def blob_many(self, values):
+        return [self.blob(data, media) for data, media in values]
+
+    def blob(self, data, media="application/json"):
         import hashlib
 
         digest = hashlib.sha256(data).hexdigest()
@@ -141,8 +152,70 @@ class MemoryJournal:
         return row.copy()
 
 
+class MemoryPublication(Publication):
+    """The same phase contract over the protocol tests' in-memory journal."""
+
+    def commit(self, *, guard=None):
+        if guard is not None:
+            guard()
+        journal = self.journal
+        for ref, payload, _replay in self.records:
+            journal.records[ref.record_id] = deepcopy(payload)
+        for event in self.events:
+            journal.receipts.append(
+                dict(
+                    record_id=event["record_id"],
+                    event_kind=event["event_kind"],
+                    invocation_id=event["invocation_id"],
+                    source_turn_index=event["source_turn_index"],
+                )
+            )
+        result = self.invocation
+        if self.state is not None:
+            result = self.owner.transition(self.invocation, self.state[0], **self.state[1])
+        self.finished = True
+        for callback in self.committed:
+            callback()
+        ledger = getattr(self.owner, "ledger", None)
+        if ledger is not None:
+            ledger.committed(result)
+            if ledger.history.is_submitted(result["turn_index"]):
+                usage = ledger.usage()
+                journal.roots[self.owner.root["invocation_id"]].update(
+                    status=result["status"]
+                    if result["status"] in ("failed", "validation_failed", "outcome_unknown")
+                    else "tool_running",
+                    input_tokens=usage["input"],
+                    output_tokens=None if usage["unknown"] else usage["known_output"],
+                )
+        return result
+
+
 def install_memory_turns(monkeypatch):
     class MemoryTurnJournal(model_turns.TurnJournal):
+        def publication(self, invocation):
+            return MemoryPublication(self, invocation)
+
+        def stage_prepare(self, body, *, pending_events=(), admission_refs=(), original_record=None):
+            turn = self.prepare(body)
+            phase = self.publication(turn)
+            for kind, data in pending_events:
+                pending = self.journal.publication(self.root)
+                pending.event(kind, data=data, history=self.history)
+                phase.records.extend(pending.records)
+                phase.events.extend(pending.events)
+                phase.committed.extend(pending.committed)
+            return (
+                turn,
+                phase,
+                (
+                    body,
+                    self.journal.read(
+                        RuntimeRef(record_kind="tool_execution", record_id=turn["request_record_id"])
+                    ),
+                ),
+            )
+
         def prepare(self, body):
             journal = self.journal
             row = next(

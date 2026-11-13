@@ -19,11 +19,20 @@ class ResearchContext:
         self.original, self.history, self.guard = original, history, guard
         self.journal = gateway.journal
         self.history_view = history_view
+        self.pending_events = []
 
     def event(self, kind, data, *, reply=None):
-        ref = self.journal.event(self.root, kind, data=data, reply=reply)
-        self.history.appended(ref, kind, data=data)
+        phase = self.publication()
+        ref = phase.event(kind, data=data, reply=reply, history=self.history)
+        phase.commit()
         return ref
+
+    def publication(self):
+        phase = self.journal.publication(self.root)
+        for kind, data in self.pending_events:
+            phase.event(kind, data=data, history=self.history)
+        self.pending_events = []
+        return phase
 
     def measured(self, body, index, label):
         key = digest(body)
@@ -31,8 +40,8 @@ class ResearchContext:
         saved = self.receipt(body)
         if saved is not None:
             return saved.input_tokens
-        self.guard()
-        native_blob = self.journal.blob(
+        phase = self.publication()
+        native_blob = phase.blob(
             json.dumps(
                 native_count(body, self.profile.provider),
                 ensure_ascii=False,
@@ -40,17 +49,19 @@ class ResearchContext:
                 separators=(",", ":"),
             ).encode()
         )
-        intent = self.event(
-            "source_context_count_intent",
-            dict(
-                count_identity=count_identity,
-                count_contract=CONTRACT,
-                native_request_blob=native_blob.model_dump(mode="json"),
-                provider_configuration=provider_configuration(self.profile),
-                turn_index=index,
-                label=label,
-            ),
+        intent_data = dict(
+            count_identity=count_identity,
+            count_contract=CONTRACT,
+            native_request_blob=native_blob.model_dump(mode="json"),
+            provider_configuration=provider_configuration(self.profile),
+            turn_index=index,
+            label=label,
         )
+        admission_refs = getattr(self.guard, "admission_refs", lambda: [])()
+        if admission_refs:
+            intent_data["runtime_admission_refs"] = [ref.model_dump(mode="json") for ref in admission_refs]
+        intent = phase.event("source_context_count_intent", data=intent_data, history=self.history)
+        phase.commit(guard=self.guard)
         try:
             reply = self.gateway.provider_factory(self.profile).count(count_request(body))
         except ProviderFault as error:
@@ -62,9 +73,18 @@ class ResearchContext:
             ) from None
         try:
             count = json.loads(reply.body)["input_tokens"]
-            if type(count) is not int or count < 0:
+            if type(count) is not int or not 0 <= count <= 2**63 - 1:
                 raise ValueError()
         except (ValueError, KeyError, TypeError):
+            self.event(
+                "source_context_count_error",
+                dict(
+                    request_hash=key,
+                    code="invalid_context_input_count",
+                    count_intent_ref=intent.model_dump(mode="json"),
+                ),
+                reply=reply,
+            )
             raise ContractError("invalid_context_input_count") from None
         self.event(
             "source_context_count",
@@ -93,6 +113,7 @@ class ResearchContext:
             return receipt(self.journal, self.history.counted(digest(body)), body, self.profile)
 
     def request(self, body, index, segment_start):
+        self.pending_events = []
         saved = self.history.context_plan(index)
         if saved:
             if saved.data["conversation_hash"] != digest(body):
@@ -105,9 +126,11 @@ class ResearchContext:
             # page before the hard model window. This is a soft checkpoint trigger,
             # not a separate admission ceiling on a normal task.
             checkpoint = index > segment_start and count + self.profile.output_limit + 4 * 9600 >= capacity
-            self.event(
-                "source_context_plan",
-                dict(turn_index=index, conversation_hash=digest(body), checkpoint=checkpoint),
+            self.pending_events.append(
+                (
+                    "source_context_plan",
+                    dict(turn_index=index, conversation_hash=digest(body), checkpoint=checkpoint),
+                )
             )
         result = deepcopy(body)
         if checkpoint:
@@ -132,10 +155,16 @@ class ResearchContext:
             self.measured(result, index, "checkpoint" if checkpoint else "normal") + self.profile.output_limit
             > self.profile.context_limit
         ):
-            self.event(
+            phase = self.journal.publication(self.root)
+            for kind, data in self.pending_events:
+                phase.event(kind, data=data, history=self.history)
+            phase.event(
                 "source_context_unfinished",
-                dict(turn_index=index, reason="checkpoint_does_not_fit_model_window"),
+                data=dict(turn_index=index, reason="checkpoint_does_not_fit_model_window"),
+                history=self.history,
             )
+            phase.commit()
+            self.pending_events = []
             raise RunFailure(
                 "research_context_checkpoint_unavailable",
                 run_id=self.root["run_id"],

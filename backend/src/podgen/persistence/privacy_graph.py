@@ -11,57 +11,54 @@ BATCH_SIZE = 512
 # Existing artifact/canonical edges remain authoritative. Runtime reference tables
 # are maintained by the DB on INSERT, including historical application writers.
 EXPAND = text("""
-SELECT 'artifact' AS node_kind, consumer_id::text AS identity
+SELECT DISTINCT ON (node_kind, identity) * FROM (
+SELECT 'artifact' AS node_kind, consumer_id::text AS identity, 'artifact' AS source_kind, input_id::text AS source_identity
 FROM revision_links WHERE project_id=:project AND input_id=ANY(CAST(:artifacts AS uuid[]))
 UNION
-SELECT 'artifact', subject_id::text FROM revalidation_privacy_links
+SELECT 'artifact', subject_id::text, 'artifact', input_id::text FROM revalidation_privacy_links
 WHERE project_id=:project AND input_id=ANY(CAST(:artifacts AS uuid[]))
 UNION
-SELECT 'runtime', record_id::text FROM runtime_artifact_refs
+SELECT 'runtime', record_id::text, 'artifact', revision_id::text FROM runtime_artifact_refs
 WHERE project_id=:project AND revision_id=ANY(CAST(:artifacts AS uuid[]))
 UNION
-SELECT 'runtime', record_id::text FROM runtime_runtime_refs
+SELECT 'runtime', record_id::text, 'runtime', target_record_id::text FROM runtime_runtime_refs
 WHERE project_id=:project AND target_record_id=ANY(CAST(:runtimes AS uuid[]))
 UNION
-SELECT 'artifact', revision_id::text FROM runtime_links
+SELECT 'artifact', revision_id::text, 'runtime', record_id::text FROM runtime_links
 WHERE project_id=:project AND record_id=ANY(CAST(:runtimes AS uuid[]))
 UNION
-SELECT 'blob', sha256 FROM runtime_blob_refs
+SELECT 'blob', sha256, 'runtime', record_id::text FROM runtime_blob_refs
 WHERE project_id=:project AND record_id=ANY(CAST(:runtimes AS uuid[]))
 UNION
-SELECT 'blob', b.sha256 FROM artifact_blobs AS a JOIN blobs AS b USING(project_id,storage_key)
+SELECT 'blob', b.sha256, 'artifact', a.revision_id::text FROM artifact_blobs AS a JOIN blobs AS b USING(project_id,storage_key)
 WHERE a.project_id=:project AND a.revision_id=ANY(CAST(:artifacts AS uuid[]))
 UNION
-SELECT 'blob', asset.value->'blob_ref'->>'sha256'
+SELECT 'blob', asset.value->'blob_ref'->>'sha256', 'artifact', p.revision_id::text
 FROM catalog_publications AS p CROSS JOIN LATERAL jsonb_array_elements(p.config->'published_assets') AS asset
 WHERE p.project_id=:project AND p.revision_id=ANY(CAST(:artifacts AS uuid[]))
 UNION
-SELECT 'runtime', record_id::text FROM runtime_blob_refs
+SELECT 'runtime', record_id::text, 'blob', sha256 FROM runtime_blob_refs
 WHERE project_id=:project AND sha256=ANY(CAST(:hashes AS text[]))
 UNION
-SELECT 'artifact', a.revision_id::text FROM blobs AS b JOIN artifact_blobs AS a USING(project_id,storage_key)
+SELECT 'artifact', a.revision_id::text, 'blob', b.sha256 FROM blobs AS b JOIN artifact_blobs AS a USING(project_id,storage_key)
 WHERE b.project_id=:project AND b.sha256=ANY(CAST(:hashes AS text[]))
 UNION
-SELECT 'artifact', p.revision_id::text
+SELECT 'artifact', p.revision_id::text, 'blob', marked.sha256
 FROM unnest(CAST(:hashes AS text[])) AS marked(sha256) JOIN catalog_publications AS p
   ON p.project_id=:project AND p.config->'published_assets' @>
      jsonb_build_array(jsonb_build_object('blob_ref',jsonb_build_object('sha256',marked.sha256)))
+) AS frontier ORDER BY node_kind, identity, source_kind, source_identity
 """)
 
 
-def protected_hashes(tx, project_id, *, artifact_ids=(), runtime_ids=()):
-    """Preserve the complete forward+alias closure, including already classified hashes.
-
-    Each reached identity is expanded once. Frontier queries and server cursor
-    buffers are bounded; only reached IDs/hashes survive for this one operation.
-    No permission decision or payload is cached between transactions.
-    """
-    reached = {
-        "artifact": {UUID(str(value)) for value in artifact_ids},
-        "runtime": {UUID(str(value)) for value in runtime_ids},
-        "blob": set(),
+def _protected_origins(tx, project_id, *, artifact_ids=(), runtime_ids=()):
+    """Expand each reached node once and retain one genuinely reaching root."""
+    origins = {
+        (kind, UUID(str(value))): UUID(str(value))
+        for kind, values in (("artifact", artifact_ids), ("runtime", runtime_ids))
+        for value in values
     }
-    pending = deque((kind, value) for kind, values in reached.items() for value in values)
+    pending = deque(origins)
     while pending:
         batch = list(islice(pending, BATCH_SIZE))
         for _ in batch:
@@ -74,12 +71,22 @@ def protected_hashes(tx, project_id, *, artifact_ids=(), runtime_ids=()):
         )
         with tx.execute(EXPAND, args, execution_options={"yield_per": BATCH_SIZE}) as result:
             for row in result.mappings():
-                kind = row["node_kind"]
+                kind, source = row["node_kind"], row["source_kind"]
                 value = row["identity"] if kind == "blob" else UUID(row["identity"])
-                if value not in reached[kind]:
-                    reached[kind].add(value)
-                    pending.append((kind, value))
-    return reached["blob"]
+                previous = row["source_identity"] if source == "blob" else UUID(row["source_identity"])
+                key = (kind, value)
+                if key not in origins:
+                    origins[key] = origins[source, previous]
+                    pending.append(key)
+    return {value: origin for (kind, value), origin in origins.items() if kind == "blob"}
+
+
+def protected_hashes(tx, project_id, *, artifact_ids=(), runtime_ids=()):
+    return set(_protected_origins(tx, project_id, artifact_ids=artifact_ids, runtime_ids=runtime_ids))
+
+
+def protected_hash_origins(tx, project_id, runtime_ids):
+    return _protected_origins(tx, project_id, runtime_ids=runtime_ids)
 
 
 def hash_batches(hashes):

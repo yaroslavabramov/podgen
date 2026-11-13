@@ -31,6 +31,37 @@ class OperationGuard:
             )
         )
 
+    def admission_refs(self):
+        references = []
+        for admission in getattr(self.materials, "runtime_admissions", ()):
+            ref = admission.catalog.get("admission_ref")
+            if ref is None:
+                raise Conflict("runtime_admission_reference_missing")
+            references.append(RuntimeRef.model_validate(ref))
+        return references
+
+    @property
+    def supports_publication_snapshot(self):
+        return isinstance(self.materials, ResearchMaterials)
+
+    def authorize_publication(self, tx):
+        """Same publication snapshot, separate generation/evaluator principals."""
+        if not isinstance(self.materials, ResearchMaterials):
+            raise RuntimeError("publication_guard_requires_frozen_materials")
+        self.checkpoint()
+        if self._identity() != self.frozen_identity:
+            raise Conflict("frozen_materials_changed")
+        from podgen.persistence.read_authorization import authorized_read
+
+        references = [self.materials.shared_ref]
+        if self.materials.fixed_ref is not None:
+            references.append(self.materials.fixed_ref)
+        with authorized_read(self.generation, tx):
+            self.generation.authorize_runtime_many(self.command.project_id, references)
+        with authorized_read(self.journal.repo, tx):
+            self.journal.repo.authorize_runtime_many(self.command.project_id, self.admission_refs())
+        self.checkpoint()
+
     def __call__(self):
         self.checkpoint()
         if not isinstance(self.materials, ResearchMaterials):

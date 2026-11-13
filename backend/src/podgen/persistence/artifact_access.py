@@ -17,6 +17,7 @@ class ArtifactFacts:
         self.runtime_links, self.integrity_blobs = {}, {}
         self.missing, self.blocked, self.expanded = set(), set(), set()
         self._pending_denials = deque()
+        self.runtime_frontiers = deque()
         self.children, self.parents, self.local_children = {}, defaultdict(set), {}
 
     def row(self, reference):
@@ -76,6 +77,7 @@ class ArtifactFacts:
                 dict(record_id=UUID(link["record_id"]), record_kind=link["record_kind"])
                 for link in graph["runtimes"]
             ]
+            self.runtime_frontiers.append((row["project_id"], self.runtime_links[identity]))
             children = {ArtifactRef.model_validate(value).revision_id for value in row["input_refs"]}
             children.update(edge["input_id"] for edge in self.edges[identity])
             children.update(links)

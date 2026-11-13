@@ -69,6 +69,7 @@ def _validate_inputs(repo, tx, project, payload, audience):
             facts = access_facts(reader, tx)
             facts.artifacts.expand([ref.revision_id for ref in references if isinstance(ref, ArtifactRef)])
             facts.runtimes.prefetch(project, [ref for ref in references if isinstance(ref, RuntimeRef)])
+            facts.prefetch_runtime_links()
             facts.blobs.load(
                 project,
                 [ref.storage_key for ref in references if not isinstance(ref, (ArtifactRef, RuntimeRef))],

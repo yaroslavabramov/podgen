@@ -4,7 +4,6 @@ import json
 import re
 import time
 
-from podgen.runtime.evaluation.compiler import count_request
 from podgen.runtime.evaluation.contracts import RunFailure
 
 from .contracts import ProviderFault
@@ -26,19 +25,22 @@ class ModelGateway:
         self.source_corpus = source_corpus
         self.total_input_ceiling = total_input_ceiling
 
-    def _fail(self, invocation, code, *, status="failed"):
-        self.journal.event(invocation, "failure", data=dict(code=code, status=status))
-        self.journal.transition(invocation, status)
+    def _fail(self, invocation, code, *, status="failed", phase=None):
+        phase = phase or self.journal.publication(invocation)
+        phase.event("failure", data=dict(code=code, status=status))
+        phase.transition(status)
+        phase.commit()
         raise RunFailure(code, run_id=invocation["run_id"], invocation_id=invocation["invocation_id"])
 
-    def _fault(self, invocation, fault, operation):
-        self.journal.event(
-            invocation,
+    def _fault(self, invocation, fault, operation, *, phase=None):
+        phase = phase or self.journal.publication(invocation)
+        phase.event(
             "provider_error",
             reply=fault.reply,
             data=dict(code=fault.code, ambiguous=fault.ambiguous, operation=operation),
         )
-        self.journal.transition(invocation, "outcome_unknown" if fault.ambiguous else "failed")
+        phase.transition("outcome_unknown" if fault.ambiguous else "failed")
+        phase.commit()
         raise RunFailure(
             fault.code, run_id=invocation["run_id"], invocation_id=invocation["invocation_id"]
         ) from None
@@ -70,142 +72,10 @@ class ModelGateway:
                 self._fail(invocation, error.code, status="validation_failed")
         return self.invoke_once(invocation, profile, limits=limits, totals=totals, guard=guard)
 
-    def invoke_once(
-        self,
-        invocation,
-        profile,
-        *,
-        limits,
-        totals,
-        guard,
-        full_response=False,
-        input_limits=None,
-        count_receipt=None,
-    ):
-        j = self.journal
-        if invocation["status"] == "completed":
-            return json.dumps(j.output(invocation)["output"], ensure_ascii=False)
-        if invocation["status"] in ("failed", "validation_failed", "outcome_unknown"):
-            raise RunFailure(
-                "invocation_requires_new_attempt_or_reconciliation",
-                run_id=invocation["run_id"],
-                invocation_id=invocation["invocation_id"],
-            )
-        from podgen.domain.contracts.common import RuntimeRef
-        from podgen.domain.errors import ContractError
-        from podgen.runtime.evaluation.wire_budget import check_tokens, check_visible, visible_sizes
+    def invoke_once(self, invocation, profile, *, prepared_phase=None, **options):
+        from .model_step import ModelStep
 
-        with j.read_operation():
-            body = j.request(invocation)
-            record = j.read(
-                RuntimeRef(record_kind="tool_execution", record_id=invocation["request_record_id"])
-            )
-            manifest = j.manifest(invocation["run_id"])
-            reused_count = count_receipt.validate(j, body, profile) if count_receipt is not None else None
-        contract = record["context"].get("role_input_contract")
-        from .provider_contracts import validate as validate_provider_contract
-
-        validate_provider_contract(
-            manifest, body["metadata"].get("podgen_stage", invocation.get("stage")), profile
-        )
-        expected_contract = manifest.get("input_contract")
-        if expected_contract == "editorial-role-packets/1" and contract != expected_contract:
-            self._fail(invocation, "role_input_contract_changed", status="validation_failed")
-        if expected_contract == "editorial-role-packets/1" and "role_projection_version" in manifest:
-            if record["context"].get("role_projection_version") != manifest["role_projection_version"]:
-                self._fail(invocation, "role_projection_version_mismatch", status="validation_failed")
-        from podgen.runtime.evaluation.input_budget_recovery import effective_limits
-
-        local_limits = (
-            input_limits if input_limits is not None else effective_limits(j, invocation, manifest=manifest)
-        )
-        from podgen.runtime.evaluation.wire_budget import resolved_limits
-
-        local_limits = resolved_limits(local_limits, profile)
-        if contract == "editorial-role-packets/1" and invocation["status"] == "prepared":
-            j.event(
-                invocation,
-                "role_input_measurement",
-                data=dict(
-                    visible_bytes=visible_sizes(body),
-                    limits=dict(**local_limits),
-                ),
-            )
-        try:
-            check_visible(body, contract, max_visible_bytes=local_limits["visible_bytes"])
-        except ContractError as error:
-            self._fail(invocation, error.code, status="validation_failed")
-        provider = self.provider_factory(profile) if invocation["status"] in ("prepared", "counted") else None
-        if invocation["status"] == "prepared":
-            if reused_count is not None:
-                count = reused_count
-                j.event(
-                    invocation,
-                    "count_receipt_reused",
-                    data=dict(
-                        count_ref=count_receipt.reference.model_dump(mode="json"),
-                        count_identity=count_receipt.identity,
-                        input_tokens=count,
-                    ),
-                )
-            else:
-                guard()
-                count_body = count_request(body)
-                count_blob = j.blob(
-                    json.dumps(
-                        count_body, ensure_ascii=False, allow_nan=False, separators=(",", ":")
-                    ).encode()
-                )
-                j.event(invocation, "count_intent", data={"request_blob": count_blob.model_dump(mode="json")})
-                try:
-                    reply = provider.count(count_body)
-                except ProviderFault as fault:
-                    self._fault(invocation, fault, "count")
-                j.event(invocation, "count_response", reply=reply)
-                try:
-                    count = json.loads(reply.body)["input_tokens"]
-                    if type(count) is not int or count < 0:
-                        raise ValueError()
-                except (ValueError, KeyError, TypeError):
-                    self._fail(invocation, "invalid_input_token_count")
-            invocation = j.transition(invocation, "counted", input_tokens=count)
-        if invocation["status"] == "counted":
-            try:
-                check_visible(body, contract, max_visible_bytes=local_limits["visible_bytes"])
-                check_tokens(
-                    invocation["input_tokens"], contract, max_input_tokens=local_limits["input_tokens"]
-                )
-            except ContractError as error:
-                self._fail(invocation, error.code, status="validation_failed")
-            if invocation["input_tokens"] + profile.output_limit > profile.context_limit:
-                self._fail(invocation, "context_capacity_exceeded", status="validation_failed")
-            if (
-                totals["input"] + invocation["input_tokens"]
-                > (
-                    self.total_input_ceiling
-                    if self.total_input_ceiling is not None
-                    else limits.max_total_input_tokens
-                )
-                or totals["output"] + profile.output_limit > limits.max_total_output_tokens
-            ):
-                self._fail(invocation, "run_token_budget_exceeded", status="validation_failed")
-            guard()
-            j.event(
-                invocation, "submit_intent", data=dict(client_request_id=str(invocation["invocation_id"]))
-            )
-            invocation = j.transition(invocation, "submitting")
-            try:
-                reply = provider.submit(body, client_request_id=str(invocation["invocation_id"]))
-            except ProviderFault as fault:
-                self._fault(invocation, fault, "submit")
-            raw = self._archive_reply(
-                invocation, reply, body, expected_id=invocation.get("provider_response_id")
-            )
-        else:
-            raw = j.last_response(invocation)
-            if raw is None:
-                self._fail(invocation, "submission_acknowledgement_unknown", status="outcome_unknown")
-        return self._receive(invocation, profile, body, provider, raw, guard, full_response=full_response)
+        return ModelStep(self, invocation, prepared_phase).invoke(profile, **options)
 
     def _receive(
         self, invocation, profile, body, provider, raw, guard, *, full_response=False, reconciled=False
@@ -235,15 +105,16 @@ class ModelGateway:
                     self._fail(invocation, "provider_invalid_usage")
                 for name in ("input_tokens", "output_tokens"):
                     value = usage.get(name)
-                    if value is not None and (type(value) is not int or value < 0):
+                    if value is not None and (type(value) is not int or not 0 <= value <= 2**63 - 1):
                         self._fail(invocation, "provider_invalid_usage")
-                j.transition(
-                    invocation,
-                    "response_completed",
-                    provider_id=response_id,
-                    input_tokens=usage.get("input_tokens"),
-                    output_tokens=usage.get("output_tokens"),
-                )
+                if invocation["status"] != "response_completed":
+                    j.transition(
+                        invocation,
+                        "response_completed",
+                        provider_id=response_id,
+                        input_tokens=usage.get("input_tokens"),
+                        output_tokens=usage.get("output_tokens"),
+                    )
                 return response if full_response else text
             if not isinstance(status, str):
                 self._fail(invocation, "provider_malformed_status")
@@ -291,9 +162,21 @@ class ModelGateway:
                 provider_id = candidate
         except ValueError:
             pass
-        self.journal.event(
-            invocation, "provider_response", reply=reply, data={"provider_response_id": provider_id}
-        )
+        phase = self.journal.publication(invocation)
+        phase.event("provider_response", reply=reply, data={"provider_response_id": provider_id})
+        if provider_id and value.get("status") == "completed":
+            usage = value.get("usage") or {}
+            if isinstance(usage, dict) and all(
+                usage.get(name) is None or type(usage[name]) is int and 0 <= usage[name] <= 2**63 - 1
+                for name in ("input_tokens", "output_tokens")
+            ):
+                phase.transition(
+                    "response_completed",
+                    provider_id=provider_id,
+                    input_tokens=usage.get("input_tokens"),
+                    output_tokens=usage.get("output_tokens"),
+                )
+        invocation.update(phase.commit())
         return reply.body
 
     def _binding_error(self, response, request, expected_id):
