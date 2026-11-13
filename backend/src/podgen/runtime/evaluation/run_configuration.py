@@ -22,6 +22,10 @@ def production_command(command, *, frozen_manifest=None):
             else "bounded-selection-v1"
         )
     if "limits" not in command.model_fields_set:
-        updates["limits"] = RunLimits(**PRODUCTION_RUN_LIMITS)
+        updates["limits"] = (
+            RunLimits.model_validate(frozen_manifest["command"].get("limits", {}))
+            if frozen_manifest is not None
+            else RunLimits(**PRODUCTION_RUN_LIMITS)
+        )
     resolved = command.model_copy(update=updates)
     return type(command).model_validate(resolved.model_dump(mode="python"))

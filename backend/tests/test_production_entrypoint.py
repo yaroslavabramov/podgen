@@ -6,6 +6,7 @@ from types import SimpleNamespace
 from uuid import uuid4
 
 import pytest
+
 from podgen.domain.contracts.common import ArtifactRef, RuntimeRef
 from podgen.runtime.evaluation.contracts import RunFailure, RunLimits, WritingRunCommand, command_payload
 from podgen.runtime.evaluation.input_budget_recovery import effective_limits
@@ -369,7 +370,6 @@ def test_production_reader_adds_audit_and_preserves_the_verified_archive_format(
 
     from podgen.runtime.evaluation.preview import preview_request
     from podgen.runtime.evaluation.role_schema import response_schema
-
     from tests.schema_cases import without_descriptions
     from tests.test_v5_role_wire import fixture
 
@@ -402,3 +402,31 @@ def test_production_reader_adds_audit_and_preserves_the_verified_archive_format(
         "reader-review", "editorial-role-packets/1", reader_schema_version="listener-experience/13"
     )
     assert without_descriptions(compact) == without_descriptions(saved["text"]["format"]["schema"])
+
+
+def test_new_input_ceiling_has_headroom_and_preserves_explicit_and_frozen_limits():
+    from podgen.runtime.evaluation.run_configuration import production_command
+
+    ref = ArtifactRef(kind="ModelProfile", artifact_id=uuid4(), revision_id=uuid4())
+    base = dict(
+        run_id=uuid4(),
+        project_id=uuid4(),
+        actor_id=uuid4(),
+        case_id="research",
+        author_ref=RuntimeRef(record_kind="user_input", record_id=uuid4()),
+        writer_profile_ref=ref,
+        reviewer_profile_ref=ref,
+    )
+    fresh = WritingRunCommand(**base)
+    resolved = production_command(fresh)
+    assert resolved.limits.max_total_input_tokens == 4194304
+    assert resolved.limits.max_total_output_tokens == 393216
+    assert resolved.max_script_revisions == fresh.max_script_revisions
+    explicit = WritingRunCommand(**base, limits=RunLimits(max_total_input_tokens=2097152))
+    assert production_command(explicit).limits == explicit.limits
+    old = dict(
+        behavior_profile="production/1",
+        command={"limits": RunLimits(max_total_input_tokens=1048576).model_dump(mode="json")},
+    )
+    assert production_command(fresh, frozen_manifest=old).limits.max_total_input_tokens == 1048576
+    assert old["command"]["limits"]["max_total_input_tokens"] == 1048576

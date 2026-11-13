@@ -7,9 +7,10 @@ from podgen.writing.projections import CONTRACT, SINGLE_INPUT_TOKEN_LIMIT, VISIB
 
 LEGACY_INPUT_BUDGET = dict(visible_bytes=VISIBLE_BYTES_LIMIT, input_tokens=SINGLE_INPUT_TOKEN_LIMIT)
 PRODUCTION_INPUT_BUDGET = dict(visible_bytes=256 * 1024, input_tokens=65536)
-# Thirteen ordinary calls (one plan repair and two script edits) fit even at their per-call caps.
+# Headroom for the already allowed reading/tool turns. Cached and repeated input
+# still counts against the technical run ceiling; this does not increase stage/turn limits.
 PRODUCTION_RUN_LIMITS = dict(
-    max_total_input_tokens=1048576, max_total_output_tokens=393216, max_elapsed_seconds=14400
+    max_total_input_tokens=4194304, max_total_output_tokens=393216, max_elapsed_seconds=14400
 )
 
 
