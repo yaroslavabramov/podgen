@@ -1,0 +1,1606 @@
+{
+  "phases": {
+    "startup": {
+      "seconds": 1.310082624986535,
+      "sql_calls": 638,
+      "sql_select": 494,
+      "sql_set": 17,
+      "sql_with": 66,
+      "sql_insert": 60,
+      "sql_update": 1,
+      "objects": {
+        "read_calls": 1,
+        "read_bytes": 75282,
+        "unicode_projection_read_calls": 52,
+        "unicode_projection_returned_bytes": 1941232
+      }
+    },
+    "fact_review": {
+      "seconds": 203.87347391599906,
+      "sql_calls": 8592,
+      "sql_select": 6729,
+      "sql_set": 356,
+      "sql_with": 497,
+      "sql_insert": 836,
+      "sql_update": 174,
+      "objects": {
+        "read_calls": 132,
+        "read_bytes": 51836543,
+        "stream_calls": 260,
+        "unicode_projection_read_calls": 2608,
+        "unicode_projection_returned_bytes": 11138344,
+        "stage_calls": 260,
+        "staged_bytes": 35136648,
+        "publish_calls": 131,
+        "published_bytes": 18632404
+      }
+    },
+    "export": {
+      "seconds": 1.833441374998074,
+      "sql_calls": 478,
+      "sql_select": 384,
+      "sql_set": 27,
+      "sql_with": 67,
+      "objects": {
+        "read_calls": 220,
+        "read_bytes": 27922065,
+        "unicode_projection_read_calls": 52,
+        "unicode_projection_returned_bytes": 3728120
+      }
+    },
+    "whole_review": {
+      "seconds": 207.01865100002033,
+      "sql_calls": 9712,
+      "sql_select": 7609,
+      "sql_set": 400,
+      "sql_with": 630,
+      "sql_insert": 896,
+      "sql_update": 177,
+      "objects": {
+        "read_calls": 353,
+        "read_bytes": 79833890,
+        "stream_calls": 260,
+        "unicode_projection_read_calls": 2712,
+        "unicode_projection_returned_bytes": 16807696,
+        "stage_calls": 260,
+        "staged_bytes": 35136648,
+        "publish_calls": 131,
+        "published_bytes": 18632404
+      }
+    }
+  },
+  "search_calls": 13,
+  "search_seconds": 167.41154041796108,
+  "process_peak_rss_bytes": 1405026304,
+  "limitations": [
+    "Object counters cover the repository store, not cached Unicode projection reads.",
+    "Staging/publication are logical store operations, not physical disk writes; RSS is the process-wide high-water mark.",
+    "Provider costs and token/cache usage remain in complete native trace receipts; USD is not inferred from an unpinned price."
+  ],
+  "sql_including_coordination": 9715,
+  "sql_executions": {
+    "outside": 3,
+    "startup": 638,
+    "whole_review": 4,
+    "fact_review": 8592,
+    "export": 478
+  },
+  "sql_driver_calls": {
+    "outside": 3,
+    "startup": 638,
+    "whole_review": 4,
+    "fact_review": 8592,
+    "export": 478
+  },
+  "turn_sql": {
+    "None": 215,
+    "0": 166,
+    "1": 166,
+    "2": 166,
+    "3": 166,
+    "4": 166,
+    "5": 166,
+    "6": 166,
+    "7": 166,
+    "8": 166,
+    "9": 166,
+    "10": 166,
+    "11": 183,
+    "12": 183,
+    "13": 183,
+    "14": 183,
+    "15": 216,
+    "16": 183,
+    "17": 216,
+    "18": 183,
+    "19": 183,
+    "20": 183,
+    "21": 216,
+    "22": 183,
+    "23": 183,
+    "24": 216,
+    "25": 216,
+    "26": 216,
+    "27": 183,
+    "28": 216,
+    "29": 183,
+    "30": 216,
+    "31": 183,
+    "32": 183,
+    "33": 216,
+    "34": 183,
+    "35": 216,
+    "36": 183,
+    "37": 216,
+    "38": 216,
+    "39": 183,
+    "40": 216,
+    "41": 183,
+    "42": 449
+  },
+  "operations": {
+    "outside:other": {
+      "sql": 3,
+      "sql_driver_calls": 3
+    },
+    "startup:EvaluationJournal.manifest": {
+      "sql": 2,
+      "sql_driver_calls": 2,
+      "calls": 1,
+      "seconds": 0.12101545897894539
+    },
+    "startup:EvaluationJournal.manifest/EvaluationJournal.read": {
+      "sql": 10,
+      "sql_driver_calls": 10,
+      "snapshot_sets": 1,
+      "artifact_frontier_selects": 5,
+      "calls": 1,
+      "seconds": 0.11599745802232064
+    },
+    "startup:other": {
+      "sql": 565,
+      "sql_driver_calls": 565,
+      "snapshot_sets": 9,
+      "artifact_frontier_selects": 182
+    },
+    "startup:EvaluationJournal.read": {
+      "sql": 40,
+      "sql_driver_calls": 40,
+      "snapshot_sets": 4,
+      "artifact_frontier_selects": 20,
+      "calls": 4,
+      "seconds": 0.17202862503472716
+    },
+    "startup:EvaluationJournal.read_blob": {
+      "calls": 1,
+      "seconds": 0.0008614580146968365
+    },
+    "startup:OperationGuard.__call__": {
+      "sql": 9,
+      "sql_driver_calls": 9,
+      "snapshot_sets": 2,
+      "artifact_frontier_selects": 4,
+      "calls": 1,
+      "seconds": 0.05546554201282561
+    },
+    "startup:EvaluationJournal.record": {
+      "sql": 12,
+      "sql_driver_calls": 12,
+      "snapshot_sets": 1,
+      "artifact_frontier_selects": 4,
+      "calls": 1,
+      "seconds": 0.04112579100183211
+    },
+    "whole_review:other": {
+      "sql": 4,
+      "sql_driver_calls": 4
+    },
+    "fact_review:other": {
+      "sql": 95,
+      "sql_driver_calls": 95,
+      "snapshot_sets": 7,
+      "artifact_frontier_selects": 15
+    },
+    "fact_review:EvaluationJournal.manifest": {
+      "sql": 12,
+      "sql_driver_calls": 12,
+      "calls": 6,
+      "seconds": 0.6497082089772448
+    },
+    "fact_review:EvaluationJournal.manifest/EvaluationJournal.read": {
+      "sql": 58,
+      "sql_driver_calls": 58,
+      "snapshot_sets": 6,
+      "artifact_frontier_selects": 30,
+      "calls": 6,
+      "seconds": 0.6459295829408802
+    },
+    "fact_review:EvaluationJournal.prepare": {
+      "sql": 26,
+      "sql_driver_calls": 26,
+      "snapshot_sets": 1,
+      "artifact_frontier_selects": 6,
+      "calls": 1,
+      "seconds": 0.06714149998151697
+    },
+    "fact_review:EvaluationJournal.prepare/Repository.save_blob": {
+      "sql": 8,
+      "sql_driver_calls": 8,
+      "calls": 1,
+      "seconds": 0.004513332998612896
+    },
+    "fact_review:EvaluationJournal.read": {
+      "sql": 753,
+      "sql_driver_calls": 753,
+      "snapshot_sets": 50,
+      "artifact_frontier_selects": 250,
+      "calls": 178,
+      "seconds": 3.090630341117503
+    },
+    "fact_review:EvaluationJournal.read_blob": {
+      "calls": 132,
+      "seconds": 0.039663508970988914
+    },
+    "fact_review:OperationGuard.__call__": {
+      "sql": 9,
+      "sql_driver_calls": 9,
+      "snapshot_sets": 2,
+      "artifact_frontier_selects": 4,
+      "calls": 1,
+      "seconds": 0.17402850001235493
+    },
+    "fact_review:ResearchContext.measured/ResearchContext.receipt": {
+      "calls": 86,
+      "seconds": 0.5235682068450842
+    },
+    "fact_review:ResearchContext.measured/Repository.save_blob": {
+      "sql": 301,
+      "sql_driver_calls": 301,
+      "calls": 43,
+      "seconds": 0.19631395195028745
+    },
+    "fact_review:ResearchContext.measured/publication:source_context_count_intent": {
+      "sql": 258,
+      "sql_driver_calls": 258,
+      "snapshot_sets": 43,
+      "calls": 43,
+      "seconds": 5.384207961906213
+    },
+    "fact_review:ResearchContext.measured/publication:source_context_count_intent/input_union": {
+      "sql": 301,
+      "sql_driver_calls": 301,
+      "artifact_frontier_selects": 215,
+      "calls": 43,
+      "seconds": 1.7249874580593314
+    },
+    "fact_review:ResearchContext.measured/publication:source_context_count_intent/classification_union": {
+      "sql": 215,
+      "sql_driver_calls": 215,
+      "calls": 43,
+      "seconds": 0.21691787510644644
+    },
+    "fact_review:ResearchContext.measured/publication:source_context_count_intent/OperationGuard.authorize_publication": {
+      "sql": 301,
+      "sql_driver_calls": 301,
+      "artifact_frontier_selects": 172,
+      "calls": 43,
+      "seconds": 3.2874746219895314
+    },
+    "fact_review:ResearchContext.measured/EvaluationJournal.blob_many": {
+      "sql": 301,
+      "sql_driver_calls": 301,
+      "calls": 43,
+      "seconds": 0.26209508112515323
+    },
+    "fact_review:ResearchContext.measured/publication:source_context_count": {
+      "sql": 258,
+      "sql_driver_calls": 258,
+      "snapshot_sets": 43,
+      "calls": 43,
+      "seconds": 2.4092915451328736
+    },
+    "fact_review:ResearchContext.measured/publication:source_context_count/input_union": {
+      "sql": 344,
+      "sql_driver_calls": 344,
+      "artifact_frontier_selects": 215,
+      "calls": 43,
+      "seconds": 2.0452836269978434
+    },
+    "fact_review:ResearchContext.measured/publication:source_context_count/classification_union": {
+      "sql": 215,
+      "sql_driver_calls": 215,
+      "calls": 43,
+      "seconds": 0.22682704593171366
+    },
+    "fact_review:ResearchContext.measured": {
+      "calls": 86,
+      "seconds": 11.44170566892717
+    },
+    "fact_review:TurnJournal.stage_prepare": {
+      "sql": 86,
+      "sql_driver_calls": 86,
+      "calls": 43,
+      "seconds": 0.2593593299970962
+    },
+    "fact_review:TurnJournal.stage_prepare/Repository.save_blob": {
+      "sql": 344,
+      "sql_driver_calls": 344,
+      "calls": 43,
+      "seconds": 0.1809282079047989
+    },
+    "fact_review:ResearchContext.receipt": {
+      "calls": 43,
+      "seconds": 0.1812700789887458
+    },
+    "fact_review:publication:source_context_plan+role_input_measurement+count_receipt_reused+submit_intent": {
+      "sql": 387,
+      "sql_driver_calls": 387,
+      "snapshot_sets": 43,
+      "calls": 43,
+      "seconds": 5.220160457974998
+    },
+    "fact_review:publication:source_context_plan+role_input_measurement+count_receipt_reused+submit_intent/input_union": {
+      "sql": 344,
+      "sql_driver_calls": 344,
+      "artifact_frontier_selects": 258,
+      "calls": 43,
+      "seconds": 1.7935506669455208
+    },
+    "fact_review:publication:source_context_plan+role_input_measurement+count_receipt_reused+submit_intent/classification_union": {
+      "sql": 129,
+      "sql_driver_calls": 129,
+      "calls": 43,
+      "seconds": 0.13002400085679255
+    },
+    "fact_review:publication:source_context_plan+role_input_measurement+count_receipt_reused+submit_intent/OperationGuard.authorize_publication": {
+      "sql": 301,
+      "sql_driver_calls": 301,
+      "artifact_frontier_selects": 172,
+      "calls": 43,
+      "seconds": 2.759530914045172
+    },
+    "fact_review:EvaluationJournal.blob_many": {
+      "sql": 352,
+      "sql_driver_calls": 352,
+      "calls": 44,
+      "seconds": 0.30482708202907816
+    },
+    "fact_review:publication:provider_response": {
+      "sql": 344,
+      "sql_driver_calls": 344,
+      "snapshot_sets": 43,
+      "calls": 43,
+      "seconds": 2.386837750003906
+    },
+    "fact_review:publication:provider_response/input_union": {
+      "sql": 344,
+      "sql_driver_calls": 344,
+      "artifact_frontier_selects": 215,
+      "calls": 43,
+      "seconds": 2.1184899970539846
+    },
+    "fact_review:publication:provider_response/classification_union": {
+      "sql": 129,
+      "sql_driver_calls": 129,
+      "calls": 43,
+      "seconds": 0.12262033601291478
+    },
+    "fact_review:publication:source_tool_call": {
+      "sql": 252,
+      "sql_driver_calls": 252,
+      "snapshot_sets": 42,
+      "calls": 42,
+      "seconds": 4.60672883715597
+    },
+    "fact_review:publication:source_tool_call/input_union": {
+      "sql": 252,
+      "sql_driver_calls": 252,
+      "artifact_frontier_selects": 210,
+      "calls": 42,
+      "seconds": 1.8057099130819552
+    },
+    "fact_review:publication:source_tool_call/classification_union": {
+      "sql": 42,
+      "sql_driver_calls": 42,
+      "calls": 42,
+      "seconds": 0.06406125013018027
+    },
+    "fact_review:publication:source_tool_call/OperationGuard.authorize_publication": {
+      "sql": 294,
+      "sql_driver_calls": 294,
+      "artifact_frontier_selects": 168,
+      "calls": 42,
+      "seconds": 2.5999758800317068
+    },
+    "fact_review:publication:source_tool_result": {
+      "sql": 174,
+      "sql_driver_calls": 174,
+      "snapshot_sets": 29,
+      "calls": 29,
+      "seconds": 1.4650705880194437
+    },
+    "fact_review:publication:source_tool_result/input_union": {
+      "sql": 174,
+      "sql_driver_calls": 174,
+      "artifact_frontier_selects": 145,
+      "calls": 29,
+      "seconds": 1.2797556679870468
+    },
+    "fact_review:publication:source_tool_result/classification_union": {
+      "sql": 29,
+      "sql_driver_calls": 29,
+      "calls": 29,
+      "seconds": 0.07565612604958005
+    },
+    "fact_review:tool:read_source": {
+      "sql": 306,
+      "sql_driver_calls": 306,
+      "snapshot_sets": 18,
+      "artifact_frontier_selects": 144,
+      "calls": 18,
+      "seconds": 1.5724572900217026
+    },
+    "fact_review:tool:search_sources": {
+      "sql": 650,
+      "sql_driver_calls": 650,
+      "snapshot_sets": 13,
+      "artifact_frontier_selects": 260,
+      "calls": 13,
+      "seconds": 168.13340954197338
+    },
+    "fact_review:tool:search_sources/embedding:query:": {
+      "calls": 13,
+      "seconds": 0.12539608395309187
+    },
+    "fact_review:publication:source_search_diagnostics+source_tool_result": {
+      "sql": 78,
+      "sql_driver_calls": 78,
+      "snapshot_sets": 13,
+      "calls": 13,
+      "seconds": 1.1296359170228243
+    },
+    "fact_review:publication:source_search_diagnostics+source_tool_result/input_union": {
+      "sql": 78,
+      "sql_driver_calls": 78,
+      "artifact_frontier_selects": 65,
+      "calls": 13,
+      "seconds": 0.6813950850628316
+    },
+    "fact_review:publication:source_search_diagnostics+source_tool_result/classification_union": {
+      "sql": 13,
+      "sql_driver_calls": 13,
+      "calls": 13,
+      "seconds": 0.030438915942795575
+    },
+    "fact_review:publication:source_tools_final_response": {
+      "sql": 7,
+      "sql_driver_calls": 7,
+      "snapshot_sets": 1,
+      "calls": 1,
+      "seconds": 0.04337429100996815
+    },
+    "fact_review:publication:source_tools_final_response/input_union": {
+      "sql": 7,
+      "sql_driver_calls": 7,
+      "artifact_frontier_selects": 5,
+      "calls": 1,
+      "seconds": 0.03885170799912885
+    },
+    "fact_review:publication:source_tools_final_response/classification_union": {
+      "sql": 3,
+      "sql_driver_calls": 3,
+      "calls": 1,
+      "seconds": 0.0022450000105891377
+    },
+    "fact_review:EvaluationJournal.record": {
+      "sql": 14,
+      "sql_driver_calls": 14,
+      "snapshot_sets": 1,
+      "artifact_frontier_selects": 6,
+      "calls": 1,
+      "seconds": 0.14815058300155215
+    },
+    "fact_review:EvaluationJournal.transition/publication:state": {
+      "sql": 4,
+      "sql_driver_calls": 4,
+      "snapshot_sets": 1,
+      "calls": 1,
+      "seconds": 0.0008511670166626573
+    },
+    "fact_review:EvaluationJournal.transition": {
+      "calls": 1,
+      "seconds": 0.0008645410125609487
+    },
+    "export:other": {
+      "sql": 234,
+      "sql_driver_calls": 234,
+      "snapshot_sets": 16,
+      "artifact_frontier_selects": 60
+    },
+    "export:EvaluationJournal.manifest": {
+      "sql": 10,
+      "sql_driver_calls": 10,
+      "calls": 5,
+      "seconds": 0.21944329101825133
+    },
+    "export:EvaluationJournal.manifest/EvaluationJournal.read": {
+      "sql": 50,
+      "sql_driver_calls": 50,
+      "snapshot_sets": 5,
+      "artifact_frontier_selects": 25,
+      "calls": 5,
+      "seconds": 0.21627708297455683
+    },
+    "export:EvaluationJournal.read_blob": {
+      "sql": 18,
+      "sql_driver_calls": 18,
+      "snapshot_sets": 2,
+      "artifact_frontier_selects": 10,
+      "calls": 219,
+      "seconds": 0.1721968749188818
+    },
+    "export:EvaluationJournal.read": {
+      "sql": 166,
+      "sql_driver_calls": 166,
+      "snapshot_sets": 4,
+      "artifact_frontier_selects": 20,
+      "calls": 46,
+      "seconds": 0.32948591190506704
+    }
+  },
+  "sql_templates": [
+    {
+      "phase": "fact_review",
+      "sql": "SELECT r.project_id,r.revision_id,r.artifact_id,r.kind,r.input_refs,r.audience, CASE WHEN r.kind='VoiceProfile' THEN r.payload->>'voice_kind' END AS catalog_voice_kind, jsonb_build_object( 'edges',COALESCE((SELECT jsonb_agg(to_jsonb(e)) FROM artifact_dependencies e WHERE e.project_id=r.project_id AND e.consumer_id=r.revision_id),'[]'::jsonb), 'events',COALESCE((SELECT jsonb_agg(d.payload::jsonb ORDER BY (d.payload->>'expected_validity_version')::bigint) FROM dependency_revalidations d WHERE d.project_id=r.project_id AND d.subject_id=r.revision_id AND (d.acceptance_record_id IS NULL OR NOT EXISTS(SELECT 1 FROM revocations v WHERE v.project_id=d.project_id AND v.acceptance_record_id=d.acceptance_record_id))), '[]'::jsonb), 'privacy',COALESCE((SELECT jsonb_agg(l.input_id) FROM revalidation_privacy_links l WHERE l.project_id=r.project_id AND l.subject_id=r.revision_id),'[]'::jsonb), 'blobs',COALESCE((SELECT jsonb_agg(to_jsonb(b)||jsonb_build_object( 'binding_purpose',a.purpose, 'access_revoked',EXISTS(SELECT 1 FROM blob_access_revocations v WHERE v.project_id=b.project_id AND v.sha256=b.sha256), 'evaluator_only',EXISTS(SELECT 1 FROM evaluator_blob_classifications c WHERE c.project_id=b.project_id AND c.sha256=b.sha256))) FROM artifact_blobs a JOIN blobs b USING(project_id,storage_key) WHERE a.project_id=r.project_id AND a.revision_id=r.revision_id),'[]'::jsonb), 'invalid',EXISTS(SELECT 1 FROM invalidations i WHERE i.project_id=r.project_id AND i.revision_id=r.revision_id AND i.category='access'), 'runtimes',COALESCE((SELECT jsonb_agg(jsonb_build_object( 'record_id',l.record_id,'record_kind',l.record_kind)) FROM runtime_links l WHERE l.project_id=r.project_id AND l.revision_id=r.revision_id),'[]'::jsonb) ) AS access_graph FROM artifact_revisions r WHERE r.revision_id=ANY(%(ids)s)",
+      "count": 2555
+    },
+    {
+      "phase": "fact_review",
+      "sql": "SELECT role FROM project_members WHERE project_id=%(p)s AND actor_id=%(a)s",
+      "count": 822
+    },
+    {
+      "phase": "fact_review",
+      "sql": "SELECT b.*, EXISTS(SELECT 1 FROM blob_access_revocations v WHERE v.project_id=b.project_id AND v.sha256=b.sha256) AS access_revoked, EXISTS(SELECT 1 FROM evaluator_blob_classifications c WHERE c.project_id=b.project_id AND c.sha256=b.sha256) AS evaluator_only FROM blobs b WHERE project_id=%(p)s AND storage_key=ANY(%(keys)s)",
+      "count": 764
+    },
+    {
+      "phase": "fact_review",
+      "sql": "SELECT DISTINCT ON (node_kind, identity) * FROM ( SELECT 'artifact' AS node_kind, consumer_id::text AS identity, 'artifact' AS source_kind, input_id::text AS source_identity FROM revision_links WHERE project_id=%(project)s AND input_id=ANY(CAST(%(artifacts)s AS uuid[])) UNION SELECT 'artifact', subject_id::text, 'artifact', input_id::text FROM revalidation_privacy_links WHERE project_id=%(project)s AND input_id=ANY(CAST(%(artifacts)s AS uuid[])) UNION SELECT 'runtime', record_id::text, 'artifact', revision_id::text FROM runtime_artifact_refs WHERE project_id=%(project)s AND revision_id=ANY(CAST(%(artifacts)s AS uuid[])) UNION SELECT 'runtime', record_id::text, 'runtime', target_record_id::text FROM runtime_runtime_refs WHERE project_id=%(project)s AND target_record_id=ANY(CAST(%(runtimes)s AS uuid[])) UNION SELECT 'artifact', revision_id::text, 'runtime', record_id::text FROM runtime_links WHERE project_id=%(project)s AND record_id=ANY(CAST(%(runtimes)s AS uuid[])) UNION SELECT 'blob', sha256, 'runtime', record_id::text FROM runtime_blob_refs WHERE project_id=%(project)s AND record_id=ANY(CAST(%(runtimes)s AS uuid[])) UNION SELECT 'blob', b.sha256, 'artifact', a.revision_id::text FROM artifact_blobs AS a JOIN blobs AS b USING(project_id,storage_key) WHERE a.project_id=%(project)s AND a.revision_id=ANY(CAST(%(artifacts)s AS uuid[])) UNION SELECT 'blob', asset.value->'blob_ref'->>'sha256', 'artifact', p.revision_id::text FROM catalog_publications AS p CROSS JOIN LATERAL jsonb_array_elements(p.config->'published_assets') AS asset WHERE p.project_id=%(project)s AND p.revision_id=ANY(CAST(%(artifacts)s AS uuid[])) UNION SELECT 'runtime', record_id::text, 'blob', sha256 FROM runtime_blob_refs WHERE project_id=%(project)s AND sha256=ANY(CAST(%(hashes)s AS text[])) UNION SELECT 'artifact', a.revision_id::text, 'blob', b.sha256 FROM blobs AS b JOIN artifact_blobs AS a USING(project_id,storage_key) WHERE b.project_id=%(project)s AND b.sha256=ANY(CAST(%(hashes)s AS text[])) UNION SELECT 'artifact', p.revision_id::text, 'blob', marked.sha256 FROM unnest(CAST(%(hashes)s AS text[])) AS marked(sha256) JOIN catalog_publications AS p ON p.project_id=%(project)s AND p.config->'published_assets' @> jsonb_build_array(jsonb_build_object('blob_ref',jsonb_build_object('sha256',marked.sha256))) ) AS frontier ORDER BY node_kind, identity, source_kind, source_identity",
+      "count": 605
+    },
+    {
+      "phase": "fact_review",
+      "sql": "WITH RECURSIVE runtime_reach(record_id) AS ( SELECT unnest(CAST(%(ids)s AS uuid[])) UNION SELECT edge.target_record_id FROM runtime_runtime_refs edge JOIN runtime_reach parent ON edge.record_id=parent.record_id WHERE edge.project_id=%(p)s AND NOT(edge.target_record_id=ANY(CAST(%(known)s AS uuid[]))) ) SELECT r.project_id,r.record_id,r.record_kind,r.audience, COALESCE((SELECT jsonb_agg(jsonb_build_object( 'artifact_id',a.artifact_id,'revision_id',a.revision_id,'kind',a.kind)) FROM runtime_artifact_refs a WHERE a.project_id=r.project_id AND a.record_id=r.record_id), '[]'::jsonb) AS artifact_references, COALESCE((SELECT jsonb_agg(jsonb_build_object( 'record_id',a.target_record_id,'record_kind',a.record_kind)) FROM runtime_runtime_refs a WHERE a.project_id=r.project_id AND a.record_id=r.record_id), '[]'::jsonb) AS runtime_references, COALESCE((SELECT jsonb_agg(jsonb_build_object( 'storage_key',a.storage_key,'sha256',a.sha256,'byte_length',a.byte_length,'media_type',a.media_type)) FROM runtime_blob_refs a WHERE a.project_id=r.project_id AND a.record_id=r.record_id), '[]'::jsonb) AS blob_references FROM runtime_records r JOIN runtime_reach n ON r.record_id=n.record_id WHERE r.project_id=%(p)s AND NOT(r.record_id=ANY(CAST(%(known)s AS uuid[])))",
+      "count": 458
+    },
+    {
+      "phase": "fact_review",
+      "sql": "SELECT sha AS sha256, EXISTS(SELECT 1 FROM evaluator_blob_classifications c WHERE c.project_id=%(p)s AND c.sha256=sha) AS evaluator_only, EXISTS(SELECT 1 FROM blob_access_revocations v WHERE v.project_id=%(p)s AND v.sha256=sha) AS access_revoked FROM unnest(CAST(%(hashes)s AS text[])) AS inputs(sha)",
+      "count": 348
+    },
+    {
+      "phase": "fact_review",
+      "sql": "SELECT * FROM blobs WHERE project_id=%(p)s AND sha256=ANY(CAST(%(hashes)s AS text[])) AND media_type=ANY(CAST(%(media)s AS text[]))",
+      "count": 348
+    },
+    {
+      "phase": "fact_review",
+      "sql": "SELECT project_id FROM projects WHERE project_id=%(p)s FOR SHARE",
+      "count": 331
+    },
+    {
+      "phase": "fact_review",
+      "sql": "SELECT role FROM project_members WHERE project_id=%(p)s AND actor_id=%(a)s FOR SHARE",
+      "count": 331
+    },
+    {
+      "phase": "fact_review",
+      "sql": "SET TRANSACTION ISOLATION LEVEL REPEATABLE READ",
+      "count": 260
+    },
+    {
+      "phase": "fact_review",
+      "sql": "SELECT * FROM runtime_records WHERE project_id=%(p)s AND record_id=ANY(CAST(%(ids)s AS uuid[]))",
+      "count": 257
+    },
+    {
+      "phase": "startup",
+      "sql": "SELECT r.project_id,r.revision_id,r.artifact_id,r.kind,r.input_refs,r.audience, CASE WHEN r.kind='VoiceProfile' THEN r.payload->>'voice_kind' END AS catalog_voice_kind, jsonb_build_object( 'edges',COALESCE((SELECT jsonb_agg(to_jsonb(e)) FROM artifact_dependencies e WHERE e.project_id=r.project_id AND e.consumer_id=r.revision_id),'[]'::jsonb), 'events',COALESCE((SELECT jsonb_agg(d.payload::jsonb ORDER BY (d.payload->>'expected_validity_version')::bigint) FROM dependency_revalidations d WHERE d.project_id=r.project_id AND d.subject_id=r.revision_id AND (d.acceptance_record_id IS NULL OR NOT EXISTS(SELECT 1 FROM revocations v WHERE v.project_id=d.project_id AND v.acceptance_record_id=d.acceptance_record_id))), '[]'::jsonb), 'privacy',COALESCE((SELECT jsonb_agg(l.input_id) FROM revalidation_privacy_links l WHERE l.project_id=r.project_id AND l.subject_id=r.revision_id),'[]'::jsonb), 'blobs',COALESCE((SELECT jsonb_agg(to_jsonb(b)||jsonb_build_object( 'binding_purpose',a.purpose, 'access_revoked',EXISTS(SELECT 1 FROM blob_access_revocations v WHERE v.project_id=b.project_id AND v.sha256=b.sha256), 'evaluator_only',EXISTS(SELECT 1 FROM evaluator_blob_classifications c WHERE c.project_id=b.project_id AND c.sha256=b.sha256))) FROM artifact_blobs a JOIN blobs b USING(project_id,storage_key) WHERE a.project_id=r.project_id AND a.revision_id=r.revision_id),'[]'::jsonb), 'invalid',EXISTS(SELECT 1 FROM invalidations i WHERE i.project_id=r.project_id AND i.revision_id=r.revision_id AND i.category='access'), 'runtimes',COALESCE((SELECT jsonb_agg(jsonb_build_object( 'record_id',l.record_id,'record_kind',l.record_kind)) FROM runtime_links l WHERE l.project_id=r.project_id AND l.revision_id=r.revision_id),'[]'::jsonb) ) AS access_graph FROM artifact_revisions r WHERE r.revision_id=ANY(%(ids)s)",
+      "count": 215
+    },
+    {
+      "phase": "fact_review",
+      "sql": "INSERT INTO runtime_records (project_id,record_id,record_kind,payload,audience) VALUES (%(project_id_0)s,%(record_id_0)s,%(record_kind_0)s,CAST(%(payload_0)s AS json),%(audience_0)s)",
+      "count": 201
+    },
+    {
+      "phase": "fact_review",
+      "sql": "INSERT INTO evaluation_invocation_events (project_id,invocation_id,event_id,record_id,event_kind,source_turn_index) VALUES (%(project_id_0)s,%(invocation_id_0)s,%(event_id_0)s,%(record_id_0)s,%(event_kind_0)s,%(source_turn_index_0)s)",
+      "count": 201
+    },
+    {
+      "phase": "fact_review",
+      "sql": "SELECT payload FROM runtime_records WHERE project_id=%(p)s AND record_id=%(r)s AND record_kind=%(k)s",
+      "count": 185
+    },
+    {
+      "phase": "fact_review",
+      "sql": "INSERT INTO evaluator_blob_classifications(project_id,sha256,runtime_record_id) SELECT %(p)s,checksum,origin FROM unnest(CAST(%(hashes)s AS text[]), CAST(%(origins)s AS uuid[])) AS marked(checksum,origin) WHERE NOT EXISTS(SELECT 1 FROM evaluator_protected_hashes AS known WHERE known.project_id=%(p)s AND known.sha256=marked.checksum) ORDER BY checksum ON CONFLICT DO NOTHING",
+      "count": 173
+    },
+    {
+      "phase": "export",
+      "sql": "SELECT r.project_id,r.revision_id,r.artifact_id,r.kind,r.input_refs,r.audience, CASE WHEN r.kind='VoiceProfile' THEN r.payload->>'voice_kind' END AS catalog_voice_kind, jsonb_build_object( 'edges',COALESCE((SELECT jsonb_agg(to_jsonb(e)) FROM artifact_dependencies e WHERE e.project_id=r.project_id AND e.consumer_id=r.revision_id),'[]'::jsonb), 'events',COALESCE((SELECT jsonb_agg(d.payload::jsonb ORDER BY (d.payload->>'expected_validity_version')::bigint) FROM dependency_revalidations d WHERE d.project_id=r.project_id AND d.subject_id=r.revision_id AND (d.acceptance_record_id IS NULL OR NOT EXISTS(SELECT 1 FROM revocations v WHERE v.project_id=d.project_id AND v.acceptance_record_id=d.acceptance_record_id))), '[]'::jsonb), 'privacy',COALESCE((SELECT jsonb_agg(l.input_id) FROM revalidation_privacy_links l WHERE l.project_id=r.project_id AND l.subject_id=r.revision_id),'[]'::jsonb), 'blobs',COALESCE((SELECT jsonb_agg(to_jsonb(b)||jsonb_build_object( 'binding_purpose',a.purpose, 'access_revoked',EXISTS(SELECT 1 FROM blob_access_revocations v WHERE v.project_id=b.project_id AND v.sha256=b.sha256), 'evaluator_only',EXISTS(SELECT 1 FROM evaluator_blob_classifications c WHERE c.project_id=b.project_id AND c.sha256=b.sha256))) FROM artifact_blobs a JOIN blobs b USING(project_id,storage_key) WHERE a.project_id=r.project_id AND a.revision_id=r.revision_id),'[]'::jsonb), 'invalid',EXISTS(SELECT 1 FROM invalidations i WHERE i.project_id=r.project_id AND i.revision_id=r.revision_id AND i.category='access'), 'runtimes',COALESCE((SELECT jsonb_agg(jsonb_build_object( 'record_id',l.record_id,'record_kind',l.record_kind)) FROM runtime_links l WHERE l.project_id=r.project_id AND l.revision_id=r.revision_id),'[]'::jsonb) ) AS access_graph FROM artifact_revisions r WHERE r.revision_id=ANY(%(ids)s)",
+      "count": 115
+    },
+    {
+      "phase": "fact_review",
+      "sql": "SET TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY",
+      "count": 96
+    },
+    {
+      "phase": "fact_review",
+      "sql": "UPDATE evaluation_model_turns SET status=%(s)s, provider_response_id=COALESCE(%(provider)s,provider_response_id), input_tokens=COALESCE(%(input)s,input_tokens), output_tokens=COALESCE(%(output)s,output_tokens) WHERE project_id=%(p)s AND root_invocation_id=%(i)s AND turn_index=%(n)s RETURNING *",
+      "count": 86
+    },
+    {
+      "phase": "fact_review",
+      "sql": "UPDATE evaluation_model_invocations SET status=%(s)s,input_tokens=%(input)s,output_tokens=%(output)s WHERE project_id=%(p)s AND invocation_id=%(i)s",
+      "count": 86
+    },
+    {
+      "phase": "fact_review",
+      "sql": "SELECT 1 FROM blob_access_revocations WHERE project_id=%(p)s AND sha256=ANY(%(hashes)s)",
+      "count": 71
+    },
+    {
+      "phase": "export",
+      "sql": "WITH RECURSIVE runtime_reach(record_id) AS ( SELECT unnest(CAST(%(ids)s AS uuid[])) UNION SELECT edge.target_record_id FROM runtime_runtime_refs edge JOIN runtime_reach parent ON edge.record_id=parent.record_id WHERE edge.project_id=%(p)s AND NOT(edge.target_record_id=ANY(CAST(%(known)s AS uuid[]))) ) SELECT r.project_id,r.record_id,r.record_kind,r.audience, COALESCE((SELECT jsonb_agg(jsonb_build_object( 'artifact_id',a.artifact_id,'revision_id',a.revision_id,'kind',a.kind)) FROM runtime_artifact_refs a WHERE a.project_id=r.project_id AND a.record_id=r.record_id), '[]'::jsonb) AS artifact_references, COALESCE((SELECT jsonb_agg(jsonb_build_object( 'record_id',a.target_record_id,'record_kind',a.record_kind)) FROM runtime_runtime_refs a WHERE a.project_id=r.project_id AND a.record_id=r.record_id), '[]'::jsonb) AS runtime_references, COALESCE((SELECT jsonb_agg(jsonb_build_object( 'storage_key',a.storage_key,'sha256',a.sha256,'byte_length',a.byte_length,'media_type',a.media_type)) FROM runtime_blob_refs a WHERE a.project_id=r.project_id AND a.record_id=r.record_id), '[]'::jsonb) AS blob_references FROM runtime_records r JOIN runtime_reach n ON r.record_id=n.record_id WHERE r.project_id=%(p)s AND NOT(r.record_id=ANY(CAST(%(known)s AS uuid[])))",
+      "count": 67
+    },
+    {
+      "phase": "export",
+      "sql": "SELECT b.*, EXISTS(SELECT 1 FROM blob_access_revocations v WHERE v.project_id=b.project_id AND v.sha256=b.sha256) AS access_revoked, EXISTS(SELECT 1 FROM evaluator_blob_classifications c WHERE c.project_id=b.project_id AND c.sha256=b.sha256) AS evaluator_only FROM blobs b WHERE project_id=%(p)s AND storage_key=ANY(%(keys)s)",
+      "count": 67
+    },
+    {
+      "phase": "startup",
+      "sql": "WITH RECURSIVE runtime_reach(record_id) AS ( SELECT unnest(CAST(%(ids)s AS uuid[])) UNION SELECT edge.target_record_id FROM runtime_runtime_refs edge JOIN runtime_reach parent ON edge.record_id=parent.record_id WHERE edge.project_id=%(p)s AND NOT(edge.target_record_id=ANY(CAST(%(known)s AS uuid[]))) ) SELECT r.project_id,r.record_id,r.record_kind,r.audience, COALESCE((SELECT jsonb_agg(jsonb_build_object( 'artifact_id',a.artifact_id,'revision_id',a.revision_id,'kind',a.kind)) FROM runtime_artifact_refs a WHERE a.project_id=r.project_id AND a.record_id=r.record_id), '[]'::jsonb) AS artifact_references, COALESCE((SELECT jsonb_agg(jsonb_build_object( 'record_id',a.target_record_id,'record_kind',a.record_kind)) FROM runtime_runtime_refs a WHERE a.project_id=r.project_id AND a.record_id=r.record_id), '[]'::jsonb) AS runtime_references, COALESCE((SELECT jsonb_agg(jsonb_build_object( 'storage_key',a.storage_key,'sha256',a.sha256,'byte_length',a.byte_length,'media_type',a.media_type)) FROM runtime_blob_refs a WHERE a.project_id=r.project_id AND a.record_id=r.record_id), '[]'::jsonb) AS blob_references FROM runtime_records r JOIN runtime_reach n ON r.record_id=n.record_id WHERE r.project_id=%(p)s AND NOT(r.record_id=ANY(CAST(%(known)s AS uuid[])))",
+      "count": 66
+    },
+    {
+      "phase": "export",
+      "sql": "SELECT role FROM project_members WHERE project_id=%(p)s AND actor_id=%(a)s",
+      "count": 56
+    },
+    {
+      "phase": "export",
+      "sql": "SELECT payload FROM runtime_records WHERE project_id=%(p)s AND record_id=%(r)s AND record_kind=%(k)s",
+      "count": 55
+    },
+    {
+      "phase": "startup",
+      "sql": "SELECT * FROM artifact_revisions WHERE revision_id=%(r)s AND artifact_id=%(a)s AND kind=%(k)s",
+      "count": 53
+    },
+    {
+      "phase": "startup",
+      "sql": "SELECT * FROM source_search_documents WHERE project_id=%(p)s AND document_key=%(document)s",
+      "count": 51
+    },
+    {
+      "phase": "startup",
+      "sql": "INSERT INTO source_search_memberships VALUES(%(p)s,%(r)s,%(h)s,%(s)s,%(document)s) ON CONFLICT DO NOTHING",
+      "count": 51
+    },
+    {
+      "phase": "startup",
+      "sql": "SELECT document_key FROM source_search_memberships WHERE project_id=%(p)s AND shared_input_record_id=%(r)s AND profile_sha256=%(h)s AND source_id=%(s)s",
+      "count": 51
+    },
+    {
+      "phase": "export",
+      "sql": "SELECT * FROM artifact_revisions WHERE revision_id=%(r)s AND artifact_id=%(a)s AND kind=%(k)s",
+      "count": 51
+    },
+    {
+      "phase": "startup",
+      "sql": "SELECT pg_try_advisory_xact_lock(hashtextextended(%(key)s,0)) AS held",
+      "count": 49
+    },
+    {
+      "phase": "fact_review",
+      "sql": "INSERT INTO blobs (project_id,storage_key,sha256,byte_length,media_type) VALUES (%(project_id_0)s,%(storage_key_0)s,%(sha256_0)s,%(byte_length_0)s,%(media_type_0)s) ON CONFLICT DO NOTHING",
+      "count": 45
+    },
+    {
+      "phase": "fact_review",
+      "sql": "SELECT * FROM evaluation_model_turns WHERE project_id=%(p)s AND root_invocation_id=%(i)s AND turn_index=%(n)s",
+      "count": 43
+    },
+    {
+      "phase": "fact_review",
+      "sql": "INSERT INTO runtime_records (project_id,record_id,record_kind,payload,audience) VALUES (%(project_id_0)s,%(record_id_0)s,%(record_kind_0)s,CAST(%(payload_0)s AS json),%(audience_0)s),(%(project_id_1)s,%(record_id_1)s,%(record_kind_1)s,CAST(%(payload_1)s AS json),%(audience_1)s),(%(project_id_2)s,%(record_id_2)s,%(record_kind_2)s,CAST(%(payload_2)s AS json),%(audience_2)s),(%(project_id_3)s,%(record_id_3)s,%(record_kind_3)s,CAST(%(payload_3)s AS json),%(audience_3)s),(%(project_id_4)s,%(record_id_4)s,%(record_kind_4)s,CAST(%(payload_4)s AS json),%(audience_4)s)",
+      "count": 43
+    },
+    {
+      "phase": "fact_review",
+      "sql": "INSERT INTO evaluation_invocation_events (project_id,invocation_id,event_id,record_id,event_kind,source_turn_index) VALUES (%(project_id_0)s,%(invocation_id_0)s,%(event_id_0)s,%(record_id_0)s,%(event_kind_0)s,%(source_turn_index_0)s),(%(project_id_1)s,%(invocation_id_1)s,%(event_id_1)s,%(record_id_1)s,%(event_kind_1)s,%(source_turn_index_1)s),(%(project_id_2)s,%(invocation_id_2)s,%(event_id_2)s,%(record_id_2)s,%(event_kind_2)s,%(source_turn_index_2)s),(%(project_id_3)s,%(invocation_id_3)s,%(event_id_3)s,%(record_id_3)s,%(event_kind_3)s,%(source_turn_index_3)s)",
+      "count": 43
+    },
+    {
+      "phase": "fact_review",
+      "sql": "INSERT INTO evaluation_model_turns (project_id,root_invocation_id,turn_index,invocation_id,status,request_record_id) VALUES(%(p)s,%(i)s,%(n)s,%(t)s,'prepared',%(r)s)",
+      "count": 43
+    },
+    {
+      "phase": "fact_review",
+      "sql": "INSERT INTO blobs (project_id,storage_key,sha256,byte_length,media_type) VALUES (%(project_id_0)s,%(storage_key_0)s,%(sha256_0)s,%(byte_length_0)s,%(media_type_0)s),(%(project_id_1)s,%(storage_key_1)s,%(sha256_1)s,%(byte_length_1)s,%(media_type_1)s) ON CONFLICT DO NOTHING",
+      "count": 43
+    },
+    {
+      "phase": "export",
+      "sql": "SET TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY",
+      "count": 27
+    },
+    {
+      "phase": "fact_review",
+      "sql": "SELECT request,results FROM source_search_results WHERE project_id=%(p)s AND shared_input_record_id=%(r)s AND profile_sha256=%(h)s AND query_sha256=%(key)s",
+      "count": 26
+    },
+    {
+      "phase": "startup",
+      "sql": "SELECT role FROM project_members WHERE project_id=%(p)s AND actor_id=%(a)s",
+      "count": 20
+    },
+    {
+      "phase": "fact_review",
+      "sql": "SELECT * FROM evaluation_writing_runs WHERE project_id=%(p)s AND run_id=%(r)s",
+      "count": 17
+    },
+    {
+      "phase": "startup",
+      "sql": "SET TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY",
+      "count": 15
+    },
+    {
+      "phase": "startup",
+      "sql": "SELECT b.*, EXISTS(SELECT 1 FROM blob_access_revocations v WHERE v.project_id=b.project_id AND v.sha256=b.sha256) AS access_revoked, EXISTS(SELECT 1 FROM evaluator_blob_classifications c WHERE c.project_id=b.project_id AND c.sha256=b.sha256) AS evaluator_only FROM blobs b WHERE project_id=%(p)s AND storage_key=ANY(%(keys)s)",
+      "count": 13
+    },
+    {
+      "phase": "fact_review",
+      "sql": "WITH permitted AS (SELECT m.source_id,c.start_offset,c.end_offset,c.language,c.lexical,c.exact_terms,c.phrase_text,c.embedding FROM source_search_memberships m JOIN source_search_documents d ON d.project_id=m.project_id AND d.document_key=m.document_key JOIN source_search_document_chunks c ON c.project_id=d.project_id AND c.document_key=d.document_key WHERE m.project_id=%(p)s AND m.shared_input_record_id=%(r)s AND m.profile_sha256=%(h)s AND m.source_id=ANY(%(scope)s) AND d.completed) SELECT source_id,start_offset,end_offset,1-(embedding <=> CAST(%(vector)s AS vector)) AS score FROM permitted ORDER BY embedding <=> CAST(%(vector)s AS vector),source_id,start_offset LIMIT %(limit)s",
+      "count": 13
+    },
+    {
+      "phase": "fact_review",
+      "sql": "WITH permitted AS (SELECT m.source_id,c.start_offset,c.end_offset,c.language,c.lexical,c.exact_terms,c.phrase_text,c.embedding FROM source_search_memberships m JOIN source_search_documents d ON d.project_id=m.project_id AND d.document_key=m.document_key JOIN source_search_document_chunks c ON c.project_id=d.project_id AND c.document_key=d.document_key WHERE m.project_id=%(p)s AND m.shared_input_record_id=%(r)s AND m.profile_sha256=%(h)s AND m.source_id=ANY(%(scope)s) AND d.completed) SELECT source_id,start_offset,end_offset,ts_rank_cd(lexical,websearch_to_tsquery(CASE language WHEN 'en' THEN 'english'::regconfig WHEN 'ru' THEN 'russian'::regconfig ELSE 'simple'::regconfig END,%(lexical_query)s)) AS score FROM permitted WHERE lexical @@ websearch_to_tsquery(CASE language WHEN 'en' THEN 'english'::regconfig WHEN 'ru' THEN 'russian'::regconfig ELSE 'simple'::regconfig END,%(lexical_query)s) ORDER BY score DESC,source_id,start_offset LIMIT %(limit)s",
+      "count": 13
+    },
+    {
+      "phase": "fact_review",
+      "sql": "WITH permitted AS (SELECT m.source_id,c.start_offset,c.end_offset,c.language,c.lexical,c.exact_terms,c.phrase_text,c.embedding FROM source_search_memberships m JOIN source_search_documents d ON d.project_id=m.project_id AND d.document_key=m.document_key JOIN source_search_document_chunks c ON c.project_id=d.project_id AND c.document_key=d.document_key WHERE m.project_id=%(p)s AND m.shared_input_record_id=%(r)s AND m.profile_sha256=%(h)s AND m.source_id=ANY(%(scope)s) AND d.completed) SELECT source_id,start_offset,end_offset,((strpos(' '||phrase_text||' ',%(phrase)s)>0)::int + (SELECT count(*)::float FROM unnest(CAST(%(entities)s AS text[])) AS e(term) WHERE e.term=ANY(exact_terms))/GREATEST(cardinality(CAST(%(entities)s AS text[])),1)) AS score FROM permitted WHERE strpos(' '||phrase_text||' ',%(phrase)s)>0 OR exact_terms && CAST(%(entities)s AS text[]) ORDER BY score DESC,source_id,start_offset LIMIT %(limit)s",
+      "count": 13
+    },
+    {
+      "phase": "fact_review",
+      "sql": "INSERT INTO source_search_results VALUES(%(p)s,%(r)s,%(h)s,%(key)s,CAST(%(request)s AS jsonb),CAST(%(rows)s AS jsonb)) ON CONFLICT DO NOTHING",
+      "count": 13
+    },
+    {
+      "phase": "fact_review",
+      "sql": "INSERT INTO runtime_records (project_id,record_id,record_kind,payload,audience) VALUES (%(project_id_0)s,%(record_id_0)s,%(record_kind_0)s,CAST(%(payload_0)s AS json),%(audience_0)s),(%(project_id_1)s,%(record_id_1)s,%(record_kind_1)s,CAST(%(payload_1)s AS json),%(audience_1)s)",
+      "count": 13
+    },
+    {
+      "phase": "fact_review",
+      "sql": "INSERT INTO evaluation_invocation_events (project_id,invocation_id,event_id,record_id,event_kind,source_turn_index) VALUES (%(project_id_0)s,%(invocation_id_0)s,%(event_id_0)s,%(record_id_0)s,%(event_kind_0)s,%(source_turn_index_0)s),(%(project_id_1)s,%(invocation_id_1)s,%(event_id_1)s,%(record_id_1)s,%(event_kind_1)s,%(source_turn_index_1)s)",
+      "count": 13
+    },
+    {
+      "phase": "startup",
+      "sql": "SELECT payload FROM runtime_records WHERE project_id=%(p)s AND record_id=%(r)s AND record_kind=%(k)s",
+      "count": 11
+    },
+    {
+      "phase": "export",
+      "sql": "SELECT * FROM evaluation_writing_runs WHERE project_id=%(p)s AND run_id=%(r)s",
+      "count": 11
+    },
+    {
+      "phase": "startup",
+      "sql": "SELECT DISTINCT ON (node_kind, identity) * FROM ( SELECT 'artifact' AS node_kind, consumer_id::text AS identity, 'artifact' AS source_kind, input_id::text AS source_identity FROM revision_links WHERE project_id=%(project)s AND input_id=ANY(CAST(%(artifacts)s AS uuid[])) UNION SELECT 'artifact', subject_id::text, 'artifact', input_id::text FROM revalidation_privacy_links WHERE project_id=%(project)s AND input_id=ANY(CAST(%(artifacts)s AS uuid[])) UNION SELECT 'runtime', record_id::text, 'artifact', revision_id::text FROM runtime_artifact_refs WHERE project_id=%(project)s AND revision_id=ANY(CAST(%(artifacts)s AS uuid[])) UNION SELECT 'runtime', record_id::text, 'runtime', target_record_id::text FROM runtime_runtime_refs WHERE project_id=%(project)s AND target_record_id=ANY(CAST(%(runtimes)s AS uuid[])) UNION SELECT 'artifact', revision_id::text, 'runtime', record_id::text FROM runtime_links WHERE project_id=%(project)s AND record_id=ANY(CAST(%(runtimes)s AS uuid[])) UNION SELECT 'blob', sha256, 'runtime', record_id::text FROM runtime_blob_refs WHERE project_id=%(project)s AND record_id=ANY(CAST(%(runtimes)s AS uuid[])) UNION SELECT 'blob', b.sha256, 'artifact', a.revision_id::text FROM artifact_blobs AS a JOIN blobs AS b USING(project_id,storage_key) WHERE a.project_id=%(project)s AND a.revision_id=ANY(CAST(%(artifacts)s AS uuid[])) UNION SELECT 'blob', asset.value->'blob_ref'->>'sha256', 'artifact', p.revision_id::text FROM catalog_publications AS p CROSS JOIN LATERAL jsonb_array_elements(p.config->'published_assets') AS asset WHERE p.project_id=%(project)s AND p.revision_id=ANY(CAST(%(artifacts)s AS uuid[])) UNION SELECT 'runtime', record_id::text, 'blob', sha256 FROM runtime_blob_refs WHERE project_id=%(project)s AND sha256=ANY(CAST(%(hashes)s AS text[])) UNION SELECT 'artifact', a.revision_id::text, 'blob', b.sha256 FROM blobs AS b JOIN artifact_blobs AS a USING(project_id,storage_key) WHERE b.project_id=%(project)s AND b.sha256=ANY(CAST(%(hashes)s AS text[])) UNION SELECT 'artifact', p.revision_id::text, 'blob', marked.sha256 FROM unnest(CAST(%(hashes)s AS text[])) AS marked(sha256) JOIN catalog_publications AS p ON p.project_id=%(project)s AND p.config->'published_assets' @> jsonb_build_array(jsonb_build_object('blob_ref',jsonb_build_object('sha256',marked.sha256))) ) AS frontier ORDER BY node_kind, identity, source_kind, source_identity",
+      "count": 10
+    },
+    {
+      "phase": "fact_review",
+      "sql": "SELECT * FROM evaluation_model_invocations WHERE project_id=%(p)s AND run_id=%(r)s AND stage=%(s)s ORDER BY attempt_index",
+      "count": 9
+    },
+    {
+      "phase": "export",
+      "sql": "SELECT record_id,payload FROM runtime_records WHERE project_id=%(p)s AND record_id=ANY(%(ids)s)",
+      "count": 9
+    },
+    {
+      "phase": "export",
+      "sql": "SELECT * FROM evaluation_invocation_events WHERE project_id=%(p)s AND invocation_id=%(identity)s AND sequence>%(cursor)s AND sequence<=%(end)s ORDER BY sequence LIMIT %(batch)s",
+      "count": 7
+    },
+    {
+      "phase": "export",
+      "sql": "SELECT * FROM evaluation_model_invocations WHERE project_id=%(p)s AND run_id=%(r)s AND stage=%(s)s ORDER BY attempt_index",
+      "count": 5
+    },
+    {
+      "phase": "startup",
+      "sql": "SELECT * FROM evaluation_writing_runs WHERE project_id=%(p)s AND run_id=%(r)s",
+      "count": 4
+    },
+    {
+      "phase": "fact_review",
+      "sql": "SELECT record_id FROM runtime_records WHERE project_id=%(p)s AND record_id=%(r)s",
+      "count": 4
+    },
+    {
+      "phase": "startup",
+      "sql": "SELECT record_id FROM runtime_records WHERE project_id=%(p)s AND record_id=%(r)s",
+      "count": 3
+    },
+    {
+      "phase": "startup",
+      "sql": "SELECT project_id FROM projects WHERE project_id=%(p)s FOR SHARE",
+      "count": 3
+    },
+    {
+      "phase": "startup",
+      "sql": "SELECT role FROM project_members WHERE project_id=%(p)s AND actor_id=%(a)s FOR SHARE",
+      "count": 3
+    },
+    {
+      "phase": "fact_review",
+      "sql": "SELECT * FROM runtime_records WHERE project_id=%(p)s AND record_id=%(r)s",
+      "count": 3
+    },
+    {
+      "phase": "fact_review",
+      "sql": "INSERT INTO runtime_records VALUES(%(p)s,%(r)s,%(k)s,CAST(%(body)s AS json),%(a)s)",
+      "count": 3
+    },
+    {
+      "phase": "fact_review",
+      "sql": "SELECT * FROM evaluation_invocation_events WHERE project_id=%(p)s AND invocation_id=%(i)s ORDER BY sequence",
+      "count": 3
+    },
+    {
+      "phase": "fact_review",
+      "sql": "SELECT * FROM evaluation_model_turns WHERE project_id=%(p)s AND root_invocation_id=%(i)s ORDER BY turn_index",
+      "count": 3
+    },
+    {
+      "phase": "export",
+      "sql": "SELECT record_id FROM runtime_records WHERE project_id=%(p)s AND record_id=%(r)s",
+      "count": 3
+    },
+    {
+      "phase": "startup",
+      "sql": "SET TRANSACTION ISOLATION LEVEL REPEATABLE READ",
+      "count": 2
+    },
+    {
+      "phase": "startup",
+      "sql": "SELECT * FROM runtime_records WHERE project_id=%(p)s AND record_id=%(r)s",
+      "count": 2
+    },
+    {
+      "phase": "startup",
+      "sql": "INSERT INTO runtime_records VALUES(%(p)s,%(r)s,%(k)s,CAST(%(body)s AS json),%(a)s)",
+      "count": 2
+    },
+    {
+      "phase": "startup",
+      "sql": "INSERT INTO evaluator_blob_classifications(project_id,sha256,artifact_revision_id,runtime_record_id) SELECT %(p)s,checksum,%(a)s,%(r)s FROM unnest(CAST(%(hashes)s AS text[])) AS marked(checksum) WHERE NOT EXISTS(SELECT 1 FROM evaluator_protected_hashes AS known WHERE known.project_id=%(p)s AND known.sha256=marked.checksum) ORDER BY checksum ON CONFLICT DO NOTHING",
+      "count": 2
+    },
+    {
+      "phase": "whole_review",
+      "sql": "SELECT role FROM project_members WHERE project_id=%(p)s AND actor_id=%(a)s",
+      "count": 2
+    },
+    {
+      "phase": "whole_review",
+      "sql": "UPDATE evaluation_writing_runs SET status=%(s)s,failure_code=%(f)s WHERE project_id=%(p)s AND run_id=%(r)s",
+      "count": 2
+    },
+    {
+      "phase": "fact_review",
+      "sql": "SELECT * FROM artifact_revisions WHERE revision_id=%(r)s AND artifact_id=%(a)s AND kind=%(k)s",
+      "count": 2
+    },
+    {
+      "phase": "fact_review",
+      "sql": "UPDATE evaluation_model_invocations SET status=%(s)s, provider_response_id=COALESCE(%(provider)s,provider_response_id), input_tokens=COALESCE(%(input)s,input_tokens), output_tokens=COALESCE(%(output)s,output_tokens), output_record_id=COALESCE(%(ref)s,output_record_id) WHERE project_id=%(p)s AND invocation_id=%(i)s RETURNING *",
+      "count": 2
+    },
+    {
+      "phase": "outside",
+      "sql": "SELECT role FROM project_members WHERE project_id=%(p)s AND actor_id=%(a)s",
+      "count": 1
+    },
+    {
+      "phase": "outside",
+      "sql": "SELECT pg_try_advisory_lock(hashtextextended(%(key)s,0)) AS held",
+      "count": 1
+    },
+    {
+      "phase": "startup",
+      "sql": "SELECT * FROM evaluation_model_invocations WHERE project_id=%(p)s AND run_id=%(r)s AND stage=%(s)s ORDER BY attempt_index",
+      "count": 1
+    },
+    {
+      "phase": "startup",
+      "sql": "SELECT record_kind,audience,payload FROM runtime_records WHERE project_id=%(p)s AND record_id=%(r)s",
+      "count": 1
+    },
+    {
+      "phase": "startup",
+      "sql": "SELECT validity_version FROM projects WHERE project_id=%(p)s FOR UPDATE",
+      "count": 1
+    },
+    {
+      "phase": "startup",
+      "sql": "SELECT * FROM artifact_revisions WHERE project_id=%(p)s AND operation_id=%(o)s",
+      "count": 1
+    },
+    {
+      "phase": "startup",
+      "sql": "SELECT kind FROM artifacts WHERE project_id=%(p)s AND artifact_id=%(a)s",
+      "count": 1
+    },
+    {
+      "phase": "startup",
+      "sql": "INSERT INTO artifacts VALUES(%(p)s,%(a)s,%(k)s)",
+      "count": 1
+    },
+    {
+      "phase": "startup",
+      "sql": "INSERT INTO artifact_revisions(project_id,revision_id,artifact_id,kind,episode_id,schema_version, payload,input_refs,producer,content_hash,created_at,audience,operation_id,operation_fingerprint) VALUES(%(p)s,%(r)s,%(a)s,%(k)s,%(e)s,'1.0',CAST(%(body)s AS json),CAST(%(refs)s AS jsonb),CAST(%(producer)s AS jsonb), %(h)s,%(time)s,%(aud)s,%(op)s,%(fp)s)",
+      "count": 1
+    },
+    {
+      "phase": "startup",
+      "sql": "UPDATE projects SET validity_version=validity_version+1 WHERE project_id=%(p)s",
+      "count": 1
+    },
+    {
+      "phase": "startup",
+      "sql": "INSERT INTO outbox(event_id,project_id,event_kind,payload) VALUES(%(id)s,%(p)s,'artifact_created',CAST(%(body)s AS json))",
+      "count": 1
+    },
+    {
+      "phase": "startup",
+      "sql": "INSERT INTO evaluation_writing_runs(project_id,run_id,actor_id,input_fingerprint,manifest_id,status) VALUES(%(p)s,%(r)s,%(a)s,%(fp)s,%(m)s,'prepared')",
+      "count": 1
+    },
+    {
+      "phase": "startup",
+      "sql": "SELECT 1 FROM blob_access_revocations WHERE project_id=%(p)s AND sha256=ANY(%(hashes)s)",
+      "count": 1
+    },
+    {
+      "phase": "startup",
+      "sql": "INSERT INTO source_search_scope_dependencies SELECT %(p)s,%(r)s,sha FROM unnest(CAST(%(hashes)s AS text[])) AS h(sha) ON CONFLICT DO NOTHING",
+      "count": 1
+    },
+    {
+      "phase": "fact_review",
+      "sql": "INSERT INTO evaluator_blob_classifications(project_id,sha256,artifact_revision_id,runtime_record_id) SELECT %(p)s,checksum,%(a)s,%(r)s FROM unnest(CAST(%(hashes)s AS text[])) AS marked(checksum) WHERE NOT EXISTS(SELECT 1 FROM evaluator_protected_hashes AS known WHERE known.project_id=%(p)s AND known.sha256=marked.checksum) ORDER BY checksum ON CONFLICT DO NOTHING",
+      "count": 1
+    },
+    {
+      "phase": "fact_review",
+      "sql": "INSERT INTO evaluation_model_invocations(project_id,run_id,invocation_id,stage,status,request_record_id,attempt_index,parent_invocation_id,parent_attempt_index,attempt_kind,operation_kind) VALUES(%(p)s,%(r)s,%(i)s,%(s)s,'prepared',%(request)s,%(attempt)s,%(parent)s,%(parent_attempt)s,%(kind)s,%(operation)s)",
+      "count": 1
+    },
+    {
+      "phase": "fact_review",
+      "sql": "SELECT pg_try_advisory_lock(hashtextextended(%(key)s,0)) AS held",
+      "count": 1
+    },
+    {
+      "phase": "fact_review",
+      "sql": "SELECT pg_advisory_unlock(hashtextextended(%(key)s,0))",
+      "count": 1
+    },
+    {
+      "phase": "export",
+      "sql": "SELECT max(sequence) FROM evaluation_invocation_events WHERE project_id=%(p)s AND invocation_id=%(identity)s",
+      "count": 1
+    },
+    {
+      "phase": "export",
+      "sql": "SELECT max(turn_index) FROM evaluation_model_turns WHERE project_id=%(p)s AND root_invocation_id=%(identity)s",
+      "count": 1
+    },
+    {
+      "phase": "export",
+      "sql": "SELECT * FROM evaluation_model_turns WHERE project_id=%(p)s AND root_invocation_id=%(identity)s AND turn_index>%(cursor)s AND turn_index<=%(end)s ORDER BY turn_index LIMIT %(batch)s",
+      "count": 1
+    },
+    {
+      "phase": "export",
+      "sql": "SELECT * FROM evaluation_model_turns WHERE project_id=%(p)s AND root_invocation_id=%(i)s ORDER BY turn_index",
+      "count": 1
+    },
+    {
+      "phase": "export",
+      "sql": "SELECT * FROM evaluation_invocation_events WHERE project_id=%(p)s AND invocation_id=%(i)s ORDER BY sequence",
+      "count": 1
+    },
+    {
+      "phase": "outside",
+      "sql": "SELECT pg_advisory_unlock(hashtextextended(%(key)s,0))",
+      "count": 1
+    }
+  ],
+  "rss_scope": "cumulative process high-water, not an independent per-pass peak",
+  "input_legacy_corpus": {
+    "documents": 51,
+    "chunks": 1227
+  },
+  "passage_embedding_calls": 0,
+  "export_verification": {
+    "files_verified": 370,
+    "byte_exact_files": 146,
+    "json_equal_after_technical_substitutions": 224,
+    "substitutions": {
+      "4e30fd5f-a682-5a78-bb64-f7fa55db7957": "a07cc6d1-c399-5979-a698-084ece565c47",
+      "bf070be47d321956df2930dc0f02dc157d3de0463448d860bd86a57b087eade4": "59a7091b3a2c7847ad283ceb2c10e895b1818f1e7559eab4e6dfd84c57cc37d3",
+      "78ddf172-da2f-5b4a-95de-4976cbd7e94a": "46632dd6-d663-5509-82f2-708acc669bb8",
+      "5cf0ecc3-e7e2-5338-a284-9b6128865fdf": "4450e127-8657-5dcf-a64f-b1c06cb3bc66",
+      "810487eb-8c21-50ef-8113-970e75344d5e": "1c4ad8bc-b9ce-534a-977e-83503454cb23",
+      "2f77905b-4df2-5e5d-8e13-7923dab9b541": "147ec889-380c-5400-a1ea-0b929234dba8",
+      "94887efc-cf4f-552b-a4d5-a2e12e3d79fd": "e17753de-d536-5fe0-afd3-11bed2de1ffe",
+      "d781f465-8bad-5c98-ac33-ed0c43fd2bcc": "00b9a9bd-1d12-5004-897c-32f41521c69e",
+      "7740d12f-e7e6-5877-8783-eff66992f7f4": "1fa3bb0f-6995-5294-b429-7847419d332e",
+      "af92037a-617c-5c72-8dd7-766445d799ae": "ffd5d6bb-4a16-513d-9b63-0ddbee42befb",
+      "f37774af-37b4-509e-ba03-cf1a29b31e38": "3957b4fe-040d-54a8-ab67-ea2d1718df5c",
+      "7558b53a-093b-564e-8af6-99cfe364966c": "813bb755-a943-5326-be4b-6c9d6d1ecab0",
+      "639b8823-1bbd-5af8-ab0a-a059285909c3": "e107f586-fa16-51e0-873f-38ac39cbb36f",
+      "857d23f3-1af0-5dfb-b040-2da0981efe32": "ae9f24b3-93a1-5794-85f1-b4ed3aa9b8a9",
+      "62c167e9-dda4-50a0-a753-033b4ad4fb83": "e5aa08c4-de6e-5c92-9022-90665fb18a90",
+      "cf001be3-16d8-5712-89bd-724313ae5773": "f803e5f0-caed-5f5c-ba23-dc73fe267530",
+      "c9974c87-54b7-5ab3-9e07-cf7cb6c78ecb": "89d6c430-bfe4-54d4-b35c-57396088f241",
+      "c689397d-851a-58d6-bc9d-6f16c4d2629d": "a7b8fb31-3e21-55c5-a221-04b3c702773d",
+      "875eb8bc-5420-5685-a9f1-5f55bc85333e": "7dd0810d-721f-52c8-81ea-16a4fedf4229",
+      "43c43fb4-206e-5050-a94e-be2f8cb076cd": "caef8949-b33c-5ef8-82b0-8062c09a78d0",
+      "b61574e1-7c27-582a-86c9-222fdc11b7dd": "bc92d9c2-85c0-5bbb-86ba-e91181b2e834",
+      "17f4e583-6f72-526b-980e-af527018a577": "a6f7ef1f-2af8-513d-9533-8d74a813b133",
+      "61aa8ad6-2a75-5604-9fb5-334ed44cd973": "41ed1a37-8377-5201-bfd1-091184b4781f",
+      "6be5c4fc-13c3-5c91-ac84-f7492bc03cb7": "735bb5cf-3656-5fd8-a735-727650972d61",
+      "e6b86a95-012b-5c42-a926-f91898337173": "2cf8e7fb-7196-5f72-9240-4f26084a432b",
+      "ad672a92-e328-56f0-a495-735e9e9edc84": "4881b0b6-6205-56c9-bfb4-1731daf148d0",
+      "448fce95-e3f7-5421-9fd9-4f6f9d7bcf5b": "92097b8a-a596-561e-9f64-ceae46ae67a3",
+      "f9326cd2-6a5f-58e1-9ada-fe3de591231f": "b07f7faf-e1b1-5a46-acfe-60d7fa89f38b",
+      "2f449467-aed9-5ca6-98b4-d7aa67701ff6": "1a6054ad-2648-53e4-8b32-f01047c1d704",
+      "9183726c-3331-52bc-844c-ea42456a262a": "8a0e047e-8a14-571e-ab40-198c89059fc1",
+      "1af4f28b-1cfa-5e0f-a06a-6d2bf350b511": "af04751c-ea2c-5f80-9abc-e137cafbef24",
+      "da45cdf4-31d3-5230-a3aa-9f81c7c4d371": "c5360b5e-bc20-5542-83b0-5c20d90e3527",
+      "6525a272-20f3-5706-93ca-0c7b686fdaab": "2cce9419-7f60-561f-b64f-9fac0e4be200",
+      "ea053eb0-718c-5029-9afc-19c7e37e3faf": "e586d3aa-9d05-52dd-a078-0a615ec8c16e",
+      "02e24d83-55cf-5b3c-889b-83575e711895": "3157fe73-fbf3-5f06-9dbf-568309a0f1ba",
+      "c9f18351-5968-5273-84a1-0bf3fa3ae671": "d75ac51a-7d9b-5238-b917-9d22da768d20",
+      "532708f0-9f72-553c-8c21-ed03d671d863": "74bcf177-b196-5b34-a534-feceaff8e0a8",
+      "aae0c4c5-784e-5df9-8dac-3a165ef5eb11": "75e5311c-1948-572c-891e-22079772fb25",
+      "b59a7026-e6df-564e-bb1d-0233ce8023b5": "bcc7ce7e-59c8-58b7-bc53-74e1adb9c59d",
+      "e19f59c9-f4c7-5113-8452-faad4d691375": "7517ca37-d069-5994-a9d1-2e487c5f1a9f",
+      "4a8201b5-6fc1-5247-8af2-dd7edc33f2ad": "a9361cc0-4ec5-5f23-ad5e-eac37e92bf8a",
+      "5ab772d6-1539-5d5c-a667-338ce5e45a18": "c217d751-95b8-5d0a-bdcc-0c1d9fa4df26",
+      "4f7390fb-82a3-5d10-bc40-e5a8ecc3455c": "cfb9f21a-8fd9-55f5-86e6-0c71e13ce7c4",
+      "218279a0-483b-517b-8be8-5bf7a84ea978": "14c8cfaf-0000-584f-b263-cbc75fd286bc",
+      "858fd1c0-e2b7-5e64-adf0-b7c529bbf8bc": "b3bf3f0e-ea5d-530b-933f-65fdac1f8110",
+      "904c69c3-0729-5b37-8c15-2ed54128d5fc": "2186a6e5-04db-5fcf-87b0-42657991de83",
+      "d68e9d54-2e64-5ef8-a002-bbd994ea7962": "36f89401-1094-5ffb-8a34-4c6f352b3181",
+      "08e33e75-27cc-5993-84b6-4ab295a5620b": "2cd2adbd-8051-590a-8941-69bb9d25374a",
+      "e83ff36c-025a-5dad-aee8-7575e2326458": "1981af4a-836e-5703-b669-52523cdaeb1c",
+      "1d23d96f-bcdb-54ab-97f6-11171b5af7a4": "e92572d1-460f-5c63-9bc3-a3a563e10a3d",
+      "d6609ee4-fd0a-5eb1-890d-3784c05a7456": "086b8e79-3e8b-5904-a394-72d5cb116644",
+      "b885681c-59d1-5f20-a919-dfa06fe9d855": "4c5fa58d-e668-526f-8f5c-b633b76bbfb2",
+      "3c3d47fe-2588-5a35-8891-58c3f73e09b1": "434bd101-3234-52e3-8fdd-d88cbc7f4058",
+      "5c497cc5-d83f-51fd-9e8c-98d3612f16fa": "1b1e6624-d8e5-5523-aaf6-83745091de60",
+      "fb265859-bbbf-5953-a58c-9570bc9da358": "4026bece-957a-5007-8f2b-98c7b71fb617",
+      "809178cd-a58b-5cc8-9a5e-b09e0893325e": "d335137c-ed02-55bd-9148-c9f5b2feea84",
+      "c2b879d5-bcc1-5559-afdd-16d927e1ae20": "4c72f2c8-b34b-5304-bb3d-bfef221e8f5f",
+      "058dc2d4-65d6-5d05-ae72-90061b3fc055": "1985586c-aae2-593b-837f-0757f2109103",
+      "697f2f93-f27f-5fa0-838b-71cd4438ce1c": "cabd0da6-eebf-5c49-a79f-b7186dfaa50c",
+      "b97302dc-5e68-53a5-98ed-89c1206a9b0f": "44c68502-a842-50a5-bf6d-3cd9905ec347",
+      "cfd22545-68b0-5afe-83b0-85417ca9b09a": "b2c14eb0-955b-5f1f-ab03-5997eefea43c",
+      "1f01f25e-3634-5c57-a984-d62f9fa7de30": "da0d34a2-e127-5538-8960-ff43ccb3ccd0",
+      "88cd2953-bab7-56c4-91b7-6b294cec7014": "755abf1a-c611-52fc-9f69-146c604a5f97",
+      "6c2e6535-5385-5404-8233-12dc88050b63": "a01fc136-2482-5dd6-896e-f7199f5d8f83",
+      "fd4b1e3a-9dfc-5177-bf40-31049918708a": "9671a17f-95a8-5ec2-8e5d-632526f060a1",
+      "77b621e7-803a-5f1f-94aa-fb7ef768fbb4": "d05bc79d-e7c6-5703-b262-16f8bc7f1d84",
+      "4f1c7f9e-1b8b-5570-aedd-e47229ad0889": "3ee4a72e-039b-5154-8606-9ed09c421112",
+      "97ac8d26-64a7-5509-8969-6e4ca3a0232f": "85b5d87d-94c9-5b45-8c9a-7a97e2598102",
+      "22177b03-a5a1-54cd-890a-57353ae34b25": "e9bc65e7-b732-5fe9-a7d8-f80ffbfdf6fd",
+      "ad13f9d7-1010-5e01-87b9-f4e75ce39995": "04f2e28f-521a-5f32-a7ab-cd327436e95b",
+      "9dc3cd90-1d8f-5024-b14e-1b5cd7480afe": "53608041-c48b-5fb9-aff3-e8ebd3df83bd",
+      "15620e46-d4e2-5b29-84d6-46bce7e2dbbf": "d58be34f-ccd1-5eb9-81c4-0e59972da3b9",
+      "56d176aa-e132-55da-a488-97ec08f15244": "8237be3f-7146-5663-a62e-a5c68aa63137",
+      "a4407531-0e7d-5bd4-af1c-3d87b6ecf6ac": "baa9edf4-1cc8-55a2-9596-e60d742219fd",
+      "5fecd60b-809f-58ab-9dc4-e26317fb556a": "5348746c-ed18-5b93-b69f-2754a792cf7d",
+      "d56bc792-f92a-593e-91d4-0479e5bf93af": "16ce33ce-73a6-5f87-aba9-692f6c120339",
+      "3bca2367-e5e8-5587-b2d9-3f9f4b40aee0": "77e16e63-0eb9-507e-9dc1-913cb4373184",
+      "e2b4403c-1f62-56c5-8b4f-384a57679749": "d74a3c8a-421a-56c0-8b38-6161eb33083b",
+      "38f0db93-8789-5247-8154-be502e5970fd": "06991d2f-54bd-5692-99c1-945b18a6e751",
+      "e2729970-622b-5bea-9c2b-ff533d7a9fc8": "c43825c5-d994-5dec-a1e3-9f8806c5efe9",
+      "f883dc54-fc90-5ddb-91b1-297aac5c7547": "51e5937a-698b-50fd-a213-114834342fb6",
+      "240dab9d-eabc-5c14-b9cb-3c40b750d664": "be9d5d1c-17d4-5b9c-bd3a-e753cfd63c61",
+      "96a80fef-7b4f-5a7e-a93b-d04634175169": "126f6277-734a-5144-a433-aa3af5f82a3a",
+      "3a23a556-013b-5572-9f76-4a7a7ba357b0": "04adfd80-42ac-52ea-846e-d5f4499f0ec4",
+      "3eea668c-9ce9-588a-965a-7f8ce55113d8": "ba491d2c-a638-5c41-b6cb-928a36b153bb",
+      "98cc1661-2b0f-5627-a2c7-e235ccc2e3c2": "bc5681cd-d15d-5bb3-b411-af2506d67937",
+      "e90e44f1-2c3a-5619-9cd7-54eefc70dee6": "1f3ae8c2-2c8b-5ed2-b0f5-9f69bb2d1807",
+      "84cd2c86-e4a8-5b63-a39a-30edb578aa8a": "5ec9e4a4-e708-565a-bbb1-5464af348aa8",
+      "be04e613-b467-5562-a6e7-6cbe1aa5807d": "77b33b17-3855-5753-8f08-1eef248096a1",
+      "1e80d1cf-a7c7-5e57-83d4-1ab43dd39d46": "eed49e72-08d7-534c-b156-8e2ba7c4763c",
+      "b4bcecc2-7a59-57f2-9a6c-2b75ad21a8a1": "cf938352-1ac2-5732-87b4-15eaf7323c73",
+      "e6b0b294-3a98-5a6c-bb66-0ff16c0eff89": "a46f1e59-6c54-5037-bbbe-ba9e8848a423",
+      "1eb5c43f-9298-463e-955a-a993a9a7bb1f": "6e4055b8-5d20-4749-a4cb-3669610c74cb",
+      "cffa88b2-b09d-4411-bfca-899bd471d339": "28876c80-a7fd-4b2c-a484-c9fec5511b5c",
+      "1ea26617-e503-4975-9ecb-b9137a2e6d44": "f7ac8783-73c2-44b7-9ad1-cdba4cffc567",
+      "cb0df051-943c-4684-9bff-230efb1a1383": "5a022954-c692-480d-8d99-faa7fc274c9c",
+      "60d2b0c3-2fb9-4fc9-b8e9-46f7da5e5a8d": "f01d2bd5-01b8-411c-8fa3-0e1e32365568",
+      "adac9e80-f1a4-4a62-afbc-41decbbd8eac": "2572775a-27a3-4425-a16c-c5d487e097c4",
+      "ce68988b-c56d-4410-96b6-a6c518b341b8": "219c5a27-00fb-483a-873c-e785011c0a97",
+      "8e5f44a5-d0c8-4232-89d7-1f61e83f9aee": "bf0d0258-67df-41d5-aa91-73fe83cb30f2",
+      "f30ba352-b5a6-49ba-bef5-72ef2c5bbf0d": "99f20794-f66f-4554-aee1-2c49e5e0f3ce",
+      "1538a500-2858-42f4-8f02-bfb760fd18f7": "4a96db71-cf04-4d31-a798-9cac82d1e220",
+      "8cf37404-2fcc-45c7-8048-7c7451ea30af": "3ef3d705-7e03-4a4b-8f02-15785786e724",
+      "c35cc99e-0bea-489d-bb89-1703d1c8f353": "4fbff926-a0c8-4b18-aa40-9aaa99c4c6f0",
+      "265d657f-2b36-413b-b734-c4f13b1974bb": "97000630-96c8-4774-b05e-2a41614614cd",
+      "11621ff5-d165-4932-abd1-f0720f36421c": "44de8684-d876-4583-863b-7a77b845b0ef",
+      "752efdba-0c7c-41d4-8d79-b5eda96b840b": "a13d5c0f-9105-4b67-a438-4df9cca4f554",
+      "b7fc0fd1-13a1-4173-bc4d-048911a7d875": "33811d75-ad3f-4b59-b6b5-9ab0ae0340c3",
+      "3036fa5e-043d-416a-9a5d-6a172e4dde96": "e4dc6c94-9d76-41d4-a341-3695a75d9b3e",
+      "17e89247-e1bf-4c2a-ab3f-d88e953656e4": "c9e4eeaf-5aa6-4524-83b2-9ab81aed31e9",
+      "2566e780-af77-4147-975a-d9f8bf413208": "f4ce3f7e-fa60-497e-9dfc-0187b7b6f150",
+      "56289e39-64c4-494c-baf6-8ed26b49fd16": "2a0e12fd-aae3-4340-9c50-b5b52e899ed3",
+      "47462ae8-13fd-4caa-b43d-afc5e229aa52": "6cea5210-040e-47ac-a698-0e6f8e697bbc",
+      "341546f7-23c7-4893-8958-d9c7cac2a249": "2db81e1c-b60f-437a-88a7-120a3074ef27",
+      "4d000e72-c435-4ea3-a393-3693a270e120": "a5ddc19d-d581-473a-b823-a1bf3828a31c",
+      "47ee3781-685b-4137-8a56-7839061ed3dc": "8877ad78-17ce-45c4-a062-8952994d7c2d",
+      "963baa89-3e5b-4834-af68-3cb9801808c4": "ec3692e2-435f-4dd4-8be2-5775125cc91a",
+      "77b82838-cae9-466f-a592-215e0dedc16b": "00901d0d-c0e7-41cd-94d4-bd3e6d7c4b39",
+      "ccf71141-a0f3-4be1-9cba-65c99cd48754": "96b87723-9664-4115-a9fb-18f1908f6f6c",
+      "32fb84cb-3e0e-471e-bd43-206737bc4356": "3f7b3688-81bd-4a0d-8fa2-dd51aa835834",
+      "8e69618a-39d9-40a3-a5c3-3155522d58ee": "f8e0d0cb-ec79-48f4-b03b-d8ff8eb1183b",
+      "f6a63f1e-77fc-4a50-8502-e43cf23c5c35": "bffb378a-ce4a-47d6-a9b3-2461da77e3ec",
+      "c42b2b60-887c-4009-80b1-2a70b492cf36": "b78fb6ea-ab90-477f-a842-90b580e755e4",
+      "0ec589b6-2f67-4e90-8b1f-060db4475a8a": "35c7cde6-b1c6-446d-94fc-922e698482ec",
+      "8fe1c203-8920-4d67-a1b1-dc20a9391a89": "0de39b72-4949-4fff-92fb-bbefd2908ab0",
+      "9c08650e-53c8-4124-9e38-67d7af1c9dbc": "035010f7-366e-480b-af01-13ea24b3a8e6",
+      "fcda3876-29d3-4505-bb5f-b5f5827745ba": "8c66a7cc-453b-456e-be01-3c88db9c4e00",
+      "f9715dfa-681c-4b45-8e8a-d806216807e2": "b7be0468-85e9-4a61-ac87-b11cfabc5357",
+      "0f6f632b-5936-4bab-bf62-41ac8bc32f9e": "8a268119-eb10-4774-979f-5c5c0d727dd4",
+      "936781f6-dca1-4e2f-b78e-ddfe79c4ac19": "c3a40c6b-7fcd-46e3-9210-2f90715026c5",
+      "73e0726d-3221-4b10-a769-f95a4caaef16": "e62dcb0a-9fe1-43bf-aa39-3e2fb28d7e17",
+      "7efecb16-80b5-4f09-82f1-1d238b3c6f80": "30091f16-3964-40bd-99f9-460b2e303b32",
+      "756e0014-2de7-4cfe-8cfd-0c0259f52612": "03ffc044-839a-451f-b681-fdfc1beb2f53",
+      "717ef132-8814-4606-a5dc-e17c8d9e8da1": "c25f6220-b39f-4696-934e-87dfe86921b5",
+      "c30e2b0a-f30d-4306-b703-2a94048220dd": "6b57dc0e-f529-4fef-baba-4fcce2863b7c",
+      "84d18c40-d118-48d5-9b7e-0ab17858c857": "4ea913b2-330f-4c14-82cd-3fe519d3c5b3",
+      "4cdad0fc-2c33-40e4-9015-cf250129eb97": "5d2762e0-a3a1-49d0-91ea-e5b8c4c97d63",
+      "6915cd6f-a9b1-40c3-8b6b-34ae2385ba64": "8dd08908-d535-4791-abfd-61003a414bc4",
+      "e9f9604a-4fb9-4408-a376-332390701356": "108c364e-b360-444d-a93f-771dec546945",
+      "3a1ea701-9518-4b8f-9cca-fff4ecca788b": "f41fe686-08c5-4bfc-ad3e-7e2cd57f972c",
+      "cf990cda-6beb-4ffa-b1a9-eebbb2337eeb": "6f2fea32-252a-4b63-a47a-c924ed3add65",
+      "c481525c-fcc3-4333-a9ad-34ea0a95a625": "ad09185c-d308-4c41-85cd-0d6c90baefed",
+      "2f33ff9a-2aa3-47f5-8df2-9018ed9eb810": "5898f176-2002-4719-881c-1b05adf4e234",
+      "674faa5f-815f-4a53-854c-a3ce615de646": "2f801807-8050-4f1f-8638-131c95078d2a",
+      "bbafc73b-28a4-456c-ab4c-c139fc671c05": "dd4fd94a-f0e6-4edf-936c-b02bfd4268f4",
+      "48c5b8d5-df21-4e92-8e36-88c630e088f2": "4e314a5e-ed83-42b1-a789-3335941be71c",
+      "f1878fe7-4fc3-4787-abd6-ce34b962bfba": "80a39744-affc-4afd-837b-1de61e460798",
+      "b2584c52-43a1-4b24-a694-eeddb3c33f91": "ff656ba9-5374-4253-af32-e688dcd4fdaf",
+      "fe880199-bb12-4f25-b005-0fba8163b159": "f9aee70b-319c-4f16-b543-b0ae3d5ae27d",
+      "6476472b-9dbf-4df9-b384-82702f3aa60d": "d4d4623c-55c0-4bc9-a65e-e4105efe56e2",
+      "d6b7194b-a4f4-4729-b543-00df7eb30c25": "21ce79d2-54ad-4789-a286-2f2e95375714",
+      "47a34042-1b56-4369-b68d-05b4bf053667": "10878c4d-bbc6-4b5c-b147-90159ff762a9",
+      "55bec75a-b98a-46c5-ae50-dfb9cf409dbd": "66a449c2-b7a4-47a2-b4c1-d645bbb68ff1",
+      "98592e57-21ce-47d5-9042-2249f51ddab2": "e409f912-7562-4620-a708-e53cb05d6160",
+      "c6b8e26d-6c1a-4949-9d02-a26d280dbce6": "4a89cd99-a3ba-40bc-b7f7-4a2bfb29c4df",
+      "0603b5b4-9d7c-4e5a-af4f-042959ab8e38": "1629fe44-bc3a-4e7c-b17b-97c63826ecfe",
+      "2c721dfe-14a9-42a9-9d07-69396ddddc32": "05510c40-bd80-41ac-9461-11f15ba537a8",
+      "c2d2d79e-a65b-4ad9-a8f4-02d23620be9b": "162a3036-18a3-47f4-961f-73afbdef382c",
+      "6051aab7-b0c7-4458-b900-6b323cea4d26": "1958af1e-8eb7-4cf9-a1f0-b8378466d7ff",
+      "df6e03a9-a4f2-4f64-a5b2-c681afec36df": "1bfc22c0-3719-4d9e-bfb1-f1cc88bc4d9e",
+      "402cb6f2-29a1-4cb4-86f8-0541d12d0802": "09cb17e0-6d69-4848-89cf-36aff7995a3a",
+      "2cedff05-0e82-475a-a065-f7a9596ea948": "8575df48-4c3f-4c60-938a-05426b53ad76",
+      "422a9cc0-2adc-4ab4-8e8a-47002f550007": "744cc135-47c1-4f55-b555-f99de9dc2b44",
+      "320e049b-25f4-4093-9e45-6a31f3609ed8": "8841d5f0-7bd3-4579-b36d-7df9e2b433d2",
+      "b4c022bc-ed22-479e-b30c-1cdcc83bb70e": "8e0a838f-b0e3-4b87-8f74-a1d53c376415",
+      "2b53ad13-247e-46d5-8d60-f84173c609c9": "20ace30f-ffc8-4a86-9dc8-26f3dd623901",
+      "bc405f81-b14d-4e17-b10a-4e881b5aa52b": "23e51bfd-e6e2-4b40-b204-5e0d8eae846a",
+      "8a02ce57-5dad-43ac-8cce-4082aa76a8bf": "74097e04-7c41-4700-a5cc-1228e29bd74b",
+      "fa41c897-8062-4e86-abdf-074db52e6a73": "30372d97-e0ef-44fb-995e-8ecc29f3a194",
+      "2ab5c5b9-8212-4f87-8f2c-7a370938aad5": "478ef8eb-8224-4fe4-be96-4e9da790f46c",
+      "4eb8914b-8aca-4b30-bb8c-434cac14c1c6": "551a7e5e-12af-437c-a22b-884aae8e2b07",
+      "40f5f2b4-4314-40ba-b31d-fe0f409ee59e": "79c80b3f-0a78-429c-bf54-016f9fa4d42d",
+      "990be83b-b6d8-4308-a62b-8e42ceeb6f3a": "4f44901a-6325-4e02-bf44-d4966d2506a9",
+      "1bb5475c-bf34-4a51-abdd-269f2576a45a": "a9179e32-d664-4ab6-b345-41607cb810d9",
+      "1d4e2d4a-55cf-4401-84b7-6e8226c2f329": "6e0d86d4-3149-45fe-b462-ab8ca97b7ad0",
+      "46975ef7-808f-49f8-a5be-2267b2ac40af": "67abd6da-e643-4c31-9389-a01ffdfb3bdf",
+      "064a50bb-ba0d-4ebe-b5f0-509078753f45": "22486357-0c11-462d-9123-96d298bf08f3",
+      "30dc8930-575a-4187-b790-e5212b7dfa4e": "61c52d02-7c7e-4b16-a305-8e56a0bad495",
+      "d6612239-6026-41bd-a30a-910e041596f6": "c4620d13-8afd-4cab-845c-3f3226882a2c",
+      "60a37108-3781-4d6f-81aa-5f88cec116ac": "2e4385f5-ef6e-4b00-ae67-b97315fb52cf",
+      "3ba37ee2-5acb-4957-a578-6adabab7ec33": "e0f9c8f5-b81f-4b04-a11d-723d73db521f",
+      "443d06df-5d8e-4a0d-b087-e22a2b5a7443": "449a2382-42b5-43c1-a229-352abe8a4ce9",
+      "8c0c9395-1c39-43bc-92b3-a8d5f3d5128b": "8565f396-9ec8-40ae-a988-fe6c8f87bd74",
+      "077bdf3c-889d-403c-afb9-4f7d33c03354": "7baf600d-249c-4df4-bfbe-d3a09ed4279a",
+      "9cbade9a-e2ec-4bbd-a5d0-ce3badf99787": "a150bbd1-301a-42f4-b521-c02aade4a733",
+      "6a396e37-d90a-4e1f-b5a4-a9dabac1526a": "b3f29859-02f0-494e-8a35-ef1a4b3e8102",
+      "bff9b9d3-811f-447f-8a85-606e3117cb81": "e624a10c-1e68-4e74-b853-80b2ccf6bc04",
+      "ca72ec34-e3cc-449b-af34-7fd5a7324c6c": "21126626-5185-4333-a205-4468c9fb3571",
+      "9d535081-95d5-427b-ac88-f7b0dc70d808": "2e100f4d-e699-4768-82ea-581910054ac7",
+      "f79763eb-8f4a-4236-b404-da6ad842e1ea": "5a73e0ac-14de-4ade-9466-fea72d2765d4",
+      "7e13d360-31ed-4673-a92d-67b3e00b6f9b": "ea2172b6-0caf-4e9a-8f86-cfa23768805b",
+      "faed3b86-b8e4-44b8-9127-23903ee522c4": "7a6756ab-baa3-4a38-94c2-6c8d206b0360",
+      "88b25b1a-2cf5-411f-96d5-83fe4e3a285d": "a749b06a-70e5-4e9e-8d0e-ca101925790d",
+      "b16af9b8-68dc-474d-8c89-6cf4da7c60a0": "a0bdef88-e5bc-4d6e-8f15-20ba82a4a287",
+      "e848fbb9-133a-4737-af1f-cb17ca008df9": "cb054b1e-18f6-4e26-aeb0-9447562e941d",
+      "cb3434c4-36c1-437b-8a04-c75450a18f90": "dc46cd5b-5e36-4e1e-aad4-a5aa0bf1f582",
+      "ebb14f4f-186d-4466-861e-bea1d18ea492": "495bd8b5-ab80-444d-8752-59c86003d94c",
+      "2d765e15-8e68-4c5c-9c00-6449a3f01143": "727e9f8b-8aca-463c-bc91-ae34c032deef",
+      "175587dc-930f-4931-9e48-992141c0f18a": "0ca01f57-a836-46ab-a0d7-b69d9afb967d",
+      "b2a5f5df-ec46-42dd-ad47-c97496389b0b": "d8cda8bf-3d56-4a60-9726-afb8c886b15b",
+      "59376259-1750-4f0b-903b-50e6477cdbf2": "0e329ce2-0cd5-4e49-ad4c-72534b92dcda",
+      "f5c156a0-1816-4f5b-92e7-0e37ae96c84a": "b3dd7323-6fa0-49bf-85b5-be6a33240ab7",
+      "a5c624e6-501e-41e6-b216-627b954eb641": "089deeb5-82af-4bd0-8163-1c31fa2c1dae",
+      "14a28209-24be-41c8-a160-9e58a76b528d": "f4afb6ed-e085-47e8-ab02-6c48c76bde5b",
+      "addb5a2b-c087-4693-b83b-7694ebd49599": "9b0dcec2-6945-451c-a487-f20f849c1dbb",
+      "c4c4aa1e-0c41-4d3c-bd31-3c0bb5c056f8": "ec1d3e05-d4d9-4558-b16a-61d460bc471e",
+      "e8dd3ec8-b830-4e76-b5ca-cacb0f6c7ca0": "ac3f87a9-3f7a-4ebc-8559-beef81b2cdf9",
+      "c60993d4-9f3c-448a-9463-33aeef36ff1c": "0d3f4af8-12ff-4e91-82f0-30d0555ab8e7",
+      "675298af-5bb4-4f2f-919b-ce4b7416fdc3": "904e8b0a-2e9e-42da-a074-60fe692bbf18",
+      "4ec2879f-6f6a-4bc2-9bf3-a483f01fd0f3": "f9f1e708-d284-4184-84ca-bb84484233b5",
+      "d746f397-81ca-4cd4-8595-3fd978ec3af5": "4002c38b-d11a-4e0c-a15a-5303ef257218",
+      "47a27b83-0fda-4e24-b8e6-bf05d9505504": "7c6fa871-7091-454a-ac5e-8cedede73e8e",
+      "dcf927c0-01c4-41be-b5eb-d1856c29b3c7": "cbd91fb3-fe6b-4891-b006-0f1a55c0be9e",
+      "d77e4374-f85e-4db5-90a8-2d130d2a5354": "2591c67f-d13f-4f68-ba75-e0c47bea9810",
+      "f83212fe-0fb5-4a27-8f40-134c6ad01c9d": "cf941643-9b5f-4599-aa5a-9837a3f90a1c",
+      "187c06de-2915-45a7-a809-830817158681": "4844bf3b-cce2-41dc-ad24-bbe55babbddb",
+      "d6683c88-f4cf-412c-99ff-8e7a0c5f6e68": "ff22ef11-c3ae-4d7b-84c8-ad99dbfd84ed",
+      "d6a82a5c-c51f-44a0-b907-f304e9db95dc": "e6ca8210-7ef7-442a-8522-ec90e2bf8fc9",
+      "0ca7b0ad-44bf-45b0-8de1-2abc7b93462c": "dc0b871f-d550-45ed-bbb3-6730dc40d54a",
+      "ef9e8ae3-4aff-473a-9ac0-2788e0dc6ac1": "9e38b01c-503b-4408-8468-1ca2f72e3c54",
+      "b7ee9414-e770-46f3-97bd-7ffc7c6b77f2": "a444ab2a-1372-47db-afcb-49a8e6cddbdb",
+      "21934afe-42c6-4c1a-b826-75fec67ac42b": "82d567a9-aee7-4ec5-a345-3e04ce1f010b",
+      "b4c4e8a4-72da-4432-96f9-4065eb785742": "3dd19c2d-20db-48ff-834c-a11a5c58ea48",
+      "05309c54-f241-42d1-b36f-a91ccfecd430": "83b5ef5d-9f47-48e9-8e8a-91bb1f58936b",
+      "0d92218d-41e7-406d-8eed-fe906e2f36b5": "f304ef9d-a008-4df1-93df-0db0090d8948",
+      "7de34fb8-53d2-4fc6-b91b-6941b23d150f": "dfa83898-1165-4f2f-afc2-fe8899459ffc",
+      "9a38bbdd-2319-4349-95dd-2f64f8793bed": "863abe12-99d2-4ef3-b049-9e8abfb2ef85",
+      "3aee73ab-d6c4-456d-9d3d-b25721175de2": "97675141-fa20-471b-bc52-5acc569f1d7e",
+      "eb27f297-f3a9-438e-a25b-14f1302e44df": "0692cfc1-1bec-4964-8c96-3e6ade93a93c",
+      "aa819ab2-4126-4574-99a2-e19bb5c646e0": "1ab461bb-d2ea-48af-b3fe-8970035157e1",
+      "9fe01301-789e-438d-af08-fd71f4c1a0d0": "ca35b50c-0a6b-4303-a168-0fea0a04186b",
+      "64cf8f63-49ec-4277-833e-59907fe23d59": "1ff2caf9-b99a-4029-bc57-56df9e6d5351",
+      "7b3ab06d-076a-4cf7-9b82-ad9d6ada7433": "d673a8ff-a32d-4a6e-a3f1-49f5f5474e78",
+      "37e4ddff-71a0-487d-98ed-1c69bc641441": "d4bac534-1d0b-408c-b83b-605d8bcb28c7",
+      "8a4e7bb9-2374-4bbc-8260-4520b378ce25": "a1da4fa3-9070-4bd3-865a-6f1fc471b7d9",
+      "e3c30c53-1037-494e-be84-cd1c3f8c6341": "02462675-67a1-4af2-8e54-fe5f5598ce6d",
+      "37fc246f-4c96-4224-8369-b9641d4e7ecd": "1b653292-2f81-4e95-8802-a727c8a697b0",
+      "87aeb908-b30d-41c7-bdfd-dea360c91d6f": "ffff259a-f0f5-49db-8e90-83b7b932d09b",
+      "be406c6b-8c5e-4e50-9d4e-905b2c633f33": "b9e5de41-1ae9-4c4a-ac53-a1159cf8e360",
+      "ddc9acff-0b43-40c2-9105-9b26ae1e19d8": "9023add1-e8c5-46c4-80b4-e98f66887cf9",
+      "42203578-2e8d-4c92-b842-18dac504ca45": "e2315c44-f590-4939-bbe3-52673a0ba97d",
+      "87424580-135b-45d7-9dd8-7162bfeab684": "e21303ac-47e5-48f0-aa81-9271394a88a1",
+      "4b94e915-5e74-4bf6-b6d1-a23f31df14cf": "23ec438a-3438-4cbe-8e9d-f20b29f37e04",
+      "99551e48-60b4-4679-9dd0-a16f90aaf80b": "c4300a50-7954-4b7e-944d-0b40fdb70dc5",
+      "e3337c0f-44d4-4428-b16d-83df11ff15a0": "eb912b93-85cb-41d9-a91b-b0741f2103d5",
+      "f4e420b6-55ab-4c69-bc1a-e4c8726f9f2b": "f482cfa5-964b-4237-82b6-baa91693e53e",
+      "dcf30ee0-852d-4ff8-9c4f-40e499c810a2": "32edd617-00c4-471f-9c89-031a71c032bb",
+      "357d5009-d085-4b39-ad0d-84f79017f0a4": "93911f36-f56a-4a46-99f2-5027cdc51128",
+      "cae64762-d747-43fc-9775-e0e863e813c8": "227cc4e8-2730-45d0-b05b-f111cf5d4e02",
+      "97620d0d-54df-401b-bfc4-f5365caa47ad": "b3cba820-c731-4720-b5b9-d37727a82b98",
+      "219efa80-3dbd-4da8-91a8-17495291b8a8": "9f9818dc-dce7-492b-96eb-ba2093f0036a",
+      "dc574d0c-7b1c-48c9-9beb-ad3dde231ab9": "d94061df-8606-4873-b52c-981e58a32d28",
+      "be143013-519d-43e5-a2d0-cf58a834bff8": "d2ef63c6-85f6-44ac-9de9-2b7dedb59f6d",
+      "6c040313-cfdb-4839-b85a-1e5f1b1ae80f": "9cb3afb4-7683-4817-b3df-278520a7462b",
+      "5b3133e0-1229-4ff7-9d38-770c7b09945c": "28a32f37-b474-47f2-b0fa-b92c5fd66e11",
+      "c0e52d22-5744-4493-81c0-60451ddfb781": "fa4f3a7b-d3e3-4ed0-b5d1-018c5fe67eca",
+      "a6ccdfd8-7211-48e5-a4dd-c84b0c79e454": "03c82869-3458-442c-9242-427bcc5c8d0b",
+      "7ecdfc01-4ce2-45f4-872c-ad0d09c8b99a": "740b92db-6bd6-423b-a499-cbbd3bd89f3e",
+      "9b4e638d-8970-4077-b7b1-e08557b0aec1": "f97f6a0e-6b05-4925-bbd3-065650faf27f",
+      "3b1c6c2a-e8a2-40db-8918-065512cc77c0": "733ac0a1-c9ef-4780-a8ec-d73947c6a359",
+      "e489cc4e-797c-472e-98aa-56726f1859b0": "57a74d39-e514-4aee-afa1-7aa0ae6f70f7",
+      "06780726-50bc-4a30-b863-f199591d9f77": "c256a7d4-0afc-449e-8a95-ec0cdb4c63b4",
+      "7c72f44a-d2df-4a17-ba30-a59f4f1bee34": "0c954663-f0b5-4b4f-af31-5a69bc63760c",
+      "5586bfd5-7d88-4bbe-a034-47e7a9b9d292": "ce041f97-3c6a-4a47-886d-2bc9adba7e7a",
+      "340caeea-75fe-4dfa-8820-7bfdad6d1708": "5ba780e6-a4f4-4f77-b025-29dab6a2e756",
+      "eecb4684-3865-47b2-a03d-94436c0dd029": "ff44876d-503f-4f6f-9727-7b8adc02560e",
+      "d4c2a316-10b8-4a56-b034-8747963f953f": "b8cde74d-77cd-47e8-83d8-f708738a57a1",
+      "0345c7ab-57d2-4881-9d27-bc7f3c6b2578": "b3b01388-2713-46e4-9db0-4d87ff1d8d7b",
+      "556e71f8-1860-4196-8494-ba2b47398265": "6320c74d-2b18-4a71-b459-34a2f2aa1412",
+      "5afb3535-9b42-45bb-9bbe-ce38e8cd6be6": "f2cad53d-915d-4efb-9224-b46a7bc58a1c",
+      "abd1218b-7720-43c7-a23f-29a5201cd7c0": "7969c4d9-63fb-4bd1-99a5-3bd056e62995",
+      "85470c20-fabf-4634-be8d-ee399d769ba7": "acc82dfb-7398-42ef-ac06-6be1ee15ecab",
+      "63368a95-47ee-407f-80e0-6780e624f757": "79c10dd2-8c40-4b04-8c29-20e5b6285932",
+      "b529471f-352c-4125-bd1c-a2b5470cbc06": "43bcf6dc-6933-4b05-bec7-7e97c9d7f60a",
+      "bb3b16ce-910d-482d-b722-70ccfd14d03a": "a3b61009-ea13-46e4-bc38-83e331eec1ea",
+      "d922c7b8-1b03-4658-8207-e97ac02506dd": "bc4597ac-6d5d-41d9-8910-ed73abeb7a28",
+      "75ed72b2-a7de-4256-91fc-2ee201ebadc8": "91ea5cce-7e35-49de-93da-5d894ec5d520",
+      "62988ea0-cbaa-4bbc-90ef-7d7ccbc5eab7": "b70e6285-c302-47e9-a634-c8458b9c82e2",
+      "382945f1-65f8-4cbd-80f0-9a5109e10418": "6e880149-362c-4e24-81eb-2518d60a7bf3",
+      "af41f676-be09-413d-b9ee-630485e75123": "0178ca4d-7d30-4006-8182-a1e17a1dbb21",
+      "87f4345d-39d8-4c3f-b85f-81b5b4d23ced": "781f744a-5d1b-4d7a-8016-3347887f7569",
+      "08e9587e-d16b-4377-bb84-6b53cd8a892a": "4a2938a2-b595-4a0b-a47f-12ee85cf27a5",
+      "6e7af026-5ebe-44d4-af8d-97edbe2e1d9e": "7eab4ec9-0a46-4cce-a040-ea2d601b840e",
+      "68e602db-9267-40b3-8425-18d9f3e004e6": "a93f3bda-4c9e-411f-ad61-cdac546b4631",
+      "04df1aec-8b8b-426c-934a-f626c898c7c9": "d485d7ac-6f09-438a-9c2c-bf2fd6577a66",
+      "72cd9743-c404-45cd-91ff-ba9a89a7c615": "d3681db5-39aa-4571-b4bf-817be10ff9cc",
+      "37a0a39b-61e6-42e7-a226-e6e06cf73b72": "9ef05a56-7899-486d-9d88-27175f693147",
+      "d7d1d885-48d4-4a9c-9832-f0c968202fce": "95afae21-8f5f-43a6-85b2-4822161ff260",
+      "d2d82b31-5f3b-4673-8d0c-6d6e28e8d829": "e99a63a3-8f80-4947-a800-a41ca4ce103e",
+      "9e21a267-7af2-4927-ab09-a419676da48f": "e905b260-5d91-4abf-82bd-67d901c16066",
+      "7a2d760e-9907-4054-8c4a-d927751147f1": "4cfdf190-54fe-44c8-81e7-3ab1f8a997c0",
+      "94da5e7c-dbb2-4433-a0bd-2e0a34f70e33": "d4ed9863-a926-421d-a650-e1fd3b6cb476",
+      "c75f390f-8c7c-4f35-a821-b4587716b89e": "84723747-79c2-47e3-a1f2-0b52d12d36fb",
+      "2f0151ff-08a0-475e-8902-9b36460f70af": "98e57eda-3749-46cf-b35b-1845feaa640a",
+      "4f4bf658-ed85-4066-b688-30c551007b3e": "13ed5105-09a9-4d09-a662-2209a8b1d43f",
+      "fcecce5b-5d6c-4213-9f7c-e6ec7225dbbc": "0870f76c-657a-427e-9233-48623ed1c50b",
+      "360b3760-ee48-4dbe-9455-338b74aaac78": "5a0b23ce-350a-4a42-b3bd-ccc871703d40",
+      "da3edac3-ef76-41fd-a31c-3f36cec1891c": "2044011f-b5fd-4abe-b77a-74d02b0636fa",
+      "2a0dd2bf-3308-4194-b2b3-48c04ee22b42": "02a8fcca-f1f8-4d37-96e5-6393db5526ed",
+      "2b9a8ee3-b20c-4cd0-bbab-6012c59d5d44": "b4f0f58a-888b-46ff-9154-36e50d70be91",
+      "7c654b0f-f9df-4a59-8c94-7d6582ca238a": "053bdb47-83f7-4e9c-bdba-b87be4439daa",
+      "7844d14f-8a27-406d-893e-10657bdc59d8": "8b50aad1-0fcf-4903-bf69-75cb8a4cdb70",
+      "796edc2a-e25f-4a02-8839-90c97a2ecefc": "ea44259f-c444-42da-b2e0-8236250f3912",
+      "51bdf806-6f56-4bc4-b0d2-5b97a3f9de19": "e43f4d3f-2a3f-4d3b-bdbf-03c303b09d9b",
+      "0f02e36c-c619-4b1c-9440-ac5a28452851": "9532b6f6-d239-4999-93c3-725b0db1d361",
+      "4648b9d4-7079-4ea4-bca2-53cbb566757e": "fc74ff56-f149-429e-a30e-6c015b30cf32",
+      "d899f69b-c8f3-4521-9992-8e28b1168432": "79a9ef00-dbad-4d7f-a3f7-c5078349b715",
+      "3c6d0b8e-ba82-44c7-ad36-0f293632686d": "a9bcaa2b-9a3e-4ba2-9eb4-831e04267ab0",
+      "9c0c0054-b05f-45cc-abcd-748d4e1c0fb1": "50e0923a-1db0-4803-8201-146acc7afe87",
+      "953551b8-2597-4334-9374-459e1d5724c8": "0d2e97c2-24ff-4ef8-9533-672b4f8dd3f4",
+      "729f9fb1-c1fa-409f-ba57-b6fdf61a9737": "c6f21631-77eb-4a6d-927f-621ab1f5a667",
+      "8ecfaf27-7046-4ce4-b98c-350294e27007": "d793ac70-2af1-4008-89ce-4ce2b40c9fdd",
+      "c00e63af-f2b0-4b6b-95f2-e151a9dcbf6f": "330e70e0-a1f8-49b5-8d27-1c21c75da4c5",
+      "d91fe7f3-8022-4e8d-9510-68746919b4c1": "3e9c3734-fa9f-462a-9c65-afbb73ae8511",
+      "70e820ac-d0a4-460a-9b81-b4ff87fcc46b": "4e70bece-54a9-4d76-882f-13b3378a01e1",
+      "b19b545d-a2ad-4d5e-8d42-3f19f643ba8c": "76460699-7d90-4500-b67a-d688e0b25f0e",
+      "b49d2cc0-423c-45cd-84b8-aae58acbd049": "8a9088d9-c88b-4b98-ad9b-002a3e7edd9b",
+      "b12c4e19-7a65-4cee-aaa4-00a08afc9964": "03d13a66-9221-4cc1-86bb-b1f0836b9a86",
+      "590ec44d-85fa-47b4-8c52-7b23a68c6475": "ac4883b2-e5a4-4d78-8631-271c2f441d72",
+      "63c378f1-ab32-4db6-88fb-6207e132a003": "57418007-a03c-45c4-a60e-a9849103edc3",
+      "49d9706f-429d-40a4-bf8e-273e5749b5c6": "6a157397-c57a-4da5-8c12-f873c8ca0422",
+      "cb448e6a-c881-49d7-bc80-9144519b91ee": "fe3f7132-4be2-48a1-b8ac-499a72439cca",
+      "9139179b-43bb-4895-b488-43f594e8d1c0": "271d96b8-ae39-4473-9bb8-8850a0e50176",
+      "7f048b31-b192-4cf6-9b6d-554ca1b3d112": "c7229997-a30a-4f43-9c86-a507e48ed586",
+      "49df2ba6-eb49-4a82-a74d-5a89935e62cb": "2798e3b5-d375-41d9-9f66-9c8dcca4eaa2",
+      "c7b90fc4-0e7d-416c-8643-782aff816621": "0be5051d-34fa-47b1-98fe-6b1a82014147",
+      "2381dd36-43cb-4a5e-9182-c6c84f35a5c6": "5fb450a3-7371-4785-b477-65932820c460",
+      "9b2067da-ae7a-4a84-b853-48e7125c5141": "888d0521-314c-4ea9-a5d0-e99bfc8161d8",
+      "6b8804e5-b055-4094-a8c2-811bba226214": "736ac9b0-9739-4244-8280-23f0a222d586",
+      "0c55de92-085d-48ee-9bf1-b8be2a917c3b": "749efb4e-fb34-46e8-864f-ac181f47d2b7",
+      "f150ad0e-a993-4d39-8839-008f261c2389": "b532a457-4875-4c50-b844-dc8d7d39d4bc",
+      "249d56d0-4784-44a9-97db-34e9624afa4d": "8a24b798-5ae9-4a28-ad9f-2db45f03de8a",
+      "e84a7756-1687-46cd-8af0-4400fae724b2": "bd96583e-bff6-4743-b598-86a705c0434d",
+      "f5086d3f-11cf-4b06-bf3a-242838d37cc1": "937774ff-5ca0-4151-8899-4ac7f868344c",
+      "0386cf64-3ac5-4880-9e86-17ab0de8c206": "8d3d4895-1b20-470e-8cb6-77ab94a7c0e5",
+      "bc2d1b5a-82e1-421a-a46f-1978d3e2185c": "ba81468f-730f-48db-8b34-1646ee0e7e8a",
+      "a59176ec-b81a-4e5a-aeb7-bfd554d11e54": "6b0f37fc-69db-49fc-b6f3-df2cfab1692b",
+      "7cd88e3d-a636-496b-b955-50dded471c6b": "279982f9-20b7-4730-bcc8-12e0f5076b34",
+      "6a0be003-9c2c-46ef-8b9f-e628024273c5": "105964a8-974f-4172-bf31-5fd56a8f84df",
+      "78c8faad-00eb-4446-bc8f-5e972aa80cbb": "fe1a74e5-cd2e-4fca-89d6-68b5d0cc29d3",
+      "ac7704ed-977d-4627-935d-7e8d758f537e": "e43bc792-620a-4a86-ac48-3b6b7c9f34bc",
+      "09cff894-09a9-45bf-875d-9b823df8810f": "1d542073-e385-42b5-bd7c-313a38b0663d",
+      "cc2b6f62-399c-47f7-be8f-7f51a40ac422": "3384234e-c8b8-4450-a7c5-0c7f69833c90",
+      "6d8b2d2e-8d58-42e8-9df4-728192c55b84": "503a64b1-d066-48e1-9f12-e83a8f753833",
+      "a63f271e-b527-446e-a767-f0426edcec26": "7c667f84-81b4-4935-a5cd-ba23ef8902b8",
+      "7174cd7b-3f7f-4ac6-9da5-d85a83ffa7b9": "07bcdfbf-2e16-4fef-b7e2-0154fb359dcf",
+      "b5a26841-6b5d-464b-b5af-3bd4cd66863a": "0d7a7602-a07e-4c47-871c-1293d3719340",
+      "b289a878-1c10-4322-a7c7-0d830069d3b2": "b82dcb46-8ee2-48d4-b492-9d4f08c6e0e6",
+      "f5c781b3-0b10-4897-9e05-5014e85f81ee": "8341de3c-6999-46c2-acac-877040aec00d",
+      "a421d2d4-a6fd-46eb-bcfe-b193f004fd8a": "9d1945d2-401b-470f-bb19-7503bbbe605c",
+      "9ab17e9e-c1f5-4882-9736-c894154c826b": "700e4810-e27c-4a9f-bc47-ec1212420b99",
+      "8ffdfd44-ad60-440c-86ef-e9f266044fec": "929f387b-2609-44b4-9982-d2cf48c3e161",
+      "2cdf26cf-dfb4-498b-b82f-32e1a56e88ae": "cc64cd36-fa46-42d4-93ca-efbb7de28081",
+      "0d59215c-c446-45e2-83b6-793ef93a2720": "c43254cb-db2c-438d-9c6d-aa5620639868",
+      "8f966bd5-037f-41bc-8f5a-04c29029fb3f": "3b7c8b61-0f9d-4d53-946e-cdfc2a2eac63",
+      "3e2056aa-7cd6-470e-bd66-4abd9a59d8b8": "4dbd9e90-4186-47a0-92b1-63599c677e73",
+      "9f0591e0-2e17-4458-8d24-bc904df9a71b": "de824496-e602-4938-bea1-799bb23079b0",
+      "e0123eae-4e6b-466b-9169-82392ee89fc2": "a6372b57-ea84-4c17-ab9a-8b96ba83bee5",
+      "2fd17f4d-f480-45ea-802a-e77525d3feec": "f6a5d9de-ca66-49a5-acb0-6993fb12c097",
+      "c108c5af-7d1e-474a-a96c-1b2a0a1a309d": "26bb0014-93d9-41ff-916c-96c8bd2c02f5",
+      "de2e752f-6aac-4317-8783-976ea8abaf10": "ab0b1b4b-35bd-44f6-85f1-419e22f38705",
+      "9e7fb04b-6926-48fa-8086-a93229fcebd6": "038c5588-be1e-474f-8368-a82f3b4edce1",
+      "3afc6efc-6eda-45f3-b7bb-eabecf311820": "c15f8b4b-01fd-464e-a1ad-71ba79db3902",
+      "70666e60-e3db-422b-9ee4-e671621d59de": "2bfdab5a-0520-43e8-a97b-2b72960a9947",
+      "d18e43b3-0164-4be8-a11e-c6f675c13825": "a402e6c7-42e2-47b2-9570-a10040051cee",
+      "97c70147-cd69-468a-a417-98f5836f9366": "3a98487d-4bd0-4ddd-bafe-6dd747f10abd",
+      "75c766a8-6223-4194-9e7e-fdc05ac30147": "3654a559-9908-4664-b2b7-561844d98433",
+      "1391ea05-d0bf-4f46-962a-059d50d4f9e3": "bd268418-6158-47b3-98b9-8e67d10e1666",
+      "20957b2e-55dc-47e7-a211-0f3f819994e3": "ce8c3dee-d848-4b67-b03b-4cca9a58771e",
+      "26039a67-720c-425a-849c-3cbe802852b3": "bbe52f96-7c81-4ac8-bf5d-c0d0ce313baa",
+      "6fb6aac7-e3c0-4e23-b4e6-c21f465a91fa": "5197cae4-fc70-4103-8d57-73362d8f25dc",
+      "a8c21c7b-e5c8-43c1-89cc-0a8601eea3ed": "bf9d1bff-89a2-414f-b92c-451f75e30f7f",
+      "74d59253-5f2d-43c6-bcbb-9f187a7622aa": "7dc83f91-9b81-4e1e-9217-f760ba4c2dda",
+      "0cb5ccbf-ec54-4829-920c-da8bfbbbc7cb": "06ff4f41-7d6f-4e8f-814f-1ad7f497a9c3",
+      "155a8a76-23e3-4b49-8634-e83fd39b7838": "31721f64-1227-42b5-838b-ee6407bda263",
+      "7a111f1c-527b-443d-b5c9-b4d0917dc643": "07e10a2f-13e2-4a96-b71d-acede5d6eaea",
+      "bb2765d4-8600-4fa9-a170-8969e5e2a99e": "731574e5-2645-4c31-824f-9c3814960c26",
+      "7b2a68c8-6b94-473b-a7bc-f673340e89d7": "d296f1a3-7f71-4a0e-a3b2-e89dd854e8a6",
+      "b8b96496-4401-4bd6-b06a-1b5d746fc6be": "fd6e79dc-44c2-43e3-b1b5-c0fe6bc8725a",
+      "28467dd4-3c87-4c0d-9150-ef6e7d3d9809": "6ab64f3b-31e8-4ef9-9248-c1af7a5994f1",
+      "bf651ee4-68c4-4420-8750-8e4c43c052e2": "226684f8-fe2c-49d1-8358-bd6a3717800e",
+      "aa1cbbf0-86c8-43d5-987f-bd60711fbcd0": "510ad4a8-dfd8-4a57-af10-3216ac3a51df",
+      "cd93ede7-e045-4680-b024-09cff74a320c": "c7d0cc2a-c793-40e2-af5e-d1427f05fcb6",
+      "e793ace1-67bc-47a2-9f94-2ed7a9af148d": "c262a278-9261-464f-b62f-d16269a3d4a5",
+      "6fb08ef1-b3a9-4830-9fed-d8a4743e4882": "535b91cf-84b0-48ab-89f9-66b75cbb7104",
+      "823bd151-d30d-4729-a551-7a33c3e61b2c": "e1207398-1422-4bc5-8567-fe3ef50cca77",
+      "e601d29a-a886-492d-a6c4-a8781adde468": "91250579-54e7-45ae-a57c-2e2dcb0ef2a7",
+      "2145688c-8b9e-4388-93a7-cf1d72949320": "acf770e8-d127-4a2a-bf03-04621fc67983",
+      "01374fb7-7b3f-430d-9ccc-0391f7cd6a0d": "c6ed47ea-b125-4d3c-b780-05cba3d323a9",
+      "bd5c2006-cae6-426e-b3e3-951356c08220": "13f032cd-a397-4969-84f1-b70bdfb4a126",
+      "097f32e8-db42-4e31-98c1-f8ee4f4f9ce3": "b065f8b3-a8f4-422f-873c-0f39d84971f9",
+      "0699e40f-c068-4867-a6d5-193aeca43d0b": "a6d3120a-a061-48e1-90d7-cfa3321c4e16",
+      "a6273b5d-9a22-48a7-81a8-2e421383f1ae": "ca181753-b348-4bbb-9b9e-941b342fea91",
+      "0cf9eef5-1bcd-4e20-8c0f-88d058be6a19": "10665ece-f151-4bb5-b26d-2452bb0bc417",
+      "fb21788b-d450-4358-862f-efefc4cef560": "72977419-82ba-49d5-9298-7d667ac66ab4",
+      "4b7a6434-1018-49d9-b0f0-2305eb012a22": "bbfda0d7-5f94-4b2c-93b9-e05e7ecc47e0",
+      "72f0ea76-edc1-4fff-af10-ae4fe6a22032": "b4e0a6d8-e743-46e2-a871-c60c0bc69c3f",
+      "bfb4c1a1-58d8-41c2-8296-ba2088bbe63c": "d686659e-820c-434e-a330-326cb7849c9f",
+      "e16ced8b-1f33-4f07-884e-dacac91cd2ab": "d59a3dd2-eec6-447c-a310-07041ed970f5",
+      "d60a6ef3-64a4-4c5e-8f86-f637eb962233": "22f4c920-6293-47cd-87ea-a064231d8282",
+      "9134176e-00bc-4880-ade4-a95d036d17eb": "44699db8-61f2-4176-a8ad-70e2071831df",
+      "b5ffc9f9-a898-47f9-92ab-d81234868de3": "0768070a-6c3e-40d2-9980-ad28d50cf646",
+      "189f5f79-9aee-44c6-a649-0c9fc0198f9e": "7085dfcf-5962-43c8-be56-bc2b6b8027b5",
+      "ea0ad932-aaad-42ac-b5c9-30b4b5991d26": "6b5d75d0-0827-4943-8792-ba97e6020fad",
+      "7f7ee2bb-8954-4136-85b4-d8dfbd1c4491": "392b1ebf-f407-42c3-a7e5-a053f0406e17",
+      "aac8ae17-deaa-40a9-94f1-c3dbc8dab9c0": "6dfe66f5-0a44-4e0f-94db-aedf4f9aae85",
+      "733d2454-7ea6-4815-89d0-3f98bd55fabd": "0fc55c77-9777-40c6-8839-508cbb71b3a3",
+      "a7641dc3-8910-4130-b05e-c795afe692ce": "44aaa1c1-04e6-4b4b-a461-964c4a099ca5",
+      "a5e76dae-b0a9-4d8a-80ec-72d01f1ea423": "4834190c-4104-45ea-9b61-e5063bc1600b",
+      "c97d5b6b-e47a-4352-a6d2-a6aba087b3d8": "9ace9818-f1e3-4011-abe2-03b6dda90e55",
+      "509620d9-77cc-4376-852e-40888da3da1b": "e68b022c-44e7-46e3-96ed-a6b87125b6b4",
+      "a1473871-1577-4586-88a6-18db4c420abb": "6e7036ec-6e2c-4547-8552-db798e61cbbf",
+      "dc026b7f-260d-485a-80bf-cd18f43ce731": "8c071f35-ae2b-48c1-b16d-24f41ddeafaa",
+      "f1640d5e-8358-4c09-b25f-144cd36080c1": "58fd8221-9f39-4b3a-9d5b-270110c6244a",
+      "af8411a0-8dcf-4d8b-8441-78214a18e5bf": "0f4c964c-33eb-4ddd-ae8f-4e030cd46818",
+      "f0a93a83-afd2-4b5c-af55-a07297c43d68": "5d7d55b7-84cf-48e5-b2d3-7a5e89eae24a",
+      "18141801-baf5-48e8-8300-1d0b20d99300": "0dabafc7-fc31-4516-8b6b-66e63cb85558",
+      "d79340bd-a0ca-472f-8af8-c477fdc69b8c": "4cb1db2b-287a-4f89-8de0-2c1d342caae6",
+      "8054027b-7111-4449-903a-ac81d0c61e50": "3e27fc90-d46b-4f36-b1eb-749bdbd39668",
+      "2846bb47-58bb-4b6d-8487-a8e6558f2b35": "bf5d67ba-a926-41cc-87ab-db6e2448e344",
+      "a5ad36ea-4b2a-43e3-a198-37b35ae51788": "d4040575-eb28-4ba3-abed-b4994d317553",
+      "6da6d032-c6a0-43a4-be22-3e9148200113": "1db800a9-26ba-4ebb-a368-237b3db63ec3",
+      "9f3a5def-be45-4eac-8778-fca9e4664aff": "ac5b5c93-603f-4d29-83f0-3bca31967b47",
+      "51a50392-c384-4921-9173-77e0501abe5f": "8b5f1c38-7277-455b-9490-b0d553d250f3",
+      "3d374db5-78de-4cf7-b4f7-91f69cd9f52b": "0233e3bf-4001-49d4-bd5c-34bf61726f0a",
+      "42b8f4db-158a-4ee9-bae5-63f1c41d7382": "6793166c-d6e3-41f2-8d53-f41a268273d4",
+      "ac082b3d-1538-433b-aedb-767c9c89d7de": "b071ed79-043e-4212-a9f7-181d9026f331",
+      "a5ea62ee-1fd0-47da-b260-41e04dc7f854": "04226c80-49ea-48df-9b3c-4d14edcd3b45",
+      "5b3dec0a-87d4-4f86-bc4d-62fb2a2b5ca6": "971ff311-afdf-41a1-bbf1-1c749265f481",
+      "89f6bf81-ae7a-45f5-99d2-3b8c16b9d8e4": "cf089c80-ceb2-4335-88e4-ba54e36631d6",
+      "99fcfbd9-482e-43f7-8a1f-9f47c33d644f": "4a78471e-e9e4-4d03-b1d8-4bb86dcb0ba2",
+      "fca206fa-5324-4426-83b7-02e9ad538cd2": "b30a25ad-1ce3-4317-87f2-18df9ae32809",
+      "9e0c01bf-273a-4f27-873b-56b2480481e4": "ae28f47d-49b8-4102-954c-726a1fa7b7f7",
+      "87471a27-e2ea-4c45-9c19-363d8102e3d0": "23086299-31e7-492a-ac6d-7bd57d899490",
+      "8cda4512-5803-41c9-936f-87672fb1fa34": "930a882f-ab69-46af-a085-b7b704c234ec",
+      "6bf05581-9414-4769-bb82-cab303974a53": "8f0b86d4-eeee-4b04-b0d0-6db6aa9e8de6",
+      "1b0ca03a-5c99-4d03-875f-2389096f8a9c": "8166fe93-19d1-4af3-ab1f-72d2d9c7c9aa",
+      "b1fae3ea-0832-4e18-bdb2-943fdb6f8272": "3d95e305-46f7-4d03-b88d-7298255ba4f0",
+      "af6dfa57-e8d9-4449-8130-d9a259929433": "d4f377a7-7d2c-4692-8002-0e2f2e82e30b",
+      "7df8419f-400d-413a-a3b9-e974018cabc3": "29e6f73e-f03d-4e35-aad4-e5b03f928a44",
+      "c15872f6-9722-4828-b3fe-1b2058e2b72a": "a4d017f4-25ac-450e-8c95-a8bf939b974c",
+      "512809eb-3cac-41ca-ab50-b16ab4260a53": "dfe520ed-8867-4977-a316-3d4d4dcde065",
+      "ea76966d-0163-4a1b-89d3-c2ad55d68b9d": "8d3eb98f-b43b-432c-bda5-bc42fc0b9290",
+      "9b15ef28-3f38-427d-9971-2cd74ec84879": "22ef701a-c017-481a-ac39-ca02ba1f0482",
+      "9b5837b9-0014-4e73-b08f-cfce2f7dff41": "718a217f-e78e-4f85-9599-bf232d3c6b51",
+      "66af57ac-4e9a-4f59-940c-e56cec630951": "75b6de9c-62a3-49ab-b731-b127df8691d9",
+      "7a6de184-17ce-44ef-9237-8aebe814f9e5": "e232f475-16d0-4737-b1c3-34d0d80ac901",
+      "6e3945e8-0b23-4cf5-8d8c-acd44bc65c19": "51cb4452-eaad-4b53-a1b1-0e5aaf78853d",
+      "c7234e71-2b69-430e-a986-7ca929fa1d68": "da47dcd9-43a0-43ff-a8c0-b90a0a47d322",
+      "f4b8da56-ecdb-4958-91c9-8e08ea398c11": "4eefc63d-f0b7-42f2-a3af-9baf8af8e729",
+      "e0961f81-3feb-4dbb-9b9f-bc14f9fe6ef2": "7ed89f53-0418-4922-b98b-ec30b0abb86b",
+      "2d4f3302-9f70-4a49-96dc-d2d1dd791335": "b2af1a7c-d095-4564-b8e6-b85aa894d9d3",
+      "80da7124-8814-438f-86e2-726d865ffa8f": "9e145567-123f-4778-bff6-94350d8b75ca",
+      "b4ddcc20-6bc4-4395-a3f6-e8cf2f5b49ca": "02c98138-2f89-4e8b-93f1-ffe3e3dbef4c",
+      "b4209ef0-8705-40ac-83cb-0871be898aa8": "3042bb31-d81b-42ef-89d5-40c6168919c5",
+      "45086e6f-b40f-494b-b661-5ab63c487a55": "419d2885-4761-42ae-a050-c2073fbc2475",
+      "8331cb9d-c6f2-4122-baa3-629c20abf029": "e6ba7bb7-f3b2-4131-8031-d2d829e18a83",
+      "d1192af9-1e1c-40c1-823c-c953828a015f": "57b32a03-6303-4303-aacd-103a5359b996",
+      "0b4c7459-63c1-4475-bfca-29e00b9df2cb": "067f5300-b702-4892-88e3-87bf4002dfb8",
+      "deb9b39d-9ee5-4f5e-8708-18f7990abaaf": "7be1c8ad-e384-45b3-abeb-42d90e0e8bb5",
+      "399bc59d-381e-4271-b70b-b7baea445a92": "0790401d-a2e3-4ef4-bf24-bbc69b3b1487",
+      "7096e970-e948-4710-951c-f3a13958e837": "8c92edf4-c62b-45fc-af83-9fe283d07824",
+      "d4dac9da-ff4b-4fed-91d2-9a0a8bf5fcd7": "29a57c04-22da-498e-93bb-35b57b3b7076",
+      "ece038a3-9f50-47c1-bb9d-0bb392cbe2b0": "c3049794-b7f2-4cc9-9dcf-fda3f7095324",
+      "9ea996f4-c52f-40a0-bf23-c47a7e650fc1": "18acc9f7-c267-41a3-85ca-2b7c126dc8c3",
+      "9a0a383b-ed38-487b-9f9a-641c7a0020c8": "0b0c99e5-b537-409d-a60b-e68d17c5073b",
+      "8686f9ea-a641-49f8-9e19-5b4ebc663bec": "d00c12b7-5053-4f66-8459-19275fd88296",
+      "ff2dcd73-87bc-459b-b1eb-c84419a8e3f3": "dd1558a6-fa8e-4207-8bd1-f46f5ade4500",
+      "6a725341-5d5b-47b7-82b7-47d74bb7da92": "7c2e8ea5-b904-49f4-ad81-c2b5a8b84ff4",
+      "240a9752-0f47-48c8-9493-44e12d30d1e5": "49e6c249-bf34-490a-8cf9-234d74e02311",
+      "2a45f168-0ec8-403b-94b1-8796140c8ece": "1a7c082b-8d1b-4908-a638-948a14421772",
+      "21075ff3-e2dd-4a28-b2e1-7a514af886da": "4d63ce50-4dbf-4458-85af-e4fe9231bc96",
+      "62ffb920-4605-46d2-b2ef-15f2d7fdfa87": "52fe9c7d-6df8-42b5-87f2-e7c3c078fa2b",
+      "197b99c3-b244-4e21-aca8-12050ea5c39a": "9c56e1b8-ec1c-4f17-bb07-78129f6b27a1",
+      "83f68c0a-db15-420c-aeb0-4dd9149f52d3": "6f9ef1f3-3fc7-4477-9de0-7714138529fd",
+      "1132d908-07b1-4e39-9dc2-cd60cef10416": "6679b1df-937b-4658-b0c8-fe2759cffdbc",
+      "6fb2a949-e591-4557-aa0a-ab4e67517faf": "7b24ac18-3205-4869-9577-ad98edeae65c",
+      "77284b9a-e5a6-48e6-b8d8-4524fdcb6815": "29037f06-2a69-479f-a7d5-f58a5caa3a58",
+      "05d10c6c-534c-49a8-854c-e5e9e7a30422": "b82b4290-7869-4f75-bd07-5910f60bed5c",
+      "5979b473-2586-4d7e-b494-d00825b8726d": "849f80fa-fae0-49e5-bc08-cccb092fdda6",
+      "257b6025-afb6-4e67-ab63-5060132ed5de": "eb75d325-85ec-4391-9b8f-f076f1dcd951",
+      "edbbb5b0-2da9-4b46-8125-91cc86b67af8": "121dcca6-5f83-4adf-bd68-fbe746fba312",
+      "03a4d88c-6d97-4610-b266-5edd4b380427": "a7f28969-4c4d-4b1a-a478-2db3a728db90",
+      "3c6f9cc1-6b41-4b0e-a477-9086be263143": "0d22ecab-6b6b-4ebf-8429-cfe3c8c683be",
+      "e4b6c146-74cc-4dd3-ba55-7cb5aeb2125e": "f673e0d3-596a-4fa0-a979-5e257811b467",
+      "e3a88802-343f-4a92-a56c-d5b7e76734b9": "ae6925f6-6961-444f-81c2-e74575fe11a2",
+      "723af6e7-9fdf-4577-8cd5-7a7219646bf5": "816f9a68-2c3d-40bb-a69e-12d3d9511f86",
+      "fa8fcd8a-fbbc-4b32-9327-5590f74e7551": "9dd10d68-8596-4ea0-b833-f8fd6650bcca",
+      "0b2f78ea-cb22-4d98-bb00-daa789446cbf": "455e3167-64aa-431d-a9e6-72f8f70acb35",
+      "7cd46597-7108-47f5-becb-9b2b651d9c62": "aa47ea89-f2f1-477b-a61e-890f0fed8ce7",
+      "1e38f56c-f52a-46ec-aceb-7b04b347a030": "bd17aa55-732e-4cf9-ad79-f10f9aa58445",
+      "7088900e-9db9-412f-a28e-36aac6668cb4": "707c8e79-3771-4b2d-a67c-c3e2c4c88d10",
+      "f5b2d729-67d1-417c-8907-1045f2a116a6": "0bb7e209-1b9f-498f-a197-a344d3adf266",
+      "1164e98239b5e720cbdd08183aae475b1f2914e8a6121180006f069c7aedc97d": "400d5c617fd04a13c41edfef0ce8692ea8ac6e891f4c35da36981ae0c93dee1d",
+      "cf804b0df2f54e8e501892e361f125dbf3790803cc43f951c21c2933deab77a8": "5f46eb96e1b440257412de582777d31b30acdd0b13bc24b716e8ce8cb346e9b4",
+      "8ceb5f28db37daa98af420a58b89da24dce2b8b813517a34445052e6bdbda082": "e910b9ecec439582d9f60e78ca5ad62f82e1a22f9375f5a28f0488786b14a70f",
+      "a05316fc36d07f14aa7fb4ba703be9123805e975fbe63d37e2b398ce3e980376": "3bbed0f3f977fd7049fef6c16896cc8979cfe141ccdfb7c407c78d67dd8efe48",
+      "64fab8d6eb4669115d337507d36a0061ac6f82c5a89f0340504eb3b7bbe81bcc": "002887db238eeb7fa697af6a2c98227fdad55507772d9dac68a755856e6907de",
+      "b8a83253eb5489a49b6f9cdd19e76ad55945112f725c624160d8b13a421ed5b6": "eb1e24d8acc5af6eb52548858020eee906aeb1c101114e250b5ed23be725559b",
+      "f02861e20ec99e5ab77fadfb283afaad1442737aef08d84570bb8adf3157c0d3": "fef1c581f4f3603771e08634f91cb815c3f6c6a08ab411f7ded512425a66a28d",
+      "bca8376290645b462cf7e9d7133c98588048190cc1090b761461b2c22ca99376": "9600ae6cba864deb605da5693c6e147f9ed235b6876eff456ae4135b91fb2ca7",
+      "afe93c5b9a2f614cfe7121abfcbad84a7c1f302d9d8a081cb0e3f068e6f407a9": "c650f5f364738ad4b768fd7d8122b1c9156b8d104bb85c2869cb0ba5eaf4ec0b",
+      "2d552ef0d5f4f6a24e7a9d836019387b5d6b63139e9e06bb571c7a3ddedd52d6": "968f8aa0b5e5fa3a8d0e5b5d27c95fb5bbe1238add46ee26f7845bdac64dcb83",
+      "14adcd4a107ffdc489c23e3c9ae353d15bbe7e33a659b1b88ce7269fdfdb3d03": "389c926b140aa691127a19959fb97b7e2e83c5e68a2e766b9f5a2b2cc6793bcc",
+      "31ae824a5434a378c224abd787cd8273319d2eb7e09d82f70c18b239e8a51765": "cbaa74ca4c63d8859761ad96a7c525494f9c17cd15e573c0eca98239bddb1ae0",
+      "70376fc8403da27077c8068e89635ba50d0f3ecc3de66c066aaf25bb8104af1b": "a9c3bb6b110f177888f2e9fb81b7a716aba9d1cbd36fa777972afa87283a8bac",
+      "86364ece216f45810abb60c0d3d0480ddd8f528cc3d50b3526520f950ac57d3d": "f0cf29e389c98570c8b323a29c161f5b169e80931075ae017958e4395ded78bb",
+      "9d35ca97e97e0403932e658f96af13e9e28dc067792b06d4674976eb23f0bddb": "03503b1aa2e748d0d628202381237a901eeb76632ac8f22bb2e317cd03d3187f",
+      "2b2ecefa670b0e2c705626cbd2da0f51062aaf27af149124a68252e1034ea930": "44819699c430d23bd2cc25dad78286dea6a7521562213406e5bb4cf850864e78",
+      "b7759456d065c3c93114e70e2a27e7d19dfddbd6290bfab71ff48db34fde6898": "64cae9ac5c1f4498333d739256f72492036529b267ab8058fcfd25ebe21d5292",
+      "d1cee85ccbdeabd96e88c222b242dbee0457a23845e0049868421c41bcff80f6": "24adfa4d686507ac42814e8709cb5d4c3862dc32b97d7ca8590f7fbe7c4bacb2",
+      "1092f7ea8f05290e1454c55b48fda11e8b96653f1ae68a8c979e686e62adc71a": "3c1d2cee71413380f2e52ae718899120a45bed5417739d333627919fea3b8fd0",
+      "97b101a794d7bd6bc979a5f9856fb8c60117d4e10022b2501e7eb08280a3475d": "50aaf4736589e462160a9d74247e7589c7ec0e3b592207f60771e8a76c445536",
+      "e5a940a6e2cb6f123b1fcca9906b9339f169055ad5410608272f97bf6261ce7c": "bc2fdb4e10505da01c416d499bf01e14d3944d190339eff739f4f4fe77c74ebb",
+      "308dcd25cc982fa354897d1000c4567a104db0dcef082a123089b29275c405b2": "61f47eb6a43a5f8eb7d67db6e3d2071acbb3817c210da5b427e65a5dd0d6c320",
+      "555aa2c2861542e1929f458cfdbeaf0594d97532445843f23da3d347c5d5cdc7": "636af706562f4e4a7a4d5e76b108e66861ee9920f2dbe2d0973bc5233fa4da45",
+      "42820783186a702727eba6164a5965b65ad5b8da236f52825d86f114bde8ae32": "b2c45c259e6d3ebebf4040667d98ebaae779859c32480334c4346b9c8aa6f3ee",
+      "8737a71fd51a8533d2e416cc8304d5d45f7cd9c6f76b3f8abede75edbef14342": "aeb983beaabfbe8d22fb36351fda45649cd4237201cce4dff7fa9dd00432e9fb",
+      "833def291465631b97b1da293d382d9a8619204ebb0c166a2cf8eb37773e0366": "db2285d4369cd90d77b1e626c7854fec45f372a2ecdd21f9ec51d6ceb39cf2be",
+      "c75e8d1495cf7b9ae6bccf972c94785bdea6fc22c82ec55d76a967000ffde842": "81ddf18f461f2bf941db4a926604d356f502cef20f4a7a346068c59193d5ecb7",
+      "6d553c0b6b791964825a2f2479d2d8d08e90c3e23933430e2600f7ceca3e074b": "dcafee98fc8e17aba9f04e7cfd7f63a6a65a45e715f6681eb8336640dd16c052",
+      "c1d06800b5029bc7229b17b38c71d294afbf76099867902cb38564328917c34e": "ca502265b99b450801470838068b41a10e90247e4c60096794568fd6c0c436f9",
+      "dad7c490ceb0e9c62df2e85f5c1ecf26ec98fb482f4e8ace2d61116335ae8b72": "1055feb076f7c579f7f86c7fb1d0cd477978adb1363b2ce6f9a02c115bb42c8e",
+      "0833cba124ee85d186616966fd00dd57de6514326b145cc0acd58fcad937198f": "3d1fc957db974b332d54af23cf4f43d84330273a025bb984e8e29d9b40791065",
+      "c700daa1543e880911e8a6f64a658017384008d8babad9b72c15b7acd01a5a43": "3650348b8569018df42a3b585526e847572c20528712641d20b881f4c88ab16d",
+      "eae54acc69a01ac9ff398243ea0d04f8c8983eea2c3810122b86e0f917e36507": "253f7f7a28b727c1c87bca46174f80c0652813a0aebc3a441cd630ce8c773358",
+      "9d2053421d8b72d770c3db664390087756c977844f659483ea7619def932910f": "fe16a0a66f628f0b9210bc3cf82de2dff8c29ae926f927625afd28c6115b2563",
+      "8961d45187302ac53eaf64ba76d0c4f2d15f0d03e651f9754d071d6c1d3762ad": "cc901603fbb17118fa403a39f6f93977124c8e50500bb8bf7b64aaaa0d8c3aa9",
+      "d920b2eac959e996092a4df50624b15195003e21bdf7d4586383df97eca63be1": "e2451cd3f0fe044cd0d65c35c2b04eeaa9e6b02d192c4b90c27653f9bba31542",
+      "78d567c50f0783370ce2f42262e7c8a9c263ae0aae88a5c733d74cec75ff23ce": "8f72b62c1431f57a6bc6f31fab7a491b5a8f3f40f1b99e34a607c726e19f2278",
+      "b310b97ea2557e3704c3eb9fe69a33fd3d9de5359c9587f7e1a7d1b9fa4885d4": "4e25149478c1b42d15a35e12f708d7189949ee9c24056a3e2e90b739a29f1046",
+      "37273ed61e3cedc94b7adee84e0c752d77a6becb2a9ded8e75fe2bee5d911930": "47ace4c7fd22f78d6aa09bde34a7c8ac0e061d07076d072b9438249a3a6dacec",
+      "ce8934e0168b3ebcef6adade89dcdc3ed989e4596fd1e14c7e54351e54e01618": "46f8ab496112ae53c6ca1d9e9eb57230e9e9a21487f2443abf610fc115887f8c",
+      "e3544c1fb00941bbd7870a0ab3b46b4318d2557e0cdd0c974dda525e29620e73": "6ded02f6b5bc485e069811565a607b1796bcf816f1af4566c038043e978bd5aa",
+      "2994a7819a40b0bf3b4f1397494e66fcbc501f7beca0dbd998487b3f180dac70": "0ff9006da33dfa39ff44807ec0d246b22142b18e83980351090ffcb9407ebb04",
+      "92f93793463dda8a27d85b3884620bc32b0bc276c8bd85b40f68525119651be2": "6f62302c15e76503ba8b0dff40f4b5b55ac79f2267a463633f43d775e5c36df9",
+      "640cdcb7c8adacddb065b230dc02d347b34d8bbda36391de10c2c8e3360e2367": "8d4f98b35153999b83bc315a3bf12ce975fde532aab13a7279a8ffc67437138c"
+    },
+    "verified_blob_ref_substitutions": 173,
+    "creation_time_substitution": "manifest.json:created_at",
+    "transport_substitution": "provider_request_id:offline HTTP transport",
+    "all_other_json_values_exact": true
+  },
+  "count_calls": 43,
+  "submit_calls": 43,
+  "tool_results_exact": 42,
+  "all_native_requests_exact": true
+}
