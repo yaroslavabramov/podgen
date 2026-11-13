@@ -1,0 +1,83 @@
+{
+  "date": "2026-11-13",
+  "commits": [
+    "06761d83",
+    "4285f8db",
+    "292e839f",
+    "868f3a8d",
+    "d4b30133",
+    "bd623703",
+    "6aece833",
+    "94ba1332",
+    "526ce454",
+    "fb526968",
+    "69a5c227",
+    "96ff5759"
+  ],
+  "runs": [
+    {
+      "name": "research_runtime",
+      "passed": 59,
+      "elapsed": "61.09s",
+      "files": [
+        "/Users/yaroslavabramov/side/podgen/backend/tests/test_research_runtime.py",
+        "/Users/yaroslavabramov/side/podgen/backend/tests/test_streaming_source_search.py",
+        "/Users/yaroslavabramov/side/podgen/backend/tests/test_verified_text.py",
+        "/Users/yaroslavabramov/side/podgen/backend/tests/test_research_annex.py",
+        "/Users/yaroslavabramov/side/podgen/backend/tests/test_research_navigation_contract.py",
+        "/Users/yaroslavabramov/side/podgen/backend/tests/test_research_corpus_acquisition.py",
+        "/Users/yaroslavabramov/side/podgen/backend/tests/test_research_material_resolver.py",
+        "/Users/yaroslavabramov/side/podgen/backend/tests/test_research_material_runtime.py",
+        "/Users/yaroslavabramov/side/podgen/backend/tests/test_source_tool_runtime.py",
+        "/Users/yaroslavabramov/side/podgen/backend/tests/test_source_tool_recovery.py"
+      ]
+    },
+    {
+      "name": "compatibility",
+      "passed": 58,
+      "elapsed": "148.86s",
+      "files": [
+        "/Users/yaroslavabramov/side/podgen/backend/tests/test_source_search_index.py",
+        "/Users/yaroslavabramov/side/podgen/backend/tests/test_hybrid_source_search.py",
+        "/Users/yaroslavabramov/side/podgen/backend/tests/test_source_search_profile_replay.py",
+        "/Users/yaroslavabramov/side/podgen/backend/tests/test_research_materials.py",
+        "/Users/yaroslavabramov/side/podgen/backend/tests/test_research_paging_versions.py",
+        "/Users/yaroslavabramov/side/podgen/backend/tests/test_production_entrypoint.py",
+        "/Users/yaroslavabramov/side/podgen/backend/tests/test_reading_audit_runtime.py",
+        "/Users/yaroslavabramov/side/podgen/backend/tests/test_prompt_cache_layout.py",
+        "/Users/yaroslavabramov/side/podgen/backend/tests/test_count_recovery_runtime.py",
+        "/Users/yaroslavabramov/side/podgen/backend/tests/test_technical_recovery_runtime.py"
+      ]
+    },
+    {
+      "name": "latest_tail_and_inheritance",
+      "passed": 13,
+      "elapsed": "16.63s",
+      "files": [
+        "/Users/yaroslavabramov/side/podgen/backend/tests/test_streaming_source_search.py",
+        "/Users/yaroslavabramov/side/podgen/backend/tests/test_research_corpus_acquisition.py",
+        "/Users/yaroslavabramov/side/podgen/backend/tests/test_research_material_resolver.py"
+      ]
+    },
+    {
+      "name": "source_url_aliases",
+      "passed": 7,
+      "elapsed": "0.23s",
+      "files": [
+        "backend/tests/test_research_navigation_contract.py::test_admitted_url_alias_is_searchable_within_its_original_material"
+      ]
+    },
+    {
+      "name": "messages_grammar_and_compatibility",
+      "passed": 136,
+      "elapsed": "109.55s",
+      "details": "messages-grammar-fix.md"
+    }
+  ],
+  "notes": [
+    "Runs overlap; counts are test executions, not a distinct total.",
+    "Local SDK transport mocks and isolated owned PostgreSQL instances; no paid model calls.",
+    "After the first live pause, metadata performance fix 94ba1332 was tested separately and the exact saved run resumed; see runtime-fix.md and resume-check.json.",
+    "Stopped at user request after code/test completion. No live grammar retry or script revision was generated."
+  ]
+}

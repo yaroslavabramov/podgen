@@ -1,0 +1,247 @@
+{
+  "turns": [
+    {
+      "project_id": "30619987-72ed-4e7e-bd53-3db4b55b64ed",
+      "root_invocation_id": "b657262c-0a22-57b3-823d-d4b1013c6ba6",
+      "turn_index": 0,
+      "invocation_id": "d1214b1b-4997-58f7-b7ee-21f913fd4c53",
+      "status": "response_completed",
+      "request_record_id": "33132f5f-13c3-58af-8bc1-b92d37d8169e",
+      "provider_response_id": "resp_047262f733ca85c3016af6f66d2fb487d28a6f3f6f949a5a06",
+      "input_tokens": 6260,
+      "output_tokens": 32
+    },
+    {
+      "project_id": "30619987-72ed-4e7e-bd53-3db4b55b64ed",
+      "root_invocation_id": "b657262c-0a22-57b3-823d-d4b1013c6ba6",
+      "turn_index": 1,
+      "invocation_id": "9f584252-e347-5d1a-b5f7-5c97cb0a7608",
+      "status": "response_completed",
+      "request_record_id": "b20673e2-05ce-5c18-bb71-df2c812c141f",
+      "provider_response_id": "resp_047262f733ca85c3016af6f6902edc87d296af88366642a4b0",
+      "input_tokens": 7424,
+      "output_tokens": 32
+    },
+    {
+      "project_id": "30619987-72ed-4e7e-bd53-3db4b55b64ed",
+      "root_invocation_id": "b657262c-0a22-57b3-823d-d4b1013c6ba6",
+      "turn_index": 2,
+      "invocation_id": "98164c53-cf47-52b9-80f7-e569e7198b0b",
+      "status": "response_completed",
+      "request_record_id": "831fcf66-fa9e-58a5-8ae3-d73c2ac8e271",
+      "provider_response_id": "resp_047262f733ca85c3016af6f6b8529487d293de201fbc0978b1",
+      "input_tokens": 8905,
+      "output_tokens": 32
+    },
+    {
+      "project_id": "30619987-72ed-4e7e-bd53-3db4b55b64ed",
+      "root_invocation_id": "b657262c-0a22-57b3-823d-d4b1013c6ba6",
+      "turn_index": 3,
+      "invocation_id": "7d887a0d-c87c-5ab2-9a42-d723d2bdc0ac",
+      "status": "response_completed",
+      "request_record_id": "c23820a7-13e5-5db5-8267-6f8948126c14",
+      "provider_response_id": "resp_047262f733ca85c3016af6f6e3252887d2a197fd1d74670e59",
+      "input_tokens": 10553,
+      "output_tokens": 32
+    },
+    {
+      "project_id": "30619987-72ed-4e7e-bd53-3db4b55b64ed",
+      "root_invocation_id": "b657262c-0a22-57b3-823d-d4b1013c6ba6",
+      "turn_index": 4,
+      "invocation_id": "238ca540-6555-53f3-b9f4-899b25bb33bb",
+      "status": "response_completed",
+      "request_record_id": "fda9d81e-a0a5-5c85-961e-f25c008ddeaa",
+      "provider_response_id": "resp_047262f733ca85c3016af6f70f88d887d292e92ff55a04e408",
+      "input_tokens": 12165,
+      "output_tokens": 32
+    },
+    {
+      "project_id": "30619987-72ed-4e7e-bd53-3db4b55b64ed",
+      "root_invocation_id": "b657262c-0a22-57b3-823d-d4b1013c6ba6",
+      "turn_index": 5,
+      "invocation_id": "005192c8-bb19-5ccc-ba93-737655ca03ec",
+      "status": "response_completed",
+      "request_record_id": "579a98a6-4f2c-5648-bf5f-f93bce4cae84",
+      "provider_response_id": "resp_047262f733ca85c3016af6f73d84ac87d28cbf5aa1d046094f",
+      "input_tokens": 14709,
+      "output_tokens": 32
+    },
+    {
+      "project_id": "30619987-72ed-4e7e-bd53-3db4b55b64ed",
+      "root_invocation_id": "b657262c-0a22-57b3-823d-d4b1013c6ba6",
+      "turn_index": 6,
+      "invocation_id": "561ce9e7-6a86-5464-be6f-188091cba712",
+      "status": "response_completed",
+      "request_record_id": "e8e9d270-f8a8-581a-b82f-20e3d724479a",
+      "provider_response_id": "resp_047262f733ca85c3016af6f76e057c87d2bb20dbcc9d6d9d15",
+      "input_tokens": 16655,
+      "output_tokens": 32
+    },
+    {
+      "project_id": "30619987-72ed-4e7e-bd53-3db4b55b64ed",
+      "root_invocation_id": "b657262c-0a22-57b3-823d-d4b1013c6ba6",
+      "turn_index": 7,
+      "invocation_id": "d96148ef-4e91-50c8-8e4e-9b08b22226f3",
+      "status": "response_completed",
+      "request_record_id": "f95ce826-8c51-54bd-b8c5-092c42ddb57a",
+      "provider_response_id": "resp_047262f733ca85c3016af6f7a2ea0887d2bf83eacaf1ba9989",
+      "input_tokens": 18333,
+      "output_tokens": 24
+    },
+    {
+      "project_id": "30619987-72ed-4e7e-bd53-3db4b55b64ed",
+      "root_invocation_id": "b657262c-0a22-57b3-823d-d4b1013c6ba6",
+      "turn_index": 8,
+      "invocation_id": "5f4b6a33-d4bd-55d2-ae8c-4d8aeeccbe1b",
+      "status": "response_completed",
+      "request_record_id": "89617800-2fd1-560b-8787-ff036666d67e",
+      "provider_response_id": "resp_047262f733ca85c3016af6f7d9c71887d2b08dd5ffc6ec4939",
+      "input_tokens": 18428,
+      "output_tokens": 48
+    },
+    {
+      "project_id": "30619987-72ed-4e7e-bd53-3db4b55b64ed",
+      "root_invocation_id": "b657262c-0a22-57b3-823d-d4b1013c6ba6",
+      "turn_index": 9,
+      "invocation_id": "9faecdb0-9135-53d2-96ff-f043378b2308",
+      "status": "response_completed",
+      "request_record_id": "21dae46d-59dd-5705-a0d7-ba586c1f70e8",
+      "provider_response_id": "resp_047262f733ca85c3016af6f82685b887d29bdbbbd675151647",
+      "input_tokens": 19284,
+      "output_tokens": 28
+    },
+    {
+      "project_id": "30619987-72ed-4e7e-bd53-3db4b55b64ed",
+      "root_invocation_id": "b657262c-0a22-57b3-823d-d4b1013c6ba6",
+      "turn_index": 10,
+      "invocation_id": "7d3a7563-bcc4-5f53-95f3-02ac453b5da0",
+      "status": "response_completed",
+      "request_record_id": "147d6bde-c98f-5bf9-a9a0-8311e14a97af",
+      "provider_response_id": "resp_047262f733ca85c3016af6f863a70087d28562d58173834e4a",
+      "input_tokens": 21231,
+      "output_tokens": 54
+    },
+    {
+      "project_id": "30619987-72ed-4e7e-bd53-3db4b55b64ed",
+      "root_invocation_id": "b657262c-0a22-57b3-823d-d4b1013c6ba6",
+      "turn_index": 11,
+      "invocation_id": "4eb9c335-0766-56c1-9647-269a35245dd4",
+      "status": "response_completed",
+      "request_record_id": "1ca552e0-15a1-5e5b-8922-fea2e91a2ef1",
+      "provider_response_id": "resp_047262f733ca85c3016af6f8a21cdc87d2bd1af74d97bbcbbe",
+      "input_tokens": 22785,
+      "output_tokens": 28
+    },
+    {
+      "project_id": "30619987-72ed-4e7e-bd53-3db4b55b64ed",
+      "root_invocation_id": "b657262c-0a22-57b3-823d-d4b1013c6ba6",
+      "turn_index": 12,
+      "invocation_id": "1f6829ca-4629-5f89-a1a5-7f6247e70d53",
+      "status": "response_completed",
+      "request_record_id": "82ca22dd-9bf8-5014-a94b-244a42332b62",
+      "provider_response_id": "resp_047262f733ca85c3016af6f8e9ead087d29580c44d5e9e903a",
+      "input_tokens": 24689,
+      "output_tokens": 28
+    },
+    {
+      "project_id": "30619987-72ed-4e7e-bd53-3db4b55b64ed",
+      "root_invocation_id": "b657262c-0a22-57b3-823d-d4b1013c6ba6",
+      "turn_index": 13,
+      "invocation_id": "708754c3-3d36-5422-8c8a-cf7c9b697be4",
+      "status": "response_completed",
+      "request_record_id": "7b2ab54c-64e6-57c6-bdad-20d1c4bdaa0e",
+      "provider_response_id": "resp_047262f733ca85c3016af6f931b16487d283232d9a6eae9145",
+      "input_tokens": 27192,
+      "output_tokens": 70
+    },
+    {
+      "project_id": "30619987-72ed-4e7e-bd53-3db4b55b64ed",
+      "root_invocation_id": "b657262c-0a22-57b3-823d-d4b1013c6ba6",
+      "turn_index": 14,
+      "invocation_id": "bf5f225e-4c2b-552e-bf8d-558322a53da0",
+      "status": "response_completed",
+      "request_record_id": "8a611988-af5d-5e91-8a60-89079c639544",
+      "provider_response_id": "resp_047262f733ca85c3016af6f97fdb8087d2a2635f209077f52d",
+      "input_tokens": 28176,
+      "output_tokens": 28
+    },
+    {
+      "project_id": "30619987-72ed-4e7e-bd53-3db4b55b64ed",
+      "root_invocation_id": "b657262c-0a22-57b3-823d-d4b1013c6ba6",
+      "turn_index": 15,
+      "invocation_id": "9683f75d-19ac-5e8c-8319-7a872f62418a",
+      "status": "response_completed",
+      "request_record_id": "9d412bc4-561a-5cbf-8189-851dd960b87b",
+      "provider_response_id": "resp_047262f733ca85c3016af6f9cf015887d2a83cf57d180c101c",
+      "input_tokens": 29243,
+      "output_tokens": 46
+    },
+    {
+      "project_id": "30619987-72ed-4e7e-bd53-3db4b55b64ed",
+      "root_invocation_id": "b657262c-0a22-57b3-823d-d4b1013c6ba6",
+      "turn_index": 16,
+      "invocation_id": "496ddd0d-37cf-5626-a333-d92334a2ffc5",
+      "status": "response_completed",
+      "request_record_id": "e5aad00d-7ae4-5d5b-addc-74f71cdef50b",
+      "provider_response_id": "resp_047262f733ca85c3016af6fa287f3887d2b0a4dc4923560925",
+      "input_tokens": 31501,
+      "output_tokens": 28
+    },
+    {
+      "project_id": "30619987-72ed-4e7e-bd53-3db4b55b64ed",
+      "root_invocation_id": "b657262c-0a22-57b3-823d-d4b1013c6ba6",
+      "turn_index": 17,
+      "invocation_id": "cfd292e9-0228-59c3-8563-dd98b955007b",
+      "status": "response_completed",
+      "request_record_id": "147e18b9-ec3d-5d6c-a705-16443f8823d8",
+      "provider_response_id": "resp_047262f733ca85c3016af6fa8030a487d29ab28852dec56f3e",
+      "input_tokens": 32662,
+      "output_tokens": 28
+    },
+    {
+      "project_id": "30619987-72ed-4e7e-bd53-3db4b55b64ed",
+      "root_invocation_id": "b657262c-0a22-57b3-823d-d4b1013c6ba6",
+      "turn_index": 18,
+      "invocation_id": "f2f93eca-21dd-5374-a34d-dbc324359a74",
+      "status": "response_completed",
+      "request_record_id": "f7a321f9-4303-53c2-817a-86e833a44231",
+      "provider_response_id": "resp_047262f733ca85c3016af6fae955e887d2a64260359ddc221c",
+      "input_tokens": 35311,
+      "output_tokens": 48
+    },
+    {
+      "project_id": "30619987-72ed-4e7e-bd53-3db4b55b64ed",
+      "root_invocation_id": "b657262c-0a22-57b3-823d-d4b1013c6ba6",
+      "turn_index": 19,
+      "invocation_id": "b5493b1a-5364-5af3-b581-50bd4d0f15c1",
+      "status": "response_completed",
+      "request_record_id": "869bdcfb-b0de-5c61-a81c-1b8f93f1150d",
+      "provider_response_id": "resp_047262f733ca85c3016af6fb51aea487d2811e55a340c0376f",
+      "input_tokens": 37676,
+      "output_tokens": 68
+    },
+    {
+      "project_id": "30619987-72ed-4e7e-bd53-3db4b55b64ed",
+      "root_invocation_id": "b657262c-0a22-57b3-823d-d4b1013c6ba6",
+      "turn_index": 20,
+      "invocation_id": "263310df-66af-5d02-9fb0-8223c9b5777b",
+      "status": "response_completed",
+      "request_record_id": "cf31cb2f-a526-5415-9f2b-1735b19128c2",
+      "provider_response_id": "resp_047262f733ca85c3016af6fbca260487d2b3bf48a1b7fe38a9",
+      "input_tokens": 38544,
+      "output_tokens": 36
+    },
+    {
+      "project_id": "30619987-72ed-4e7e-bd53-3db4b55b64ed",
+      "root_invocation_id": "b657262c-0a22-57b3-823d-d4b1013c6ba6",
+      "turn_index": 21,
+      "invocation_id": "f73bf202-2ed1-5f81-9da0-af16b3f304a5",
+      "status": "response_completed",
+      "request_record_id": "7e1ed29e-8de1-56a7-bbda-f8d07a5504b0",
+      "provider_response_id": "resp_047262f733ca85c3016af6fc4e756487d2bce395cbde65d3c2",
+      "input_tokens": 39311,
+      "output_tokens": 67
+    }
+  ],
+  "reason": "local metadata quadratic work; no provider request pending"
+}

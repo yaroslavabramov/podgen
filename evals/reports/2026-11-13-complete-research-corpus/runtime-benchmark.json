@@ -1,0 +1,22 @@
+{
+  "old_restore": {
+    "seconds": 32.347,
+    "sql": 362562
+  },
+  "indexed_restore": {
+    "seconds": 0.9851,
+    "sql": 10229
+  },
+  "old_latest_turn_metadata": {
+    "seconds": 48.7028,
+    "sql": 544170
+  },
+  "indexed_latest_turn_metadata": {
+    "seconds": 0.0,
+    "sql": 0
+  },
+  "turn": 21,
+  "submitted_turns": 22,
+  "receipt_ids": 18,
+  "decisions_identical": true
+}
