@@ -5,6 +5,7 @@ from uuid import uuid4
 
 import pytest
 
+from podgen.domain.contracts.common import RuntimeRef
 from podgen.domain.errors import AccessDenied
 from podgen.persistence.database import one
 from podgen.retrieval.config import streaming_profile
@@ -35,7 +36,8 @@ def test_same_source_new_admission_binds_dependencies_without_reindexing(repo, s
     emitted, revision = network.embedded, corpus.retrieval.revision
 
     dependency = repo.save_blob(project, BytesIO(b"SYNTHETIC additional provenance only"), "text/plain")
-    provenance = journal.record(dict(dependency=dependency.model_dump(mode="json")))
+    provenance = RuntimeRef(record_kind="tool_execution", record_id=uuid4())
+    repo.append_runtime(project, provenance, dict(dependency=dependency.model_dump(mode="json")))
     corpus.admit(SourceAdmission("S1", doc.title, doc.text, doc.digest, provenance))
     assert dependency.sha256 not in index.registered_dependencies
 
