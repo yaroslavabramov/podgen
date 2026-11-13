@@ -13,6 +13,7 @@ class IndexAccess:
     def __init__(self, journal, shared_input_ref):
         self.journal, self.reference = journal, shared_input_ref
         self.source_hashes = set()
+        self.admission_references = []
 
     @contextmanager
     def transaction(self):
@@ -50,6 +51,8 @@ class IndexAccess:
                             visit(linked)
 
                 visit(self.reference)
+                for reference in self.admission_references:
+                    visit(reference)
                 if hashes and one(
                     tx,
                     "SELECT 1 FROM blob_access_revocations WHERE project_id=:p AND sha256=ANY(:hashes)",

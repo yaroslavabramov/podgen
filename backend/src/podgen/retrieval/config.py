@@ -66,6 +66,24 @@ COMPACT_PROFILE_V1 = dict(
 )
 
 
+STREAMING_PROFILE = {
+    **{
+        key: value
+        for key, value in PROFILE.items()
+        if key not in {"max_documents", "max_characters", "max_chunks"}
+    },
+    "version": "hybrid-local/2",
+    "chunking": "bounded-character-token-windows/2",
+    "tokenization_characters": 16384,
+    "tokenization_overlap_characters": 2048,
+    "index_batch_size": 32,
+}
+
+
+def streaming_profile():
+    return deepcopy(STREAMING_PROFILE)
+
+
 def profile():
     return deepcopy(PROFILE)
 
@@ -75,7 +93,7 @@ def validate(value):
         identity = json.dumps(value, sort_keys=True, separators=(",", ":"), allow_nan=False)
         published = [
             json.dumps(item, sort_keys=True, separators=(",", ":"), allow_nan=False)
-            for item in (PROFILE, COMPACT_PROFILE_V1)
+            for item in (PROFILE, COMPACT_PROFILE_V1, STREAMING_PROFILE)
         ]
     except (ValueError, TypeError):
         raise ContractError("unsupported_source_retrieval_profile") from None

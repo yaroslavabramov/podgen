@@ -117,15 +117,18 @@ class PostgresSearchIndex:
         except SQLAlchemyError as error:
             raise RetrievalUnavailable("source_search_index_unavailable") from error
 
-    def candidates(self, text, vector, allowed, limit):
-        params = dict(
-            self.params, scope=sorted(allowed), q=text, vector=json.dumps(vector.tolist()), limit=limit
-        )
-        permitted = (
+    def permitted(self):
+        return (
             "WITH permitted AS MATERIALIZED (SELECT * FROM source_search_chunks WHERE "
             + WHERE
             + " AND source_id=ANY(:scope)) "
         )
+
+    def candidates(self, text, vector, allowed, limit):
+        params = dict(
+            self.params, scope=sorted(allowed), q=text, vector=json.dumps(vector.tolist()), limit=limit
+        )
+        permitted = self.permitted()
         statements = dict(
             dense="SELECT source_id,start_offset,end_offset,1-(embedding <=> CAST(:vector AS vector)) AS score FROM permitted ORDER BY embedding <=> CAST(:vector AS vector),source_id,start_offset LIMIT :limit",
             lexical=f"SELECT source_id,start_offset,end_offset,ts_rank_cd(lexical,websearch_to_tsquery({CONFIG},:lexical_query)) AS score FROM permitted WHERE lexical @@ websearch_to_tsquery({CONFIG},:lexical_query) ORDER BY score DESC,source_id,start_offset LIMIT :limit",

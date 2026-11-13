@@ -99,6 +99,9 @@ class HybridSearch:
             ranked=self.results.get((args.query, args.within), []),
         )
 
+    def _valid_chunk(self, chunk, allowed):
+        return chunk.source_id in allowed and chunk in self.chunks
+
     def _rank(self, query, allowed):
         branches = self.index.candidates(
             query, self.models.query(query), allowed, self.profile["candidate_pool"]
@@ -108,7 +111,7 @@ class HybridSearch:
         branch_ranks = defaultdict(dict)
         for name, branch in branches.items():
             for position, (chunk, score) in enumerate(branch, 1):
-                if chunk.source_id not in allowed or chunk not in self.chunks:
+                if not self._valid_chunk(chunk, allowed):
                     raise RetrievalUnavailable("source_search_index_selector_mismatch")
                 reciprocal[chunk] += 1 / (60 + position)
                 diagnostics[chunk][name] = float(score)
