@@ -6,6 +6,7 @@ from types import SimpleNamespace
 
 import httpx
 import pytest
+
 from podgen.domain.contracts.common import BlobRef, RuntimeRef
 from podgen.domain.errors import Conflict
 from podgen.runtime.evaluation import model_turns
@@ -19,7 +20,6 @@ from podgen.runtime.evaluation.usage import attempt_usage
 from podgen.runtime.models.contracts import ProviderFault, WireReply
 from podgen.runtime.models.gateway import ModelGateway
 from podgen.runtime.models.openai_provider import OpenAIProvider
-
 from tests.source_tool_runtime_support import MemoryJournal
 from tests.test_source_tool_recovery import invoke, prepare
 from tests.test_source_tool_runtime import call, final, setup
@@ -190,6 +190,8 @@ def test_changed_request_or_authorization_cannot_submit():
 
 @pytest.mark.parametrize("fault", ["timeout", "520"])
 def test_source_retry_keeps_completed_reads_transcript_and_unknown_turn_cost(monkeypatch, fault):
+    import httpx2 as httpx
+
     journal, profile, limits, corpus, server, handler = prepare(monkeypatch, "unknown")
     journal.snapshot["stages"] = [journal.root["stage"]]
     journal.records[journal.root["request_record_id"]]["context"] = dict(profile_ref={"saved": "profile"})
@@ -293,6 +295,8 @@ def test_incomplete_local_archive_still_retrieves_known_response(archived):
 
 @pytest.mark.parametrize("archived", [False, True])
 def test_known_completed_tool_response_reconciles_in_place_without_repeating_reads(monkeypatch, archived):
+    import httpx2 as httpx
+
     journal, profile, limits, corpus, server, original = prepare(monkeypatch, "unknown")
     journal.snapshot["stages"] = [journal.root["stage"]]
     journal.records[journal.root["request_record_id"]]["context"] = dict(profile_ref={"saved": "profile"})
