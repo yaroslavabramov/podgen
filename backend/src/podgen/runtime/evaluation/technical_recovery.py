@@ -28,6 +28,11 @@ def evidence(journal, root):
             physical_invocation_id=str(row["invocation_id"]),
             provider_response_id=None,
         )
+    from .schema_refusal import evidence as schema_refusal
+
+    refusal = schema_refusal(view, row)
+    if refusal is not None:
+        return dict(**refusal, physical_invocation_id=str(row["invocation_id"]), provider_response_id=None)
     if row["status"] not in STATES or row.get("output_record_id") is not None:
         raise RunFailure(
             "technical_recovery_not_eligible", run_id=root["run_id"], invocation_id=root["invocation_id"]
@@ -95,6 +100,11 @@ def validate_retry(journal, child, parent):
         podgen_attempt_index=str(child["attempt_index"]),
         podgen_parent_invocation_id=str(parent["invocation_id"]),
     )
+    if "schema_refusal_event_ref" in expected["evidence"]:
+        from podgen.runtime.models.messages_tool_policy import KEY
+        from podgen.runtime.models.messages_tool_policy import VERSION as TOOL_POLICY
+
+        metadata[KEY] = TOOL_POLICY
     if (
         auth != expected
         or _record(journal, child)["context"] != _record(journal, parent)["context"]
@@ -181,6 +191,11 @@ def authorize_technical_recovery(
         podgen_attempt_index=str(target["attempt_index"] + 1),
         podgen_parent_invocation_id=str(target_id),
     )
+    if "schema_refusal_event_ref" in receipt:
+        from podgen.runtime.models.messages_tool_policy import KEY
+        from podgen.runtime.models.messages_tool_policy import VERSION as TOOL_POLICY
+
+        body["metadata"][KEY] = TOOL_POLICY
     return journal.prepare(
         command.run_id,
         target["stage"],

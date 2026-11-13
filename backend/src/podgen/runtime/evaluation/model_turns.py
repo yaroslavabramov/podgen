@@ -209,7 +209,10 @@ def charged_rows(journal, root, *, history=None):
             try:
                 refusal_evidence(view, view.turn)
             except RunFailure:
-                pass
+                from .schema_refusal import evidence as schema_refusal
+
+                if schema_refusal(view, view.turn) is not None:
+                    continue
             else:
                 continue
         charged.append(row)

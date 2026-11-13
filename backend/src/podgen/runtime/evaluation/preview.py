@@ -1,6 +1,8 @@
 """Compile ordinary and dedicated repair wires without a provider or token endpoint."""
 
 from podgen.domain.errors import ContractError
+from podgen.runtime.models.messages_tool_policy import VERSION as TOOL_POLICY
+from podgen.runtime.models.provider_contracts import tool_policy
 from podgen.writing import author_plan, ending_guidance, fact_context, prompt_cache, source_passages
 from podgen.writing.behavior import resolve_behavior
 from podgen.writing.craft_reference import AUTHOR_STAGES, pinned_reference
@@ -45,6 +47,7 @@ def preview_request(
         and editorial_pass != snapshot.manifest.get("editorial_pass", 1)
     ):
         raise ContractError("preview_behavior_profile_mismatch")
+    messages_tool_policy = tool_policy(snapshot.manifest, stage) if snapshot else TOOL_POLICY
     behavior = None if snapshot else resolve_behavior(behavior_profile, editorial_pass or 1)
     tools = (
         source_tool_contract.from_manifest(snapshot.manifest)
@@ -210,6 +213,7 @@ def preview_request(
             projection_version=projection,
             reference_catalog=references,
             source_tool_contract=tools,
+            messages_tool_policy=messages_tool_policy,
             prompt_cache_layout=cache_layout,
             fact_context_contract=fact_context.from_manifest(snapshot.manifest)
             if snapshot
@@ -259,6 +263,7 @@ def preview_request(
             projection_version=projection,
             reference_catalog=references,
             source_tool_contract=tools,
+            messages_tool_policy=messages_tool_policy,
             prompt_cache_layout=cache_layout,
             plan_selection_contract=selection,
             author_plan_handoff=handoff,
@@ -324,7 +329,14 @@ def preview_request(
     schema = model.model_json_schema()
     validate_model_content(dict(instructions=instructions, input=payload, schema=schema), materials.documents)
     body = response_request(
-        run_id, role_stage, profile, payload, instructions, schema, prompt_cache_layout=cache_layout
+        run_id,
+        role_stage,
+        profile,
+        payload,
+        instructions,
+        schema,
+        prompt_cache_layout=cache_layout,
+        messages_tool_policy=messages_tool_policy,
     )
     body["text"]["format"]["name"] = name
     return body

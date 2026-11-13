@@ -111,6 +111,9 @@ def messages_request(body, *, counting=False):
             )
             for t in body["tools"]
         ]
+        from .messages_tool_policy import apply as apply_tool_policy
+
+        result["tools"] = apply_tool_policy(result["tools"], body.get("metadata", {}))
         result["tool_choice"] = (
             dict(type="auto", disable_parallel_tool_use=True)
             if body["tool_choice"] == "auto"

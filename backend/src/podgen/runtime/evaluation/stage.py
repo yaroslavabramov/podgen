@@ -8,6 +8,7 @@ from pydantic import ValidationError
 from podgen.domain.canonical import digest
 from podgen.domain.contracts.common import ArtifactRef, RuntimeRef
 from podgen.domain.errors import ContractError
+from podgen.runtime.models.provider_contracts import tool_policy
 from podgen.writing import author_plan, prompt_cache, source_passages
 from podgen.writing.craft_reference import pinned_reference
 from podgen.writing.model_references import CATALOG_KEY, run_references
@@ -71,6 +72,7 @@ def execute_stage(
             reference_catalog=references,
             prompt_cache_layout=prompt_cache.from_manifest(manifest),
             source_tool_contract=source_tool_contract.from_manifest(manifest),
+            messages_tool_policy=tool_policy(manifest, stage),
             plan_selection_contract=selection_from_manifest(manifest),
             author_plan_handoff=author_plan.from_manifest(manifest),
             author_source_excerpts=source_passages.from_manifest(manifest),

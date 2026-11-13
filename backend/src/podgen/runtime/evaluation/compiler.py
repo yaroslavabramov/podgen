@@ -149,6 +149,7 @@ def response_request(
     *,
     prompt_cache_layout=None,
     stable_support_ids=None,
+    messages_tool_policy=None,
 ):
     validate_profile(profile, stage)
     parameters = deepcopy(profile.generation_parameters)
@@ -192,6 +193,10 @@ def response_request(
         ),
         **parameters,
     )
+    if profile.provider == "anthropic" and messages_tool_policy is not None:
+        from podgen.runtime.models.messages_tool_policy import KEY
+
+        body["metadata"][KEY] = messages_tool_policy
     from .cache_layout import apply
 
     return apply(body, payload, stage, profile, prompt_cache_layout, stable_support_ids=stable_support_ids)
@@ -206,4 +211,8 @@ def count_request(body):
     if body.get("metadata", {}).get("podgen_prompt_cache_layout") == "research-role-prefix/2":
         # Internal routing only: providers remove metadata before their native count request.
         result["metadata"] = {"podgen_prompt_cache_layout": "research-role-prefix/2"}
+    from podgen.runtime.models.messages_tool_policy import KEY
+
+    if KEY in body.get("metadata", {}):
+        result.setdefault("metadata", {})[KEY] = body["metadata"][KEY]
     return result

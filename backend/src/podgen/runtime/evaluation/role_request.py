@@ -21,6 +21,7 @@ def compile_role_request(
     reference_catalog=None,
     prompt_cache_layout=None,
     source_tool_contract=None,
+    messages_tool_policy=None,
     **inputs,
 ):
     prompt_cache.validate(prompt_cache_layout, projection_version)
@@ -56,7 +57,14 @@ def compile_role_request(
         schema = wire_schema(schema, speaker_labels=materials.speaker_labels)
     validate_model_content(dict(instructions=instructions, schema=schema), materials.documents)
     body = response_request(
-        run_id, stage, profile, payload, instructions, schema, prompt_cache_layout=prompt_cache_layout
+        run_id,
+        stage,
+        profile,
+        payload,
+        instructions,
+        schema,
+        prompt_cache_layout=prompt_cache_layout,
+        messages_tool_policy=messages_tool_policy,
     )
     from .source_tool_contract import bind
 
@@ -76,6 +84,7 @@ def compile_reading_request(
     reading_audit_context=None,
     prompt_cache_layout=None,
     source_tool_contract=None,
+    messages_tool_policy=None,
     **inputs,
 ):
     from podgen.writing.reading_views import reading_payload
@@ -151,6 +160,7 @@ def compile_reading_request(
         schema,
         prompt_cache_layout=prompt_cache_layout,
         stable_support_ids=stable_support_ids,
+        messages_tool_policy=messages_tool_policy,
     )
     from .source_tool_contract import bind
 

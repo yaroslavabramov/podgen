@@ -15,7 +15,9 @@ def refused_without_generation(journal, row):
         refusal_evidence(journal, row)
         return True
     except RunFailure:
-        return False
+        from .schema_refusal import evidence as schema_refusal
+
+        return schema_refusal(journal, row) is not None
 
 
 def unsent_without_generation(journal, row):
