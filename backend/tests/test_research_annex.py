@@ -1,0 +1,176 @@
+"""Explicit selected X reports reach the accepted plan's author in full, separately from M/E."""
+
+from hashlib import sha256
+from uuid import uuid4
+
+import pytest
+
+from podgen.domain.canonical import digest
+from podgen.domain.contracts.common import RuntimeRef
+from podgen.runtime.evaluation.preview import preview_request
+from podgen.runtime.evaluation.request_payload import request_payload
+from podgen.runtime.evaluation.research_annex import attach, restore
+from podgen.runtime.models.research_tools import ResearchTools
+from podgen.sources.material_requests import SourceAdmission
+from podgen.writing.source_tools import SourceCorpus
+from tests.test_research_navigation_contract import _plan, _profile
+from tests.test_research_navigation_contract import research_materials as research_materials
+
+
+@pytest.mark.parametrize("selector_stage", ["plan", "plan-review"])
+def test_full_selected_supplemental_report_is_bound_to_exact_plan_and_writer(
+    research_materials, selector_stage
+):
+    text = "Full supplemental account ёжик 🚀.\n" * 1000
+    report = SourceAdmission(
+        "X1",
+        "Targeted question",
+        text,
+        sha256(text.encode()).hexdigest(),
+        RuntimeRef(record_kind="tool_execution", record_id=uuid4()),
+        dict(kind="research_report", reported_source_map={"S1": "S99"}),
+    )
+    unselected = SourceAdmission(
+        "X2",
+        "Unused question",
+        "UNSELECTED",
+        sha256(b"UNSELECTED").hexdigest(),
+        RuntimeRef(record_kind="tool_execution", record_id=uuid4()),
+        dict(kind="research_report"),
+    )
+    research_materials.runtime_admissions.extend((report, unselected))
+    run, invocation = uuid4(), uuid4()
+    row = dict(invocation_id=invocation, status="completed", attempt_kind="role", output_record_id=uuid4())
+    review_row = dict(row, invocation_id=uuid4(), output_record_id=uuid4())
+    plan = _plan(research_materials)
+    ref = RuntimeRef(record_kind="tool_execution", record_id=uuid4())
+    event = dict(
+        event_kind="source_tool_result",
+        data=dict(
+            name="select_research_result",
+            arguments=dict(result_id="X1", reason="The chosen account requires this report."),
+            result=dict(selected=True),
+        ),
+    )
+
+    class Journal:
+        def run(self, _):
+            return True
+
+        def manifest(self, _):
+            return {}
+
+        def invocation(self, _, stage):
+            return row if stage == "plan" else review_row if stage == "plan-review" else None
+
+        def output(self, current):
+            if current["invocation_id"] == invocation:
+                return dict(output=plan)
+            return dict(
+                output=dict(decision="accept"),
+                candidate_plan_hash=digest(plan),
+                candidate_plan_ref=RuntimeRef(
+                    record_kind="tool_execution", record_id=row["output_record_id"]
+                ).model_dump(mode="json"),
+            )
+
+        def events(self, current):
+            chosen = invocation if selector_stage == "plan" else review_row["invocation_id"]
+            return (
+                [dict(record_id=ref.record_id, event_kind="source_tool_result")]
+                if current["invocation_id"] == chosen
+                else []
+            )
+
+        def read(self, _):
+            return event
+
+    tools = ResearchTools(
+        None,
+        dict(stage=selector_stage, invocation_id=invocation, run_id=run),
+        SourceCorpus(research_materials),
+        None,
+        lambda: None,
+    )
+    assert tools.execute(
+        "select_research_result",
+        dict(result_id="X1", reason="The chosen account requires this report."),
+        read_id="E1",
+    )["selected"]
+    restore(Journal(), run, research_materials)
+    payload = request_payload(
+        preview_request(run, "draft", _profile("draft"), research_materials, approved_plan=plan)
+    )
+    assert payload["supplemental_research"] == [
+        dict(
+            result_id="X1",
+            title=report.title,
+            selection_reason="The chosen account requires this report.",
+            text=text,
+            reported_source_map={"S1": "S99"},
+            kind="research_synthesis_not_source_evidence",
+        )
+    ]
+    assert payload["support"][0]["text"] and "UNSELECTED" not in str(payload)
+    declared = {
+        tool["name"] for tool in preview_request(run, "plan", _profile("plan"), research_materials)["tools"]
+    }
+    assert "select_research_result" in declared
+    from dataclasses import replace
+    from types import SimpleNamespace
+
+    from podgen.writing.planning_versions import planning_snapshot
+
+    fixed = replace(research_materials, fixed=SimpleNamespace(plan=planning_snapshot(plan)))
+    fixed_payload = request_payload(preview_request(run, "draft", _profile("draft"), fixed))
+    assert fixed_payload["supplemental_research"] == payload["supplemental_research"]
+    assert "X1" not in tools.corpus.documents
+    changed = dict(plan, listener_question="A different accepted plan")
+    other = {}
+    attach(other, research_materials, changed)
+    assert other == {} and digest(changed) != digest(plan)
+
+
+def test_supplemental_reports_are_discoverable_without_inlining_synthesis(research_materials):
+    text = "New full research synthesis. " * 1000
+    research_materials.runtime_admissions.append(
+        SourceAdmission(
+            "X1",
+            "Exact unresolved question?",
+            text,
+            sha256(text.encode()).hexdigest(),
+            RuntimeRef(record_kind="tool_execution", record_id=uuid4()),
+            dict(
+                kind="research_report",
+                reported_source_map=[
+                    dict(
+                        report_numbers=[7],
+                        source_id="S99",
+                        reported_url="https://example.org/record",
+                        availability="available",
+                    )
+                ],
+            ),
+        )
+    )
+    tools = ResearchTools(
+        None,
+        dict(stage="plan-review", invocation_id=uuid4(), run_id=uuid4()),
+        SourceCorpus(research_materials),
+        None,
+        lambda: None,
+    )
+    body = preview_request(uuid4(), "plan", _profile("plan"), research_materials)
+    payload = request_payload(body)
+    assert payload["research_results"] == dict(tool="list_research_results", offset=0, version=None)
+    catalog = tools.execute("list_research_results", dict(offset=0, version=None), read_id="E1")
+    assert catalog["reports"][0]["result_id"] == "X1"
+    assert catalog["reports"][0]["title"] == "Exact unresolved question?" and text not in str(catalog)
+    opened = tools.execute("read_research_result", dict(result_id="X1", start=0, end=None), read_id="E2")
+    assert opened["material_passage"]["read_id"] == "R2"
+    assert opened["source_mapping"]["tool"] == "list_research_sources"
+    mapping = tools.execute(
+        "list_research_sources", dict(result_id="X1", offset=0, version=None), read_id="E3"
+    )
+    assert mapping["sources"][0]["source_id"] == "S99" and mapping["sources"][0]["report_numbers"] == [7]
+    assert "X1" not in tools.corpus.documents

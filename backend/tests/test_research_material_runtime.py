@@ -66,7 +66,7 @@ def test_full_research_workflow_preserves_report_and_only_original_source_eviden
         fields = manifest["response_schemas"][stage]["$defs"]["SourcedFactFinding"]["properties"]
         assert "report sections relevant to this finding" in fields["support_labels"]["description"]
         assert "R report-reading receipts are not source evidence" in fields["source_read_ids"]["description"]
-    assert manifest["source_tool_contract"]["version"] == "frozen-corpus-tools/6"
+    assert manifest["source_tool_contract"]["version"] == "frozen-corpus-tools/7"
     assert manifest["source_tool_contract"]["default_read_chars"] == 9600
     assert manifest["prompt_cache_layout"] == "research-role-prefix/2"
     assert manifest["provider_contracts"]["draft"]["api_version"] == "2026-10-21"
@@ -108,6 +108,11 @@ def test_full_research_workflow_preserves_report_and_only_original_source_eviden
     ):
         row = journal.invocation(command.run_id, stage)
         snapshot = load_preview_snapshot(journal, generation, command.run_id, stage, materials)
+        assert snapshot.instructions == journal.request(row)["instructions"]
+        monkeypatch.setattr(
+            "podgen.writing.research_materials.runtime_instructions.BODY",
+            "Changed current adapter must not alter frozen instructions.",
+        )
         record = journal.output(row)
         inputs = {}
         if stage in ("plan-review", "plan-review-revised", "plan-revise"):

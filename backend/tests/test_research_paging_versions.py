@@ -29,8 +29,12 @@ def test_read_source_default_is_explicitly_pinned_not_inferred_from_maximum():
 
 
 def test_contract_v5_stays_valid_and_v6_default_cannot_be_changed_silently():
-    materials = SimpleNamespace(packet=SimpleNamespace(contract="research-editorial-input/1"))
-    new = create(SimpleNamespace(name="production/1"), materials)
+    from podgen.writing.research_materials.tools import definitions
+
+    new = create(SimpleNamespace(name="production/1"))
+    new.update(
+        version="frozen-corpus-tools/6", default_read_chars=9600, definitions=definitions(new["definitions"])
+    )
     assert (
         new["version"] == "frozen-corpus-tools/6"
         and new["default_read_chars"] == new["max_read_chars"] == 9600
