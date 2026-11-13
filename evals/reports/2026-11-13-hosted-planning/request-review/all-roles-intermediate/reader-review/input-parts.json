@@ -1,0 +1,47 @@
+[
+  {
+    "output_language": "ru",
+    "audience": "General listeners; no prior topic knowledge is assumed.",
+    "format": "solo",
+    "genre": "podcast"
+  },
+  {
+    "script": {
+      "utterances": [
+        {
+          "index": 0,
+          "speaker": "РАССКАЗЧИК",
+          "text": "PREVIEW FIXTURE ONLY: это технический текст для проверки формы запроса."
+        }
+      ]
+    },
+    "duration_context": {
+      "current_text": {
+        "word_count": 10
+      },
+      "audio_measured": false,
+      "requested": {
+        "target_seconds": 810,
+        "min_seconds": 720,
+        "max_seconds": 900
+      },
+      "estimated_word_target": 1485,
+      "estimated_word_range": {
+        "min": 1320,
+        "max": 1650
+      },
+      "estimate_basis": "Russian solo reference reading at 110 words/minute",
+      "estimated_current_seconds": 6
+    },
+    "audit_context": {
+      "phase": "first",
+      "assignments": [],
+      "previous_decisions": [],
+      "previous_coverage": [],
+      "previous_recommendation": null,
+      "previous_overall_judgment": null,
+      "revision_operation": null,
+      "previous_script_in_order": []
+    }
+  }
+]
