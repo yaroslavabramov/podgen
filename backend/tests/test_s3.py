@@ -36,7 +36,7 @@ def test_real_s3_complete_bytes_checksums_versions_and_repository(database, scop
         expected_sha256=first.sha256,
         expected_length=len(payload),
     )
-    assert first.storage_key != second.storage_key
+    assert first == second
     assert objects.read(scope[0], first) == payload
     assert objects.read(scope[0], second) == payload
     assert client.head_object(Bucket=bucket, Key=first.storage_key)["VersionId"]

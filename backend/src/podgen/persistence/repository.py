@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 from uuid import UUID
 
 from podgen.domain.canonical import content_hash
-from podgen.domain.contracts import ArtifactRef, ArtifactRevision, BlobRef
+from podgen.domain.contracts import ArtifactRef, ArtifactRevision
 from podgen.domain.errors import AccessDenied, ContractError
 from podgen.domain.references import walk_values
 
@@ -148,58 +148,14 @@ class Repository:
             return self._envelope(row)
 
     def save_blob(self, project_id, stream, media_type, **kwargs):
-        with self.database.transaction() as tx:
-            self._acl(tx, project_id, write=True)
-        ref = self.objects.put(project_id, stream, media_type, **kwargs)
-        # ACL can be withdrawn while upload runs; do not publish the handle then.
-        with self.database.transaction() as tx:
-            self._acl(tx, project_id, write=True)
-            query(
-                tx,
-                """INSERT INTO blobs VALUES(:p,:key,:sha,:n,:media) ON CONFLICT DO NOTHING""",
-                p=project_id,
-                key=ref.storage_key,
-                sha=ref.sha256,
-                n=ref.byte_length,
-                media=ref.media_type,
-            )
-            existing = one(
-                tx,
-                "SELECT * FROM blobs WHERE project_id=:p AND sha256=:sha AND media_type=:m",
-                p=project_id,
-                sha=ref.sha256,
-                m=ref.media_type,
-            )
-            ref = BlobRef(
-                storage_key=existing["storage_key"],
-                sha256=existing["sha256"],
-                byte_length=existing["byte_length"],
-                media_type=existing["media_type"],
-            )
-            self._check_blob(tx, project_id, ref)
-            self.objects.read(project_id, ref)
-        return ref
+        from .blob_publication import save_blob
+
+        return save_blob(self, project_id, stream, media_type, **kwargs)
 
     def _check_blob(self, tx, project_id, ref, *, public_only=False):
-        classified = one(
-            tx,
-            "SELECT 1 FROM evaluator_blob_classifications WHERE project_id=:p AND sha256=:sha",
-            p=project_id,
-            sha=ref.sha256,
-        )
-        if classified and (
-            public_only
-            or self.purpose != "evaluation"
-            or self._acl(tx, project_id) not in ("owner", "evaluator", "operator")
-        ):
-            raise AccessDenied()
-        if one(
-            tx,
-            "SELECT 1 FROM blob_access_revocations WHERE project_id=:p AND sha256=:sha",
-            p=project_id,
-            sha=ref.sha256,
-        ):
-            raise AccessDenied()
+        from .blob_publication import check_identity
+
+        check_identity(self, tx, project_id, ref.sha256, public_only=public_only)
 
         row = one(
             tx, "SELECT * FROM blobs WHERE project_id=:p AND storage_key=:k", p=project_id, k=ref.storage_key

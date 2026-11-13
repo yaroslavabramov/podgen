@@ -1,0 +1,145 @@
+{
+  "baseline_commit": "31b545cb",
+  "sizes": {
+    "4194304": {
+      "before": {
+        "length": 4194304,
+        "operations": [
+          {
+            "s3": {
+              "upload_fileobj": 1,
+              "upload_bytes": 4194304,
+              "versions": 1,
+              "get": 2,
+              "get_bytes": 8388608,
+              "largest_get_read": 4194304,
+              "network_in_tx": 1
+            },
+            "sql": 7,
+            "peak_traced_bytes": 4344744,
+            "input_bytes_read": 4194304
+          },
+          {
+            "s3": {
+              "upload_fileobj": 1,
+              "upload_bytes": 4194304,
+              "versions": 1,
+              "get": 2,
+              "get_bytes": 8388608,
+              "network_in_tx": 1
+            },
+            "sql": 7,
+            "peak_traced_bytes": 4343643,
+            "input_bytes_read": 4194304
+          }
+        ],
+        "finalized_objects": 2,
+        "published_rows": 1
+      },
+      "after": {
+        "length": 4194304,
+        "operations": [
+          {
+            "s3": {
+              "head": 1,
+              "put": 1,
+              "upload_bytes": 4194304,
+              "versions": 1
+            },
+            "sql": 10,
+            "peak_traced_bytes": 2381259,
+            "input_bytes_read": 4194304
+          },
+          {
+            "s3": {
+              "head": 1
+            },
+            "sql": 9,
+            "peak_traced_bytes": 2231599,
+            "input_bytes_read": 4194304
+          }
+        ],
+        "finalized_objects": 1,
+        "published_rows": 1
+      }
+    },
+    "67108864": {
+      "before": {
+        "length": 67108864,
+        "operations": [
+          {
+            "s3": {
+              "upload_fileobj": 1,
+              "upload_bytes": 67108864,
+              "versions": 1,
+              "get": 2,
+              "get_bytes": 134217728,
+              "largest_get_read": 67108864,
+              "network_in_tx": 1
+            },
+            "sql": 7,
+            "peak_traced_bytes": 67256161,
+            "input_bytes_read": 67108864
+          },
+          {
+            "s3": {
+              "upload_fileobj": 1,
+              "upload_bytes": 67108864,
+              "versions": 1,
+              "get": 2,
+              "get_bytes": 134217728,
+              "network_in_tx": 1
+            },
+            "sql": 7,
+            "peak_traced_bytes": 67255268,
+            "input_bytes_read": 67108864
+          }
+        ],
+        "finalized_objects": 2,
+        "published_rows": 1
+      },
+      "after": {
+        "length": 67108864,
+        "operations": [
+          {
+            "s3": {
+              "head": 1,
+              "create_multipart": 1,
+              "upload_part": 4,
+              "upload_bytes": 67108864,
+              "complete_multipart": 1,
+              "versions": 1
+            },
+            "sql": 10,
+            "peak_traced_bytes": 2381000,
+            "input_bytes_read": 67108864
+          },
+          {
+            "s3": {
+              "head": 1
+            },
+            "sql": 9,
+            "peak_traced_bytes": 2240857,
+            "input_bytes_read": 67108864
+          }
+        ],
+        "finalized_objects": 1,
+        "published_rows": 1
+      }
+    }
+  },
+  "native_boto3_local_http": {
+    "counts": {
+      "head": 2,
+      "create_multipart": 1,
+      "upload_part": 2,
+      "upload_bytes": 17825792,
+      "complete_multipart": 1
+    },
+    "file_range_read_sizes": {
+      "1048576": 19,
+      "131072": 138
+    },
+    "peak_traced_bytes": 2741020
+  }
+}
