@@ -1,0 +1,16 @@
+[project]
+name = "podgen-source-ocr-runtime"
+version = "0.1.0"
+requires-python = ">=3.12,<3.14"
+dependencies = [
+    "podgen",
+    "marker-pdf==1.5.5",
+    "surya-ocr==0.12.1",
+    "transformers==4.57.6",
+]
+
+[tool.uv]
+package = false
+
+[tool.uv.sources]
+podgen = { path = "..", editable = true }
