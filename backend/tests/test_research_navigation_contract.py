@@ -365,3 +365,56 @@ def test_supplemental_research_and_report_reads_cannot_become_source_evidence(re
     assert task["source_read_refs"] == ["P1"]
     assert payload["review_source_passages"][0]["text"] == SOURCE_TEXT[:150]
     assert "R1" not in json.dumps(payload)
+
+
+@pytest.mark.parametrize(
+    "reported_url, linked",
+    [
+        ("https://example.org/document/2", True),
+        ("https://example.org/document/2#evidence", True),
+        ("https://EXAMPLE.ORG:443/document/2#evidence", True),
+        ("https://example.org/Document/2", False),
+        ("https://example.org/document/2?version=A", False),
+        ("https://example.org:8443/document/2", False),
+        ("http://example.org/document/2", False),
+    ],
+)
+def test_admitted_url_alias_is_searchable_within_its_original_material(
+    research_materials, reported_url, linked
+):
+    source = next(row for row in research_materials.packet.sources if row.source_id == "S2")
+    source.reported_url = reported_url
+    corpus = SourceCorpus(research_materials)
+    scope = next(
+        alias
+        for alias, section in corpus.research_sections.items()
+        if any(item.source_id == "S2" for item in section.occurrences)
+    )
+    original_catalog = [row.model_dump(mode="json") for row in research_materials.packet.sources]
+    text = "Transportaliasneedle is retained exactly."
+    catalog = dict(reported_url="https://example.org/document/2", source_id="S64")
+    admission = SourceAdmission(
+        "S64",
+        "Acquired source",
+        text,
+        sha256(text.encode()).hexdigest(),
+        RuntimeRef(record_kind="tool_execution", record_id=uuid4()),
+        catalog,
+    )
+    assert "S64" not in corpus.documents
+    corpus.admit(admission)
+    corpus.admit(admission)  # Durable admission replay must not duplicate scope entries.
+    matches = corpus.execute(
+        "search_sources", dict(query="Transportaliasneedle", within=scope, offset=0), read_id="unused"
+    )["hits"]
+    assert [row["source_id"] for row in matches] == (["S64"] if linked else [])
+    assert sum(key == "S64" for key, _, _ in corpus.cards[scope]) == int(linked)
+    assert (
+        corpus.execute("read_source", dict(source_id="S64", start=0, end=None), read_id="E1")["passage"][
+            "text"
+        ]
+        == text
+    )
+    assert [row.model_dump(mode="json") for row in research_materials.packet.sources] == original_catalog
+    assert source.source_id == "S2" and source.reported_url == reported_url
+    assert corpus.admission_catalog["S64"] == catalog

@@ -19,6 +19,17 @@ class Source:
     digest: str
 
 
+def _same_document(left, right):
+    if left == right:
+        return bool(left)
+    from podgen.research.hosted.corpus_acquisition import document_url
+
+    try:
+        return document_url(left) == document_url(right)
+    except (ValueError, ContractError):
+        return False
+
+
 class SourceCorpus:
     """The invocation's admitted, immutable primary documents. Local paths never cross the boundary."""
 
@@ -107,7 +118,7 @@ class SourceCorpus:
             aliases = {
                 key
                 for key, source in self.research_sources.items()
-                if reported_url and source.reported_url == reported_url
+                if reported_url and _same_document(source.reported_url, reported_url)
             }
             for alias, section in self.research_sections.items():
                 if aliases & {item.source_id for item in section.occurrences} and admission.source_id not in {
