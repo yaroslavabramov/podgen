@@ -52,8 +52,12 @@ No paid calls. The shared heavy-test slot must be assigned before execution.
 Isolated branch `codex/reusable-document-index-20261113` from `b3d49764`. Migration
 `0024_reusable_source_documents` follows the separately owned
 `0023_turn_event_selection`. Static syntax, Ruff and whitespace checks pass.
-PostgreSQL tests and representative before/after operation measurements are
-**pending allocation of the shared test slot**, not reported as passed.
+PostgreSQL validation passed: 40 targeted cases, 25 replay/compiler cases and
+18 current document-cache cases (the last reruns the initial 16 cache cases plus
+two added withdrawal cases). There are 67 distinct cases across these suites.
+Real SQL/ONNX and counted-double operation measurements are recorded in
+`evals/reports/2026-11-13-reusable-source-index/validation.md`.
+
 
 Source access uses the unchanged `IndexAccess` interface. The whole pinned
 retrieval profile participates in document identity; historical profiles and

@@ -159,13 +159,18 @@ def test_persisted_pages_survive_corpus_growth_and_document_reuse(repo, scope):
         other.search(args)
 
 
-def test_withdrawal_purges_shared_chunks_and_blocks_every_run_and_stale_builder(repo, scope, producer):
+@pytest.mark.parametrize("withdrawn_dependency", ["document", "scope"])
+def test_withdrawal_purges_shared_chunks_and_blocks_every_run_and_stale_builder(
+    repo, scope, producer, withdrawn_dependency
+):
     from podgen.persistence.dependencies import DependencyLedger
     from tests.factories import Factory
 
     factory = Factory(repo, *scope, producer).setup()
     doc = document("Private retained bacteria source.")
-    source, _ = factory.source(doc.text)
+    source, _ = factory.source(
+        doc.text if withdrawn_dependency == "document" else "Private parent scope dependency."
+    )
     journal, _ = admitted(repo, scope[0])
     ref = journal.record(dict(source_ref=source.ref.model_dump(mode="json")))
     network = TinyModels()
@@ -259,3 +264,38 @@ def test_existing_v2_projection_is_adopted_with_exact_cursor_and_without_reembed
     before = network.embedded
     build(journal, ref, {"S4": doc}, network)
     assert network.embedded == before
+
+
+def test_withdrawal_commits_during_inference_and_prevents_shared_chunk_publication(repo, scope, producer):
+    from concurrent.futures import ThreadPoolExecutor
+    from threading import Event
+
+    from podgen.persistence.dependencies import DependencyLedger
+    from tests.factories import Factory
+
+    factory = Factory(repo, *scope, producer).setup()
+    doc = document("Private source withdrawn during document inference.")
+    source, _ = factory.source(doc.text)
+    journal, _ = admitted(repo, scope[0])
+    ref = journal.record(dict(source_ref=source.ref.model_dump(mode="json")))
+    entered, release = Event(), Event()
+
+    class PausedModels(TinyModels):
+        def embed(self, texts):
+            entered.set()
+            assert release.wait(5)
+            return super().embed(texts)
+
+    with ThreadPoolExecutor(max_workers=1) as executor:
+        future = executor.submit(build, journal, ref, {"S1": doc}, PausedModels())
+        assert entered.wait(5)
+        try:
+            DependencyLedger(repo).invalidate(
+                scope[0], source.ref, reason="withdraw during inference", category="access"
+            )
+        finally:
+            release.set()
+        with pytest.raises(AccessDenied):
+            future.result(timeout=5)
+    assert table_count(repo, scope[0], "source_search_documents") == 0
+    assert table_count(repo, scope[0], "source_search_document_chunks") == 0
