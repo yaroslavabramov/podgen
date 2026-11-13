@@ -28,9 +28,9 @@ class ResearchContext:
     def measured(self, body, index, label):
         key = digest(body)
         count_identity = identity(body, self.profile)
-        saved = self.history.exact_count(count_identity)
+        saved = self.receipt(body)
         if saved is not None:
-            return saved.data["input_tokens"]
+            return saved.input_tokens
         self.guard()
         native_blob = self.journal.blob(
             json.dumps(
@@ -85,11 +85,12 @@ class ResearchContext:
 
     def receipt(self, body):
         saved = self.history.exact_count(identity(body, self.profile))
-        return (
-            ExactCount(saved.reference, saved.data["count_identity"], saved.data["input_tokens"])
-            if saved
-            else None
-        )
+        if saved:
+            return ExactCount(saved.reference, saved.data["count_identity"], saved.data["input_tokens"])
+        from .legacy_count_receipts import receipt
+
+        with self.journal.read_operation():
+            return receipt(self.journal, self.history.counted(digest(body)), body, self.profile)
 
     def request(self, body, index, segment_start):
         saved = self.history.context_plan(index)
