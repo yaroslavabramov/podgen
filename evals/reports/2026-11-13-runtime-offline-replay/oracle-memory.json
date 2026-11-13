@@ -1,0 +1,22 @@
+{
+  "before_helpers": {
+    "rss_bytes": 64454656,
+    "cumulative_peak_bytes": 64454656
+  },
+  "after_export_oracle": {
+    "rss_bytes": 102776832,
+    "cumulative_peak_bytes": 102776832
+  },
+  "after_traffic": {
+    "rss_bytes": 153632768,
+    "cumulative_peak_bytes": 153632768
+  },
+  "after_verification": {
+    "rss_bytes": 216285184,
+    "cumulative_peak_bytes": 217333760
+  },
+  "export_oracle_retained_python_bytes": 35300284,
+  "traffic_retained_python_bytes": 36262778,
+  "verified_files": 370,
+  "limitations": "Isolated helper overhead only; these RSS increments cannot simply be subtracted from another process high-water to infer runtime peak. No model, database or provider calls."
+}

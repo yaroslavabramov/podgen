@@ -1,0 +1,1012 @@
+{
+  "phases": {
+    "startup": {
+      "seconds": 103.20823616700363,
+      "sql_calls": 100150,
+      "sql_select": 96073,
+      "sql_set": 2654,
+      "sql_insert": 1334,
+      "sql_update": 89,
+      "objects": {
+        "read_calls": 1,
+        "read_bytes": 1035145,
+        "stream_calls": 50
+      }
+    },
+    "fact_review": {
+      "seconds": 233.74606795900036,
+      "sql_calls": 65375,
+      "sql_select": 62722,
+      "sql_set": 1009,
+      "sql_insert": 1386,
+      "sql_update": 219,
+      "sql_with": 39,
+      "objects": {
+        "read_calls": 175,
+        "read_bytes": 60960694,
+        "stream_calls": 260,
+        "stage_calls": 260,
+        "staged_bytes": 36016771,
+        "publish_calls": 260,
+        "published_bytes": 36016771
+      }
+    },
+    "export": {
+      "seconds": 57.623278084007325,
+      "sql_calls": 47155,
+      "sql_select": 46427,
+      "sql_set": 728,
+      "objects": {
+        "read_calls": 220,
+        "read_bytes": 28802188
+      }
+    },
+    "whole_review": {
+      "seconds": 394.5802099169814,
+      "sql_calls": 212684,
+      "sql_select": 205224,
+      "sql_set": 4391,
+      "sql_insert": 2720,
+      "sql_update": 310,
+      "sql_with": 39,
+      "objects": {
+        "read_calls": 396,
+        "read_bytes": 90798027,
+        "stream_calls": 310,
+        "stage_calls": 260,
+        "staged_bytes": 36016771,
+        "publish_calls": 260,
+        "published_bytes": 36016771
+      }
+    }
+  },
+  "search_calls": 13,
+  "search_seconds": 156.4161391230009,
+  "process_peak_rss_bytes": 1202143232,
+  "limitations": [
+    "Object counters cover the repository store, not cached Unicode projection reads.",
+    "Staging/publication are logical store operations, not physical disk writes; RSS is the process-wide high-water mark.",
+    "Provider costs and token/cache usage remain in complete native trace receipts; USD is not inferred from an unpinned price."
+  ],
+  "turn_sql": {
+    "None": 5619,
+    "0": 1081,
+    "1": 1081,
+    "2": 1081,
+    "3": 1081,
+    "4": 1081,
+    "5": 1081,
+    "6": 1081,
+    "7": 1081,
+    "8": 1081,
+    "9": 1081,
+    "10": 1081,
+    "11": 1192,
+    "12": 1192,
+    "13": 1192,
+    "14": 1192,
+    "15": 1546,
+    "16": 1192,
+    "17": 1513,
+    "18": 1192,
+    "19": 1192,
+    "20": 1192,
+    "21": 1516,
+    "22": 1192,
+    "23": 1192,
+    "24": 1549,
+    "25": 1546,
+    "26": 1438,
+    "27": 1192,
+    "28": 1513,
+    "29": 1192,
+    "30": 1525,
+    "31": 1192,
+    "32": 1192,
+    "33": 1519,
+    "34": 1192,
+    "35": 1528,
+    "36": 1192,
+    "37": 1525,
+    "38": 1534,
+    "39": 1192,
+    "40": 1540,
+    "41": 1192,
+    "42": 6617
+  },
+  "operations": {
+    "outside:other": {
+      "sql": 3
+    },
+    "startup:EvaluationJournal.manifest": {
+      "sql": 2,
+      "calls": 1,
+      "seconds": 0.08375008302391507
+    },
+    "startup:EvaluationJournal.manifest/EvaluationJournal.read": {
+      "sql": 59,
+      "calls": 1,
+      "seconds": 0.07983120900462382
+    },
+    "startup:other": {
+      "sql": 99718
+    },
+    "startup:EvaluationJournal.read": {
+      "sql": 260,
+      "calls": 4,
+      "seconds": 0.2950617510068696
+    },
+    "startup:EvaluationJournal.read_blob": {
+      "sql": 2,
+      "calls": 1,
+      "seconds": 0.0016525000100955367
+    },
+    "startup:OperationGuard.__call__": {
+      "sql": 52,
+      "calls": 1,
+      "seconds": 0.07958537500235252
+    },
+    "startup:EvaluationJournal.record": {
+      "sql": 57,
+      "calls": 1,
+      "seconds": 0.06619787498493679
+    },
+    "whole_review:other": {
+      "sql": 4
+    },
+    "fact_review:other": {
+      "sql": 9834
+    },
+    "fact_review:EvaluationJournal.manifest": {
+      "sql": 96,
+      "calls": 48,
+      "seconds": 0.495824836922111
+    },
+    "fact_review:EvaluationJournal.manifest/EvaluationJournal.read": {
+      "sql": 358,
+      "calls": 48,
+      "seconds": 0.4746567510010209
+    },
+    "fact_review:EvaluationJournal.prepare": {
+      "sql": 83,
+      "calls": 1,
+      "seconds": 0.10265479199006222
+    },
+    "fact_review:EvaluationJournal.prepare/Repository.save_blob": {
+      "sql": 8,
+      "calls": 1,
+      "seconds": 0.003864333004457876
+    },
+    "fact_review:EvaluationJournal.read": {
+      "sql": 4362,
+      "calls": 263,
+      "seconds": 4.554348505276721
+    },
+    "fact_review:EvaluationJournal.read_blob": {
+      "sql": 350,
+      "calls": 175,
+      "seconds": 0.08499899579328485
+    },
+    "fact_review:OperationGuard.__call__": {
+      "sql": 4472,
+      "calls": 86,
+      "seconds": 8.12347241488169
+    },
+    "fact_review:ResearchContext.measured/ResearchContext.receipt": {
+      "calls": 86,
+      "seconds": 0.4685976140317507
+    },
+    "fact_review:ResearchContext.measured/OperationGuard.__call__": {
+      "sql": 2236,
+      "calls": 43,
+      "seconds": 3.838029667880619
+    },
+    "fact_review:ResearchContext.measured/Repository.save_blob": {
+      "sql": 344,
+      "calls": 43,
+      "seconds": 0.16388108310638927
+    },
+    "fact_review:ResearchContext.measured/event:source_context_count_intent": {
+      "sql": 3096,
+      "calls": 43,
+      "seconds": 3.728050295903813
+    },
+    "fact_review:ResearchContext.measured/event:source_context_count/Repository.save_blob": {
+      "sql": 688,
+      "calls": 86,
+      "seconds": 0.25626200609258376
+    },
+    "fact_review:ResearchContext.measured/event:source_context_count": {
+      "sql": 3139,
+      "calls": 43,
+      "seconds": 4.083967542886967
+    },
+    "fact_review:ResearchContext.measured": {
+      "calls": 86,
+      "seconds": 14.437762452929746
+    },
+    "fact_review:event:source_context_plan": {
+      "sql": 2967,
+      "calls": 43,
+      "seconds": 3.658461119834101
+    },
+    "fact_review:TurnJournal.prepare": {
+      "sql": 215,
+      "calls": 43,
+      "seconds": 7.822781338967616
+    },
+    "fact_review:TurnJournal.prepare/Repository.save_blob": {
+      "sql": 344,
+      "calls": 43,
+      "seconds": 0.13347837797482498
+    },
+    "fact_review:TurnJournal.prepare/EvaluationJournal.read": {
+      "sql": 2709,
+      "calls": 43,
+      "seconds": 3.512910834950162
+    },
+    "fact_review:TurnJournal.prepare/EvaluationJournal.record": {
+      "sql": 3182,
+      "calls": 43,
+      "seconds": 4.087347206077538
+    },
+    "fact_review:ResearchContext.receipt": {
+      "calls": 43,
+      "seconds": 0.17128546291496605
+    },
+    "fact_review:event:role_input_measurement": {
+      "sql": 2967,
+      "calls": 43,
+      "seconds": 3.66696708285599
+    },
+    "fact_review:event:count_receipt_reused": {
+      "sql": 2967,
+      "calls": 43,
+      "seconds": 3.8070944629726
+    },
+    "fact_review:TurnJournal.transition": {
+      "sql": 516,
+      "calls": 172,
+      "seconds": 0.11851204605773091
+    },
+    "fact_review:event:submit_intent": {
+      "sql": 2967,
+      "calls": 43,
+      "seconds": 3.555832248093793
+    },
+    "fact_review:event:provider_response/Repository.save_blob": {
+      "sql": 688,
+      "calls": 86,
+      "seconds": 0.24176325331791304
+    },
+    "fact_review:event:provider_response": {
+      "sql": 3096,
+      "calls": 43,
+      "seconds": 4.127951331960503
+    },
+    "fact_review:event:source_tool_call": {
+      "sql": 2898,
+      "calls": 42,
+      "seconds": 3.6495283331896644
+    },
+    "fact_review:event:source_tool_result": {
+      "sql": 2898,
+      "calls": 42,
+      "seconds": 3.5856895810866263
+    },
+    "fact_review:tool:read_source": {
+      "sql": 1998,
+      "calls": 18,
+      "seconds": 2.9030527919821907
+    },
+    "fact_review:tool:search_sources": {
+      "sql": 4842,
+      "calls": 13,
+      "seconds": 157.49873141600983
+    },
+    "fact_review:event:source_search_diagnostics": {
+      "sql": 897,
+      "calls": 13,
+      "seconds": 1.5534150819876231
+    },
+    "fact_review:event:source_tools_final_response/Repository.save_blob": {
+      "sql": 8,
+      "calls": 1,
+      "seconds": 0.002500500006135553
+    },
+    "fact_review:event:source_tools_final_response": {
+      "sql": 73,
+      "calls": 1,
+      "seconds": 0.08963870900333859
+    },
+    "fact_review:EvaluationJournal.transition": {
+      "sql": 6,
+      "calls": 2,
+      "seconds": 0.0016057079774327576
+    },
+    "fact_review:EvaluationJournal.record": {
+      "sql": 71,
+      "calls": 1,
+      "seconds": 0.12341641599778086
+    },
+    "export:other": {
+      "sql": 2004
+    },
+    "export:EvaluationJournal.manifest": {
+      "sql": 10,
+      "calls": 5,
+      "seconds": 0.41816129197832197
+    },
+    "export:EvaluationJournal.manifest/EvaluationJournal.read": {
+      "sql": 315,
+      "calls": 5,
+      "seconds": 0.4161202510003932
+    },
+    "export:EvaluationJournal.read_blob": {
+      "sql": 14708,
+      "calls": 219,
+      "seconds": 18.503623953060014
+    },
+    "export:EvaluationJournal.read": {
+      "sql": 30118,
+      "calls": 488,
+      "seconds": 37.88221215290832
+    }
+  },
+  "sql_templates": [
+    {
+      "phase": "startup",
+      "sql": "SELECT * FROM artifact_revisions WHERE revision_id=ANY(%(ids)s)",
+      "count": 8528
+    },
+    {
+      "phase": "startup",
+      "sql": "SELECT * FROM artifact_dependencies WHERE project_id=ANY(%(projects)s) AND consumer_id=ANY(%(ids)s)",
+      "count": 8528
+    },
+    {
+      "phase": "startup",
+      "sql": "SELECT d.subject_id,d.payload FROM dependency_revalidations d WHERE project_id=ANY(%(projects)s) AND subject_id=ANY(%(ids)s) AND (d.acceptance_record_id IS NULL OR NOT EXISTS(SELECT 1 FROM revocations v WHERE v.project_id=d.project_id AND v.acceptance_record_id=d.acceptance_record_id)) ORDER BY (payload->>'expected_validity_version')::bigint",
+      "count": 8528
+    },
+    {
+      "phase": "startup",
+      "sql": "SELECT subject_id,input_id FROM revalidation_privacy_links WHERE project_id=ANY(%(projects)s) AND subject_id=ANY(%(ids)s)",
+      "count": 8528
+    },
+    {
+      "phase": "startup",
+      "sql": "SELECT a.revision_id,a.purpose AS binding_purpose,b.*, EXISTS(SELECT 1 FROM blob_access_revocations v WHERE v.project_id=b.project_id AND v.sha256=b.sha256) AS access_revoked, EXISTS(SELECT 1 FROM evaluator_blob_classifications c WHERE c.project_id=b.project_id AND c.sha256=b.sha256) AS evaluator_only FROM artifact_blobs a JOIN blobs b USING(project_id,storage_key) WHERE a.project_id=ANY(%(projects)s) AND a.revision_id=ANY(%(ids)s)",
+      "count": 8528
+    },
+    {
+      "phase": "startup",
+      "sql": "SELECT revision_id FROM invalidations WHERE project_id=ANY(%(projects)s) AND revision_id=ANY(%(ids)s) AND category='access'",
+      "count": 8528
+    },
+    {
+      "phase": "startup",
+      "sql": "SELECT revision_id,record_id,record_kind FROM runtime_links WHERE project_id=ANY(%(projects)s) AND revision_id=ANY(%(ids)s)",
+      "count": 8528
+    },
+    {
+      "phase": "startup",
+      "sql": "SELECT project_id,record_id,record_kind,audience FROM runtime_records WHERE project_id=%(p)s AND record_id=ANY(%(ids)s)",
+      "count": 6178
+    },
+    {
+      "phase": "startup",
+      "sql": "SELECT record_id,artifact_id,revision_id,kind FROM runtime_artifact_refs WHERE project_id=%(p)s AND record_id=ANY(%(ids)s)",
+      "count": 6178
+    },
+    {
+      "phase": "startup",
+      "sql": "SELECT record_id,target_record_id,record_kind FROM runtime_runtime_refs WHERE project_id=%(p)s AND record_id=ANY(%(ids)s)",
+      "count": 6178
+    },
+    {
+      "phase": "startup",
+      "sql": "SELECT record_id,storage_key,sha256,byte_length,media_type FROM runtime_blob_refs WHERE project_id=%(p)s AND record_id=ANY(%(ids)s)",
+      "count": 6178
+    },
+    {
+      "phase": "fact_review",
+      "sql": "SELECT project_id,record_id,record_kind,audience FROM runtime_records WHERE project_id=%(p)s AND record_id=ANY(%(ids)s)",
+      "count": 5381
+    },
+    {
+      "phase": "fact_review",
+      "sql": "SELECT record_id,artifact_id,revision_id,kind FROM runtime_artifact_refs WHERE project_id=%(p)s AND record_id=ANY(%(ids)s)",
+      "count": 5381
+    },
+    {
+      "phase": "fact_review",
+      "sql": "SELECT record_id,target_record_id,record_kind FROM runtime_runtime_refs WHERE project_id=%(p)s AND record_id=ANY(%(ids)s)",
+      "count": 5381
+    },
+    {
+      "phase": "fact_review",
+      "sql": "SELECT record_id,storage_key,sha256,byte_length,media_type FROM runtime_blob_refs WHERE project_id=%(p)s AND record_id=ANY(%(ids)s)",
+      "count": 5381
+    },
+    {
+      "phase": "export",
+      "sql": "SELECT project_id,record_id,record_kind,audience FROM runtime_records WHERE project_id=%(p)s AND record_id=ANY(%(ids)s)",
+      "count": 4803
+    },
+    {
+      "phase": "export",
+      "sql": "SELECT record_id,artifact_id,revision_id,kind FROM runtime_artifact_refs WHERE project_id=%(p)s AND record_id=ANY(%(ids)s)",
+      "count": 4803
+    },
+    {
+      "phase": "export",
+      "sql": "SELECT record_id,target_record_id,record_kind FROM runtime_runtime_refs WHERE project_id=%(p)s AND record_id=ANY(%(ids)s)",
+      "count": 4803
+    },
+    {
+      "phase": "export",
+      "sql": "SELECT record_id,storage_key,sha256,byte_length,media_type FROM runtime_blob_refs WHERE project_id=%(p)s AND record_id=ANY(%(ids)s)",
+      "count": 4803
+    },
+    {
+      "phase": "fact_review",
+      "sql": "SELECT * FROM artifact_revisions WHERE revision_id=ANY(%(ids)s)",
+      "count": 4431
+    },
+    {
+      "phase": "fact_review",
+      "sql": "SELECT * FROM artifact_dependencies WHERE project_id=ANY(%(projects)s) AND consumer_id=ANY(%(ids)s)",
+      "count": 4431
+    },
+    {
+      "phase": "fact_review",
+      "sql": "SELECT d.subject_id,d.payload FROM dependency_revalidations d WHERE project_id=ANY(%(projects)s) AND subject_id=ANY(%(ids)s) AND (d.acceptance_record_id IS NULL OR NOT EXISTS(SELECT 1 FROM revocations v WHERE v.project_id=d.project_id AND v.acceptance_record_id=d.acceptance_record_id)) ORDER BY (payload->>'expected_validity_version')::bigint",
+      "count": 4431
+    },
+    {
+      "phase": "fact_review",
+      "sql": "SELECT subject_id,input_id FROM revalidation_privacy_links WHERE project_id=ANY(%(projects)s) AND subject_id=ANY(%(ids)s)",
+      "count": 4431
+    },
+    {
+      "phase": "fact_review",
+      "sql": "SELECT a.revision_id,a.purpose AS binding_purpose,b.*, EXISTS(SELECT 1 FROM blob_access_revocations v WHERE v.project_id=b.project_id AND v.sha256=b.sha256) AS access_revoked, EXISTS(SELECT 1 FROM evaluator_blob_classifications c WHERE c.project_id=b.project_id AND c.sha256=b.sha256) AS evaluator_only FROM artifact_blobs a JOIN blobs b USING(project_id,storage_key) WHERE a.project_id=ANY(%(projects)s) AND a.revision_id=ANY(%(ids)s)",
+      "count": 4431
+    },
+    {
+      "phase": "fact_review",
+      "sql": "SELECT revision_id FROM invalidations WHERE project_id=ANY(%(projects)s) AND revision_id=ANY(%(ids)s) AND category='access'",
+      "count": 4431
+    },
+    {
+      "phase": "fact_review",
+      "sql": "SELECT revision_id,record_id,record_kind FROM runtime_links WHERE project_id=ANY(%(projects)s) AND revision_id=ANY(%(ids)s)",
+      "count": 4431
+    },
+    {
+      "phase": "export",
+      "sql": "SELECT * FROM artifact_revisions WHERE revision_id=ANY(%(ids)s)",
+      "count": 3519
+    },
+    {
+      "phase": "export",
+      "sql": "SELECT * FROM artifact_dependencies WHERE project_id=ANY(%(projects)s) AND consumer_id=ANY(%(ids)s)",
+      "count": 3519
+    },
+    {
+      "phase": "export",
+      "sql": "SELECT d.subject_id,d.payload FROM dependency_revalidations d WHERE project_id=ANY(%(projects)s) AND subject_id=ANY(%(ids)s) AND (d.acceptance_record_id IS NULL OR NOT EXISTS(SELECT 1 FROM revocations v WHERE v.project_id=d.project_id AND v.acceptance_record_id=d.acceptance_record_id)) ORDER BY (payload->>'expected_validity_version')::bigint",
+      "count": 3519
+    },
+    {
+      "phase": "export",
+      "sql": "SELECT subject_id,input_id FROM revalidation_privacy_links WHERE project_id=ANY(%(projects)s) AND subject_id=ANY(%(ids)s)",
+      "count": 3519
+    },
+    {
+      "phase": "export",
+      "sql": "SELECT a.revision_id,a.purpose AS binding_purpose,b.*, EXISTS(SELECT 1 FROM blob_access_revocations v WHERE v.project_id=b.project_id AND v.sha256=b.sha256) AS access_revoked, EXISTS(SELECT 1 FROM evaluator_blob_classifications c WHERE c.project_id=b.project_id AND c.sha256=b.sha256) AS evaluator_only FROM artifact_blobs a JOIN blobs b USING(project_id,storage_key) WHERE a.project_id=ANY(%(projects)s) AND a.revision_id=ANY(%(ids)s)",
+      "count": 3519
+    },
+    {
+      "phase": "export",
+      "sql": "SELECT revision_id FROM invalidations WHERE project_id=ANY(%(projects)s) AND revision_id=ANY(%(ids)s) AND category='access'",
+      "count": 3519
+    },
+    {
+      "phase": "export",
+      "sql": "SELECT revision_id,record_id,record_kind FROM runtime_links WHERE project_id=ANY(%(projects)s) AND revision_id=ANY(%(ids)s)",
+      "count": 3519
+    },
+    {
+      "phase": "startup",
+      "sql": "SELECT role FROM project_members WHERE project_id=%(p)s AND actor_id=%(a)s",
+      "count": 2800
+    },
+    {
+      "phase": "fact_review",
+      "sql": "SELECT role FROM project_members WHERE project_id=%(p)s AND actor_id=%(a)s",
+      "count": 2690
+    },
+    {
+      "phase": "startup",
+      "sql": "SET TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY",
+      "count": 2652
+    },
+    {
+      "phase": "startup",
+      "sql": "SELECT EXISTS(SELECT 1 FROM evaluator_blob_classifications WHERE project_id=%(p)s AND sha256=%(sha)s) AS evaluator_only, EXISTS(SELECT 1 FROM blob_access_revocations WHERE project_id=%(p)s AND sha256=%(sha)s) AS access_revoked",
+      "count": 2640
+    },
+    {
+      "phase": "startup",
+      "sql": "SELECT * FROM blobs WHERE project_id=%(p)s AND storage_key=%(k)s",
+      "count": 2640
+    },
+    {
+      "phase": "startup",
+      "sql": "SELECT 1 FROM artifact_blobs WHERE project_id=%(p)s AND revision_id=%(r)s AND storage_key=%(k)s",
+      "count": 2638
+    },
+    {
+      "phase": "fact_review",
+      "sql": "SELECT EXISTS(SELECT 1 FROM evaluator_blob_classifications WHERE project_id=%(p)s AND sha256=%(sha)s) AS evaluator_only, EXISTS(SELECT 1 FROM blob_access_revocations WHERE project_id=%(p)s AND sha256=%(sha)s) AS access_revoked",
+      "count": 1236
+    },
+    {
+      "phase": "startup",
+      "sql": "INSERT INTO source_search_document_chunks VALUES(%(p)s,%(document)s,%(start)s,%(end)s,%(language)s,to_tsvector(CAST(%(config)s AS regconfig),%(text)s),%(terms)s,%(phrase)s,CAST(%(vector)s AS vector))",
+      "count": 1225
+    },
+    {
+      "phase": "fact_review",
+      "sql": "SELECT b.*, EXISTS(SELECT 1 FROM blob_access_revocations v WHERE v.project_id=b.project_id AND v.sha256=b.sha256) AS access_revoked, EXISTS(SELECT 1 FROM evaluator_blob_classifications c WHERE c.project_id=b.project_id AND c.sha256=b.sha256) AS evaluator_only FROM blobs b WHERE project_id=%(p)s AND storage_key=ANY(%(keys)s)",
+      "count": 1111
+    },
+    {
+      "phase": "export",
+      "sql": "SELECT role FROM project_members WHERE project_id=%(p)s AND actor_id=%(a)s",
+      "count": 749
+    },
+    {
+      "phase": "export",
+      "sql": "SET TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY",
+      "count": 728
+    },
+    {
+      "phase": "export",
+      "sql": "SELECT b.*, EXISTS(SELECT 1 FROM blob_access_revocations v WHERE v.project_id=b.project_id AND v.sha256=b.sha256) AS access_revoked, EXISTS(SELECT 1 FROM evaluator_blob_classifications c WHERE c.project_id=b.project_id AND c.sha256=b.sha256) AS evaluator_only FROM blobs b WHERE project_id=%(p)s AND storage_key=ANY(%(keys)s)",
+      "count": 717
+    },
+    {
+      "phase": "fact_review",
+      "sql": "SELECT * FROM blobs WHERE project_id=%(p)s AND storage_key=%(k)s",
+      "count": 716
+    },
+    {
+      "phase": "fact_review",
+      "sql": "SELECT 'artifact' AS node_kind, consumer_id::text AS identity FROM revision_links WHERE project_id=%(project)s AND input_id=ANY(CAST(%(artifacts)s AS uuid[])) UNION SELECT 'artifact', subject_id::text FROM revalidation_privacy_links WHERE project_id=%(project)s AND input_id=ANY(CAST(%(artifacts)s AS uuid[])) UNION SELECT 'runtime', record_id::text FROM runtime_artifact_refs WHERE project_id=%(project)s AND revision_id=ANY(CAST(%(artifacts)s AS uuid[])) UNION SELECT 'runtime', record_id::text FROM runtime_runtime_refs WHERE project_id=%(project)s AND target_record_id=ANY(CAST(%(runtimes)s AS uuid[])) UNION SELECT 'artifact', revision_id::text FROM runtime_links WHERE project_id=%(project)s AND record_id=ANY(CAST(%(runtimes)s AS uuid[])) UNION SELECT 'blob', sha256 FROM runtime_blob_refs WHERE project_id=%(project)s AND record_id=ANY(CAST(%(runtimes)s AS uuid[])) UNION SELECT 'blob', b.sha256 FROM artifact_blobs AS a JOIN blobs AS b USING(project_id,storage_key) WHERE a.project_id=%(project)s AND a.revision_id=ANY(CAST(%(artifacts)s AS uuid[])) UNION SELECT 'blob', asset.value->'blob_ref'->>'sha256' FROM catalog_publications AS p CROSS JOIN LATERAL jsonb_array_elements(p.config->'published_assets') AS asset WHERE p.project_id=%(project)s AND p.revision_id=ANY(CAST(%(artifacts)s AS uuid[])) UNION SELECT 'runtime', record_id::text FROM runtime_blob_refs WHERE project_id=%(project)s AND sha256=ANY(CAST(%(hashes)s AS text[])) UNION SELECT 'artifact', a.revision_id::text FROM blobs AS b JOIN artifact_blobs AS a USING(project_id,storage_key) WHERE b.project_id=%(project)s AND b.sha256=ANY(CAST(%(hashes)s AS text[])) UNION SELECT 'artifact', p.revision_id::text FROM unnest(CAST(%(hashes)s AS text[])) AS marked(sha256) JOIN catalog_publications AS p ON p.project_id=%(project)s AND p.config->'published_assets' @> jsonb_build_array(jsonb_build_object('blob_ref',jsonb_build_object('sha256',marked.sha256)))",
+      "count": 661
+    },
+    {
+      "phase": "fact_review",
+      "sql": "SET TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY",
+      "count": 565
+    },
+    {
+      "phase": "fact_review",
+      "sql": "SELECT project_id FROM projects WHERE project_id=%(p)s FOR SHARE",
+      "count": 565
+    },
+    {
+      "phase": "fact_review",
+      "sql": "SELECT role FROM project_members WHERE project_id=%(p)s AND actor_id=%(a)s FOR SHARE",
+      "count": 565
+    },
+    {
+      "phase": "fact_review",
+      "sql": "SELECT 1 FROM artifact_blobs WHERE project_id=%(p)s AND revision_id=%(r)s AND storage_key=%(k)s",
+      "count": 541
+    },
+    {
+      "phase": "fact_review",
+      "sql": "SELECT * FROM blobs WHERE project_id=%(p)s AND sha256=%(sha)s AND media_type=%(m)s",
+      "count": 520
+    },
+    {
+      "phase": "export",
+      "sql": "SELECT payload FROM runtime_records WHERE project_id=%(p)s AND record_id=%(r)s AND record_kind=%(k)s",
+      "count": 498
+    },
+    {
+      "phase": "fact_review",
+      "sql": "SELECT * FROM runtime_records WHERE project_id=%(p)s AND record_id=%(r)s",
+      "count": 445
+    },
+    {
+      "phase": "fact_review",
+      "sql": "INSERT INTO runtime_records VALUES(%(p)s,%(r)s,%(k)s,CAST(%(body)s AS json),%(a)s)",
+      "count": 445
+    },
+    {
+      "phase": "fact_review",
+      "sql": "SET TRANSACTION ISOLATION LEVEL REPEATABLE READ",
+      "count": 444
+    },
+    {
+      "phase": "fact_review",
+      "sql": "INSERT INTO evaluation_invocation_events(project_id,invocation_id,event_id,record_id,event_kind,source_turn_index) VALUES(%(p)s,%(i)s,%(e)s,%(r)s,%(k)s,%(turn)s)",
+      "count": 399
+    },
+    {
+      "phase": "fact_review",
+      "sql": "SELECT payload FROM runtime_records WHERE project_id=%(p)s AND record_id=%(r)s AND record_kind=%(k)s",
+      "count": 355
+    },
+    {
+      "phase": "export",
+      "sql": "SELECT EXISTS(SELECT 1 FROM evaluator_blob_classifications WHERE project_id=%(p)s AND sha256=%(sha)s) AS evaluator_only, EXISTS(SELECT 1 FROM blob_access_revocations WHERE project_id=%(p)s AND sha256=%(sha)s) AS access_revoked",
+      "count": 272
+    },
+    {
+      "phase": "export",
+      "sql": "SELECT * FROM blobs WHERE project_id=%(p)s AND storage_key=%(k)s",
+      "count": 272
+    },
+    {
+      "phase": "fact_review",
+      "sql": "INSERT INTO blobs VALUES(%(p)s,%(key)s,%(sha)s,%(n)s,%(media)s) ON CONFLICT DO NOTHING",
+      "count": 260
+    },
+    {
+      "phase": "fact_review",
+      "sql": "SELECT * FROM evaluation_model_turns WHERE project_id=%(p)s AND root_invocation_id=%(i)s AND turn_index=%(n)s",
+      "count": 258
+    },
+    {
+      "phase": "fact_review",
+      "sql": "INSERT INTO evaluator_blob_classifications(project_id,sha256,artifact_revision_id,runtime_record_id) SELECT %(p)s,checksum,%(a)s,%(r)s FROM unnest(CAST(%(hashes)s AS text[])) AS marked(checksum) WHERE NOT EXISTS(SELECT 1 FROM evaluator_protected_hashes AS known WHERE known.project_id=%(p)s AND known.sha256=marked.checksum) ORDER BY checksum ON CONFLICT DO NOTHING",
+      "count": 174
+    },
+    {
+      "phase": "fact_review",
+      "sql": "UPDATE evaluation_model_turns SET status=%(s)s,provider_response_id=COALESCE(%(provider)s,provider_response_id),input_tokens=COALESCE(%(input)s,input_tokens),output_tokens=COALESCE(%(output)s,output_tokens) WHERE project_id=%(p)s AND root_invocation_id=%(i)s AND turn_index=%(n)s",
+      "count": 172
+    },
+    {
+      "phase": "startup",
+      "sql": "SELECT b.*, EXISTS(SELECT 1 FROM blob_access_revocations v WHERE v.project_id=b.project_id AND v.sha256=b.sha256) AS access_revoked, EXISTS(SELECT 1 FROM evaluator_blob_classifications c WHERE c.project_id=b.project_id AND c.sha256=b.sha256) AS evaluator_only FROM blobs b WHERE project_id=%(p)s AND storage_key=ANY(%(keys)s)",
+      "count": 151
+    },
+    {
+      "phase": "startup",
+      "sql": "SELECT project_id FROM projects WHERE project_id=%(p)s FOR SHARE",
+      "count": 141
+    },
+    {
+      "phase": "startup",
+      "sql": "SELECT role FROM project_members WHERE project_id=%(p)s AND actor_id=%(a)s FOR SHARE",
+      "count": 141
+    },
+    {
+      "phase": "startup",
+      "sql": "SELECT 1 FROM blob_access_revocations WHERE project_id=%(p)s AND sha256=ANY(%(hashes)s)",
+      "count": 139
+    },
+    {
+      "phase": "fact_review",
+      "sql": "SELECT 1 FROM blob_access_revocations WHERE project_id=%(p)s AND sha256=ANY(%(hashes)s)",
+      "count": 121
+    },
+    {
+      "phase": "startup",
+      "sql": "SELECT * FROM source_search_documents WHERE project_id=%(p)s AND document_key=%(document)s FOR UPDATE",
+      "count": 88
+    },
+    {
+      "phase": "startup",
+      "sql": "UPDATE source_search_documents SET chunk_count=chunk_count+%(count)s,cursor_position=%(cursor)s,completed=%(done)s WHERE project_id=%(p)s AND document_key=%(document)s",
+      "count": 88
+    },
+    {
+      "phase": "fact_review",
+      "sql": "SELECT * FROM evaluation_model_turns WHERE project_id=%(p)s AND root_invocation_id=%(i)s ORDER BY turn_index",
+      "count": 88
+    },
+    {
+      "phase": "fact_review",
+      "sql": "SELECT * FROM evaluation_writing_runs WHERE project_id=%(p)s AND run_id=%(r)s",
+      "count": 59
+    },
+    {
+      "phase": "fact_review",
+      "sql": "SELECT pg_try_advisory_lock(hashtextextended(%(key)s,0)) AS held",
+      "count": 52
+    },
+    {
+      "phase": "fact_review",
+      "sql": "SELECT pg_advisory_unlock(hashtextextended(%(key)s,0))",
+      "count": 52
+    },
+    {
+      "phase": "startup",
+      "sql": "SELECT pg_try_advisory_lock(hashtextextended(%(key)s,0)) AS held",
+      "count": 51
+    },
+    {
+      "phase": "startup",
+      "sql": "SELECT * FROM source_search_documents WHERE project_id=%(p)s AND document_key=%(document)s",
+      "count": 51
+    },
+    {
+      "phase": "startup",
+      "sql": "INSERT INTO source_search_memberships VALUES(%(p)s,%(r)s,%(h)s,%(s)s,%(document)s) ON CONFLICT DO NOTHING",
+      "count": 51
+    },
+    {
+      "phase": "startup",
+      "sql": "SELECT document_key FROM source_search_memberships WHERE project_id=%(p)s AND shared_input_record_id=%(r)s AND profile_sha256=%(h)s AND source_id=%(s)s",
+      "count": 51
+    },
+    {
+      "phase": "startup",
+      "sql": "SELECT pg_advisory_unlock(hashtextextended(%(key)s,0))",
+      "count": 51
+    },
+    {
+      "phase": "fact_review",
+      "sql": "SELECT * FROM source_search_documents WHERE project_id=%(p)s AND document_key=%(document)s",
+      "count": 51
+    },
+    {
+      "phase": "fact_review",
+      "sql": "INSERT INTO source_search_memberships VALUES(%(p)s,%(r)s,%(h)s,%(s)s,%(document)s) ON CONFLICT DO NOTHING",
+      "count": 51
+    },
+    {
+      "phase": "fact_review",
+      "sql": "SELECT document_key FROM source_search_memberships WHERE project_id=%(p)s AND shared_input_record_id=%(r)s AND profile_sha256=%(h)s AND source_id=%(s)s",
+      "count": 51
+    },
+    {
+      "phase": "export",
+      "sql": "SELECT 1 FROM artifact_blobs WHERE project_id=%(p)s AND revision_id=%(r)s AND storage_key=%(k)s",
+      "count": 51
+    },
+    {
+      "phase": "startup",
+      "sql": "INSERT INTO source_search_documents(project_id,document_key,source_sha256,source_length,profile_sha256,profile,language) VALUES(%(p)s,%(document)s,%(sha)s,%(length)s,%(h)s,CAST(%(profile)s AS jsonb),%(language)s)",
+      "count": 49
+    },
+    {
+      "phase": "startup",
+      "sql": "SELECT i.source_sha256,i.source_length,i.profile,i.language,i.chunk_count,b.cursor_position,b.completed FROM source_search_indexes i JOIN source_search_builds b USING(project_id,shared_input_record_id,profile_sha256,source_id) WHERE i.project_id=%(p)s AND i.shared_input_record_id=%(r)s AND i.profile_sha256=%(h)s AND i.source_id=%(s)s",
+      "count": 49
+    },
+    {
+      "phase": "fact_review",
+      "sql": "UPDATE evaluation_model_invocations SET status=%(s)s,input_tokens=%(input)s,output_tokens=%(output)s WHERE project_id=%(p)s AND invocation_id=%(i)s",
+      "count": 44
+    },
+    {
+      "phase": "fact_review",
+      "sql": "INSERT INTO evaluation_model_turns(project_id,root_invocation_id,turn_index,invocation_id,status,request_record_id) VALUES(%(p)s,%(i)s,%(n)s,%(t)s,'prepared',%(r)s)",
+      "count": 43
+    },
+    {
+      "phase": "fact_review",
+      "sql": "SELECT request,results FROM source_search_results WHERE project_id=%(p)s AND shared_input_record_id=%(r)s AND profile_sha256=%(h)s AND query_sha256=%(key)s",
+      "count": 26
+    },
+    {
+      "phase": "fact_review",
+      "sql": "WITH permitted AS (SELECT m.source_id,c.start_offset,c.end_offset,c.language,c.lexical,c.exact_terms,c.phrase_text,c.embedding FROM source_search_memberships m JOIN source_search_documents d ON d.project_id=m.project_id AND d.document_key=m.document_key JOIN source_search_document_chunks c ON c.project_id=d.project_id AND c.document_key=d.document_key WHERE m.project_id=%(p)s AND m.shared_input_record_id=%(r)s AND m.profile_sha256=%(h)s AND m.source_id=ANY(%(scope)s) AND d.completed) SELECT source_id,start_offset,end_offset,1-(embedding <=> CAST(%(vector)s AS vector)) AS score FROM permitted ORDER BY embedding <=> CAST(%(vector)s AS vector),source_id,start_offset LIMIT %(limit)s",
+      "count": 13
+    },
+    {
+      "phase": "fact_review",
+      "sql": "WITH permitted AS (SELECT m.source_id,c.start_offset,c.end_offset,c.language,c.lexical,c.exact_terms,c.phrase_text,c.embedding FROM source_search_memberships m JOIN source_search_documents d ON d.project_id=m.project_id AND d.document_key=m.document_key JOIN source_search_document_chunks c ON c.project_id=d.project_id AND c.document_key=d.document_key WHERE m.project_id=%(p)s AND m.shared_input_record_id=%(r)s AND m.profile_sha256=%(h)s AND m.source_id=ANY(%(scope)s) AND d.completed) SELECT source_id,start_offset,end_offset,ts_rank_cd(lexical,websearch_to_tsquery(CASE language WHEN 'en' THEN 'english'::regconfig WHEN 'ru' THEN 'russian'::regconfig ELSE 'simple'::regconfig END,%(lexical_query)s)) AS score FROM permitted WHERE lexical @@ websearch_to_tsquery(CASE language WHEN 'en' THEN 'english'::regconfig WHEN 'ru' THEN 'russian'::regconfig ELSE 'simple'::regconfig END,%(lexical_query)s) ORDER BY score DESC,source_id,start_offset LIMIT %(limit)s",
+      "count": 13
+    },
+    {
+      "phase": "fact_review",
+      "sql": "WITH permitted AS (SELECT m.source_id,c.start_offset,c.end_offset,c.language,c.lexical,c.exact_terms,c.phrase_text,c.embedding FROM source_search_memberships m JOIN source_search_documents d ON d.project_id=m.project_id AND d.document_key=m.document_key JOIN source_search_document_chunks c ON c.project_id=d.project_id AND c.document_key=d.document_key WHERE m.project_id=%(p)s AND m.shared_input_record_id=%(r)s AND m.profile_sha256=%(h)s AND m.source_id=ANY(%(scope)s) AND d.completed) SELECT source_id,start_offset,end_offset,((strpos(' '||phrase_text||' ',%(phrase)s)>0)::int + (SELECT count(*)::float FROM unnest(CAST(%(entities)s AS text[])) AS e(term) WHERE e.term=ANY(exact_terms))/GREATEST(cardinality(CAST(%(entities)s AS text[])),1)) AS score FROM permitted WHERE strpos(' '||phrase_text||' ',%(phrase)s)>0 OR exact_terms && CAST(%(entities)s AS text[]) ORDER BY score DESC,source_id,start_offset LIMIT %(limit)s",
+      "count": 13
+    },
+    {
+      "phase": "fact_review",
+      "sql": "INSERT INTO source_search_results VALUES(%(p)s,%(r)s,%(h)s,%(key)s,CAST(%(request)s AS jsonb),CAST(%(rows)s AS jsonb)) ON CONFLICT DO NOTHING",
+      "count": 13
+    },
+    {
+      "phase": "startup",
+      "sql": "SELECT payload FROM runtime_records WHERE project_id=%(p)s AND record_id=%(r)s AND record_kind=%(k)s",
+      "count": 11
+    },
+    {
+      "phase": "export",
+      "sql": "SELECT * FROM evaluation_writing_runs WHERE project_id=%(p)s AND run_id=%(r)s",
+      "count": 11
+    },
+    {
+      "phase": "fact_review",
+      "sql": "SELECT * FROM evaluation_model_invocations WHERE project_id=%(p)s AND run_id=%(r)s AND stage=%(s)s ORDER BY attempt_index",
+      "count": 9
+    },
+    {
+      "phase": "startup",
+      "sql": "SELECT 'artifact' AS node_kind, consumer_id::text AS identity FROM revision_links WHERE project_id=%(project)s AND input_id=ANY(CAST(%(artifacts)s AS uuid[])) UNION SELECT 'artifact', subject_id::text FROM revalidation_privacy_links WHERE project_id=%(project)s AND input_id=ANY(CAST(%(artifacts)s AS uuid[])) UNION SELECT 'runtime', record_id::text FROM runtime_artifact_refs WHERE project_id=%(project)s AND revision_id=ANY(CAST(%(artifacts)s AS uuid[])) UNION SELECT 'runtime', record_id::text FROM runtime_runtime_refs WHERE project_id=%(project)s AND target_record_id=ANY(CAST(%(runtimes)s AS uuid[])) UNION SELECT 'artifact', revision_id::text FROM runtime_links WHERE project_id=%(project)s AND record_id=ANY(CAST(%(runtimes)s AS uuid[])) UNION SELECT 'blob', sha256 FROM runtime_blob_refs WHERE project_id=%(project)s AND record_id=ANY(CAST(%(runtimes)s AS uuid[])) UNION SELECT 'blob', b.sha256 FROM artifact_blobs AS a JOIN blobs AS b USING(project_id,storage_key) WHERE a.project_id=%(project)s AND a.revision_id=ANY(CAST(%(artifacts)s AS uuid[])) UNION SELECT 'blob', asset.value->'blob_ref'->>'sha256' FROM catalog_publications AS p CROSS JOIN LATERAL jsonb_array_elements(p.config->'published_assets') AS asset WHERE p.project_id=%(project)s AND p.revision_id=ANY(CAST(%(artifacts)s AS uuid[])) UNION SELECT 'runtime', record_id::text FROM runtime_blob_refs WHERE project_id=%(project)s AND sha256=ANY(CAST(%(hashes)s AS text[])) UNION SELECT 'artifact', a.revision_id::text FROM blobs AS b JOIN artifact_blobs AS a USING(project_id,storage_key) WHERE b.project_id=%(project)s AND b.sha256=ANY(CAST(%(hashes)s AS text[])) UNION SELECT 'artifact', p.revision_id::text FROM unnest(CAST(%(hashes)s AS text[])) AS marked(sha256) JOIN catalog_publications AS p ON p.project_id=%(project)s AND p.config->'published_assets' @> jsonb_build_array(jsonb_build_object('blob_ref',jsonb_build_object('sha256',marked.sha256)))",
+      "count": 8
+    },
+    {
+      "phase": "export",
+      "sql": "SELECT * FROM evaluation_model_invocations WHERE project_id=%(p)s AND run_id=%(r)s AND stage=%(s)s ORDER BY attempt_index",
+      "count": 5
+    },
+    {
+      "phase": "startup",
+      "sql": "SELECT * FROM evaluation_writing_runs WHERE project_id=%(p)s AND run_id=%(r)s",
+      "count": 4
+    },
+    {
+      "phase": "fact_review",
+      "sql": "SELECT record_id FROM runtime_records WHERE project_id=%(p)s AND record_id=%(r)s",
+      "count": 4
+    },
+    {
+      "phase": "startup",
+      "sql": "SELECT record_id FROM runtime_records WHERE project_id=%(p)s AND record_id=%(r)s",
+      "count": 3
+    },
+    {
+      "phase": "fact_review",
+      "sql": "SELECT * FROM evaluation_invocation_events WHERE project_id=%(p)s AND invocation_id=%(i)s ORDER BY sequence",
+      "count": 3
+    },
+    {
+      "phase": "export",
+      "sql": "SELECT record_id FROM runtime_records WHERE project_id=%(p)s AND record_id=%(r)s",
+      "count": 3
+    },
+    {
+      "phase": "startup",
+      "sql": "SET TRANSACTION ISOLATION LEVEL REPEATABLE READ",
+      "count": 2
+    },
+    {
+      "phase": "startup",
+      "sql": "SELECT * FROM runtime_records WHERE project_id=%(p)s AND record_id=%(r)s",
+      "count": 2
+    },
+    {
+      "phase": "startup",
+      "sql": "INSERT INTO runtime_records VALUES(%(p)s,%(r)s,%(k)s,CAST(%(body)s AS json),%(a)s)",
+      "count": 2
+    },
+    {
+      "phase": "startup",
+      "sql": "INSERT INTO evaluator_blob_classifications(project_id,sha256,artifact_revision_id,runtime_record_id) SELECT %(p)s,checksum,%(a)s,%(r)s FROM unnest(CAST(%(hashes)s AS text[])) AS marked(checksum) WHERE NOT EXISTS(SELECT 1 FROM evaluator_protected_hashes AS known WHERE known.project_id=%(p)s AND known.sha256=marked.checksum) ORDER BY checksum ON CONFLICT DO NOTHING",
+      "count": 2
+    },
+    {
+      "phase": "whole_review",
+      "sql": "SELECT role FROM project_members WHERE project_id=%(p)s AND actor_id=%(a)s",
+      "count": 2
+    },
+    {
+      "phase": "whole_review",
+      "sql": "UPDATE evaluation_writing_runs SET status=%(s)s,failure_code=%(f)s WHERE project_id=%(p)s AND run_id=%(r)s",
+      "count": 2
+    },
+    {
+      "phase": "fact_review",
+      "sql": "UPDATE evaluation_model_invocations SET status=%(s)s,provider_response_id=COALESCE(%(provider)s,provider_response_id), input_tokens=COALESCE(%(input)s,input_tokens),output_tokens=COALESCE(%(output)s,output_tokens),output_record_id=COALESCE(%(ref)s,output_record_id) WHERE project_id=%(p)s AND invocation_id=%(i)s",
+      "count": 2
+    },
+    {
+      "phase": "fact_review",
+      "sql": "SELECT * FROM evaluation_model_invocations WHERE project_id=%(p)s AND invocation_id=%(i)s",
+      "count": 2
+    },
+    {
+      "phase": "export",
+      "sql": "SELECT * FROM evaluation_invocation_events WHERE project_id=%(p)s AND invocation_id=%(i)s ORDER BY sequence",
+      "count": 2
+    },
+    {
+      "phase": "export",
+      "sql": "SELECT * FROM evaluation_model_turns WHERE project_id=%(p)s AND root_invocation_id=%(i)s ORDER BY turn_index",
+      "count": 2
+    },
+    {
+      "phase": "outside",
+      "sql": "SELECT role FROM project_members WHERE project_id=%(p)s AND actor_id=%(a)s",
+      "count": 1
+    },
+    {
+      "phase": "outside",
+      "sql": "SELECT pg_try_advisory_lock(hashtextextended(%(key)s,0)) AS held",
+      "count": 1
+    },
+    {
+      "phase": "startup",
+      "sql": "SELECT * FROM evaluation_model_invocations WHERE project_id=%(p)s AND run_id=%(r)s AND stage=%(s)s ORDER BY attempt_index",
+      "count": 1
+    },
+    {
+      "phase": "startup",
+      "sql": "SELECT record_kind,audience,payload FROM runtime_records WHERE project_id=%(p)s AND record_id=%(r)s",
+      "count": 1
+    },
+    {
+      "phase": "startup",
+      "sql": "SELECT validity_version FROM projects WHERE project_id=%(p)s FOR UPDATE",
+      "count": 1
+    },
+    {
+      "phase": "startup",
+      "sql": "SELECT * FROM artifact_revisions WHERE project_id=%(p)s AND operation_id=%(o)s",
+      "count": 1
+    },
+    {
+      "phase": "startup",
+      "sql": "SELECT kind FROM artifacts WHERE project_id=%(p)s AND artifact_id=%(a)s",
+      "count": 1
+    },
+    {
+      "phase": "startup",
+      "sql": "INSERT INTO artifacts VALUES(%(p)s,%(a)s,%(k)s)",
+      "count": 1
+    },
+    {
+      "phase": "startup",
+      "sql": "INSERT INTO artifact_revisions(project_id,revision_id,artifact_id,kind,episode_id,schema_version, payload,input_refs,producer,content_hash,created_at,audience,operation_id,operation_fingerprint) VALUES(%(p)s,%(r)s,%(a)s,%(k)s,%(e)s,'1.0',CAST(%(body)s AS json),CAST(%(refs)s AS jsonb),CAST(%(producer)s AS jsonb), %(h)s,%(time)s,%(aud)s,%(op)s,%(fp)s)",
+      "count": 1
+    },
+    {
+      "phase": "startup",
+      "sql": "UPDATE projects SET validity_version=validity_version+1 WHERE project_id=%(p)s",
+      "count": 1
+    },
+    {
+      "phase": "startup",
+      "sql": "INSERT INTO outbox(event_id,project_id,event_kind,payload) VALUES(%(id)s,%(p)s,'artifact_created',CAST(%(body)s AS json))",
+      "count": 1
+    },
+    {
+      "phase": "startup",
+      "sql": "SELECT * FROM artifact_revisions WHERE revision_id=%(r)s AND artifact_id=%(a)s AND kind=%(k)s",
+      "count": 1
+    },
+    {
+      "phase": "startup",
+      "sql": "INSERT INTO evaluation_writing_runs(project_id,run_id,actor_id,input_fingerprint,manifest_id,status) VALUES(%(p)s,%(r)s,%(a)s,%(fp)s,%(m)s,'prepared')",
+      "count": 1
+    },
+    {
+      "phase": "startup",
+      "sql": "INSERT INTO source_search_scope_dependencies SELECT %(p)s,%(r)s,sha FROM unnest(CAST(%(hashes)s AS text[])) AS h(sha) ON CONFLICT DO NOTHING",
+      "count": 1
+    },
+    {
+      "phase": "fact_review",
+      "sql": "INSERT INTO evaluation_model_invocations(project_id,run_id,invocation_id,stage,status,request_record_id,attempt_index,parent_invocation_id,parent_attempt_index,attempt_kind,operation_kind) VALUES(%(p)s,%(r)s,%(i)s,%(s)s,'prepared',%(request)s,%(attempt)s,%(parent)s,%(parent_attempt)s,%(kind)s,%(operation)s)",
+      "count": 1
+    },
+    {
+      "phase": "fact_review",
+      "sql": "UPDATE evaluation_model_invocations SET provider_response_id=%(id)s WHERE project_id=%(p)s AND invocation_id=%(i)s",
+      "count": 1
+    },
+    {
+      "phase": "outside",
+      "sql": "SELECT pg_advisory_unlock(hashtextextended(%(key)s,0))",
+      "count": 1
+    }
+  ],
+  "count_calls": 43,
+  "submit_calls": 43,
+  "tool_results_exact": 42,
+  "all_native_requests_exact": true
+}
