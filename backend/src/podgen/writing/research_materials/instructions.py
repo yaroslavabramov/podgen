@@ -55,7 +55,7 @@ def adapt(role: str, format: str, body: str) -> str:
         body = _replace_once(
             body,
             "Resolve each `evidence_refs` entry by its offered `card_id`; `source_excerpt_indices` are zero-based positions in that card's `source_excerpts`. A card-only reference points to the supplied card as a whole and selects no particular quotation.",
-            "Resolve each `evidence_refs` entry using the identifiers and passages offered with that task. Material references identify research-report sections; use read_material for their complete text and context. Use search_sources and read_source for underlying source evidence. An R report-reading receipt is not an E source-reading receipt.",
+            "Resolve each `support_refs` entry by its offered M identifier in the selected materials or read_material. The `card_id` key here identifies a report section, not a knowledge card. These sections provide research context, not source evidence. Resolve `source_read_refs` against the supplied `review_source_passages`; these are retained source passages behind the task. Use search_sources and read_source when further source context is needed. An R report-reading receipt is not an E source-reading receipt.",
         )
         addition = AUTHOR
     elif role in ("fact-review", "fact-verification"):

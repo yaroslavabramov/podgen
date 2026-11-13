@@ -72,7 +72,7 @@
       "format": "solo",
       "changed": true,
       "before_sha256": "3366fdee5b18c00565b6b595997045bed73561a09100436a2bd9af8519eb2f1e",
-      "after_sha256": "7113f80d10c491fbd5d34765ee5ac2b9efeb8a7bf16e076f248e433211833257"
+      "after_sha256": "71ffe5ffc5ea6d98afa1b74a65a3b52b9f05b5b6a1fdb96417618f456421803d"
     },
     {
       "file": "fact-review.md",
