@@ -1,0 +1,12 @@
+{
+  "endpoint_called": false,
+  "existing_run": "293c8b5a-53df-5483-92ec-80c9bd7f2258",
+  "stage": "plan",
+  "archived_request_equal": true,
+  "installed_versions": {
+    "openai": "3.50.0",
+    "httpx2": "2.16.0",
+    "regex": "2026.11.9",
+    "pypdfium2": "5.15.2"
+  }
+}

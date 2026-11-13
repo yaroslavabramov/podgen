@@ -1,0 +1,95 @@
+{
+  "run_id": "293c8b5a-53df-5483-92ec-80c9bd7f2258",
+  "provenance": "Archived provider_response usage; repeated complete run export. Excludes token-count endpoints and prior hosted research.",
+  "cost_usd": null,
+  "stages": [
+    {
+      "stage": "plan",
+      "calls": 12,
+      "input_tokens": 189957,
+      "output_tokens": 6393,
+      "cache_read_tokens": 0,
+      "cache_write_tokens": 0
+    },
+    {
+      "stage": "plan-review",
+      "calls": 12,
+      "input_tokens": 267639,
+      "output_tokens": 1724,
+      "cache_read_tokens": 41046,
+      "cache_write_tokens": 3738
+    },
+    {
+      "stage": "draft",
+      "calls": 7,
+      "input_tokens": 318772,
+      "output_tokens": 7278,
+      "cache_read_tokens": 0,
+      "cache_write_tokens": 0
+    },
+    {
+      "stage": "reader-review",
+      "calls": 1,
+      "input_tokens": 8986,
+      "output_tokens": 9060,
+      "cache_read_tokens": 0,
+      "cache_write_tokens": 5028
+    },
+    {
+      "stage": "fact-review",
+      "calls": 12,
+      "input_tokens": 236832,
+      "output_tokens": 11012,
+      "cache_read_tokens": 127154,
+      "cache_write_tokens": 11566
+    },
+    {
+      "stage": "revise-1",
+      "calls": 1,
+      "input_tokens": 39907,
+      "output_tokens": 1429,
+      "cache_read_tokens": 0,
+      "cache_write_tokens": 20037
+    },
+    {
+      "stage": "reader-review-1",
+      "calls": 1,
+      "input_tokens": 15803,
+      "output_tokens": 8699,
+      "cache_read_tokens": 0,
+      "cache_write_tokens": 5734
+    },
+    {
+      "stage": "fact-review-1",
+      "calls": 12,
+      "input_tokens": 399027,
+      "output_tokens": 13155,
+      "cache_read_tokens": 135679,
+      "cache_write_tokens": 12341
+    },
+    {
+      "stage": "revise-2",
+      "calls": 1,
+      "input_tokens": 35520,
+      "output_tokens": 538,
+      "cache_read_tokens": 0,
+      "cache_write_tokens": 20037
+    },
+    {
+      "stage": "reader-review-2",
+      "calls": 1,
+      "input_tokens": 12976,
+      "output_tokens": 7118,
+      "cache_read_tokens": 0,
+      "cache_write_tokens": 5716
+    },
+    {
+      "stage": "fact-review-2",
+      "calls": 12,
+      "input_tokens": 435092,
+      "output_tokens": 12855,
+      "cache_read_tokens": 135591,
+      "cache_write_tokens": 12333
+    }
+  ]
+}
