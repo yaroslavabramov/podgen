@@ -8,7 +8,7 @@
       "format": "solo",
       "changed": true,
       "before_sha256": "3b0181ec6868f9c9517c24524a008a0b3c3814aafc0648ab3f8cbb8e72aea4b2",
-      "after_sha256": "b009722423920ed36e6ccca2b6e9575392a49321d5d776a0b33da33331ba8b6d"
+      "after_sha256": "c279a4c862ff2f93549e3500204eb63e679037a245eb2e3a08127282a6785d5a"
     },
     {
       "file": "solo-plan-review.md",
@@ -16,7 +16,7 @@
       "format": "solo",
       "changed": true,
       "before_sha256": "96daa0797fb55058db3c843ff4b98a9032e03c325c22b2add6dc4e15ff4a6ef1",
-      "after_sha256": "32a2a664a9041f249683e00a560c0b53b99029d372c46392fa826faf337aeb81"
+      "after_sha256": "ddfcfedd76c19eabdca435e169435672694245cd44afbb7dbe6a7e5bca3b15ca"
     },
     {
       "file": "solo-plan-revise.md",
@@ -24,7 +24,7 @@
       "format": "solo",
       "changed": true,
       "before_sha256": "fae80e2c76066c2c03de3e148dd8deefec80bd5feec218d2e1b2014ca095ec8e",
-      "after_sha256": "d99e7c1558ad5df26c27b8d5e07320cd0b07c949b22a71667c107af2d4e347c5"
+      "after_sha256": "e7f866dfbf6dcbf472ff10998530805835600a47effb2027b3cff0bc94a06795"
     },
     {
       "file": "solo-draft.md",
@@ -32,7 +32,7 @@
       "format": "solo",
       "changed": true,
       "before_sha256": "781f333980cf17be1d6c4a7f567be95e80a3b36c59db038d0a19e10d85478274",
-      "after_sha256": "d1971f4a211867ab2707deaadc76524fe1ddaf9e75d2b18c8d13a6f60cff8eea"
+      "after_sha256": "7fb9a9a074c709c39c58f3520f1bbd4cd89b85d3e38a6e37ec3c5afb79428ffb"
     },
     {
       "file": "dialogue-plan.md",
@@ -40,7 +40,7 @@
       "format": "dialogue",
       "changed": true,
       "before_sha256": "3b0181ec6868f9c9517c24524a008a0b3c3814aafc0648ab3f8cbb8e72aea4b2",
-      "after_sha256": "b009722423920ed36e6ccca2b6e9575392a49321d5d776a0b33da33331ba8b6d"
+      "after_sha256": "c279a4c862ff2f93549e3500204eb63e679037a245eb2e3a08127282a6785d5a"
     },
     {
       "file": "dialogue-plan-review.md",
@@ -48,7 +48,7 @@
       "format": "dialogue",
       "changed": true,
       "before_sha256": "9598b84eca52020aba01de63019cad6fb86115ef6621ae8b1c90ab9c2df801bf",
-      "after_sha256": "35d447b02b925b3eb055318f9aeda9bd955e631a15f8cc2618a528feeecf643d"
+      "after_sha256": "6b1777c8c5aebf3c19a8c746c71121bfc02114f3ab64125cc2cde88f82f942c3"
     },
     {
       "file": "dialogue-plan-revise.md",
@@ -56,7 +56,7 @@
       "format": "dialogue",
       "changed": true,
       "before_sha256": "fae80e2c76066c2c03de3e148dd8deefec80bd5feec218d2e1b2014ca095ec8e",
-      "after_sha256": "d99e7c1558ad5df26c27b8d5e07320cd0b07c949b22a71667c107af2d4e347c5"
+      "after_sha256": "e7f866dfbf6dcbf472ff10998530805835600a47effb2027b3cff0bc94a06795"
     },
     {
       "file": "dialogue-draft.md",
@@ -64,7 +64,7 @@
       "format": "dialogue",
       "changed": true,
       "before_sha256": "429483dfe1562930a440e34d3c23295c9b38fe3111ea1eaba6db5e9ddfd6b830",
-      "after_sha256": "3e8fb30b52641e85d11092002653f975122ba29c1bffc06af6ee4c758f3c8a62"
+      "after_sha256": "261874d55f5634fbaa373894a907822c416086b85eb17b11af4791f9624d2abe"
     },
     {
       "file": "dual-revise.md",
@@ -72,7 +72,7 @@
       "format": "solo",
       "changed": true,
       "before_sha256": "3366fdee5b18c00565b6b595997045bed73561a09100436a2bd9af8519eb2f1e",
-      "after_sha256": "2e82fd6c7ed7b1eb9d4d407c30f369c9c379a1c1a7ea49baaa8124fd963a41a4"
+      "after_sha256": "7113f80d10c491fbd5d34765ee5ac2b9efeb8a7bf16e076f248e433211833257"
     },
     {
       "file": "fact-review.md",
@@ -80,7 +80,7 @@
       "format": "solo",
       "changed": true,
       "before_sha256": "69c4930ddaabc289b26a37a475464a2e31292966a9a60c286de0535959488da1",
-      "after_sha256": "ec023b49d54c28ac69d1b4a2eb9ccaabf04b69c8e6adbd845fbe2e557e82c38f"
+      "after_sha256": "8df84e08233b73328c1390897f17b91dfe8c4b6a3d0cc54fe5ed127ca31b0cde"
     },
     {
       "file": "fact-verification.md",
@@ -88,7 +88,7 @@
       "format": "solo",
       "changed": true,
       "before_sha256": "26fe13222ad4e8b0ed4fa618bcfa5a55557f9601560b08620d9af4968f30e380",
-      "after_sha256": "b073b35e892db638c0bff90c68e336517cc542f3104076dd004a2c45838a5b2f"
+      "after_sha256": "ef6e64fd357938c59fa439e9d76012a31d2b84294103faa26445ee100445d19a"
     },
     {
       "file": "reader-review-1.md",
