@@ -1,6 +1,6 @@
 {
   "checked_at_utc": "2026-11-13T08:57:35.836371+00:00",
-  "source": "Live EvaluationJournal read only; not the earlier export/run.json snapshot",
+  "source": "Live EvaluationJournal read only; subsequently cross-checked against completed export/run.json",
   "run_id": "293c8b5a-53df-5483-92ec-80c9bd7f2258",
   "status": "needs_attention",
   "failure_code": "independent_review_revision_limit_exhausted",
@@ -155,5 +155,20 @@
       "output_tokens": 12855,
       "invocation_id": "ba3795f0-c47f-5d12-b6b4-2ac410c93001"
     }
-  ]
+  ],
+  "completed_export_check": {
+    "checked_at_utc": "2026-11-13T09:03:32.018081+00:00",
+    "path": "tmp/hosted-planning-2026-11-13/export/run.json",
+    "sha256": "7f2f189fd6983fdd7e973f828c5eb18f9bd59b657fbe3a67d4d304f7aaeb7e28",
+    "matching_fields": [
+      "run_id",
+      "status",
+      "failure_code",
+      "review_status",
+      "semantic_acceptance",
+      "production_ready",
+      "final_script_ref"
+    ],
+    "all_match": true
+  }
 }
