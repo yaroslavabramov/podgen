@@ -291,6 +291,36 @@ class Repository:
             facts = access_facts(self, tx)
             return facts.runtimes.payload(project_id, ref)
 
+    def get_runtime_many(self, project_id, references):
+        """Read at most 64 requested bodies in order, preserving duplicate references.
+
+        Authorize every node before fetching any body. Facts contain only graph
+        metadata; returned payloads belong to this caller, not the snapshot memo.
+        This local operation exposes neither its connection nor a blob-I/O lease.
+        """
+        from .access_facts import access_facts
+
+        references = tuple(references)
+        if len(references) > 64:
+            raise ContractError("runtime_read_batch_too_large")
+        if not references:
+            return []
+        with _read_connection(self) as tx:
+            facts = access_facts(self, tx)
+            facts.runtimes.prefetch(project_id, references)
+            for reference in references:
+                self._runtime(tx, project_id, reference)
+            payloads = {
+                row["record_id"]: row["payload"]
+                for row in query(
+                    tx,
+                    "SELECT record_id,payload FROM runtime_records WHERE project_id=:p AND record_id=ANY(:ids)",
+                    p=project_id,
+                    ids=list({reference.record_id for reference in references}),
+                ).mappings()
+            }
+            return [payloads[reference.record_id] for reference in references]
+
     def read_runtime_blob(self, project_id, runtime_ref, blob_ref):
         from .read_authorization import object_io
         from .text_source import authorized_blob
