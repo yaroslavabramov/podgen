@@ -76,7 +76,7 @@ result = await reprocess_source(
 
 ## Зависимости и ограничения
 
-Основной environment содержит Trafilatura, pypdfium2 и PyPDF2. PDF сначала обрабатывается Marker worker с жёстким timeout, затем text-layer fallback. Отсутствие OCR или ошибка Marker сохраняются в diagnostics; пустой результат не становится успешным чтением скана.
+Основной environment содержит Trafilatura, pypdfium2 и PyPDF2. При `pdf_mode="marker_with_text_fallback"` PDF сначала обрабатывается Marker worker с жёстким timeout, затем text-layer fallback. `pdf_mode="text_layer_only"` полностью исключает запуск Marker и OCR; используются только pypdfium2/PyPDF2. Отсутствие OCR или ошибка Marker сохраняются в diagnostics; пустой результат не становится успешным чтением скана.
 
 Проверенный legacy OCR stack закреплён: Marker 1.5.5, Surya 0.12.1, transformers 4.57.6. Он требует отдельного Python 3.12–3.13; legacy regex dependency не собирается в текущем Python 3.14. Для OCR есть отдельный проект и lockfile `backend/ocr`: `uv sync --project backend/ocr --python 3.13`. Затем задайте абсолютный путь `backend/ocr/.venv/bin/python` в `marker_python_executable` AcquisitionProfile. Worker проверяет версию Marker. Основной runtime не наследует ограничения OCR на tokenizers/huggingface-hub. OCR model weights должны быть доступны этому environment; live OCR на новых документах требует отдельной проверки.
 

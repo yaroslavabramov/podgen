@@ -29,6 +29,7 @@ class DocumentExtractors:
                 timeout_seconds=profile.marker_timeout_seconds,
                 source_ref=document.resolved_url,
                 python_executable=profile.marker_python_executable,
+                use_marker=profile.pdf_mode != "text_layer_only",
             )
             return ExtractedDocument(
                 **(result.__dict__ | {"title": _title_from_pdf_url(document.resolved_url)})

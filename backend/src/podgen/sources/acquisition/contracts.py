@@ -19,6 +19,7 @@ class AcquisitionProfile(Contract):
     user_agent: Text = "Podgen/1 source acquisition"
     accept_language: Text = "en,ru;q=0.8"
     min_text_chars: int = Field(default=100, ge=1)
+    pdf_mode: Literal["marker_with_text_fallback", "text_layer_only"] = "marker_with_text_fallback"
     marker_python_executable: Text | None = None
     marker_timeout_seconds: int = Field(default=120, ge=1, le=1800)
     enable_jina: bool = False

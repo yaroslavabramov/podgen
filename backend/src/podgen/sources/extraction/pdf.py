@@ -114,7 +114,7 @@ def _fallback_pypdf2(pdf_path: str) -> str:
 
 
 async def extract_pdf_bytes(
-    pdf_bytes, *, timeout_seconds=120, source_ref="saved_pdf", python_executable=None
+    pdf_bytes, *, timeout_seconds=120, source_ref="saved_pdf", python_executable=None, use_marker=True
 ):
     from .contracts import ExtractedDocument
 
@@ -124,21 +124,24 @@ async def extract_pdf_bytes(
     with tempfile.TemporaryDirectory(prefix="podgen-source-pdf-") as folder:
         path = Path(folder) / "original.pdf"
         path.write_bytes(pdf_bytes)
-        try:
-            text = await asyncio.to_thread(
-                _run_marker_with_hard_timeout, str(path), timeout_seconds, python_executable
-            )
-            if text.strip():
-                return ExtractedDocument(
-                    text,
-                    "marker",
-                    "1.5.5",
-                    warnings=["ocr_and_reading_order_not_independently_verified"],
-                    is_transformation=True,
+        if use_marker:
+            try:
+                text = await asyncio.to_thread(
+                    _run_marker_with_hard_timeout, str(path), timeout_seconds, python_executable
                 )
-            failures.append("marker_empty_output")
-        except (TimeoutError, RuntimeError, OSError) as error:
-            failures.append("marker:" + str(error))
+                if text.strip():
+                    return ExtractedDocument(
+                        text,
+                        "marker",
+                        "1.5.5",
+                        warnings=["ocr_and_reading_order_not_independently_verified"],
+                        is_transformation=True,
+                    )
+                failures.append("marker_empty_output")
+            except (TimeoutError, RuntimeError, OSError) as error:
+                failures.append("marker:" + str(error))
+        else:
+            failures.append("marker_disabled_text_layer_only")
         for name, function, package in (
             ("pypdfium2", _fallback_pypdfium2, "pypdfium2"),
             ("PyPDF2", _fallback_pypdf2, "PyPDF2"),

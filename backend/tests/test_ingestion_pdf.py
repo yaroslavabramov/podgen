@@ -64,3 +64,16 @@ async def test_fake_pdf_html_and_empty_scans_are_explicit_errors(monkeypatch):
     monkeypatch.setattr(pdf, "_fallback_pypdf2", lambda path: "")
     with pytest.raises(ValueError, match="pdf_extraction_failed"):
         await pdf.extract_pdf_bytes(b"%PDF-scan")
+
+
+@pytest.mark.asyncio
+async def test_explicit_text_layer_only_never_starts_marker(monkeypatch):
+    def forbidden(*args):
+        pytest.fail("Marker must not start in text-layer-only mode")
+
+    monkeypatch.setattr(pdf, "_run_marker_with_hard_timeout", forbidden)
+    monkeypatch.setattr(pdf, "_fallback_pypdfium2", lambda path: "Original PDF text layer")
+    result = await pdf.extract_pdf_bytes(b"%PDF-original", use_marker=False)
+    assert result.name == "pypdfium2"
+    assert "marker_disabled_text_layer_only" in result.warnings
+    assert not result.is_transformation
