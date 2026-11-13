@@ -107,5 +107,6 @@ Those boundaries belong to the separate engineering fixes and root integration
 measurement. This report therefore does not claim that overall product
 performance or the rest of the audit is resolved.
 
-The isolated PostgreSQL remains available for root integration at port 55467;
-its local socket/URL is recorded outside Git in `tmp/index-validation/state.json`.
+The isolated PostgreSQL at port 55467 was stopped after validation. Its data and
+the local connection record in `tmp/index-validation/state.json` were retained.
+Root integration uses a separate migrated database.

@@ -1,0 +1,9 @@
+{
+  "source": "tmp/longitude-corpus-2026-11-13/export/archive/plan/166-count-request.json",
+  "messages": 40,
+  "actions": 18,
+  "all_arguments_and_results_equal": true,
+  "raw_utf8_bytes": 159025,
+  "model_view_utf8_bytes": 139172,
+  "paid_calls": 0
+}

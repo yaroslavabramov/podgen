@@ -15,6 +15,14 @@ Previously every save called managed upload once and full GET twice; one GET occ
 
 SQL statements increase from 7 to 10 for a new save and 9 for a duplicate. This is constant work: fresh identity authorization after staging and again after network I/O replaces the previous late-only identity check. The lookup uses the existing unique `(project_id, sha256, media_type)` index. These counts are statement executions, not PostgreSQL latency/query plans.
 
+Final integration note: the subsequent shared blob-access validator combines the
+two identity lookups, so the current counts are **8 for a new save and 7 for a
+duplicate**. Exact-count assertions passed for empty, small and multipart saves;
+the original measurement JSON above retains its original 10/9 counts. Data-flow
+and network behavior did not change. The updated SQL double still supports the
+baseline's separate lookups. All 36 storage tests passed after integration; see
+[the overall audit report](../2026-11-13-engineering-audit/README.md).
+
 Peak Python allocations measured by `tracemalloc`: previous ~4.14 MiB for a 4 MiB object and ~64.14 MiB for a 64 MiB object; candidate ~2.27 MiB on first publication and ~2.14 MiB on duplicate. These are traced allocations, not RSS or filesystem cache. Multipart SHA256 calculation rereads the local staged file in bounded blocks; it does not download the object or hold a part in memory. Original input bytes are read once per operation.
 
 ## Actual SDK transport
@@ -40,7 +48,8 @@ PYTHONPATH=backend/src:backend backend/.venv/bin/python \
   evals/reports/2026-11-13-s3-publication/measure.py
 ```
 
-Prepared PostgreSQL integration nodes (not run by this agent; root owns the shared DB test slot):
+PostgreSQL integration nodes below subsequently passed in root's full integration
+run on a fresh database:
 
 ```sh
 backend/.venv/bin/pytest -q \
