@@ -28,26 +28,28 @@ class StreamingSearch(HybridSearch):
     def refresh(self):
         for source_id, doc in self.documents.items():
             code = language(doc.text[:16000])
-            state = self.index.begin_document(source_id, doc, code)
-            if state["completed"]:
-                continue
-            cursor = state["cursor_position"]
-            for ranges, following in batches(doc.text, self.models, self.profile, cursor=cursor):
-                vectors = (
-                    self.models.embed([doc.text[a:b] for a, b in ranges]) if ranges else np.empty((0, 384))
-                )
-                if (
-                    vectors.shape != (len(ranges), 384)
-                    or not np.isfinite(vectors).all()
-                    or (len(ranges) and not np.allclose(np.linalg.norm(vectors, axis=1), 1, atol=1e-4))
-                ):
-                    raise RetrievalUnavailable("source_search_embedding_shape_mismatch")
-                self.index.append_batch(
-                    source_id, doc, ranges, code, vectors, previous=cursor, cursor=following
-                )
-                cursor = following
-            if not doc.text:
-                self.index.finish_empty(source_id)
+            with self.index.document(source_id, doc, code) as state:
+                if state["completed"]:
+                    continue
+                cursor = state["cursor_position"]
+                for ranges, following in batches(doc.text, self.models, self.profile, cursor=cursor):
+                    vectors = (
+                        self.models.embed([doc.text[a:b] for a, b in ranges])
+                        if ranges
+                        else np.empty((0, 384))
+                    )
+                    if (
+                        vectors.shape != (len(ranges), 384)
+                        or not np.isfinite(vectors).all()
+                        or (len(ranges) and not np.allclose(np.linalg.norm(vectors, axis=1), 1, atol=1e-4))
+                    ):
+                        raise RetrievalUnavailable("source_search_embedding_shape_mismatch")
+                    self.index.append_batch(
+                        source_id, doc, ranges, code, vectors, previous=cursor, cursor=following
+                    )
+                    cursor = following
+                if not doc.text:
+                    self.index.finish_empty(source_id)
         self.revision = digest([[key, doc.digest] for key, doc in sorted(self.documents.items())])
         self.results.clear()
 

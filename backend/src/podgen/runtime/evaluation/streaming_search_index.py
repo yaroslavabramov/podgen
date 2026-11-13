@@ -1,4 +1,4 @@
-"""Publish bounded chunk batches; incomplete documents are never searchable."""
+"""Run-local search authority over reusable, atomically published document projections."""
 
 import json
 from contextlib import contextmanager
@@ -8,9 +8,10 @@ from sqlalchemy.exc import SQLAlchemyError
 from podgen.domain.errors import Conflict
 from podgen.persistence.database import one, query
 from podgen.retrieval import RetrievalUnavailable
-from podgen.retrieval.lexical import words
 
+from .document_projection import DocumentProjection, identity
 from .source_search_index import WHERE, PostgresSearchIndex
+from .source_search_membership import adopt_legacy, bind
 
 
 class StreamingSearchIndex(PostgresSearchIndex):
@@ -26,140 +27,62 @@ class StreamingSearchIndex(PostgresSearchIndex):
             record_id=uuid5(run_id, "source-search-scope/1"),
         )
         super().__init__(journal, scope, profile)
+        self.projections = DocumentProjection(self)
+        self.registered_dependencies = set()
+        self.document_keys = {}
 
     @contextmanager
-    def transaction(self, source_id=None):
+    def transaction(self):
         try:
-            with self.access.transaction() as (tx, hashes):
-                if source_id is not None:
-                    query(
-                        tx,
-                        "SELECT pg_advisory_xact_lock(hashtextextended(:key,0))",
-                        key="streaming-search:" + ":".join(map(str, self.params.values())) + source_id,
-                    )
-                yield tx, hashes
+            with self.access.transaction() as current:
+                yield current
+        except SQLAlchemyError as error:
+            raise RetrievalUnavailable("source_search_index_unavailable") from error
+
+    @contextmanager
+    def document(self, source_id, doc, language):
+        key = identity(doc, self.profile, language)
+        try:
+            with self.projections.lock(key):
+                yield self.begin_document(source_id, doc, language)
         except SQLAlchemyError as error:
             raise RetrievalUnavailable("source_search_index_unavailable") from error
 
     def begin_document(self, source_id, doc, language):
         self.access.source_hashes.add(doc.digest)
-        with self.transaction(source_id) as (tx, hashes):
-            row = one(
-                tx,
-                "SELECT * FROM source_search_indexes WHERE " + WHERE + " AND source_id=:s",
-                **self.params,
-                s=source_id,
-            )
-            if row is None:
-                query(
-                    tx,
-                    "INSERT INTO source_search_indexes VALUES(:p,:r,:h,:s,:sha,:length,CAST(:profile AS jsonb),'[]'::jsonb,:language,0)",
-                    **self.params,
-                    s=source_id,
-                    sha=doc.digest,
-                    length=len(doc.text),
-                    profile=json.dumps(self.profile),
-                    language=language,
-                )
-                query(
-                    tx,
-                    "INSERT INTO source_search_builds(project_id,shared_input_record_id,profile_sha256,source_id) VALUES(:p,:r,:h,:s)",
-                    **self.params,
-                    s=source_id,
-                )
-                for fingerprint in hashes:
-                    query(
-                        tx,
-                        "INSERT INTO source_search_dependencies VALUES(:p,:r,:h,:s,:sha)",
-                        **self.params,
-                        s=source_id,
-                        sha=fingerprint,
-                    )
-            elif (row["source_sha256"], row["source_length"], row["profile"], row["language"]) != (
-                doc.digest,
-                len(doc.text),
-                self.profile,
-                language,
-            ):
-                raise Conflict("source_search_document_binding_changed")
-            state = one(
-                tx,
-                "SELECT * FROM source_search_builds WHERE " + WHERE + " AND source_id=:s",
-                **self.params,
-                s=source_id,
-            )
-            if state is None:
-                raise Conflict("source_search_build_missing")
-            return dict(state)
+        key = identity(doc, self.profile, language)
+        with self.transaction() as (tx, hashes):
+            state = self.projections.begin(tx, key, doc, language)
+            bind(self, tx, source_id, key, hashes)
+            if state["cursor_position"] == 0 and not state["completed"]:
+                imported = adopt_legacy(self, tx, source_id, key, doc, language)
+                if imported is not None:
+                    state = imported
+        # Cache registration only after commit; a failed transaction must retry it.
+        self.registered_dependencies.update(hashes)
+        self.document_keys[source_id] = key
+        return state
 
     def append_batch(self, source_id, doc, ranges, language, vectors, *, previous, cursor):
-        with self.transaction(source_id) as (tx, hashes):
-            row = one(
-                tx,
-                "SELECT * FROM source_search_builds WHERE " + WHERE + " AND source_id=:s",
-                **self.params,
-                s=source_id,
-            )
-            if row is None or row["completed"] or row["cursor_position"] != previous:
-                raise RetrievalUnavailable("source_search_build_cursor_changed")
-            config = {"en": "english", "ru": "russian"}.get(language, "simple")
-            for (start, end), vector in zip(ranges, vectors, strict=True):
-                text = doc.text[start:end]
-                tokens = words(text)
-                query(
-                    tx,
-                    "INSERT INTO source_search_chunks VALUES(:p,:r,:h,:s,:start,:end,:language,to_tsvector(CAST(:config AS regconfig),:text),:terms,:phrase,CAST(:vector AS vector))",
-                    **self.params,
-                    s=source_id,
-                    start=start,
-                    end=end,
-                    language=language,
-                    config=config,
-                    text=text.casefold(),
-                    terms=sorted(set(tokens)),
-                    phrase=" ".join(tokens),
-                    vector=json.dumps(vector.tolist()),
-                )
-            query(
-                tx,
-                "UPDATE source_search_indexes SET chunk_count=chunk_count+:count WHERE "
-                + WHERE
-                + " AND source_id=:s",
-                **self.params,
-                s=source_id,
-                count=len(ranges),
-            )
-            query(
-                tx,
-                "UPDATE source_search_builds SET cursor_position=:cursor,completed=:done WHERE "
-                + WHERE
-                + " AND source_id=:s",
-                **self.params,
-                s=source_id,
-                cursor=cursor,
-                done=cursor == len(doc.text),
-            )
+        key = identity(doc, self.profile, language)
+        if self.document_keys.get(source_id) != key:
+            raise Conflict("source_search_document_binding_changed")
+        with self.transaction() as (tx, _):
+            self.projections.append(tx, key, doc, ranges, language, vectors, previous=previous, cursor=cursor)
 
     def finish_empty(self, source_id):
-        with self.transaction(source_id) as (tx, _):
-            query(
-                tx,
-                "UPDATE source_search_builds SET completed=true WHERE "
-                + WHERE
-                + " AND source_id=:s AND cursor_position=0",
-                **self.params,
-                s=source_id,
-            )
+        with self.transaction() as (tx, _):
+            self.projections.finish_empty(tx, self.document_keys[source_id])
 
     def permitted(self):
-        # No corpus-sized Python collection or materialized vector CTE. PostgreSQL
-        # evaluates the exhaustive scoped branches and returns only bounded candidates.
+        # Exhaustive branches operate over this run's labels and completed data.
+        # Shared vectors never imply that another run may search a document.
         return (
-            "WITH permitted AS (SELECT c.* FROM source_search_chunks c WHERE "
-            + " AND ".join("c." + part for part in WHERE.split(" AND "))
-            + " AND source_id=ANY(:scope) AND EXISTS(SELECT 1 FROM source_search_builds b "
-            "WHERE b.project_id=c.project_id AND b.shared_input_record_id=c.shared_input_record_id "
-            "AND b.profile_sha256=c.profile_sha256 AND b.source_id=c.source_id AND b.completed)) "
+            "WITH permitted AS (SELECT m.source_id,c.start_offset,c.end_offset,c.language,c.lexical,c.exact_terms,c.phrase_text,c.embedding "
+            "FROM source_search_memberships m JOIN source_search_documents d ON d.project_id=m.project_id AND d.document_key=m.document_key "
+            "JOIN source_search_document_chunks c ON c.project_id=d.project_id AND c.document_key=d.document_key WHERE "
+            + " AND ".join("m." + part for part in WHERE.split(" AND "))
+            + " AND m.source_id=ANY(:scope) AND d.completed) "
         )
 
     def result(self, key, request, rows=None):

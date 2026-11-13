@@ -1,5 +1,6 @@
 """Cross old corpus ceilings with bounded batches; qualify the real durable SQL adapter."""
 
+from contextlib import contextmanager
 from types import SimpleNamespace
 from uuid import uuid4
 
@@ -48,6 +49,10 @@ class VirtualText:
 class CountingIndex:
     def __init__(self):
         self.states, self.count = {}, 0
+
+    @contextmanager
+    def document(self, source, doc, code):
+        yield self.begin_document(source, doc, code)
 
     def begin_document(self, source, doc, code):
         return self.states.setdefault(source, dict(completed=False, cursor_position=0))
@@ -111,7 +116,7 @@ def test_real_sql_batch_resume_publishes_only_complete_documents_and_keeps_resul
     with repo.database.transaction() as tx:
         row = one(
             tx,
-            "SELECT i.chunk_count,(SELECT count(*) FROM source_search_chunks c WHERE c.project_id=i.project_id AND c.shared_input_record_id=i.shared_input_record_id) AS actual FROM source_search_indexes i WHERE i.shared_input_record_id=:r",
+            "SELECT d.chunk_count,(SELECT count(*) FROM source_search_document_chunks c WHERE c.project_id=d.project_id AND c.document_key=d.document_key) AS actual FROM source_search_memberships m JOIN source_search_documents d USING(project_id,document_key) WHERE m.shared_input_record_id=:r",
             r=index.params["r"],
         )
         assert row["chunk_count"] == row["actual"] > 32
@@ -168,7 +173,7 @@ def test_real_sql_search_retrieves_and_pages_a_needle_beyond_every_old_corpus_li
     with repo.database.transaction() as tx:
         count = one(
             tx,
-            "SELECT count(*) AS n FROM source_search_chunks WHERE shared_input_record_id=:r",
+            "SELECT count(*) AS n FROM source_search_document_chunks c JOIN source_search_memberships m USING(project_id,document_key) WHERE m.shared_input_record_id=:r",
             r=index.params["r"],
         )["n"]
     assert count > 12000
