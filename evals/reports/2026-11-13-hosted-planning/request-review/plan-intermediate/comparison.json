@@ -1,0 +1,33 @@
+{
+  "preview_sha256": "427c5a6ae265aa6c512a75672f92b3f01871bf58c6e012359f62682fea8cb37e",
+  "endpoint_called": false,
+  "instructions_equal_approved_proposal": true,
+  "baseline_case": "rain-soil",
+  "new_case": "marine-longitude",
+  "full_request_diff": "request.diff",
+  "input_model_visible_parts": [
+    [
+      "output_language",
+      "assignment"
+    ],
+    [
+      "research_contents",
+      "source_catalog"
+    ]
+  ],
+  "tools": [
+    "search_sources",
+    "read_source",
+    "read_material"
+  ],
+  "top_level_changed": [
+    "include",
+    "input",
+    "instructions",
+    "metadata",
+    "text",
+    "tool_choice",
+    "tools"
+  ],
+  "stage": "intermediate_pending_tool_descriptions_and_S39_S49_metadata"
+}
