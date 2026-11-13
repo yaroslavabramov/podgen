@@ -15,7 +15,8 @@ class ArtifactFacts:
         self.tx, self.blobs = tx, blobs
         self.rows, self.edges, self.bindings, self.privacy_links = {}, {}, {}, {}
         self.runtime_links, self.integrity_blobs = {}, {}
-        self.missing, self.blocked = set(), set()
+        self.missing, self.blocked, self.expanded = set(), set(), set()
+        self._pending_denials = deque()
         self.children, self.parents, self.local_children = {}, defaultdict(set), {}
 
     def row(self, reference):
@@ -26,7 +27,11 @@ class ArtifactFacts:
         return row
 
     def load(self, identities):
-        pending = list(set(identities) - self.rows.keys() - self.missing)
+        pending = [
+            identity
+            for identity in set(identities)
+            if identity not in self.rows and identity not in self.missing
+        ]
         for offset in range(0, len(pending), FRONTIER):
             self._load_frontier(pending[offset : offset + FRONTIER])
 
@@ -36,7 +41,7 @@ class ArtifactFacts:
         loaded = list(load(self.tx, identities))
         missing = set(identities) - {row["revision_id"] for row in loaded}
         self.missing.update(missing)
-        self.blocked.update(missing)
+        self._block(missing)
         for value in loaded:
             row = dict(value)
             graph = row.pop("access_graph")
@@ -53,7 +58,7 @@ class ArtifactFacts:
             self.privacy_links[identity] = links
             self.bindings[identity], self.integrity_blobs[identity] = [], []
             if graph["invalid"]:
-                self.blocked.add(identity)
+                self._block([identity])
             for blob in graph["blobs"]:
                 blob["project_id"] = UUID(blob["project_id"])
                 self.blobs.rows[blob["project_id"], blob["storage_key"]] = blob
@@ -66,7 +71,7 @@ class ArtifactFacts:
                     )
                 )
                 if blob["access_revoked"]:
-                    self.blocked.add(identity)
+                    self._block([identity])
             self.runtime_links[identity] = [
                 dict(record_id=UUID(link["record_id"]), record_kind=link["record_kind"])
                 for link in graph["runtimes"]
@@ -78,33 +83,71 @@ class ArtifactFacts:
             self.children[identity] = children
             for child in children:
                 self.parents[child].add(identity)
+                if child in self.blocked:
+                    self._block([identity])
         self._propagate()
 
+    def _block(self, identities):
+        for identity in identities:
+            if identity not in self.blocked:
+                self.blocked.add(identity)
+                self._pending_denials.append(identity)
+
     def _propagate(self):
-        pending = deque(self.blocked)
-        while pending:
-            for parent in self.parents[pending.popleft()] - self.blocked:
-                self.blocked.add(parent)
-                pending.append(parent)
+        while self._pending_denials:
+            self._block(self.parents[self._pending_denials.popleft()])
 
     def expand(self, identities):
-        pending, visited = set(identities), set()
+        pending, visited = set(identities) - self.expanded, set()
+        if not pending:
+            return
         while pending:
             frontier = pending - visited
             if not frontier:
                 break
             self.load(frontier)
             visited.update(frontier)
-            pending = {child for identity in frontier for child in self.children.get(identity, ())} - visited
+            pending = {
+                child
+                for identity in frontier
+                for child in self.children.get(identity, ())
+                if child not in visited and child not in self.expanded
+            }
         for parent in visited:
             owner = self.rows.get(parent, {}).get("project_id")
+            if any(child in self.blocked for child in self.children.get(parent, ())):
+                self._block([parent])
             if any(
                 self.rows.get(child, {}).get("project_id") != owner
                 for child in self.local_children.get(parent, ())
             ):
-                self.blocked.add(parent)
+                self._block([parent])
         self._propagate()
-        return visited
+        self.expanded.update(visited)
+
+    def access_references(self, row):
+        """Declared, read-authorized dependencies, without scanning semantic payload.
+
+        The immutable artifact writer records all payload/producer/input artifact
+        refs in input_refs, all payload blob refs in artifact_blobs and all payload
+        runtime refs in runtime_links. Effective edges add current provenance.
+        Inactive privacy-only links are not read grants and are not traversed here.
+        """
+        identity = row["revision_id"]
+        references = [ArtifactRef.model_validate(value) for value in row["input_refs"]]
+        for edge in self.edges[identity]:
+            child = self.rows[edge["input_id"]]
+            references.append(
+                ArtifactRef(**{key: child[key] for key in ("artifact_id", "revision_id", "kind")})
+            )
+        from podgen.domain.contracts.common import RuntimeRef
+
+        references.extend(
+            RuntimeRef(record_id=value["record_id"], record_kind=value["record_kind"])
+            for value in self.runtime_links[identity]
+        )
+        references.extend(self.bindings[identity])
+        return tuple(dict.fromkeys(references))
 
     def invalid(self, row):
         self.expand([row["revision_id"]])

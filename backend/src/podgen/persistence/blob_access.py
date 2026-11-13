@@ -30,7 +30,7 @@ class BlobFacts:
     def load(self, project, keys):
         from .database import query
 
-        pending = list(set(keys) - {key for owner, key in self.rows if owner == project})
+        pending = [key for key in set(keys) if (project, key) not in self.rows]
         for offset in range(0, len(pending), 64):
             for row in query(
                 self.tx,

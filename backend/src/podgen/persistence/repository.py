@@ -10,7 +10,7 @@ from podgen.domain.contracts import ArtifactRef, ArtifactRevision
 from podgen.domain.errors import AccessDenied, ContractError
 
 from .database import Database, one, query
-from .read_authorization import _read_connection, checked_node
+from .read_authorization import _read_connection, authorized_read, checked_node
 
 CONFIG_KINDS = {
     "PolicyBundle",
@@ -109,12 +109,16 @@ class Repository:
 
         return ScopeAccess(self).access_invalid(tx, row)
 
-    def _resolve(self, tx, project_id, ref, seen=None):
+    def _authorize_artifact(self, tx, project_id, ref, seen=None):
         from .scope import ScopeAccess
 
-        with self._reading("artifact", (project_id, ref.revision_id)):
+        with authorized_read(self, tx), self._reading("artifact", (project_id, ref.revision_id)):
             key = ("artifact", project_id, ref.kind, ref.artifact_id, ref.revision_id)
             return checked_node(self, tx, key, lambda: ScopeAccess(self).resolve(tx, project_id, ref, seen))
+
+    def _resolve(self, tx, project_id, ref, seen=None):
+        self._authorize_artifact(tx, project_id, ref, seen)
+        return self._row(tx, ref)
 
     def _envelope(self, row):
         return ArtifactRevision(
@@ -267,7 +271,7 @@ class Repository:
         """Authorize a runtime closure and return only its short immutable header."""
         from .scope import ScopeAccess
 
-        with self._reading("runtime", (project_id, ref.record_id)):
+        with authorized_read(self, tx), self._reading("runtime", (project_id, ref.record_id)):
             key = ("runtime", project_id, ref.record_kind, ref.record_id)
             return checked_node(self, tx, key, lambda: ScopeAccess(self).runtime(tx, project_id, ref))
 

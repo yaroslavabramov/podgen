@@ -9,7 +9,6 @@ from threading import Lock
 from podgen.domain.contracts.common import ArtifactRef
 from podgen.domain.errors import AccessDenied
 
-from .database import one
 from .read_authorization import _read_connection, checked_node, object_io, read_operation
 
 _CACHE = tempfile.TemporaryDirectory(prefix="podgen-unicode-")
@@ -20,21 +19,18 @@ def _authorize_binding(repo, project, reference, blob):
     with _read_connection(repo) as tx:
 
         def check():
+            from .access_facts import access_facts
+
+            facts = access_facts(repo, tx)
             if isinstance(reference, ArtifactRef):
-                row = repo._resolve(tx, project, reference)
-                if row["project_id"] != project or not one(
-                    tx,
-                    "SELECT 1 FROM artifact_blobs WHERE project_id=:p AND revision_id=:r AND storage_key=:k",
-                    p=project,
-                    r=reference.revision_id,
-                    k=blob.storage_key,
+                row = repo._authorize_artifact(tx, project, reference)
+                if (
+                    row["project_id"] != project
+                    or blob not in facts.artifacts.bindings[reference.revision_id]
                 ):
                     raise AccessDenied()
             else:
                 repo._runtime(tx, project, reference)
-                from .access_facts import access_facts
-
-                facts = access_facts(repo, tx)
                 if blob not in facts.runtimes.references[project, reference.record_id]:
                     raise AccessDenied()
             repo._check_blob(tx, project, blob)

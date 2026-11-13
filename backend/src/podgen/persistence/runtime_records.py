@@ -75,7 +75,7 @@ def _validate_inputs(repo, tx, project, payload, audience):
             )
             for linked in references:
                 if isinstance(linked, ArtifactRef):
-                    reader._resolve(tx, project, linked)
+                    reader._authorize_artifact(tx, project, linked)
                 elif isinstance(linked, RuntimeRef):
                     reader._runtime(tx, project, linked)
                 else:

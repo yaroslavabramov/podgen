@@ -4,7 +4,6 @@ from contextlib import contextmanager
 
 from podgen.domain.contracts.common import BlobRef, RuntimeRef
 from podgen.domain.errors import AccessDenied
-from podgen.domain.references import walk_values
 from podgen.persistence.access_facts import access_facts
 from podgen.persistence.database import one, query
 from podgen.persistence.read_authorization import authorized_read
@@ -39,7 +38,7 @@ class IndexAccess:
                 seen = set()
 
                 def visit(reference):
-                    identity = reference.model_dump_json()
+                    identity = journal.project, reference.model_dump_json()
                     if identity in seen:
                         return
                     seen.add(identity)
@@ -51,8 +50,14 @@ class IndexAccess:
                         journal.repo._runtime(tx, journal.project, reference)
                         references = facts.runtimes.references[journal.project, reference.record_id]
                     else:
-                        row = journal.repo._resolve(tx, journal.project, reference)
-                        references = [linked for _, _, linked in walk_values(row["payload"])]
+                        row = journal.repo._authorize_artifact(tx, journal.project, reference)
+                        if row["project_id"] != journal.project:
+                            # Catalog configurations are fully authorized by
+                            # ScopeAccess, including their owner-scoped blobs and
+                            # publication grants. Their bytes are not local source
+                            # text and cannot enter a tenant's purge registry.
+                            return
+                        references = facts.artifacts.access_references(row)
                     for linked in references:
                         visit(linked)
 

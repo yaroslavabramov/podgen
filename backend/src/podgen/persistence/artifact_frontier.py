@@ -3,7 +3,8 @@
 from .database import query
 
 SQL = """
-SELECT r.*,
+SELECT r.project_id,r.revision_id,r.artifact_id,r.kind,r.input_refs,r.audience,
+    CASE WHEN r.kind='VoiceProfile' THEN r.payload->>'voice_kind' END AS catalog_voice_kind,
     jsonb_build_object(
         'edges',COALESCE((SELECT jsonb_agg(to_jsonb(e)) FROM artifact_dependencies e
             WHERE e.project_id=r.project_id AND e.consumer_id=r.revision_id),'[]'::jsonb),
