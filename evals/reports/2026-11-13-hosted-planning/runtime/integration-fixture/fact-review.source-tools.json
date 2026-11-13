@@ -1,0 +1,153 @@
+[
+  {
+    "record_ref": {
+      "record_kind": "tool_execution",
+      "record_id": "571a2a3c-92ec-4f27-974f-7d155ef66ec1"
+    },
+    "contract": "model-invocation-event-v1",
+    "invocation_id": "7c3c4424-24fc-53aa-9004-87ed08c34cd3",
+    "event_kind": "source_tool_call",
+    "request_ref": {
+      "record_kind": "tool_execution",
+      "record_id": "e3fa3a01-113b-5a96-8996-33f986813ace"
+    },
+    "data": {
+      "turn_index": 0,
+      "call_index": 0,
+      "read_id": "E1",
+      "call_id": "fact-review_report",
+      "name": "read_material",
+      "raw_arguments": "{\"material_id\": \"M1\", \"start\": 0, \"end\": 500, \"context\": true}",
+      "arguments": {
+        "material_id": "M1",
+        "start": 0,
+        "end": 500,
+        "context": true
+      }
+    }
+  },
+  {
+    "record_ref": {
+      "record_kind": "tool_execution",
+      "record_id": "296387ff-da51-41b7-97cf-4d7770c37663"
+    },
+    "contract": "model-invocation-event-v1",
+    "invocation_id": "7c3c4424-24fc-53aa-9004-87ed08c34cd3",
+    "event_kind": "source_tool_result",
+    "request_ref": {
+      "record_kind": "tool_execution",
+      "record_id": "e3fa3a01-113b-5a96-8996-33f986813ace"
+    },
+    "data": {
+      "turn_index": 0,
+      "call_index": 0,
+      "read_id": "E1",
+      "call_id": "fact-review_report",
+      "name": "read_material",
+      "raw_arguments": "{\"material_id\": \"M1\", \"start\": 0, \"end\": 500, \"context\": true}",
+      "arguments": {
+        "material_id": "M1",
+        "start": 0,
+        "end": 500,
+        "context": true
+      },
+      "result": {
+        "material_passage": {
+          "read_id": "R1",
+          "material_id": "M1",
+          "title": "Complete research",
+          "kind": "research_report_section",
+          "start": 0,
+          "end": 500,
+          "report_start": 0,
+          "report_end": 500,
+          "text": "# Complete research\n\nСвязное объяснение ёжика. Связное объяснение ёжика. Связное объяснение ёжика. Связное объяснение ёжика. Связное объяснение ёжика. Связное объяснение ёжика. Связное объяснение ёжика. Связное объяснение ёжика. Связное объяснение ёжика. Связное объяснение ёжика. Связное объяснение ёжика. Связное объяснение ёжика. Связное объяснение ёжика. Связное объяснение ёжика. Связное объяснение ёжика. Связное объяснение ёжика. Связное объяснение ёжика. Связное объяснение ёжика. Связное объ"
+        },
+        "context": [
+          {
+            "position": "after",
+            "report_start": 500,
+            "report_end": 1100,
+            "text": "яснение ёжика. Связное объяснение ёжика. Связное объяснение ёжика. Связное объяснение ёжика. Связное объяснение ёжика. Связное объяснение ёжика. Связное объяснение ёжика. Связное объяснение ёжика. Связное объяснение ёжика. Связное объяснение ёжика. Связное объяснение ёжика. Связное объяснение ёжика. Связное объяснение ёжика. Связное объяснение ёжика. Связное объяснение ёжика. Связное объяснение ёжика. Связное объяснение ёжика. Связное объяснение ёжика. Связное объяснение ёжика. Связное объяснение ёжика. Связное объяснение ёжика. Связное объяснение ёжика. Связное объяснение ёжика. Связное объяс"
+          }
+        ],
+        "material_length": 7833,
+        "next_start": null,
+        "previous_material": null,
+        "next_material": "M2",
+        "reported_sources": [
+          {
+            "source_id": "S11",
+            "citation_number": 11,
+            "status": "available"
+          }
+        ],
+        "relationship": "reported_citations_only_not_verified_source_support"
+      }
+    }
+  },
+  {
+    "record_ref": {
+      "record_kind": "tool_execution",
+      "record_id": "a6c6e3c6-57c3-4c9e-879c-929f01c019b6"
+    },
+    "contract": "model-invocation-event-v1",
+    "invocation_id": "7c3c4424-24fc-53aa-9004-87ed08c34cd3",
+    "event_kind": "source_tool_call",
+    "request_ref": {
+      "record_kind": "tool_execution",
+      "record_id": "e3fa3a01-113b-5a96-8996-33f986813ace"
+    },
+    "data": {
+      "turn_index": 0,
+      "call_index": 1,
+      "read_id": "E2",
+      "call_id": "fact-review_source",
+      "name": "read_source",
+      "raw_arguments": "{\"source_id\": \"S11\", \"start\": 0, \"end\": 150}",
+      "arguments": {
+        "source_id": "S11",
+        "start": 0,
+        "end": 150
+      }
+    }
+  },
+  {
+    "record_ref": {
+      "record_kind": "tool_execution",
+      "record_id": "e00f3714-9f4f-4c2a-9cdd-8bb352ec3168"
+    },
+    "contract": "model-invocation-event-v1",
+    "invocation_id": "7c3c4424-24fc-53aa-9004-87ed08c34cd3",
+    "event_kind": "source_tool_result",
+    "request_ref": {
+      "record_kind": "tool_execution",
+      "record_id": "e3fa3a01-113b-5a96-8996-33f986813ace"
+    },
+    "data": {
+      "turn_index": 0,
+      "call_index": 1,
+      "read_id": "E2",
+      "call_id": "fact-review_source",
+      "name": "read_source",
+      "raw_arguments": "{\"source_id\": \"S11\", \"start\": 0, \"end\": 150}",
+      "arguments": {
+        "source_id": "S11",
+        "start": 0,
+        "end": 150
+      },
+      "result": {
+        "passage": {
+          "read_id": "E2",
+          "source_id": "S11",
+          "source": "Retained source",
+          "start": 0,
+          "end": 150,
+          "text": "A detailed document explains the operating mechanism, chronology, evidence, consequences and limits. A detailed document explains the operating mechan"
+        },
+        "source_length": 1515,
+        "next_start": null
+      }
+    }
+  }
+]

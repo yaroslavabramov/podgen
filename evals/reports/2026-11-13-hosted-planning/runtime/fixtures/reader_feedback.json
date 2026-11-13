@@ -1,0 +1,146 @@
+{
+  "reading_mode": "script_only",
+  "listener_answer": "The listener understands the investigation in its stated scope.",
+  "important_limits": [],
+  "strengths": [],
+  "findings": [
+    {
+      "dimension": "oral_style",
+      "priority": "important",
+      "anchors": [
+        {
+          "utterance_index": 0,
+          "quote": "PREVIEW FIXTURE ONLY: это технический текст для проверки формы запроса."
+        }
+      ],
+      "observation": "The current contextual statement has an evidenced problem.",
+      "requested_change": "Repair the addressed statement without changing its valid context.",
+      "preserve": [
+        "The established subject and tone."
+      ]
+    }
+  ],
+  "research_requests": [],
+  "duration_note": "No timed reading.",
+  "recommendation": "revise",
+  "revision_scope": {
+    "scale": "local",
+    "reason": "Explicit editorial test decision.",
+    "anchors": [
+      {
+        "utterance_index": 0,
+        "quote": "PREVIEW FIXTURE ONLY: это технический текст для проверки формы запроса."
+      }
+    ],
+    "dependent_passages": []
+  },
+  "audit": {
+    "coverage": [
+      {
+        "first_utterance_index": 0,
+        "last_utterance_index": 0,
+        "status": "reviewed",
+        "decision_ids": [
+          "D1"
+        ],
+        "explanation": "These utterances were assessed as a connected passage."
+      }
+    ],
+    "areas": [
+      {
+        "aspect": "clarity",
+        "status": "reviewed",
+        "decision_ids": [
+          "D1"
+        ],
+        "explanation": "A recorded contextual judgment."
+      },
+      {
+        "aspect": "ending",
+        "status": "reviewed",
+        "decision_ids": [
+          "D1"
+        ],
+        "explanation": "A recorded contextual judgment."
+      },
+      {
+        "aspect": "idiom",
+        "status": "reviewed",
+        "decision_ids": [
+          "D1"
+        ],
+        "explanation": "A recorded contextual judgment."
+      },
+      {
+        "aspect": "repetition",
+        "status": "reviewed",
+        "decision_ids": [
+          "D1"
+        ],
+        "explanation": "A recorded contextual judgment."
+      },
+      {
+        "aspect": "story_development",
+        "status": "reviewed",
+        "decision_ids": [
+          "D1"
+        ],
+        "explanation": "A recorded contextual judgment."
+      },
+      {
+        "aspect": "transitions",
+        "status": "reviewed",
+        "decision_ids": [
+          "D1"
+        ],
+        "explanation": "A recorded contextual judgment."
+      },
+      {
+        "aspect": "voice",
+        "status": "reviewed",
+        "decision_ids": [
+          "D1"
+        ],
+        "explanation": "A recorded contextual judgment."
+      }
+    ],
+    "overall_judgment": "A contextual judgment of the full supplied account.",
+    "judgments": [
+      {
+        "decision_id": "D1",
+        "anchors": [
+          {
+            "utterance_index": 0,
+            "quote": "PREVIEW FIXTURE ONLY: это технический текст для проверки формы запроса."
+          }
+        ],
+        "contextual_meaning": "The conclusion concerns this investigation.",
+        "context_scope": "The account's established subject and chronology.",
+        "rationale": "FULL_PERSISTED_REASON: The evidence and the ordinary listening context are considered together. The evidence and the ordinary listening context are considered together. The evidence and the ordinary listening context are considered together. The evidence and the ordinary listening context are considered together. The evidence and the ordinary listening context are considered together. The evidence and the ordinary listening context are considered together. The evidence and the ordinary listening context are considered together. The evidence and the ordinary listening context are considered together. The evidence and the ordinary listening context are considered together. The evidence and the ordinary listening context are considered together. The evidence and the ordinary listening context are considered together. The evidence and the ordinary listening context are considered together. The evidence and the ordinary listening context are considered together. The evidence and the ordinary listening context are considered together. The evidence and the ordinary listening context are considered together. The evidence and the ordinary listening context are considered together. The evidence and the ordinary listening context are considered together. The evidence and the ordinary listening context are considered together. The evidence and the ordinary listening context are considered together. The evidence and the ordinary listening context are considered together. The evidence and the ordinary listening context are considered together. The evidence and the ordinary listening context are considered together. The evidence and the ordinary listening context are considered together. The evidence and the ordinary listening context are considered together. The evidence and the ordinary listening context are considered together. The evidence and the ordinary listening context are considered together. The evidence and the ordinary listening context are considered together. The evidence and the ordinary listening context are considered together. ",
+        "memory_summary": "This account concerns the investigation; its scope is not a global priority claim.",
+        "aspects": [
+          "clarity",
+          "ending",
+          "idiom",
+          "repetition",
+          "story_development",
+          "transitions",
+          "voice"
+        ],
+        "verdict": "needs_change"
+      }
+    ]
+  },
+  "finding_links": [
+    {
+      "finding_index": 0,
+      "decision_ids": [
+        "D1"
+      ]
+    }
+  ],
+  "assignment_results": [],
+  "previous_dispositions": [],
+  "late_findings": [],
+  "effect_on_episode": null
+}

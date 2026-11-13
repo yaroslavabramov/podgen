@@ -1,0 +1,201 @@
+[
+  {
+    "stage": "plan",
+    "endpoint_called": false,
+    "visible_bytes": {
+      "instructions": 8668,
+      "input": 26167,
+      "schema": 8519,
+      "tools": 3514,
+      "total": 46868
+    },
+    "payload_fields": [
+      "output_language",
+      "assignment",
+      "research_contents",
+      "source_catalog"
+    ],
+    "tools": [
+      "search_sources",
+      "read_source",
+      "read_material"
+    ]
+  },
+  {
+    "stage": "plan-review",
+    "endpoint_called": false,
+    "visible_bytes": {
+      "instructions": 11331,
+      "input": 30259,
+      "schema": 4366,
+      "tools": 3514,
+      "total": 49470
+    },
+    "payload_fields": [
+      "output_language",
+      "assignment",
+      "review_target_root",
+      "research_contents",
+      "source_catalog",
+      "candidate_plan",
+      "allowed_review_targets"
+    ],
+    "tools": [
+      "search_sources",
+      "read_source",
+      "read_material"
+    ]
+  },
+  {
+    "stage": "plan-review-revised",
+    "endpoint_called": false,
+    "visible_bytes": {
+      "instructions": 11331,
+      "input": 30259,
+      "schema": 4366,
+      "tools": 3514,
+      "total": 49470
+    },
+    "payload_fields": [
+      "output_language",
+      "assignment",
+      "review_target_root",
+      "research_contents",
+      "source_catalog",
+      "candidate_plan",
+      "allowed_review_targets"
+    ],
+    "tools": [
+      "search_sources",
+      "read_source",
+      "read_material"
+    ]
+  },
+  {
+    "stage": "plan-revise",
+    "endpoint_called": false,
+    "visible_bytes": {
+      "instructions": 9621,
+      "input": 28843,
+      "schema": 8519,
+      "tools": 3514,
+      "total": 50497
+    },
+    "payload_fields": [
+      "output_language",
+      "assignment",
+      "research_contents",
+      "source_catalog",
+      "candidate_plan",
+      "revision_guidance"
+    ],
+    "tools": [
+      "search_sources",
+      "read_source",
+      "read_material"
+    ]
+  },
+  {
+    "stage": "draft",
+    "endpoint_called": false,
+    "visible_bytes": {
+      "instructions": 7818,
+      "input": 47365,
+      "schema": 1545,
+      "tools": 3514,
+      "total": 60242
+    },
+    "payload_fields": [
+      "output_language",
+      "assignment",
+      "craft_reference",
+      "story",
+      "support",
+      "duration_context",
+      "research_contents",
+      "source_catalog"
+    ],
+    "tools": [
+      "search_sources",
+      "read_source",
+      "read_material"
+    ]
+  },
+  {
+    "stage": "reader-review",
+    "endpoint_called": false,
+    "visible_bytes": {
+      "instructions": 9324,
+      "input": 1083,
+      "schema": 18686,
+      "total": 29093
+    },
+    "payload_fields": [
+      "output_language",
+      "audience",
+      "format",
+      "genre",
+      "script",
+      "duration_context",
+      "audit_context"
+    ],
+    "tools": []
+  },
+  {
+    "stage": "fact-review",
+    "endpoint_called": false,
+    "visible_bytes": {
+      "instructions": 13442,
+      "input": 28649,
+      "schema": 20419,
+      "tools": 3514,
+      "total": 66024
+    },
+    "payload_fields": [
+      "output_language",
+      "factual_remit",
+      "evidence",
+      "source_bibliography",
+      "research_cautions",
+      "script",
+      "research_contents",
+      "audit_context"
+    ],
+    "tools": [
+      "search_sources",
+      "read_source",
+      "read_material"
+    ]
+  },
+  {
+    "stage": "revise-1",
+    "endpoint_called": false,
+    "visible_bytes": {
+      "instructions": 8454,
+      "input": 33319,
+      "schema": 3447,
+      "tools": 3514,
+      "total": 48734
+    },
+    "payload_fields": [
+      "output_language",
+      "audience",
+      "format",
+      "genre",
+      "assignment",
+      "support",
+      "script",
+      "duration_context",
+      "editorial_frame",
+      "revision_operation",
+      "research_contents",
+      "source_catalog",
+      "revision_tasks"
+    ],
+    "tools": [
+      "search_sources",
+      "read_source",
+      "read_material"
+    ]
+  }
+]
