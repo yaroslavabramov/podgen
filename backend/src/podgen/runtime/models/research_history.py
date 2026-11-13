@@ -36,6 +36,7 @@ class ResearchHistory:
         from podgen.runtime.evaluation.source_tool_recovery import lineage
 
         self.counts = {}
+        self.exact_counts = {}
         self.plans = {}
         self.segments = {}
         self.submitted = set()
@@ -60,6 +61,8 @@ class ResearchHistory:
                 "source_context_count",
                 "source_context_count_error",
             }:
+                if entry.kind == "source_context_count" and entry.data.get("count_identity"):
+                    self.exact_counts.setdefault(entry.data["count_identity"], entry)
                 continue
             self._index(entry)
 
@@ -76,6 +79,8 @@ class ResearchHistory:
         self.references[kind].append(ref)
         if kind == "source_context_count":
             self.counts.setdefault(data["request_hash"], entry)
+            if data.get("count_identity"):
+                self.exact_counts.setdefault(data["count_identity"], entry)
         elif kind == "source_context_plan":
             self.plans.setdefault(data["turn_index"], entry)
         elif kind == "submit_intent" and "source_turn_index" in data:
@@ -91,6 +96,9 @@ class ResearchHistory:
                 self.entries.append(("tool_result", data["call_index"]))
             self.call_ids.add(data["call_id"])
             self.receipts.update(entry.receipt_ids)
+
+    def exact_count(self, identity):
+        return self.exact_counts.get(identity)
 
     def counted(self, request_hash):
         return self.counts.get(request_hash)

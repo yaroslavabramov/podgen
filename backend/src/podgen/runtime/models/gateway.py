@@ -71,7 +71,16 @@ class ModelGateway:
         return self.invoke_once(invocation, profile, limits=limits, totals=totals, guard=guard)
 
     def invoke_once(
-        self, invocation, profile, *, limits, totals, guard, full_response=False, input_limits=None
+        self,
+        invocation,
+        profile,
+        *,
+        limits,
+        totals,
+        guard,
+        full_response=False,
+        input_limits=None,
+        count_receipt=None,
     ):
         j = self.journal
         if invocation["status"] == "completed":
@@ -82,14 +91,18 @@ class ModelGateway:
                 run_id=invocation["run_id"],
                 invocation_id=invocation["invocation_id"],
             )
-        body = j.request(invocation)
         from podgen.domain.contracts.common import RuntimeRef
         from podgen.domain.errors import ContractError
         from podgen.runtime.evaluation.wire_budget import check_tokens, check_visible, visible_sizes
 
-        record = j.read(RuntimeRef(record_kind="tool_execution", record_id=invocation["request_record_id"]))
+        with j.read_operation():
+            body = j.request(invocation)
+            record = j.read(
+                RuntimeRef(record_kind="tool_execution", record_id=invocation["request_record_id"])
+            )
+            manifest = j.manifest(invocation["run_id"])
+            reused_count = count_receipt.validate(j, body, profile) if count_receipt is not None else None
         contract = record["context"].get("role_input_contract")
-        manifest = j.manifest(invocation["run_id"])
         from .provider_contracts import validate as validate_provider_contract
 
         validate_provider_contract(
@@ -124,23 +137,37 @@ class ModelGateway:
             self._fail(invocation, error.code, status="validation_failed")
         provider = self.provider_factory(profile) if invocation["status"] in ("prepared", "counted") else None
         if invocation["status"] == "prepared":
-            guard()
-            count_body = count_request(body)
-            count_blob = j.blob(
-                json.dumps(count_body, ensure_ascii=False, allow_nan=False, separators=(",", ":")).encode()
-            )
-            j.event(invocation, "count_intent", data={"request_blob": count_blob.model_dump(mode="json")})
-            try:
-                reply = provider.count(count_body)
-            except ProviderFault as fault:
-                self._fault(invocation, fault, "count")
-            j.event(invocation, "count_response", reply=reply)
-            try:
-                count = json.loads(reply.body)["input_tokens"]
-                if type(count) is not int or count < 0:
-                    raise ValueError()
-            except (ValueError, KeyError, TypeError):
-                self._fail(invocation, "invalid_input_token_count")
+            if reused_count is not None:
+                count = reused_count
+                j.event(
+                    invocation,
+                    "count_receipt_reused",
+                    data=dict(
+                        count_ref=count_receipt.reference.model_dump(mode="json"),
+                        count_identity=count_receipt.identity,
+                        input_tokens=count,
+                    ),
+                )
+            else:
+                guard()
+                count_body = count_request(body)
+                count_blob = j.blob(
+                    json.dumps(
+                        count_body, ensure_ascii=False, allow_nan=False, separators=(",", ":")
+                    ).encode()
+                )
+                j.event(invocation, "count_intent", data={"request_blob": count_blob.model_dump(mode="json")})
+                try:
+                    reply = provider.count(count_body)
+                except ProviderFault as fault:
+                    self._fault(invocation, fault, "count")
+                j.event(invocation, "count_response", reply=reply)
+                try:
+                    count = json.loads(reply.body)["input_tokens"]
+                    if type(count) is not int or count < 0:
+                        raise ValueError()
+                except (ValueError, KeyError, TypeError):
+                    self._fail(invocation, "invalid_input_token_count")
             invocation = j.transition(invocation, "counted", input_tokens=count)
         if invocation["status"] == "counted":
             try:

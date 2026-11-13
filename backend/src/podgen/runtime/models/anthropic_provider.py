@@ -22,8 +22,13 @@ class AnthropicProvider:
         self._timeout = timeout_seconds
 
     def _call(self, body, *, client_request_id=None):
+        from podgen.persistence.read_authorization import require_external_boundary
+
+        require_external_boundary()
         counting = client_request_id is None
-        payload = messages_request(body, counting=counting)
+        from .count_receipts import native_count
+
+        payload = native_count(body, "anthropic") if counting else messages_request(body)
         validate_wire(payload, self._api_version)
         client = (
             nullcontext(self._client) if self._client is not None else httpx.Client(timeout=self._timeout)

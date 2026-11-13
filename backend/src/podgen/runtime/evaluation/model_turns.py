@@ -22,14 +22,15 @@ def rows(journal, root):
 
 
 def events(journal, root, *, kinds=None):
-    return [
-        dict(
-            journal.read(RuntimeRef(record_kind="tool_execution", record_id=event["record_id"])),
-            _record_id=event["record_id"],
-        )
-        for event in journal.events(root)
-        if kinds is None or event["event_kind"] in kinds
-    ]
+    with journal.read_operation():
+        return [
+            dict(
+                journal.read(RuntimeRef(record_kind="tool_execution", record_id=event["record_id"])),
+                _record_id=event["record_id"],
+            )
+            for event in journal.events(root)
+            if kinds is None or event["event_kind"] in kinds
+        ]
 
 
 class EventHistory:

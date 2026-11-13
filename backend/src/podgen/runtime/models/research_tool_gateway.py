@@ -31,7 +31,9 @@ def invoke(gateway, root, profile, contract, *, limits, totals, guard):
     input_policy = turn_input_policy(journal, root)
     ancestors = lineage(journal, root)
     original = journal.request(root)
-    task = journal.request(ancestors[0])
+    task = (
+        original if ancestors[0]["invocation_id"] == root["invocation_id"] else journal.request(ancestors[0])
+    )
     history = ResearchHistory(journal, root)
     final = history.latest("source_tools_final_response")
     if final:
@@ -64,7 +66,7 @@ def invoke(gateway, root, profile, contract, *, limits, totals, guard):
     else:
         conversation = context.restart(segment) if segment else deepcopy(original["input"])
     for index in count(segment_start):
-        guard()
+        getattr(guard, "checkpoint", guard)()
         body = deepcopy(original)
         body["input"] = deepcopy(conversation)
         body["metadata"].update(
@@ -106,6 +108,7 @@ def invoke(gateway, root, profile, contract, *, limits, totals, guard):
                 ),
                 guard=guard,
                 full_response=True,
+                count_receipt=context.receipt(body),
                 input_limits=input_policy.get(index, input_policy[None]),
             )
         except RunFailure as error:

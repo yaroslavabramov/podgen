@@ -24,12 +24,17 @@ class TurnEvidence:
         return getattr(self.journal, name)
 
     def events(self, row):
+        with self.journal.read_operation():
+            events = self.journal.events_for_turn(self.root, self.turn["turn_index"])
+            return self._selected_events(events)
+
+    def _selected_events(self, events):
         result = []
-        for event in self.journal.events(self.root):
+        for event in events:
             ref = RuntimeRef(record_kind="tool_execution", record_id=event["record_id"])
-            record = self.journal.read(ref)
+            record = deepcopy(self.journal.read(ref))
             if record["data"].get("source_turn_index") != self.turn["turn_index"]:
-                continue
+                raise Conflict("source_tool_turn_evidence_mismatch")
             if (
                 record["invocation_id"] != str(self.root["invocation_id"])
                 or record["request_ref"]["record_id"] != str(self.root["request_record_id"])

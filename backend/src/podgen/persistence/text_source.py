@@ -11,33 +11,46 @@ from podgen.domain.errors import AccessDenied
 from podgen.domain.references import walk_values
 
 from .database import one
-from .read_authorization import authorized_read
+from .read_authorization import _read_connection, checked_node, object_io, read_operation
 
 _CACHE = tempfile.TemporaryDirectory(prefix="podgen-unicode-")
 _LOCK = Lock()
 
 
+def _authorize_binding(repo, project, reference, blob):
+    with _read_connection(repo) as tx:
+
+        def check():
+            if isinstance(reference, ArtifactRef):
+                row = repo._resolve(tx, project, reference)
+                if row["project_id"] != project or not one(
+                    tx,
+                    "SELECT 1 FROM artifact_blobs WHERE project_id=:p AND revision_id=:r AND storage_key=:k",
+                    p=project,
+                    r=reference.revision_id,
+                    k=blob.storage_key,
+                ):
+                    raise AccessDenied()
+            else:
+                row = repo._runtime(tx, project, reference)
+                if blob not in [
+                    value for _, _, value in walk_values(row["payload"]) if isinstance(value, BlobRef)
+                ]:
+                    raise AccessDenied()
+            repo._check_blob(tx, project, blob)
+            return True
+
+        checked_node(repo, tx, ("text_binding", project, reference, blob), check)
+
+
 @contextmanager
 def authorized_blob(repo, project, reference, blob):
-    with repo.database.read_transaction() as tx, authorized_read(repo, tx):
-        if isinstance(reference, ArtifactRef):
-            row = repo._resolve(tx, project, reference)
-            if row["project_id"] != project or not one(
-                tx,
-                "SELECT 1 FROM artifact_blobs WHERE project_id=:p AND revision_id=:r AND storage_key=:k",
-                p=project,
-                r=reference.revision_id,
-                k=blob.storage_key,
-            ):
-                raise AccessDenied()
-        else:
-            row = repo._runtime(tx, project, reference)
-            if blob not in [
-                value for _, _, value in walk_values(row["payload"]) if isinstance(value, BlobRef)
-            ]:
-                raise AccessDenied()
-        repo._check_blob(tx, project, blob)
+    # SQL phase ends before yielding to the object reader. Remote object_io then
+    # releases its snapshot; returning bytes always rechecks fresh authorization.
+    with read_operation(repo):
+        _authorize_binding(repo, project, reference, blob)
         yield
+        _authorize_binding(repo, project, reference, blob)
 
 
 class VerifiedText:
@@ -68,8 +81,9 @@ class VerifiedText:
             with tempfile.NamedTemporaryFile(dir=_CACHE.name, delete=False) as output:
                 temporary = Path(output.name)
                 try:
-                    for chunk in self.repo.objects.iter_read(self.project, self.blob):
-                        output.write(decoder.decode(chunk).encode("utf-32-le"))
+                    with object_io(self.repo):
+                        for chunk in self.repo.objects.iter_read(self.project, self.blob):
+                            output.write(decoder.decode(chunk).encode("utf-32-le"))
                     output.write(decoder.decode(b"", final=True).encode("utf-32-le"))
                     output.flush()
                     temporary.replace(self.path)
@@ -81,7 +95,8 @@ class VerifiedText:
             self._ensure()
 
     def __len__(self):
-        self.verify()
+        if not self.path.exists():
+            self.verify()
         return self.path.stat().st_size // 4
 
     def __getitem__(self, key):

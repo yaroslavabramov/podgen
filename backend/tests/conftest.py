@@ -1,12 +1,16 @@
 import os
+from pathlib import Path
 from uuid import uuid4
 
 import pytest
+from alembic.config import Config
+from alembic.script import ScriptDirectory
+from sqlalchemy import text
+
 from podgen.domain.contracts.common import CodeProducer
 from podgen.persistence.database import Database, query
 from podgen.persistence.objects import FileObjectStore
 from podgen.persistence.repository import Repository
-from sqlalchemy import text
 
 
 @pytest.fixture(scope="session")
@@ -18,10 +22,9 @@ def database():
         )
     db = Database(url)
     with db.transaction() as tx:
-        assert (
-            tx.execute(text("SELECT version_num FROM alembic_version")).scalar_one()
-            == "0022_streaming_search"
-        )
+        config = Config(str(Path(__file__).resolve().parents[1] / "alembic.ini"))
+        expected = set(ScriptDirectory.from_config(config).get_heads())
+        assert set(tx.execute(text("SELECT version_num FROM alembic_version")).scalars()) == expected
     yield db
     db.engine.dispose()
 

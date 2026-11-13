@@ -20,6 +20,11 @@ class EvaluationJournal:
     def __init__(self, repo, project):
         self.repo, self.project = repo, project
 
+    def read_operation(self):
+        from podgen.persistence.read_authorization import read_operation
+
+        return read_operation(self.repo)
+
     def authorize(self, tx):
         if self.repo.purpose != "evaluation" or self.repo._acl(tx, self.project) not in (
             "owner",
@@ -225,8 +230,11 @@ class EvaluationJournal:
 
     def request(self, invocation):
         ref = RuntimeRef(record_kind="tool_execution", record_id=invocation["request_record_id"])
-        record = self.read(ref)
-        return json.loads(self.read_blob(ref, BlobRef.model_validate(record["request_blob"])))
+        from podgen.persistence.read_authorization import read_operation
+
+        with read_operation(self.repo):
+            record = self.read(ref)
+            return json.loads(self.read_blob(ref, BlobRef.model_validate(record["request_blob"])))
 
     def event(self, invocation, kind, *, reply=None, data=None):
         payload = dict(
@@ -258,12 +266,13 @@ class EvaluationJournal:
             append_runtime(self.repo, tx, self.project, ref, payload, "evaluator")
             query(
                 tx,
-                "INSERT INTO evaluation_invocation_events(project_id,invocation_id,event_id,record_id,event_kind) VALUES(:p,:i,:e,:r,:k)",
+                "INSERT INTO evaluation_invocation_events(project_id,invocation_id,event_id,record_id,event_kind,source_turn_index) VALUES(:p,:i,:e,:r,:k,:turn)",
                 p=self.project,
                 i=invocation["invocation_id"],
                 e=uuid4(),
                 r=ref.record_id,
                 k=kind,
+                turn=(data or {}).get("source_turn_index"),
             )
             if data and data.get("provider_response_id"):
                 query(
@@ -330,3 +339,24 @@ class EvaluationJournal:
                 i=invocation["invocation_id"],
             ).mappings()
             return [dict(row) for row in rows]
+
+    def events_for_turn(self, invocation, turn_index):
+        """Select durable control metadata before authorizing/loading full bodies."""
+        from podgen.persistence.read_authorization import _read_connection
+
+        with _read_connection(self.repo) as tx:
+            self.authorize(tx)
+            return [
+                dict(row)
+                for row in query(
+                    tx,
+                    """
+                SELECT * FROM evaluation_invocation_events
+                WHERE project_id=:p AND invocation_id=:i AND source_turn_index=:turn
+                ORDER BY sequence
+            """,
+                    p=self.project,
+                    i=invocation["invocation_id"],
+                    turn=turn_index,
+                ).mappings()
+            ]

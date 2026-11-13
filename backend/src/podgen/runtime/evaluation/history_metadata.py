@@ -8,7 +8,7 @@ from podgen.domain.references import walk_values
 from podgen.persistence.read_authorization import authorized_read
 
 FIELDS = {
-    "source_context_count": ("request_hash", "input_tokens", "turn_index", "label"),
+    "source_context_count": ("request_hash", "input_tokens", "turn_index", "label", "count_identity"),
     "source_context_plan": ("turn_index", "conversation_hash", "checkpoint"),
     "source_context_segment": ("next_turn", "checkpoint_call_index"),
     "submit_intent": ("source_turn_index",),

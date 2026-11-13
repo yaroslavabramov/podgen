@@ -30,6 +30,7 @@ def evidence(journal, row):
             "role_input_measurement",
             "count_intent",
             "count_response",
+            "count_receipt_reused",
             "submit_intent",
             "provider_error",
         }:

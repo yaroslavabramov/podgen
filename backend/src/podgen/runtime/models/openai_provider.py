@@ -40,6 +40,9 @@ class OpenAIProvider:
         )
 
     def _call(self, operation, *, submit=False):
+        from podgen.persistence.read_authorization import require_external_boundary
+
+        require_external_boundary()
         try:
             response = operation()
             return self._reply(
@@ -76,18 +79,9 @@ class OpenAIProvider:
             raise ProviderFault("provider_malformed_envelope", ambiguous=submit) from None
 
     def count(self, body):
-        keys = {
-            "model",
-            "input",
-            "instructions",
-            "reasoning",
-            "text",
-            "tools",
-            "tool_choice",
-            "parallel_tool_calls",
-            "truncation",
-        }
-        args = {key: value for key, value in responses_request(body).items() if key in keys}
+        from .count_receipts import native_count
+
+        args = native_count(body, "openai")
         return self._call(lambda: self.client.responses.input_tokens.with_raw_response.count(**args))
 
     def submit(self, body, *, client_request_id):

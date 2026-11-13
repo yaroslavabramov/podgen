@@ -10,6 +10,7 @@ from podgen.runtime.evaluation.compiler import count_request
 from podgen.runtime.evaluation.contracts import RunFailure
 
 from .contracts import ProviderFault
+from .count_receipts import CONTRACT, ExactCount, identity, native_count, provider_configuration
 
 
 class ResearchContext:
@@ -26,10 +27,30 @@ class ResearchContext:
 
     def measured(self, body, index, label):
         key = digest(body)
-        saved = self.history.counted(key)
+        count_identity = identity(body, self.profile)
+        saved = self.history.exact_count(count_identity)
         if saved is not None:
             return saved.data["input_tokens"]
         self.guard()
+        native_blob = self.journal.blob(
+            json.dumps(
+                native_count(body, self.profile.provider),
+                ensure_ascii=False,
+                allow_nan=False,
+                separators=(",", ":"),
+            ).encode()
+        )
+        intent = self.event(
+            "source_context_count_intent",
+            dict(
+                count_identity=count_identity,
+                count_contract=CONTRACT,
+                native_request_blob=native_blob.model_dump(mode="json"),
+                provider_configuration=provider_configuration(self.profile),
+                turn_index=index,
+                label=label,
+            ),
+        )
         try:
             reply = self.gateway.provider_factory(self.profile).count(count_request(body))
         except ProviderFault as error:
@@ -47,10 +68,28 @@ class ResearchContext:
             raise ContractError("invalid_context_input_count") from None
         self.event(
             "source_context_count",
-            dict(request_hash=key, input_tokens=count, turn_index=index, label=label),
+            dict(
+                request_hash=key,
+                input_tokens=count,
+                turn_index=index,
+                label=label,
+                count_identity=count_identity,
+                count_contract=CONTRACT,
+                count_intent_ref=intent.model_dump(mode="json"),
+                native_request_blob=native_blob.model_dump(mode="json"),
+                provider_configuration=provider_configuration(self.profile),
+            ),
             reply=reply,
         )
         return count
+
+    def receipt(self, body):
+        saved = self.history.exact_count(identity(body, self.profile))
+        return (
+            ExactCount(saved.reference, saved.data["count_identity"], saved.data["input_tokens"])
+            if saved
+            else None
+        )
 
     def request(self, body, index, segment_start):
         saved = self.history.context_plan(index)

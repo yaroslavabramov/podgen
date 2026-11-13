@@ -1,5 +1,6 @@
 """In-memory persistence boundary for real gateway and provider protocol tests."""
 
+from contextlib import nullcontext
 from copy import deepcopy
 from types import SimpleNamespace
 from uuid import UUID, uuid4, uuid5
@@ -30,6 +31,9 @@ class MemoryJournal:
         self.root["request_record_id"] = self.store_request(body)
         self.roots = {self.root["invocation_id"]: self.root}
         self.repo = SimpleNamespace(actor_id=uuid4())
+
+    def read_operation(self):
+        return nullcontext()
 
     def blob(self, data):
         import hashlib
@@ -74,6 +78,9 @@ class MemoryJournal:
     def events(self, root):
         return [event for event in self.receipts if event["invocation_id"] == root["invocation_id"]]
 
+    def events_for_turn(self, root, turn_index):
+        return [event for event in self.events(root) if event.get("source_turn_index") == turn_index]
+
     def event(self, root, kind, *, reply=None, data=None):
         ref = RuntimeRef(record_kind="tool_execution", record_id=uuid4())
         record = dict(
@@ -89,7 +96,12 @@ class MemoryJournal:
             record["provider_http_status"] = reply.status_code
         self.records[ref.record_id] = record
         self.receipts.append(
-            dict(record_id=ref.record_id, event_kind=kind, invocation_id=root["invocation_id"])
+            dict(
+                record_id=ref.record_id,
+                event_kind=kind,
+                invocation_id=root["invocation_id"],
+                source_turn_index=(data or {}).get("source_turn_index"),
+            )
         )
         return ref
 

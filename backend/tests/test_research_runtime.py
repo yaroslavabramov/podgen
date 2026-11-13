@@ -1,6 +1,7 @@
 """Real SDK wire over durable research windows; no provider network calls."""
 
 import json
+from copy import deepcopy
 from types import SimpleNamespace
 
 import httpx2
@@ -282,7 +283,6 @@ def test_real_database_operational_retry_keeps_parent_receipts_and_exact_request
     from podgen.runtime.evaluation.contracts import WritingRunCommand, command_payload
     from podgen.runtime.evaluation.journal import EvaluationJournal
     from podgen.runtime.evaluation.profiles import create_profile
-    from podgen.runtime.evaluation.technical_recovery import authorize_technical_recovery
 
     local = pytest.MonkeyPatch()
     memory, profile, limits, corpus = research_setup(local)
@@ -305,16 +305,18 @@ def test_real_database_operational_retry_keeps_parent_receipts_and_exact_request
     root = journal.prepare(command.run_id, "draft", body, {"profile_ref": ref.model_dump(mode="json")})
     sent, counts = [], {}
     failed = False
+    failed_count = None
 
     def handler(request):
-        nonlocal failed
+        nonlocal failed, failed_count
         native = json.loads(request.content)
         if request.url.path.endswith("/input_tokens"):
             key = json.dumps(native, sort_keys=True)
             counts[key] = counts.get(key, 0) + 1
             compact = "runtime_continuation" in json.dumps(native["input"])
-            if mode == "count_after_rotation" and compact and counts[key] == 2 and not failed:
+            if mode == "count_after_rotation" and compact and counts[key] == 1 and not failed:
                 failed = True
+                failed_count = deepcopy(native)
                 return httpx2.Response(503, json={"error": {"message": "temporary count unavailable"}})
             large = mode == "count_after_rotation" and any(
                 item.get("type") == "function_call_output" for item in native["input"]
@@ -363,21 +365,24 @@ def test_real_database_operational_retry_keeps_parent_receipts_and_exact_request
                 journal, command.run_id, parent["invocation_id"], guard=lambda: None
             )
         else:
-            child = authorize_technical_recovery(
-                journal,
-                command,
-                parent["invocation_id"],
-                gateway=gateway,
-                load_profile=lambda *_: profile,
-                guard=lambda: None,
-            )
+            # Context counting failed before the next physical turn was prepared.
+            # Resume the same durable window; completed paid turns are replayed.
+            assert parent["status"] == "tool_running"
+            child = parent
         from podgen.runtime.models.responses_wire import responses_request
 
         failed_request = responses_request(journal.request(child))
-        assert invoke(gateway, child, profile, limits, totals=paid) == '{"answer":"done"}'
-        assert {k: v for k, v in sent[-1].items() if k != "metadata"} == {
-            k: v for k, v in failed_request.items() if k != "metadata"
-        }
+        assert (
+            invoke(gateway, child, profile, limits, totals=paid if mode == "credit" else None)
+            == '{"answer":"done"}'
+        )
+        if mode == "credit":
+            assert {k: v for k, v in sent[-1].items() if k != "metadata"} == {
+                k: v for k, v in failed_request.items() if k != "metadata"
+            }
+        else:
+            assert failed_count == {k: v for k, v in sent[-1].items() if k in failed_count}
+            assert len(sent) == 3
         completed = journal.invocation(command.run_id, "draft")
         before = len(sent)
         assert invoke(gateway, completed, profile, limits, totals=paid) == '{"answer":"done"}'

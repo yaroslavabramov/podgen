@@ -11,7 +11,7 @@ from podgen.domain.errors import AccessDenied, ContractError
 from podgen.domain.references import walk_values
 
 from .database import Database, one, query
-from .read_authorization import authorized_read, checked_node
+from .read_authorization import _read_connection, checked_node
 
 CONFIG_KINDS = {
     "PolicyBundle",
@@ -142,7 +142,7 @@ class Repository:
             raise ContractError("artifact_integrity_error")
 
     def get(self, project_id, ref):
-        with self.database.read_transaction() as tx, authorized_read(self, tx):
+        with _read_connection(self) as tx:
             row = self._resolve(tx, project_id, ref)
             self._verify_hash(tx, row)
             return self._envelope(row)
@@ -168,21 +168,13 @@ class Repository:
             raise AccessDenied()
 
     def read_blob(self, project_id, artifact_ref, blob_ref):
-        with self.database.read_transaction() as tx, authorized_read(self, tx):
-            row = self._resolve(tx, project_id, artifact_ref)
-            if row["project_id"] != project_id:
-                raise AccessDenied()  # catalog audition has its own narrow projection
-            link = one(
-                tx,
-                """SELECT 1 FROM artifact_blobs WHERE project_id=:p AND revision_id=:r AND storage_key=:k""",
-                p=project_id,
-                r=artifact_ref.revision_id,
-                k=blob_ref.storage_key,
-            )
-            if not link:
-                raise AccessDenied()
-            self._check_blob(tx, project_id, blob_ref)
-            return self.objects.read(project_id, blob_ref)
+        from .read_authorization import object_io
+        from .text_source import authorized_blob
+
+        with authorized_blob(self, project_id, artifact_ref, blob_ref):
+            with object_io(self):
+                value = self.objects.read(project_id, blob_ref)
+        return value
 
     def create(
         self,
@@ -269,23 +261,23 @@ class Repository:
             return append_runtime(self, tx, project_id, ref, payload, audience)
 
     def get_runtime(self, project_id, ref):
-        with self.database.read_transaction() as tx, authorized_read(self, tx):
+        with _read_connection(self) as tx:
             row = self._runtime(tx, project_id, ref)
             for _, _, linked in walk_values(row["payload"]):
                 if isinstance(linked, ArtifactRef):
                     self._resolve(tx, project_id, linked)
-            return row["payload"]
+            from copy import deepcopy
+
+            return deepcopy(row["payload"])
 
     def read_runtime_blob(self, project_id, runtime_ref, blob_ref):
-        from podgen.domain.contracts.common import BlobRef
+        from .read_authorization import object_io
+        from .text_source import authorized_blob
 
-        with self.database.read_transaction() as tx, authorized_read(self, tx):
-            row = self._runtime(tx, project_id, runtime_ref)
-            owned = [ref for _, _, ref in walk_values(row["payload"]) if isinstance(ref, BlobRef)]
-            if blob_ref not in owned:
-                raise AccessDenied()
-            self._check_blob(tx, project_id, blob_ref)
-            return self.objects.read(project_id, blob_ref)
+        with authorized_blob(self, project_id, runtime_ref, blob_ref):
+            with object_io(self):
+                value = self.objects.read(project_id, blob_ref)
+        return value
 
     # Structural binding validation is independent of SQL writes.
     def _validate_bindings(self, tx, project_id, kind, payload, refs):
