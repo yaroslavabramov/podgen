@@ -1,0 +1,111 @@
+{
+  "adapter_version": "research-material-reading/1",
+  "adapter_path": "backend/src/podgen/writing/research_materials/instructions.py",
+  "comparisons": [
+    {
+      "file": "solo-plan.md",
+      "role": "plan",
+      "format": "solo",
+      "changed": true,
+      "before_sha256": "3b0181ec6868f9c9517c24524a008a0b3c3814aafc0648ab3f8cbb8e72aea4b2",
+      "after_sha256": "b009722423920ed36e6ccca2b6e9575392a49321d5d776a0b33da33331ba8b6d"
+    },
+    {
+      "file": "solo-plan-review.md",
+      "role": "plan-review",
+      "format": "solo",
+      "changed": true,
+      "before_sha256": "96daa0797fb55058db3c843ff4b98a9032e03c325c22b2add6dc4e15ff4a6ef1",
+      "after_sha256": "32a2a664a9041f249683e00a560c0b53b99029d372c46392fa826faf337aeb81"
+    },
+    {
+      "file": "solo-plan-revise.md",
+      "role": "plan-revise",
+      "format": "solo",
+      "changed": true,
+      "before_sha256": "fae80e2c76066c2c03de3e148dd8deefec80bd5feec218d2e1b2014ca095ec8e",
+      "after_sha256": "d99e7c1558ad5df26c27b8d5e07320cd0b07c949b22a71667c107af2d4e347c5"
+    },
+    {
+      "file": "solo-draft.md",
+      "role": "draft",
+      "format": "solo",
+      "changed": true,
+      "before_sha256": "781f333980cf17be1d6c4a7f567be95e80a3b36c59db038d0a19e10d85478274",
+      "after_sha256": "d1971f4a211867ab2707deaadc76524fe1ddaf9e75d2b18c8d13a6f60cff8eea"
+    },
+    {
+      "file": "dialogue-plan.md",
+      "role": "plan",
+      "format": "dialogue",
+      "changed": true,
+      "before_sha256": "3b0181ec6868f9c9517c24524a008a0b3c3814aafc0648ab3f8cbb8e72aea4b2",
+      "after_sha256": "b009722423920ed36e6ccca2b6e9575392a49321d5d776a0b33da33331ba8b6d"
+    },
+    {
+      "file": "dialogue-plan-review.md",
+      "role": "plan-review",
+      "format": "dialogue",
+      "changed": true,
+      "before_sha256": "9598b84eca52020aba01de63019cad6fb86115ef6621ae8b1c90ab9c2df801bf",
+      "after_sha256": "35d447b02b925b3eb055318f9aeda9bd955e631a15f8cc2618a528feeecf643d"
+    },
+    {
+      "file": "dialogue-plan-revise.md",
+      "role": "plan-revise",
+      "format": "dialogue",
+      "changed": true,
+      "before_sha256": "fae80e2c76066c2c03de3e148dd8deefec80bd5feec218d2e1b2014ca095ec8e",
+      "after_sha256": "d99e7c1558ad5df26c27b8d5e07320cd0b07c949b22a71667c107af2d4e347c5"
+    },
+    {
+      "file": "dialogue-draft.md",
+      "role": "draft",
+      "format": "dialogue",
+      "changed": true,
+      "before_sha256": "429483dfe1562930a440e34d3c23295c9b38fe3111ea1eaba6db5e9ddfd6b830",
+      "after_sha256": "3e8fb30b52641e85d11092002653f975122ba29c1bffc06af6ee4c758f3c8a62"
+    },
+    {
+      "file": "dual-revise.md",
+      "role": "dual-revise",
+      "format": "solo",
+      "changed": true,
+      "before_sha256": "3366fdee5b18c00565b6b595997045bed73561a09100436a2bd9af8519eb2f1e",
+      "after_sha256": "2e82fd6c7ed7b1eb9d4d407c30f369c9c379a1c1a7ea49baaa8124fd963a41a4"
+    },
+    {
+      "file": "fact-review.md",
+      "role": "fact-review",
+      "format": "solo",
+      "changed": true,
+      "before_sha256": "69c4930ddaabc289b26a37a475464a2e31292966a9a60c286de0535959488da1",
+      "after_sha256": "ec023b49d54c28ac69d1b4a2eb9ccaabf04b69c8e6adbd845fbe2e557e82c38f"
+    },
+    {
+      "file": "fact-verification.md",
+      "role": "fact-verification",
+      "format": "solo",
+      "changed": true,
+      "before_sha256": "26fe13222ad4e8b0ed4fa618bcfa5a55557f9601560b08620d9af4968f30e380",
+      "after_sha256": "b073b35e892db638c0bff90c68e336517cc542f3104076dd004a2c45838a5b2f"
+    },
+    {
+      "file": "reader-review-1.md",
+      "role": "reader-review",
+      "format": "solo",
+      "changed": false,
+      "before_sha256": "7c2227a7947e77b60a6ec22584305ebfa7f24d9f36cd59d8fafdbb2df3893b77",
+      "after_sha256": "7c2227a7947e77b60a6ec22584305ebfa7f24d9f36cd59d8fafdbb2df3893b77"
+    },
+    {
+      "file": "revision-verification.md",
+      "role": "revision-verification",
+      "format": "solo",
+      "changed": false,
+      "before_sha256": "0315be81b84892dca618df1bafca9b52b33acbdfafdc2951dddf1800ca13e7c3",
+      "after_sha256": "0315be81b84892dca618df1bafca9b52b33acbdfafdc2951dddf1800ca13e7c3"
+    }
+  ],
+  "scope": "Complete instructions rendered from archived production bodies; actual future payload/tools/schema/call-site diff pending prepare."
+}

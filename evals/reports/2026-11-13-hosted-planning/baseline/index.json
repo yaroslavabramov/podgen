@@ -1,0 +1,221 @@
+{
+  "captured_at": "2026-11-13",
+  "git_head": "ad6f418652aed9d76a4d7be734d071b41004d4cf",
+  "behavior": "production/1",
+  "resolution": "narrative-rebuild-1.json with production.json role overlay, per resolve_behavior",
+  "prompts": [
+    {
+      "role": "plan",
+      "format": "solo",
+      "version": "whole-episode-a/sha256:3b0181ec6868f9c9517c24524a008a0b3c3814aafc0648ab3f8cbb8e72aea4b2",
+      "sha256": "3b0181ec6868f9c9517c24524a008a0b3c3814aafc0648ab3f8cbb8e72aea4b2",
+      "bytes": 6470,
+      "file": "solo-plan.md"
+    },
+    {
+      "role": "plan-review",
+      "format": "solo",
+      "version": "whole-episode-a/sha256:96daa0797fb55058db3c843ff4b98a9032e03c325c22b2add6dc4e15ff4a6ef1",
+      "sha256": "96daa0797fb55058db3c843ff4b98a9032e03c325c22b2add6dc4e15ff4a6ef1",
+      "bytes": 9379,
+      "file": "solo-plan-review.md"
+    },
+    {
+      "role": "plan-revise",
+      "format": "solo",
+      "version": "whole-episode-a/sha256:fae80e2c76066c2c03de3e148dd8deefec80bd5feec218d2e1b2014ca095ec8e",
+      "sha256": "fae80e2c76066c2c03de3e148dd8deefec80bd5feec218d2e1b2014ca095ec8e",
+      "bytes": 7419,
+      "file": "solo-plan-revise.md"
+    },
+    {
+      "role": "draft",
+      "format": "solo",
+      "version": "whole-episode-a/sha256:781f333980cf17be1d6c4a7f567be95e80a3b36c59db038d0a19e10d85478274",
+      "sha256": "781f333980cf17be1d6c4a7f567be95e80a3b36c59db038d0a19e10d85478274",
+      "bytes": 5943,
+      "file": "solo-draft.md"
+    },
+    {
+      "role": "plan",
+      "format": "dialogue",
+      "version": "whole-episode-a/sha256:3b0181ec6868f9c9517c24524a008a0b3c3814aafc0648ab3f8cbb8e72aea4b2",
+      "sha256": "3b0181ec6868f9c9517c24524a008a0b3c3814aafc0648ab3f8cbb8e72aea4b2",
+      "bytes": 6470,
+      "file": "dialogue-plan.md"
+    },
+    {
+      "role": "plan-review",
+      "format": "dialogue",
+      "version": "whole-episode-a/sha256:9598b84eca52020aba01de63019cad6fb86115ef6621ae8b1c90ab9c2df801bf",
+      "sha256": "9598b84eca52020aba01de63019cad6fb86115ef6621ae8b1c90ab9c2df801bf",
+      "bytes": 10001,
+      "file": "dialogue-plan-review.md"
+    },
+    {
+      "role": "plan-revise",
+      "format": "dialogue",
+      "version": "whole-episode-a/sha256:fae80e2c76066c2c03de3e148dd8deefec80bd5feec218d2e1b2014ca095ec8e",
+      "sha256": "fae80e2c76066c2c03de3e148dd8deefec80bd5feec218d2e1b2014ca095ec8e",
+      "bytes": 7419,
+      "file": "dialogue-plan-revise.md"
+    },
+    {
+      "role": "draft",
+      "format": "dialogue",
+      "version": "whole-episode-a/sha256:429483dfe1562930a440e34d3c23295c9b38fe3111ea1eaba6db5e9ddfd6b830",
+      "sha256": "429483dfe1562930a440e34d3c23295c9b38fe3111ea1eaba6db5e9ddfd6b830",
+      "bytes": 6565,
+      "file": "dialogue-draft.md"
+    },
+    {
+      "role": "reader-review-1",
+      "format": null,
+      "version": "reader-review/sha256:7c2227a7947e77b60a6ec22584305ebfa7f24d9f36cd59d8fafdbb2df3893b77",
+      "sha256": "7c2227a7947e77b60a6ec22584305ebfa7f24d9f36cd59d8fafdbb2df3893b77",
+      "bytes": 9283,
+      "file": "reader-review-1.md"
+    },
+    {
+      "role": "fact-review",
+      "format": null,
+      "version": "fact-review/sha256:69c4930ddaabc289b26a37a475464a2e31292966a9a60c286de0535959488da1",
+      "sha256": "69c4930ddaabc289b26a37a475464a2e31292966a9a60c286de0535959488da1",
+      "bytes": 11551,
+      "file": "fact-review.md"
+    },
+    {
+      "role": "dual-revise",
+      "format": null,
+      "version": "dual-revise/sha256:3366fdee5b18c00565b6b595997045bed73561a09100436a2bd9af8519eb2f1e",
+      "sha256": "3366fdee5b18c00565b6b595997045bed73561a09100436a2bd9af8519eb2f1e",
+      "bytes": 6326,
+      "file": "dual-revise.md"
+    },
+    {
+      "role": "revision-verification",
+      "format": null,
+      "version": "revision-verification/sha256:0315be81b84892dca618df1bafca9b52b33acbdfafdc2951dddf1800ca13e7c3",
+      "sha256": "0315be81b84892dca618df1bafca9b52b33acbdfafdc2951dddf1800ca13e7c3",
+      "bytes": 13037,
+      "file": "revision-verification.md"
+    },
+    {
+      "role": "fact-verification",
+      "format": null,
+      "version": "fact-verification/sha256:26fe13222ad4e8b0ed4fa618bcfa5a55557f9601560b08620d9af4968f30e380",
+      "sha256": "26fe13222ad4e8b0ed4fa618bcfa5a55557f9601560b08620d9af4968f30e380",
+      "bytes": 15841,
+      "file": "fact-verification.md"
+    }
+  ],
+  "craft_ru": {
+    "file": "craft-ru.md",
+    "sha256": "7fe53f8ba3f362a5dfc931e6f3d2ae26c891519a6fbe0cce2208bd3df1cfc552"
+  },
+  "request_sources": [
+    {
+      "source": "backend/src/podgen/runtime/evaluation/source_tool_contract.py",
+      "sha256": "ed5967b8a092b425b34beb3af2e7fc6702f6652c872de3a052b0118154a7433b"
+    },
+    {
+      "source": "backend/src/podgen/writing/source_tools/contracts.py",
+      "sha256": "757ad2548814abb354fbb3a930fc57a63f7055f5451f0af517149691c91e4508"
+    },
+    {
+      "source": "backend/src/podgen/writing/projections.py",
+      "sha256": "8ec6b0ed4c273e196b2774d1357fb501a9a6f4f2eba8f6238396fe58621e7840"
+    },
+    {
+      "source": "backend/src/podgen/runtime/evaluation/role_request.py",
+      "sha256": "5cc5cf9c02b5132dd7039b8a10d65cdd3860fbad95155ea40c7c04b1f5832ff9"
+    },
+    {
+      "source": "backend/src/podgen/runtime/evaluation/planning_stage.py",
+      "sha256": "70a921fd5349b5ba1962890938ffafafce0c94c464af107a25b560d8257d2f01"
+    },
+    {
+      "source": "backend/src/podgen/runtime/evaluation/compiler.py",
+      "sha256": "9ecb2bef035e50d3f995fa5f68a193801b4338377c6750059d7b953e850e2693"
+    },
+    {
+      "source": "backend/src/podgen/writing/source_tools/corpus.py",
+      "sha256": "eb7cdd9db5423a01e1e4b4d1cb289d2af38828629c2f9e098bc6f90d49d26387"
+    },
+    {
+      "source": "backend/src/podgen/writing/behavior/__init__.py",
+      "sha256": "0a4dfae5417c8dcd6fdc3ca963e9f16777f17d45a85bd85e594250b7e99cc393"
+    }
+  ],
+  "scope": "Released complete prompt bodies; request-building source is pinned by git_head and paths/hashes, not duplicated here. Full same-topic requests and their diff await implemented hosted material interfaces.",
+  "archived_requests": {
+    "case": "rain-soil",
+    "source": "2026-11-12 existing ordinary production cycle; different topic, not a fabricated marine-longitude baseline",
+    "requests": [
+      {
+        "stage": "draft",
+        "source": "tmp/two-topic-cycles-2026-11-12/rain-soil/export/archive/draft/request.json",
+        "file": "requests/draft/request.json",
+        "sha256": "c8670fc6ea429d9bb562a135ab675e202d1fcd7d104f84c442caf3d87f73456f",
+        "instructions_sha256": "781f333980cf17be1d6c4a7f567be95e80a3b36c59db038d0a19e10d85478274",
+        "bytes": 60060
+      },
+      {
+        "stage": "fact-review",
+        "source": "tmp/two-topic-cycles-2026-11-12/rain-soil/export/archive/fact-review/request.json",
+        "file": "requests/fact-review/request.json",
+        "sha256": "79cbf747c4bb4a33c57580429afaf64f94c46682f541b273441689a284e41fd4",
+        "instructions_sha256": "69c4930ddaabc289b26a37a475464a2e31292966a9a60c286de0535959488da1",
+        "bytes": 60826
+      },
+      {
+        "stage": "fact-review-1",
+        "source": "tmp/two-topic-cycles-2026-11-12/rain-soil/export/archive/fact-review-1/request.json",
+        "file": "requests/fact-review-1/request.json",
+        "sha256": "b2cdbd64a6a5840115d50770cba6fabf35219a8d4373eb38189294bc289a0b7b",
+        "instructions_sha256": "26fe13222ad4e8b0ed4fa618bcfa5a55557f9601560b08620d9af4968f30e380",
+        "bytes": 104402
+      },
+      {
+        "stage": "plan",
+        "source": "tmp/two-topic-cycles-2026-11-12/rain-soil/export/archive/plan/request.json",
+        "file": "requests/plan/request.json",
+        "sha256": "a085ea7267a23d891a44eb450acf91f86ba1bb6c043eb58befd665577b531dc6",
+        "instructions_sha256": "3b0181ec6868f9c9517c24524a008a0b3c3814aafc0648ab3f8cbb8e72aea4b2",
+        "bytes": 20791
+      },
+      {
+        "stage": "plan-review",
+        "source": "tmp/two-topic-cycles-2026-11-12/rain-soil/export/archive/plan-review/request.json",
+        "file": "requests/plan-review/request.json",
+        "sha256": "632f3497de84a0d198e1f8e83f9bb9d48d60e85d973db1f0652b677aba90dec6",
+        "instructions_sha256": "96daa0797fb55058db3c843ff4b98a9032e03c325c22b2add6dc4e15ff4a6ef1",
+        "bytes": 45557
+      },
+      {
+        "stage": "reader-review",
+        "source": "tmp/two-topic-cycles-2026-11-12/rain-soil/export/archive/reader-review/request.json",
+        "file": "requests/reader-review/request.json",
+        "sha256": "74e832fe89a57b0e115eb01783c09d6f66ed0b4e123a23c45e4a608ca76fb6aa",
+        "instructions_sha256": "7c2227a7947e77b60a6ec22584305ebfa7f24d9f36cd59d8fafdbb2df3893b77",
+        "bytes": 37103
+      },
+      {
+        "stage": "reader-review-1",
+        "source": "tmp/two-topic-cycles-2026-11-12/rain-soil/export/archive/reader-review-1/request.json",
+        "file": "requests/reader-review-1/request.json",
+        "sha256": "fc34f37e92e136c5d638dd57e6da9bd7e28c3f9406b34898013151101f7f68c9",
+        "instructions_sha256": "0315be81b84892dca618df1bafca9b52b33acbdfafdc2951dddf1800ca13e7c3",
+        "bytes": 62005
+      },
+      {
+        "stage": "revise-1",
+        "source": "tmp/two-topic-cycles-2026-11-12/rain-soil/export/archive/revise-1/request.json",
+        "file": "requests/revise-1/request.json",
+        "sha256": "be32c36e5e6e8437d7e7c1b8aac4b8ddfb885526275f759d41fe3f7134ce7382",
+        "instructions_sha256": "3366fdee5b18c00565b6b595997045bed73561a09100436a2bd9af8519eb2f1e",
+        "bytes": 55526
+      }
+    ]
+  }
+}
