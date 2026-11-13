@@ -101,6 +101,8 @@ class WritingEvaluation:
         journal = EvaluationJournal(self.repo, command.project_id)
         with journal.lock(command.run_id):
             existing = journal.run(command.run_id)
+            if existing and journal.manifest(command.run_id).get("fact_review_experiment") is not None:
+                raise ContractError("standalone_fact_experiment_requires_its_runner")
             from .run_configuration import production_command
 
             command = production_command(

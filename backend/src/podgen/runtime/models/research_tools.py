@@ -38,6 +38,11 @@ class ResearchTools:
         return self.corpus.last_search_diagnostics
 
     def execute(self, name, args, *, read_id, **options):
+        if getattr(self.corpus, "fact_input_mode", None) is not None:
+            from podgen.writing.research_materials.fact_source_mode import ALLOWED_TOOLS
+
+            if name not in ALLOWED_TOOLS:
+                return dict(error="unknown_source_tool")
         index = int(read_id[1:]) - 1
         if name in {"request_source", "request_research"}:
             resolver = self.corpus.material_resolver

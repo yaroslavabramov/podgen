@@ -154,6 +154,13 @@ def validate_durable(manifest, value):
     from podgen.writing.research_materials.runtime_tools import source_definitions
 
     fields = {"version", "definitions", "retrieval", "max_read_chars", "default_read_chars", "context_policy"}
+    from podgen.writing.research_materials.fact_source_mode import KEY, VERSION, tools
+
+    mode = value.get(KEY)
+    if KEY in value:
+        if mode != VERSION or manifest.get(KEY) != mode or manifest.get("stages") != ["fact-review"]:
+            raise ContractError("invalid_fact_review_input_mode")
+        fields.add(KEY)
     history_view = value.get("history_view")
     if "history_view" in value:
         if history_view != "research-work-history/1":
@@ -174,9 +181,12 @@ def validate_durable(manifest, value):
     from podgen.writing.research_materials.tools import definitions as research_definitions
     from podgen.writing.source_tools import definitions
 
-    if value["definitions"] != source_definitions(
-        research_definitions(definitions(retrieval=True))
-    ) + runtime_definitions(history_view=history_view):
+    expected = source_definitions(research_definitions(definitions(retrieval=True))) + runtime_definitions(
+        history_view=history_view
+    )
+    if mode is not None:
+        expected = tools(expected)
+    if value["definitions"] != expected:
         raise ContractError("durable_source_tool_definitions_changed")
     return value
 

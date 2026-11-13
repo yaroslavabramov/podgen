@@ -25,6 +25,12 @@ def invoke(gateway, root, profile, contract, *, limits, totals, guard):
     corpus = gateway.source_corpus
     if corpus is None:
         raise ContractError("source_tool_corpus_missing")
+    from podgen.writing.research_materials.fact_source_mode import KEY
+
+    if contract.get(KEY) != getattr(corpus, "fact_input_mode", None):
+        raise ContractError("fact_review_corpus_mode_mismatch")
+    if contract.get(KEY) is not None and root["stage"] != "fact-review":
+        raise ContractError("fact_source_only_requires_initial_fact_review")
     from podgen.runtime.evaluation.source_tool_recovery import continuation, lineage, turn_input_policy
 
     start_turn, prefix_receipts = continuation(journal, root)

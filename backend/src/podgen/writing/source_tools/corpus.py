@@ -33,7 +33,15 @@ def _same_document(left, right):
 class SourceCorpus:
     """The invocation's admitted, immutable primary documents. Local paths never cross the boundary."""
 
-    def __init__(self, materials, *, retrieval=None, index=None):
+    def __init__(self, materials, *, retrieval=None, index=None, fact_input_mode=None):
+        from podgen.writing.research_materials.fact_source_mode import validate
+
+        self.fact_input_mode = validate(fact_input_mode)
+        if (
+            self.fact_input_mode is not None
+            and getattr(materials.packet, "contract", None) != "research-editorial-input/1"
+        ):
+            raise ContractError("fact_source_only_requires_research_materials")
         loaded = {doc.path: doc for doc in materials.documents}
         self.documents = {}
         self.cards = {}
@@ -46,6 +54,8 @@ class SourceCorpus:
         if getattr(materials.packet, "contract", None) == "research-editorial-input/1":
             from podgen.writing.research_materials.tools import initialize
 
+            if self.fact_input_mode is not None:
+                from podgen.writing.research_materials.fact_source_mode import initialize
             initialize(self, materials, Source)
         else:
             for source in materials.packet.documents:
@@ -100,6 +110,8 @@ class SourceCorpus:
         if actual != admission.sha256:
             raise ContractError("source_admission_hash_mismatch")
         report = admission.catalog.get("kind") == "research_report"
+        if report and self.fact_input_mode is not None:
+            return
         target = self.supplemental_reports if report else self.documents
         import re
 
@@ -164,6 +176,8 @@ class SourceCorpus:
             return result
 
     def _execute(self, name, arguments, *, read_id, max_read_chars, default_read_chars):
+        if self.fact_input_mode is not None and name not in {"search_sources", "read_source"}:
+            return dict(error="unknown_source_tool")
         if self.research_materials is not None and self.research_materials.authorize is not None:
             self.research_materials.authorize()
         if self.retrieval is not None and name in ("read_source", "read_material"):

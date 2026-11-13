@@ -162,6 +162,8 @@ def compile_reading_request(
         stable_support_ids=stable_support_ids,
         messages_tool_policy=messages_tool_policy,
     )
+    from podgen.writing.research_materials.fact_source_mode import KEY, request
+
     from .source_tool_contract import bind
 
-    return bind(body, stage, profile, source_tool_contract)
+    return request(bind(body, stage, profile, source_tool_contract), (source_tool_contract or {}).get(KEY))

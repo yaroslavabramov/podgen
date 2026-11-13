@@ -1,0 +1,45 @@
+{
+  "provider": "openai",
+  "api_family": "responses",
+  "model_id": "gpt-6.1-terra",
+  "model_revision_or_alias": "gpt-6.1-terra",
+  "adapter_version": "openai-responses-v1",
+  "allowed_roles": [
+    "plan_reviewer",
+    "editorial_reviewer"
+  ],
+  "supported_modalities": [
+    "text"
+  ],
+  "context_limit": 200000,
+  "output_limit": 24576,
+  "structured_output_mode": "json_schema",
+  "tool_call_mode": "none",
+  "parallel_tool_policy": "disabled",
+  "generation_parameters": {
+    "reasoning": {
+      "effort": "medium"
+    },
+    "text": {
+      "verbosity": "high"
+    },
+    "store": false,
+    "background": false
+  },
+  "timeout_policy": {
+    "rpc_timeout_seconds": 1800,
+    "poll_deadline_seconds": 1800
+  },
+  "data_retention_policy_ref": {
+    "artifact_id": "2e46bc1e-fc66-445c-be68-4441a45c2ab4",
+    "revision_id": "26f0cb88-3082-4c54-bc82-bf7fb496220f",
+    "kind": "Policy"
+  },
+  "caching_policy": {
+    "application_result_reuse": "same_invocation_only"
+  },
+  "fallback_profile_refs": [],
+  "configured_languages": [
+    "ru"
+  ]
+}
