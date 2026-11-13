@@ -1,6 +1,6 @@
 import json
 
-import httpx
+import httpx2
 import pytest
 
 from podgen.runtime.models.contracts import ProviderFault
@@ -21,13 +21,13 @@ def test_real_sdk_wire_archive_excludes_authorization(operation, path):
 
     def handler(request):
         captured.append(request)
-        return httpx.Response(
+        return httpx2.Response(
             200,
             headers={"x-request-id": "req_test", "authorization": "DO_NOT_ARCHIVE_HEADERS"},
             json={"id": "resp_test", "input_tokens": 123},
         )
 
-    provider = OpenAIProvider(secret, http_client=httpx.Client(transport=httpx.MockTransport(handler)))
+    provider = OpenAIProvider(secret, http_client=httpx2.Client(transport=httpx2.MockTransport(handler)))
     if operation == "count":
         reply = provider.count({"model": "gpt-5.4-2026-03-05", "input": "SYNTHETIC full input"})
     elif operation == "submit":
@@ -51,9 +51,9 @@ def test_error_body_redaction_and_no_automatic_retry():
 
     def handler(request):
         requests.append(request)
-        return httpx.Response(401, json={"error": {"message": "Incorrect API key provided: " + secret}})
+        return httpx2.Response(401, json={"error": {"message": "Incorrect API key provided: " + secret}})
 
-    provider = OpenAIProvider(secret, http_client=httpx.Client(transport=httpx.MockTransport(handler)))
+    provider = OpenAIProvider(secret, http_client=httpx2.Client(transport=httpx2.MockTransport(handler)))
     with pytest.raises(ProviderFault) as caught:
         provider.submit({"model": "test", "input": "synthetic"}, client_request_id="id")
     assert len(requests) == 1
@@ -89,9 +89,9 @@ def test_sdk_preserves_explicit_cache_boundary_and_excludes_changing_tail():
             assert "prompt_cache_options" not in sent
         else:
             assert sent["prompt_cache_options"] == {"mode": "explicit"}
-        return httpx.Response(200, json={})
+        return httpx2.Response(200, json={})
 
-    with httpx.Client(transport=httpx.MockTransport(server)) as client:
+    with httpx2.Client(transport=httpx2.MockTransport(server)) as client:
         provider = OpenAIProvider("secret-test", http_client=client)
         provider.count(body)
         provider.submit(body, client_request_id="cache-test")
@@ -101,9 +101,9 @@ def test_sdk_preserves_explicit_cache_boundary_and_excludes_changing_tail():
 def test_status_outcome_classification(status, ambiguous):
     provider = OpenAIProvider(
         "synthetic",
-        http_client=httpx.Client(
-            transport=httpx.MockTransport(
-                lambda request: httpx.Response(status, json={"error": {"message": "SYNTHETIC"}})
+        http_client=httpx2.Client(
+            transport=httpx2.MockTransport(
+                lambda request: httpx2.Response(status, json={"error": {"message": "SYNTHETIC"}})
             )
         ),
     )
@@ -114,9 +114,45 @@ def test_status_outcome_classification(status, ambiguous):
 
 def test_transport_timeout_remains_ambiguous():
     def handler(request):
-        raise httpx.ReadTimeout("SYNTHETIC timeout", request=request)
+        raise httpx2.ReadTimeout("SYNTHETIC timeout", request=request)
 
-    provider = OpenAIProvider("synthetic", http_client=httpx.Client(transport=httpx.MockTransport(handler)))
+    provider = OpenAIProvider("synthetic", http_client=httpx2.Client(transport=httpx2.MockTransport(handler)))
     with pytest.raises(ProviderFault) as caught:
         provider.submit({"model": "test", "input": "synthetic"}, client_request_id="id")
     assert caught.value.ambiguous
+
+
+@pytest.mark.parametrize("name", ["plan-initial", "plan-continuation", "plan-count"])
+def test_sdk3_preserves_actual_sdk2_longitude_payload_and_nested_order(name):
+    from pathlib import Path
+
+    path = Path(__file__).parent / "fixtures/research-cache-v1" / (name + ".wire.json")
+    original = path.read_bytes()
+    body = json.loads(original)
+    requests = []
+
+    def handler(request):
+        requests.append(request.content)
+        return httpx2.Response(200, json={"input_tokens": 100})
+
+    with httpx2.Client(transport=httpx2.MockTransport(handler)) as client:
+        provider = OpenAIProvider("not-real", http_client=client)
+        if name == "plan-count":
+            provider.count(body)
+        else:
+            assert body["metadata"]["podgen_prompt_cache_layout"] == "stable-role-prefix/1"
+            provider.submit(body, client_request_id="legacy-wire-check")
+    actual = json.loads(requests[0])
+    assert actual == body
+
+    def ordered(value):
+        if isinstance(value, dict):
+            return [(key, ordered(item)) for key, item in value.items()]
+        if isinstance(value, list):
+            return [ordered(item) for item in value]
+        return value
+
+    # SDK 3 changes only the top-level JSON envelope's key order. Everything
+    # inside it, including schemas, history and embedded JSON strings, is exact.
+    for key in body:
+        assert ordered(actual[key]) == ordered(body[key]), key

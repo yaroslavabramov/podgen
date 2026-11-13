@@ -3,7 +3,9 @@ from copy import deepcopy
 from types import SimpleNamespace
 
 import httpx
+import httpx2
 import pytest
+
 from podgen.domain.errors import ContractError
 from podgen.runtime.evaluation import model_turns
 from podgen.runtime.evaluation.contracts import RunFailure
@@ -11,7 +13,6 @@ from podgen.runtime.evaluation.source_tool_contract import create, from_manifest
 from podgen.runtime.models.anthropic_provider import AnthropicProvider
 from podgen.runtime.models.gateway import ModelGateway
 from podgen.runtime.models.openai_provider import OpenAIProvider
-
 from tests.source_tool_runtime_support import MemoryJournal, install_memory_turns
 
 
@@ -94,7 +95,7 @@ def test_openai_real_wire_final_turn_resume_usage_and_receipt_cache(monkeypatch)
     def handler(request):
         body = json.loads(request.content)
         if request.url.path.endswith("/input_tokens"):
-            return httpx.Response(200, json={"input_tokens": 100})
+            return httpx2.Response(200, json={"input_tokens": 100})
         requests.append(body)
         number = len(requests)
         assert body["max_output_tokens"] == 24576 and body["tools"]
@@ -104,7 +105,7 @@ def test_openai_real_wire_final_turn_resume_usage_and_receipt_cache(monkeypatch)
             assert json.loads(body["input"][-1]["output"])["passage"]["text"] == "Full exact source passage"
         if number == 3:
             assert body["tool_choice"] == "none"
-        return httpx.Response(
+        return httpx2.Response(
             200,
             json=dict(
                 id=f"resp_{number}",
@@ -116,7 +117,7 @@ def test_openai_real_wire_final_turn_resume_usage_and_receipt_cache(monkeypatch)
             ),
         )
 
-    with httpx.Client(transport=httpx.MockTransport(handler)) as client:
+    with httpx2.Client(transport=httpx2.MockTransport(handler)) as client:
         gateway = ModelGateway(
             journal, lambda _: OpenAIProvider("test-secret", http_client=client), source_corpus=corpus
         )
@@ -201,11 +202,11 @@ def test_unknown_submission_never_retries_and_reserves_output(monkeypatch):
 
     def handler(request):
         if request.url.path.endswith("/input_tokens"):
-            return httpx.Response(200, json={"input_tokens": 100})
+            return httpx2.Response(200, json={"input_tokens": 100})
         sent.append(request)
-        raise httpx.ReadTimeout("lost acknowledgement", request=request)
+        raise httpx2.ReadTimeout("lost acknowledgement", request=request)
 
-    with httpx.Client(transport=httpx.MockTransport(handler)) as client:
+    with httpx2.Client(transport=httpx2.MockTransport(handler)) as client:
         gateway = ModelGateway(
             journal, lambda _: OpenAIProvider("test-secret", http_client=client), source_corpus=corpus
         )
@@ -255,9 +256,9 @@ def test_resume_counted_turn_does_not_charge_it_twice(monkeypatch):
         body = json.loads(request.content)
         if request.url.path.endswith("/input_tokens"):
             counts.append(body)
-            return httpx.Response(200, json={"input_tokens": 100})
+            return httpx2.Response(200, json={"input_tokens": 100})
         sent.append(body)
-        return httpx.Response(
+        return httpx2.Response(
             200,
             json=dict(
                 id=f"resp_{len(sent)}",
@@ -276,7 +277,7 @@ def test_resume_counted_turn_does_not_charge_it_twice(monkeypatch):
         if len(counts) == 2:
             raise Interrupted()
 
-    with httpx.Client(transport=httpx.MockTransport(handler)) as client:
+    with httpx2.Client(transport=httpx2.MockTransport(handler)) as client:
         gateway = ModelGateway(
             journal, lambda _: OpenAIProvider("test-secret", http_client=client), source_corpus=corpus
         )
@@ -307,9 +308,9 @@ def test_budget_blocks_later_turn_before_submission_and_excludes_unsent_usage(mo
     def handler(request):
         body = json.loads(request.content)
         if request.url.path.endswith("/input_tokens"):
-            return httpx.Response(200, json={"input_tokens": 100})
+            return httpx2.Response(200, json={"input_tokens": 100})
         sent.append(body)
-        return httpx.Response(
+        return httpx2.Response(
             200,
             json=dict(
                 id="resp_first",
@@ -321,7 +322,7 @@ def test_budget_blocks_later_turn_before_submission_and_excludes_unsent_usage(mo
             ),
         )
 
-    with httpx.Client(transport=httpx.MockTransport(handler)) as client:
+    with httpx2.Client(transport=httpx2.MockTransport(handler)) as client:
         gateway = ModelGateway(
             journal, lambda _: OpenAIProvider("test-secret", http_client=client), source_corpus=corpus
         )
@@ -353,8 +354,8 @@ def test_invalid_final_response_fails_root(monkeypatch, output, code):
     def handler(request):
         body = json.loads(request.content)
         if request.url.path.endswith("/input_tokens"):
-            return httpx.Response(200, json={"input_tokens": 100})
-        return httpx.Response(
+            return httpx2.Response(200, json={"input_tokens": 100})
+        return httpx2.Response(
             200,
             json=dict(
                 id="resp_final",
@@ -366,7 +367,7 @@ def test_invalid_final_response_fails_root(monkeypatch, output, code):
             ),
         )
 
-    with httpx.Client(transport=httpx.MockTransport(handler)) as client:
+    with httpx2.Client(transport=httpx2.MockTransport(handler)) as client:
         gateway = ModelGateway(
             journal, lambda _: OpenAIProvider("test-secret", http_client=client), source_corpus=corpus
         )
@@ -406,9 +407,9 @@ def test_source_search_failure_resumes_unfinished_tool_without_repaying_provider
     def handler(request):
         body = json.loads(request.content)
         if request.url.path.endswith("/input_tokens"):
-            return httpx.Response(200, json={"input_tokens": 100})
+            return httpx2.Response(200, json={"input_tokens": 100})
         requests.append(body)
-        return httpx.Response(
+        return httpx2.Response(
             200,
             json=dict(
                 id=f"resp_{len(requests)}",
@@ -420,7 +421,7 @@ def test_source_search_failure_resumes_unfinished_tool_without_repaying_provider
             ),
         )
 
-    with httpx.Client(transport=httpx.MockTransport(handler)) as client:
+    with httpx2.Client(transport=httpx2.MockTransport(handler)) as client:
         gateway = ModelGateway(
             journal, lambda _: OpenAIProvider("test-secret", http_client=client), source_corpus=corpus
         )

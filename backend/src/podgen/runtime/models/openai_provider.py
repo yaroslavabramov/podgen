@@ -3,7 +3,7 @@
 import logging
 import re
 
-import httpx
+import httpx2
 import openai
 from openai import OpenAI
 
@@ -12,7 +12,7 @@ from .contracts import ProviderFault, WireReply
 
 class OpenAIProvider:
     def __init__(
-        self, api_key: str, *, timeout_seconds: float = 1800, http_client: httpx.Client | None = None
+        self, api_key: str, *, timeout_seconds: float = 1800, http_client: httpx2.Client | None = None
     ):
         if not api_key:
             raise ProviderFault("missing_openai_api_key")
@@ -59,11 +59,11 @@ class OpenAIProvider:
                 ambiguous=submit and (error.status_code >= 500 or error.status_code == 408),
                 reply=reply,
             ) from None
-        except (openai.APITimeoutError, openai.APIConnectionError, httpx.TransportError) as error:
+        except (openai.APITimeoutError, openai.APIConnectionError, httpx2.TransportError) as error:
             request = getattr(error, "request", None)
             try:
                 body = request.content if request else None
-            except httpx.RequestNotRead:
+            except httpx2.RequestNotRead:
                 body = None
             reply = self._reply(b"", 0, None, body) if body else None
             raise ProviderFault(

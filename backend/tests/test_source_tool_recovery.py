@@ -3,8 +3,9 @@
 import json
 from types import SimpleNamespace
 
-import httpx
+import httpx2
 import pytest
+
 from podgen.runtime.evaluation.contracts import RunFailure
 from podgen.runtime.evaluation.credit_recovery import authorize_credit_retry
 from podgen.runtime.evaluation.input_budget_recovery import authorize_input_retry
@@ -13,7 +14,6 @@ from podgen.runtime.evaluation.usage import attempt_usage
 from podgen.runtime.models.gateway import ModelGateway
 from podgen.runtime.models.openai_provider import OpenAIProvider
 from podgen.writing.projections import CONTRACT
-
 from tests.test_source_tool_runtime import call, final, setup
 
 
@@ -25,7 +25,7 @@ class Server:
     def __call__(self, request):
         body = json.loads(request.content)
         if request.url.path.endswith("/input_tokens"):
-            return httpx.Response(
+            return httpx2.Response(
                 200, json={"input_tokens": 350 if body["metadata"]["podgen_source_turn"] == "1" else 100}
             )
         self.sent.append(body)
@@ -33,9 +33,9 @@ class Server:
         if turn == 1 and not self.failed and self.mode != "budget":
             self.failed = True
             if self.mode == "unknown":
-                raise httpx.ReadTimeout("lost acknowledgement", request=request)
-            return httpx.Response(429, json={"error": {"code": "credit_balance_exhausted"}})
-        return httpx.Response(
+                raise httpx2.ReadTimeout("lost acknowledgement", request=request)
+            return httpx2.Response(429, json={"error": {"code": "credit_balance_exhausted"}})
+        return httpx2.Response(
             200,
             json=dict(
                 id=f"resp_{len(self.sent)}",
@@ -62,7 +62,7 @@ def prepare(monkeypatch, mode):
         if request.url.path.endswith("/input_tokens"):
             body = json.loads(request.content)
             count = 350 if len(body["input"]) == 3 else 100
-            return httpx.Response(200, json={"input_tokens": count})
+            return httpx2.Response(200, json={"input_tokens": count})
         return server(request)
 
     return journal, profile, limits, corpus, server, handler
@@ -77,7 +77,7 @@ def invoke(gateway, row, profile, limits, totals=None):
 @pytest.mark.parametrize("mode", ["credit", "budget"])
 def test_second_turn_recovery_preserves_paid_history_and_evidence(monkeypatch, mode):
     journal, profile, limits, corpus, server, handler = prepare(monkeypatch, mode)
-    with httpx.Client(transport=httpx.MockTransport(handler)) as client:
+    with httpx2.Client(transport=httpx2.MockTransport(handler)) as client:
         gateway = ModelGateway(
             journal, lambda _: OpenAIProvider("test-secret", http_client=client), source_corpus=corpus
         )
@@ -130,7 +130,7 @@ def test_second_turn_recovery_preserves_paid_history_and_evidence(monkeypatch, m
 
 def test_unknown_second_turn_still_forbids_explicit_retry(monkeypatch):
     journal, profile, limits, corpus, server, handler = prepare(monkeypatch, "unknown")
-    with httpx.Client(transport=httpx.MockTransport(handler)) as client:
+    with httpx2.Client(transport=httpx2.MockTransport(handler)) as client:
         gateway = ModelGateway(
             journal, lambda _: OpenAIProvider("test-secret", http_client=client), source_corpus=corpus
         )
@@ -159,10 +159,10 @@ def test_credit_retry_at_final_turn_keeps_original_turn_and_call_limits(monkeypa
         ):
             final_refused = True
             server.sent.append(body)
-            return httpx.Response(429, json={"error": {"code": "credit_balance_exhausted"}})
+            return httpx2.Response(429, json={"error": {"code": "credit_balance_exhausted"}})
         return original_handler(request)
 
-    with httpx.Client(transport=httpx.MockTransport(refuse_final)) as client:
+    with httpx2.Client(transport=httpx2.MockTransport(refuse_final)) as client:
         gateway = ModelGateway(
             journal, lambda _: OpenAIProvider("test-secret", http_client=client), source_corpus=corpus
         )
@@ -200,10 +200,10 @@ def test_input_allowance_is_not_inherited_by_credit_retry_on_later_turn(monkeypa
         ):
             final_refused = True
             server.sent.append(body)
-            return httpx.Response(429, json={"error": {"code": "credit_balance_exhausted"}})
+            return httpx2.Response(429, json={"error": {"code": "credit_balance_exhausted"}})
         return handler(request)
 
-    with httpx.Client(transport=httpx.MockTransport(refuse_final)) as client:
+    with httpx2.Client(transport=httpx2.MockTransport(refuse_final)) as client:
         gateway = ModelGateway(
             journal, lambda _: OpenAIProvider("test-secret", http_client=client), source_corpus=corpus
         )
@@ -240,10 +240,10 @@ def test_next_turn_needs_its_own_explicit_input_allowance(monkeypatch):
     def larger_final(request):
         body = json.loads(request.content)
         if request.url.path.endswith("/input_tokens") and len(body["input"]) == 5:
-            return httpx.Response(200, json={"input_tokens": 350})
+            return httpx2.Response(200, json={"input_tokens": 350})
         return handler(request)
 
-    with httpx.Client(transport=httpx.MockTransport(larger_final)) as client:
+    with httpx2.Client(transport=httpx2.MockTransport(larger_final)) as client:
         gateway = ModelGateway(
             journal, lambda _: OpenAIProvider("test-secret", http_client=client), source_corpus=corpus
         )
@@ -285,10 +285,10 @@ def test_credit_retry_of_same_turn_keeps_exact_input_allowance(monkeypatch):
         ):
             refused = True
             server.sent.append(body)
-            return httpx.Response(429, json={"error": {"code": "credit_balance_exhausted"}})
+            return httpx2.Response(429, json={"error": {"code": "credit_balance_exhausted"}})
         return handler(request)
 
-    with httpx.Client(transport=httpx.MockTransport(refuse_second)) as client:
+    with httpx2.Client(transport=httpx2.MockTransport(refuse_second)) as client:
         gateway = ModelGateway(
             journal, lambda _: OpenAIProvider("test-secret", http_client=client), source_corpus=corpus
         )
