@@ -307,9 +307,11 @@ def main(argv=None, *, research=False):
         def provider(profile):
             if profile.provider == "anthropic":
                 from podgen.runtime.models.anthropic_provider import AnthropicProvider
+                from podgen.runtime.models.messages_versions import api_version
 
                 return AnthropicProvider(
                     os.environ.get("ANTHROPIC_API_KEY", ""),
+                    api_version=api_version(profile.adapter_version),
                     timeout_seconds=profile.timeout_policy.get("rpc_timeout_seconds", 1800),
                 )
             return OpenAIProvider(

@@ -42,6 +42,7 @@ def validate_profile(profile: ModelProfile, stage):
         not in {
             ("openai", "responses", "openai-responses-v1"),
             ("anthropic", "messages", "anthropic-messages-v1"),
+            ("anthropic", "messages", "anthropic-messages-v2"),
         }
         or role not in profile.allowed_roles
         or profile.structured_output_mode != "json_schema"
@@ -198,3 +199,4 @@ def response_request(
 
 def materials_hash(materials):
     return digest(materials)
+

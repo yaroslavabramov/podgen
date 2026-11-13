@@ -6,6 +6,7 @@ from podgen.domain.contracts.common import CodeProducer
 from podgen.domain.contracts.configuration import ModelProfile
 from podgen.domain.errors import ContractError
 from podgen.runtime.evaluation.compiler import COMPILER_VERSION, validate_profile
+from podgen.runtime.models.messages_versions import CURRENT_ADAPTER
 
 
 def create_profile(
@@ -61,7 +62,7 @@ def create_profile(
             api_family="messages" if provider == "anthropic" else "responses",
             model_id=model,
             model_revision_or_alias=model,
-            adapter_version="anthropic-messages-v1" if provider == "anthropic" else "openai-responses-v1",
+            adapter_version=CURRENT_ADAPTER if provider == "anthropic" else "openai-responses-v1",
             allowed_roles=roles if roles is not None else ["writer", "editorial_reviewer"],
             supported_modalities=["text"],
             context_limit=context_limit,
