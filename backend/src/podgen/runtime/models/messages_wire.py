@@ -62,6 +62,12 @@ def messages_request(body, *, counting=False):
             continue
         if message.get("type") == "function_call_output":
             block = dict(type="tool_result", tool_use_id=message["call_id"], content=message["output"])
+            if "prompt_cache_breakpoint" in message:
+                if body.get("metadata", {}).get(
+                    "podgen_prompt_cache_layout"
+                ) != "research-role-prefix/2" or message["prompt_cache_breakpoint"] != {"mode": "explicit"}:
+                    raise ProviderFault("unsupported_anthropic_cache_breakpoint")
+                block["cache_control"] = {"type": "ephemeral", "ttl": "5m"}
             if message.get("is_error"):
                 block["is_error"] = True
             if (
@@ -112,6 +118,10 @@ def messages_request(body, *, counting=False):
         )
     if not counting:
         result.update(max_tokens=body["max_output_tokens"], stream=False)
+    if body.get("metadata", {}).get("podgen_prompt_cache_layout") == "research-role-prefix/2":
+        from podgen.runtime.evaluation.research_cache_layout import validate_boundaries
+
+        validate_boundaries(result)
     return result
 
 

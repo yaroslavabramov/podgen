@@ -4,7 +4,7 @@ import json
 import re
 import time
 
-from podgen.runtime.evaluation.compiler import COUNT_FIELDS
+from podgen.runtime.evaluation.compiler import count_request
 from podgen.runtime.evaluation.contracts import RunFailure
 
 from .contracts import ProviderFault
@@ -90,6 +90,11 @@ class ModelGateway:
         record = j.read(RuntimeRef(record_kind="tool_execution", record_id=invocation["request_record_id"]))
         contract = record["context"].get("role_input_contract")
         manifest = j.manifest(invocation["run_id"])
+        from .provider_contracts import validate as validate_provider_contract
+
+        validate_provider_contract(
+            manifest, body["metadata"].get("podgen_stage", invocation.get("stage")), profile
+        )
         expected_contract = manifest.get("input_contract")
         if expected_contract == "editorial-role-packets/1" and contract != expected_contract:
             self._fail(invocation, "role_input_contract_changed", status="validation_failed")
@@ -117,7 +122,7 @@ class ModelGateway:
         provider = self.provider_factory(profile) if invocation["status"] in ("prepared", "counted") else None
         if invocation["status"] == "prepared":
             guard()
-            count_body = {key: value for key, value in body.items() if key in COUNT_FIELDS}
+            count_body = count_request(body)
             count_blob = j.blob(
                 json.dumps(count_body, ensure_ascii=False, allow_nan=False, separators=(",", ":")).encode()
             )

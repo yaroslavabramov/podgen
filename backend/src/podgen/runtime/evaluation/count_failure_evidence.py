@@ -2,7 +2,7 @@
 
 from podgen.domain.contracts.common import BlobRef, RuntimeRef
 
-from .compiler import COUNT_FIELDS
+from .compiler import count_request
 from .validation import load_unique_json
 
 
@@ -44,7 +44,7 @@ def count_failure_evidence(journal, row):
         )
     except (ValueError, KeyError, TypeError):
         return None
-    if body != {key: value for key, value in journal.request(row).items() if key in COUNT_FIELDS}:
+    if body != count_request(journal.request(row)):
         return None
     return dict(
         count_event_ref=count_ref.model_dump(mode="json"),

@@ -64,7 +64,7 @@ class SourceCorpus:
                 raise ContractError("source_search_index_required")
             self.retrieval = HybridSearch(self.documents, self.cards, retrieval, index=index)
 
-    def execute(self, name, arguments, *, read_id, max_read_chars=PAGE_CHARS):
+    def execute(self, name, arguments, *, read_id, max_read_chars=PAGE_CHARS, default_read_chars=PAGE_CHARS):
         if self.research_materials is not None and self.research_materials.authorize is not None:
             self.research_materials.authorize()
         if self.retrieval is not None and name in ("read_source", "read_material"):
@@ -73,7 +73,13 @@ class SourceCorpus:
         if name == "read_material" and self.research_materials is not None:
             from podgen.writing.research_materials.tools import read
 
-            return read(self, arguments, read_id=read_id, max_read_chars=max_read_chars)
+            return read(
+                self,
+                arguments,
+                read_id=read_id,
+                max_read_chars=max_read_chars,
+                default_read_chars=default_read_chars,
+            )
         if name not in METHODS:
             return {"error": "unknown_source_tool"}
         try:
@@ -98,7 +104,9 @@ class SourceCorpus:
                 return {"error": "invalid_source_range", "source_length": len(doc.text)}
             if type(max_read_chars) is not int or not PAGE_CHARS <= max_read_chars <= MAX_EXPLICIT_CHARS:
                 raise ContractError("invalid_source_tool_read_budget")
-            page_size = PAGE_CHARS if args.end is None else max_read_chars
+            if type(default_read_chars) is not int or not PAGE_CHARS <= default_read_chars <= max_read_chars:
+                raise ContractError("invalid_source_tool_default_read_budget")
+            page_size = default_read_chars if args.end is None else max_read_chars
             end = min(stop, args.start + page_size)
             return dict(
                 passage=dict(

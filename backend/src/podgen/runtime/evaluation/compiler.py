@@ -200,3 +200,10 @@ def response_request(
 def materials_hash(materials):
     return digest(materials)
 
+
+def count_request(body):
+    result = {key: value for key, value in body.items() if key in COUNT_FIELDS}
+    if body.get("metadata", {}).get("podgen_prompt_cache_layout") == "research-role-prefix/2":
+        # Internal routing only: providers remove metadata before their native count request.
+        result["metadata"] = {"podgen_prompt_cache_layout": "research-role-prefix/2"}
+    return result

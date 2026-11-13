@@ -105,6 +105,11 @@ def _execute(journal, root, corpus, contract, call, index, turn, guard, history)
                     arguments,
                     read_id=data["read_id"],
                     max_read_chars=contract.get("max_read_chars", 2400),
+                    **(
+                        {"default_read_chars": contract["default_read_chars"]}
+                        if "default_read_chars" in contract
+                        else {}
+                    ),
                 )
             except RetrievalUnavailable as error:
                 # Keep the physical response and unfinished tool intent resumable; never re-submit it.
@@ -171,6 +176,9 @@ def invoke_tools(gateway, root, profile, contract, *, limits, totals, guard):
         )
         if final_turn:
             body["tool_choice"] = "none"
+        from podgen.runtime.evaluation.research_cache_layout import mark_turn
+
+        mark_turn(body)
         turn_journal = model_turns.TurnJournal(journal, root, index, history=history)
         turn = turn_journal.prepare(body)
         # Current turn is not included twice when resuming an already submitted step.

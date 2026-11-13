@@ -55,6 +55,9 @@ def preview_request(
         behavior.validate_model(stage, profile)
     projection = manifest_version(snapshot.manifest) if snapshot else behavior.projection
     if snapshot:
+        from podgen.runtime.models.provider_contracts import validate as validate_provider_contract
+
+        validate_provider_contract(snapshot.manifest, stage, profile)
         from podgen.writing.author_reply import verify_pin
 
         verify_pin(snapshot.manifest, materials.speaker_labels)
@@ -77,7 +80,11 @@ def preview_request(
         schema_version_from_manifest(snapshot.manifest) if snapshot else behavior.plan_review_schema
     )
     handoff = author_plan.from_manifest(snapshot.manifest) if snapshot else behavior.author_plan_handoff
-    cache_layout = prompt_cache.from_manifest(snapshot.manifest) if snapshot else behavior.prompt_cache_layout
+    cache_layout = (
+        prompt_cache.from_manifest(snapshot.manifest)
+        if snapshot
+        else prompt_cache.for_materials(behavior.prompt_cache_layout, materials)
+    )
     ending = (
         ending_guidance.from_manifest(snapshot.manifest) if snapshot else behavior.planning_ending_guidance
     )

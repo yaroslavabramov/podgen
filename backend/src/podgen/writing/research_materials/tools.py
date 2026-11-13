@@ -70,7 +70,7 @@ def initialize(corpus, materials, source_type):
         ]
 
 
-def read(corpus, arguments, *, read_id, max_read_chars):
+def read(corpus, arguments, *, read_id, max_read_chars, default_read_chars=2400):
     try:
         args = ReadMaterial.model_validate(arguments)
     except ValidationError as error:
@@ -83,6 +83,8 @@ def read(corpus, arguments, *, read_id, max_read_chars):
         return dict(error="unknown_material_id")
     if type(max_read_chars) is not int or not 2400 <= max_read_chars <= 9600:
         raise ContractError("invalid_source_tool_read_budget")
+    if type(default_read_chars) is not int or not 2400 <= default_read_chars <= max_read_chars:
+        raise ContractError("invalid_source_tool_default_read_budget")
     report = corpus.research_texts[section.document]
     length = section.end - section.start
     stop = length if args.end is None else args.end
@@ -90,7 +92,7 @@ def read(corpus, arguments, *, read_id, max_read_chars):
         return dict(error="invalid_material_range", material_length=length)
     context_budget = 600 if args.context else 0
     page = (
-        min(2400, max_read_chars - 2 * context_budget)
+        min(default_read_chars, max_read_chars - 2 * context_budget)
         if args.end is None
         else max_read_chars - 2 * context_budget
     )

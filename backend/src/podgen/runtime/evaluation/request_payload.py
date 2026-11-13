@@ -1,16 +1,16 @@
 """Read semantic user data from both archived single-part and pinned multipart requests."""
 
 from podgen.domain.errors import ContractError
-from podgen.writing.prompt_cache import VERSION
+from podgen.writing.prompt_cache import VERSIONS
 
 from .validation import load_unique_json
 
 
 def request_payload(body):
     version = body.get("metadata", {}).get("podgen_prompt_cache_layout")
-    if version not in (None, "", VERSION):
+    if version not in (None, "", *VERSIONS):
         raise ContractError("unsupported_prompt_cache_layout")
-    if version != VERSION:
+    if version not in VERSIONS:
         return load_unique_json(body["input"][0]["content"][0]["text"])
     users = [message for message in body["input"] if message["role"] == "user"]
     if len(users) != 1:

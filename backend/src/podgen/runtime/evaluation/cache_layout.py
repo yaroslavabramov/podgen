@@ -2,7 +2,7 @@
 
 import json
 
-from podgen.writing.prompt_cache import VERSION, validate
+from podgen.writing.prompt_cache import RESEARCH_VERSION, validate
 
 from .reading_workflow import base_stage
 
@@ -44,6 +44,10 @@ def role(stage):
 
 def content(payload, stage, *, version, stable_support_ids=None):
     validate(version)
+    if version == RESEARCH_VERSION:
+        from .research_cache_layout import content as research_content
+
+        return research_content(payload, stage, stable_support_ids=stable_support_ids)
     remaining = dict(payload)
     base = role(stage)
     reusable = base in ("plan-review", "reader-review", "fact-review", "revise")
@@ -88,7 +92,7 @@ def apply(body, payload, stage, profile, version, *, stable_support_ids=None):
             content=content(payload, stage, version=version, stable_support_ids=stable_support_ids),
         )
     ]
-    body["metadata"]["podgen_prompt_cache_layout"] = VERSION
+    body["metadata"]["podgen_prompt_cache_layout"] = version
     base = role(stage)
     body["text"]["format"]["name"] = (
         "episode_script"

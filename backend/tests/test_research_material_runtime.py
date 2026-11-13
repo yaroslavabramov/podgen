@@ -66,7 +66,7 @@ def test_full_research_workflow_preserves_report_and_only_original_source_eviden
         fields = manifest["response_schemas"][stage]["$defs"]["SourcedFactFinding"]["properties"]
         assert "report sections relevant to this finding" in fields["support_labels"]["description"]
         assert "R report-reading receipts are not source evidence" in fields["source_read_ids"]["description"]
-    assert manifest["source_tool_contract"]["version"] == "frozen-corpus-tools/5"
+    assert manifest["source_tool_contract"]["version"] == "frozen-corpus-tools/6"
     stages = [b["metadata"]["podgen_stage"] for b in provider.requests]
     assert set(stages) == {
         "plan",

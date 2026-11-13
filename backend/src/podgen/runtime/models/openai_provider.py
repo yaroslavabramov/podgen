@@ -8,6 +8,7 @@ import openai
 from openai import OpenAI
 
 from .contracts import ProviderFault, WireReply
+from .responses_wire import responses_request
 
 
 class OpenAIProvider:
@@ -86,13 +87,13 @@ class OpenAIProvider:
             "parallel_tool_calls",
             "truncation",
         }
-        args = {key: value for key, value in body.items() if key in keys}
+        args = {key: value for key, value in responses_request(body).items() if key in keys}
         return self._call(lambda: self.client.responses.input_tokens.with_raw_response.count(**args))
 
     def submit(self, body, *, client_request_id):
         return self._call(
             lambda: self.client.responses.with_raw_response.create(
-                **body, extra_headers={"X-Client-Request-Id": client_request_id}
+                **responses_request(body), extra_headers={"X-Client-Request-Id": client_request_id}
             ),
             submit=True,
         )

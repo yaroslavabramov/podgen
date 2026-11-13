@@ -5,6 +5,7 @@ from copy import deepcopy
 from uuid import uuid4
 
 import pytest
+
 from podgen.domain.errors import ContractError
 from podgen.runtime.evaluation import planning_stage, script_revision
 from podgen.runtime.evaluation.cache_layout import BREAKPOINT
@@ -20,7 +21,6 @@ from podgen.writing.behavior import resolve_behavior
 from podgen.writing.model_references import preview_references
 from podgen.writing.projection_versions import V8, V9
 from podgen.writing.reading_views import reading_payload
-
 from tests.revision_cases import composition, scope
 from tests.source_excerpt_cases import (
     Captured,
@@ -96,7 +96,9 @@ def test_plan_reviews_reuse_full_dossier_before_candidates_and_do_not_cache_the_
     assert not any("prompt_cache_breakpoint" in part for part in parts(once))
 
 
-def test_rewrite_prefix_keeps_the_accepted_plan_and_original_cards_when_new_fact_support_is_added():
+def test_rewrite_prefix_keeps_the_accepted_plan_and_original_cards_when_new_fact_support_is_added(
+    monkeypatch,
+):
     materials, plan, chosen, extra, script, reader, fact, _, profile = data_and_profile()
     first_anchor = dict(utterance_index=0, quote="First observation.")
     reader["revision_scope"] = scope("whole_episode", anchors=[first_anchor])
@@ -104,8 +106,15 @@ def test_rewrite_prefix_keeps_the_accepted_plan_and_original_cards_when_new_fact
     initial_fact = deepcopy(fact)
     for finding in initial_fact["findings"]:
         finding["support_labels"] = [next(iter(chosen))]
-    run_id = uuid4()
-    common = dict(draft=script, approved_plan=plan, reader_feedback=reader)
+    from podgen.domain.contracts.common import ArtifactRef
+
+    store, _, command, saved = release_before_reading_audit(monkeypatch, materials, profile)
+    instructions = store.get(
+        command.project_id, ArtifactRef.model_validate(saved["prompt_refs"]["revise-1"])
+    ).payload["template"]
+    snapshot = PreviewSnapshot(saved, instructions)
+    run_id = command.run_id
+    common = dict(draft=script, approved_plan=plan, reader_feedback=reader, snapshot=snapshot)
     first = preview_request(
         run_id, "revise-1", profile("revise-1"), materials, fact_feedback=initial_fact, **common
     )
@@ -270,7 +279,7 @@ def test_old_production_snapshot_keeps_single_part_requests_initial_frame_and_bo
     reader["revision_scope"] = scope("none")
     reader.update(recommendation="keep", findings=[])
     fact["revision_scope"] = scope("local", anchors=[first])
-    _, _, command, saved = release(monkeypatch, materials, profile)
+    _, _, command, saved = release_before_reading_audit(monkeypatch, materials, profile)
     saved.pop(prompt_cache.KEY)
     saved.pop("revision_context_contract", None)
     saved["revision_response_schemas"] = script_revision.schemas()

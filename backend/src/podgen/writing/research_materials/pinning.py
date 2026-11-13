@@ -32,9 +32,9 @@ def validate(materials, manifest):
         raise ContractError("research_material_contract_binding_mismatch")
     tools = manifest.get("source_tool_contract")
     tool_version = tools.get("version") if isinstance(tools, dict) else None
-    if expected is None and tool_version == "frozen-corpus-tools/5":
+    if expected is None and tool_version in ("frozen-corpus-tools/5", "frozen-corpus-tools/6"):
         raise ContractError("unexpected_research_source_tool_contract")
-    if expected is not None and tool_version != "frozen-corpus-tools/5":
+    if expected is not None and tool_version not in ("frozen-corpus-tools/5", "frozen-corpus-tools/6"):
         raise ContractError("research_source_tool_contract_missing")
 
 

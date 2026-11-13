@@ -48,6 +48,7 @@ def create_manifest(repo, generation, command, journal, materials):
     editorial = command.input_contract == "editorial-role-packets/1"
     planning_contract = behavior.planning_contract if editorial and command.plan_mode == "own-plan" else None
     payload = materials.as_payload()
+    cache_layout = prompt_cache.for_materials(behavior.prompt_cache_layout, materials) if editorial else None
     revised = supports_revision(command)
     reader_version = behavior.reader_schema if revised else LEGACY_READER_SCHEMA_VERSION
     reference = (
@@ -64,12 +65,17 @@ def create_manifest(repo, generation, command, journal, materials):
         build_id=COMPILER_VERSION,
         operation_id=command.run_id,
     )
+    from podgen.runtime.models.provider_contracts import KEY as PROVIDER_KEY
+    from podgen.runtime.models.provider_contracts import contract as provider_contract
+
+    provider_contracts = {}
     prompts = {}
     schemas = {}
     prompt_versions = {}
     for stage in stages_for(command):
         profile = load_profile(generation, command.project_id, profile_for(command, stage), stage)
         behavior.validate_model(stage, profile)
+        provider_contracts[stage] = provider_contract(profile)
         base = base_stage(stage)
         if independent(command) and base in ("reader-review", "fact-review", "revise"):
             role = "dual-revise" if base == "revise" else base
@@ -163,6 +169,7 @@ def create_manifest(repo, generation, command, journal, materials):
     research = research_pin(materials)
     if research is not None:
         manifest[RESEARCH_KEY] = research
+    manifest[PROVIDER_KEY] = provider_contracts
     if editorial and behavior.plan_review_schema is not None:
         manifest[PRESERVE_KEY] = behavior.plan_review_schema
     if tools is not None:
@@ -206,15 +213,13 @@ def create_manifest(repo, generation, command, journal, materials):
         if editorial and behavior.fact_context is not None:
             manifest[fact_context.KEY] = behavior.fact_context
         manifest["script_revision_contract"] = REVISION_VERSION
-        manifest["revision_response_schemas"] = revision_schemas(
-            prompt_cache_layout=behavior.prompt_cache_layout if editorial else None
-        )
+        manifest["revision_response_schemas"] = revision_schemas(prompt_cache_layout=cache_layout)
     if command.input_contract == "editorial-role-packets/1":
         from podgen.writing.plan_selection import KEY as SELECTION_KEY
 
         manifest["role_projection_version"] = behavior.projection
-        if behavior.prompt_cache_layout:
-            manifest[prompt_cache.KEY] = behavior.prompt_cache_layout
+        if cache_layout:
+            manifest[prompt_cache.KEY] = cache_layout
         if behavior.author_source_excerpts:
             manifest[source_passages.KEY] = behavior.author_source_excerpts
         if behavior.author_plan_handoff:
