@@ -40,6 +40,27 @@ def authorized_read(repo, transaction):
         repo._read_authorization.reset(token)
 
 
+def invalidate_publication_facts(repo, transaction):
+    """Publication changes refs/privacy, never roles in this same locked snapshot."""
+    state = repo._read_authorization.get()
+    if (
+        state is None
+        or state.transaction is not transaction
+        or state.actor != repo.actor_id
+        or state.purpose != repo.purpose
+    ):
+        return
+    previous = state.completed.get(("access_facts",))
+    roles = dict(previous.roles) if previous is not None else {}
+    state.completed.clear()
+    if roles:
+        from .access_facts import AccessFacts
+
+        facts = AccessFacts(repo, transaction)
+        facts.roles.update(roles)
+        state.completed[("access_facts",)] = facts
+
+
 def checked_node(repo, transaction, key, load):
     state = repo._read_authorization.get()
     if (

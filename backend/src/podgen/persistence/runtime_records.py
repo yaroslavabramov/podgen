@@ -40,10 +40,11 @@ def append_runtime(repo, tx, project, ref, payload, audience="project", *, repla
         body=json_text(payload),
         a=audience,
     )
-    # No authorization facts may survive publication/classification mutations.
-    state = repo._read_authorization.get()
-    if state is not None and state.transaction is tx:
-        state.completed.clear()
+    # Ref/blob decisions cannot survive publication; locked roles are unchanged
+    # within this same transaction.
+    from .read_authorization import invalidate_publication_facts
+
+    invalidate_publication_facts(repo, tx)
     if audience == "evaluator":
         from .classification import classify_evaluator
 

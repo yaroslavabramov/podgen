@@ -2,7 +2,8 @@
 
 from sqlalchemy.exc import DBAPIError
 
-from .database import query
+from .access_facts import access_facts
+from .database import one, query
 from .read_authorization import authorized_read
 
 
@@ -22,13 +23,14 @@ def archive_write(repo, project, write):
                 query(tx, "SELECT project_id FROM projects WHERE project_id=:p FOR SHARE", p=project)
                 # Also serialize direct ACL deletion/demotion, without relying on callers
                 # of project_members to acquire the project's lock themselves.
-                query(
+                member = one(
                     tx,
                     "SELECT role FROM project_members WHERE project_id=:p AND actor_id=:a FOR SHARE",
                     p=project,
                     a=repo.actor_id,
                 )
                 with authorized_read(repo, tx):
+                    access_facts(repo, tx).roles[project] = dict(member) if member is not None else None
                     return write(tx)
         except DBAPIError as error:
             if getattr(error.orig, "sqlstate", None) != "40001" or attempt == 2:

@@ -70,11 +70,10 @@ def append_evaluation_batch(repo, tx, project, records):
     insert_rows(tx, "runtime_records", pending, json_columns=("payload",))
     # Invalidation surrounds classification: no pre-insert permission fact may be
     # used once new consumers or same-SHA aliases have entered the graph.
-    state = repo._read_authorization.get()
-    if state is not None and state.transaction is tx:
-        state.completed.clear()
+    from .read_authorization import invalidate_publication_facts
+
+    invalidate_publication_facts(repo, tx)
     from .classification import classify_evaluator_batch
 
     classify_evaluator_batch(tx, project, [row["record_id"] for row in pending])
-    if state is not None and state.transaction is tx:
-        state.completed.clear()
+    invalidate_publication_facts(repo, tx)

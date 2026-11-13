@@ -21,15 +21,16 @@ class IndexAccess:
         with journal.repo.database.transaction() as tx:
             # Same ordering as immutable archive publication and supported content withdrawal.
             query(tx, "SELECT project_id FROM projects WHERE project_id=:p FOR SHARE", p=journal.project)
-            query(
+            member = one(
                 tx,
                 "SELECT role FROM project_members WHERE project_id=:p AND actor_id=:a FOR SHARE",
                 p=journal.project,
                 a=journal.repo.actor_id,
             )
             with authorized_read(journal.repo, tx):
-                journal.authorize(tx)
                 facts = access_facts(journal.repo, tx)
+                facts.roles[journal.project] = dict(member) if member is not None else None
+                journal.authorize(tx)
                 runtime_roots = [
                     ref for ref in [self.reference, *self.admission_references] if isinstance(ref, RuntimeRef)
                 ]
