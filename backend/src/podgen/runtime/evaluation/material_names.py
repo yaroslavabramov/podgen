@@ -22,6 +22,15 @@ def frozen_names(journal, run_id, manifest):
     ref = RuntimeRef(record_kind="context_assembly", record_id=uuid5(run_id, "manifest"))
     frozen = json.loads(journal.read_blob(ref, BlobRef.model_validate(manifest["materials_blob"])))
     packet = frozen["editorial_input"]
+    if packet["contract"] == "research-editorial-input/1":
+        from podgen.research.materials.contracts import ResearchPacket
+
+        parsed = ResearchPacket.model_validate(packet)
+        names = {row.material_id: row.title for row in parsed.sections}
+        references = ModelReferences.restore(manifest[CATALOG_KEY])
+        if references != ModelReferences.create(parsed):
+            raise ContractError("model_material_catalog_binding_mismatch")
+        return AliasedNames(names, references)
     if packet["contract"] != "editorial-input/2":
         return None
     names = {card["card_id"]: card["label"] for card in packet["dossier"]["knowledge_cards"]}

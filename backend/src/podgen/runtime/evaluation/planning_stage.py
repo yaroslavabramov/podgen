@@ -14,6 +14,7 @@ from podgen.writing.planning_choice import from_manifest as planning_from_manife
 from podgen.writing.planning_duration import from_manifest as duration_from_manifest
 from podgen.writing.projection_versions import V1, manifest_version
 
+from . import source_tool_contract
 from .compiler import response_request
 from .contracts import RunFailure
 from .plan_target_recovery import apply_plan_target_repair
@@ -107,6 +108,7 @@ def execute_planning_stage(
                 reference_catalog=references,
                 prompt_cache_layout=prompt_cache.from_manifest(manifest),
                 planning_duration_contract=duration_from_manifest(manifest),
+                source_tool_contract=source_tool_contract.from_manifest(manifest),
                 candidate=candidate,
                 plan_review=review,
             )

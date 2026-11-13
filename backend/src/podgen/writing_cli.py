@@ -185,6 +185,7 @@ def main(argv=None, *, research=False):
     )
     try:
         if args.command in (
+            "research-materials-prepare",
             "editorial-source-import",
             "editorial-import",
             "fixed-editorial-import",

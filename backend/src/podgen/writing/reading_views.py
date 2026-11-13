@@ -104,13 +104,15 @@ def reading_payload(
             )
             context = knowledge_view(packet, labels=True)
             for card in context:
-                card.pop("limitations")
+                card.pop("limitations", None)
             payload.update(
                 evidence=primary_evidence,
                 source_bibliography=fact_context.bibliography(materials),
                 context=context,
                 research_cautions=fact_context.research_cautions(packet),
             )
+            if packet.contract == "research-editorial-input/1":
+                payload["research_contents"] = payload.pop("context")
             if context_excerpts:
                 payload["context_excerpts"] = context_excerpts
         else:
@@ -160,6 +162,7 @@ def reading_payload(
                 draft=False,
                 author_plan_handoff=author_plan_handoff,
                 author_source_excerpts=author_source_excerpts,
+                research_materials=materials,
                 selected=selected,
                 projection_version=projection_version,
                 plan_selection_contract=plan_selection_contract,
@@ -185,5 +188,6 @@ def reading_payload(
             review.pop("listener_understanding", None)
     elif not (stage == "revise" and required_assignment(revision_context_contract)):
         attach_reference(payload, stage, craft_reference)
-    validate_model_content(payload, materials.documents)
+    if packet.contract != "research-editorial-input/1":
+        validate_model_content(payload, materials.documents)
     return payload

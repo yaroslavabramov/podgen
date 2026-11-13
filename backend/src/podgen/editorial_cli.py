@@ -17,6 +17,9 @@ from podgen.writing.projections import CONTRACT
 
 
 def add_commands(sub, *, research=False):
+    preparation = sub.add_parser("research-materials-prepare")
+    preparation.add_argument("--input", type=Path, required=True)
+    preparation.add_argument("--out", type=Path, required=True)
     source = sub.add_parser("editorial-source-import")
     source.add_argument("--file", type=Path, required=True)
     source.add_argument("--source-path", required=True)
@@ -80,7 +83,13 @@ def add_commands(sub, *, research=False):
 
 
 def execute(args, repo, wire_ref):
-    if args.command == "editorial-source-import":
+    if args.command == "research-materials-prepare":
+        from podgen.research.materials.admission import prepare_materials
+
+        result = prepare_materials(repo, args.project, load_unique_json(args.input.read_text())).model_dump(
+            mode="json"
+        )
+    elif args.command == "editorial-source-import":
         from podgen.persistence.editorial_documents import import_document
 
         result = import_document(

@@ -20,6 +20,8 @@ def selected_labels(plan, packet):
         *(ref for act in body["acts"] for ref in act["material_refs"]),
         *(ref for question in plan["research_requests"] for ref in question["material_refs"]),
     ]
+    if packet.contract == "research-editorial-input/1":
+        refs.extend(ref for note in plan.get("editorial_notes", []) for ref in note.get("material_refs", []))
     if is_scene_plan(plan):
         refs.extend(body["ending"]["material_refs"])
     if set(refs) - set(catalog(packet)):

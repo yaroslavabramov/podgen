@@ -28,6 +28,21 @@ def peek_packet(repo, project, ref, *, fixed=False):
     ):
         raise AccessDenied()
     payload = row["payload"]
+    if not fixed and payload.get("contract") == "persisted-research-editorial-input/1":
+        expected = {
+            "contract",
+            "version",
+            "sectioning",
+            "content",
+            "bindings",
+            "preparation",
+            "original_input_blob",
+        }
+        if set(payload) != expected or ref.record_id != uuid5(
+            project, "research-editorial-input:" + digest(payload)
+        ):
+            raise ContractError("research_material_admission_binding_mismatch")
+        return payload
     contract = "persisted-fixed-editorial-input/1" if fixed else "persisted-editorial-input/1"
     prefix = "fixed-editorial-input:" if fixed else "editorial-input:"
     if payload.get("contract") != contract:

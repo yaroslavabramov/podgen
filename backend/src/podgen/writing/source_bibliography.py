@@ -84,6 +84,10 @@ def _structured(text):
 
 
 def bibliography(materials):
+    if materials.packet.contract == "research-editorial-input/1":
+        from .research_materials.views import fact_bibliography
+
+        return fact_bibliography(materials)
     loaded = {document.path: document for document in materials.documents}
     result = []
     for source in materials.packet.documents:

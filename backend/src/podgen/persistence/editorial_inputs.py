@@ -158,6 +158,10 @@ class EditorialMaterials:
 
 def load_editorial_materials(repo, project, shared_ref, *, case_id, fixed_ref=None):
     raw = peek_packet(repo, project, shared_ref)
+    if raw.get("contract") == "persisted-research-editorial-input/1":
+        from podgen.research.materials.loading import load_materials
+
+        return load_materials(repo, project, shared_ref, case_id=case_id, fixed_ref=fixed_ref)
     if raw.get("contract") != "persisted-editorial-input/1":
         raise ContractError("editorial_input_projection_required")
     packet = EditorialInput.model_validate(raw["content"])

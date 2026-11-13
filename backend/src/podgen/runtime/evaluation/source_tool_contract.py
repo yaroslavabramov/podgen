@@ -11,18 +11,38 @@ LEGACY_VERSION = "frozen-corpus-tools/1"
 FINAL_TURN_VERSION = "frozen-corpus-tools/2"
 READ_BUDGET_VERSION = "frozen-corpus-tools/3"
 VERSION = "frozen-corpus-tools/4"
+RESEARCH_VERSION = "frozen-corpus-tools/5"
+RESEARCH_ROLES = (
+    "plan",
+    "plan-review",
+    "plan-revise",
+    "plan-review-revised",
+    "draft",
+    "revise",
+    "fact-review",
+)
 ROLES = ("draft", "revise", "fact-review")
 
 
-def create(behavior):
+def create(behavior, materials=None):
+    research = (
+        materials is not None and getattr(materials.packet, "contract", None) == "research-editorial-input/1"
+    )
+    if research and behavior.name != "production/1":
+        raise ContractError("research_materials_require_production_behavior")
     if behavior.name != "production/1":
         return None
     from podgen.retrieval.config import profile
     from podgen.writing.source_tools import definitions
 
+    declarations = definitions(retrieval=True)
+    if research:
+        from podgen.writing.research_materials.tools import definitions as research_definitions
+
+        declarations = research_definitions(declarations)
     return dict(
-        version=VERSION,
-        definitions=definitions(retrieval=True),
+        version=RESEARCH_VERSION if research else VERSION,
+        definitions=declarations,
         retrieval=profile(),
         max_model_turns=12,
         max_tool_calls=24,
@@ -38,22 +58,23 @@ def from_manifest(manifest):
     if not isinstance(value, dict):
         raise ContractError("unsupported_source_tool_contract")
     fields = {"version", "definitions", "max_model_turns", "max_tool_calls"}
-    if value.get("version") in (FINAL_TURN_VERSION, READ_BUDGET_VERSION, VERSION):
+    if value.get("version") in (FINAL_TURN_VERSION, READ_BUDGET_VERSION, VERSION, RESEARCH_VERSION):
         fields.add("final_turn")
         if value.get("final_turn") != "structured_without_tools":
             raise ContractError("invalid_source_tool_contract")
-    if value.get("version") == VERSION:
+    if value.get("version") in (VERSION, RESEARCH_VERSION):
         from podgen.retrieval.config import validate
 
         fields.add("retrieval")
         validate(value.get("retrieval"))
-    if value.get("version") in (READ_BUDGET_VERSION, VERSION):
+    if value.get("version") in (READ_BUDGET_VERSION, VERSION, RESEARCH_VERSION):
         fields.add("max_read_chars")
         if type(value.get("max_read_chars")) is not int or value["max_read_chars"] != 9600:
             raise ContractError("invalid_source_tool_contract")
     if (
         manifest.get("behavior_profile") != "production/1"
-        or value.get("version") not in (VERSION, READ_BUDGET_VERSION, FINAL_TURN_VERSION, LEGACY_VERSION)
+        or value.get("version")
+        not in (RESEARCH_VERSION, VERSION, READ_BUDGET_VERSION, FINAL_TURN_VERSION, LEGACY_VERSION)
         or set(value) != fields
     ):
         raise ContractError("unsupported_source_tool_contract")
@@ -77,11 +98,20 @@ def from_manifest(manifest):
         names.append(tool["name"])
     if len(set(names)) != len(names):
         raise ContractError("invalid_source_tool_contract")
+    if value["version"] == RESEARCH_VERSION and set(names) != {
+        "search_sources",
+        "read_source",
+        "read_material",
+    }:
+        raise ContractError("invalid_source_tool_contract")
     return value
 
 
 def applies(stage, contract):
-    return contract is not None and base_stage(stage) in ROLES
+    if contract is None:
+        return False
+    roles = RESEARCH_ROLES if contract["version"] == RESEARCH_VERSION else ROLES
+    return base_stage(stage) in roles
 
 
 def bind(body, stage, profile, contract):

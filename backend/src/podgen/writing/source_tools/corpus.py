@@ -27,27 +27,33 @@ class SourceCorpus:
         self.documents = {}
         self.cards = {}
         source_ids = {}
-        for source in materials.packet.documents:
-            if source.purpose != "primary":
-                continue
-            doc = loaded.get(source.source_path)
-            if (
-                doc is None
-                or doc.sha256 != source.sha256
-                or sha256(doc.text.encode()).hexdigest() != source.sha256
-            ):
-                raise ContractError("source_tool_frozen_document_mismatch")
-            key = f"S{len(self.documents) + 1}"
-            source_ids[source.key] = key
-            self.documents[key] = Source(source.title, doc.text, doc.sha256)
-        for card_number, card in enumerate(materials.packet.dossier.knowledge_cards, 1):
-            self.cards[f"M{card_number}"] = list(
-                dict.fromkeys(
-                    (source_ids[e.document], e.start, e.end)
-                    for e in card.excerpts
-                    if e.document in source_ids
+        self.research_materials = None
+        if getattr(materials.packet, "contract", None) == "research-editorial-input/1":
+            from podgen.writing.research_materials.tools import initialize
+
+            initialize(self, materials, Source)
+        else:
+            for source in materials.packet.documents:
+                if source.purpose != "primary":
+                    continue
+                doc = loaded.get(source.source_path)
+                if (
+                    doc is None
+                    or doc.sha256 != source.sha256
+                    or sha256(doc.text.encode()).hexdigest() != source.sha256
+                ):
+                    raise ContractError("source_tool_frozen_document_mismatch")
+                key = f"S{len(self.documents) + 1}"
+                source_ids[source.key] = key
+                self.documents[key] = Source(source.title, doc.text, doc.sha256)
+            for card_number, card in enumerate(materials.packet.dossier.knowledge_cards, 1):
+                self.cards[f"M{card_number}"] = list(
+                    dict.fromkeys(
+                        (source_ids[e.document], e.start, e.end)
+                        for e in card.excerpts
+                        if e.document in source_ids
+                    )
                 )
-            )
 
         self.last_search_diagnostics = None
         self.retrieval = None
@@ -59,9 +65,15 @@ class SourceCorpus:
             self.retrieval = HybridSearch(self.documents, self.cards, retrieval, index=index)
 
     def execute(self, name, arguments, *, read_id, max_read_chars=PAGE_CHARS):
-        if self.retrieval is not None and name == "read_source":
+        if self.research_materials is not None and self.research_materials.authorize is not None:
+            self.research_materials.authorize()
+        if self.retrieval is not None and name in ("read_source", "read_material"):
             self.retrieval.index.check_access()
         self.last_search_diagnostics = None
+        if name == "read_material" and self.research_materials is not None:
+            from podgen.writing.research_materials.tools import read
+
+            return read(self, arguments, read_id=read_id, max_read_chars=max_read_chars)
         if name not in METHODS:
             return {"error": "unknown_source_tool"}
         try:
@@ -74,6 +86,12 @@ class SourceCorpus:
         if isinstance(args, Read):
             doc = self.documents.get(args.source_id)
             if doc is None:
+                if self.research_materials is not None and args.source_id in self.research_sources:
+                    return dict(
+                        error="source_not_readable",
+                        source_id=args.source_id,
+                        status=self.research_sources[args.source_id].status,
+                    )
                 return {"error": "unknown_source_id"}
             stop = len(doc.text) if args.end is None else args.end
             if not 0 <= args.start < stop <= len(doc.text):
@@ -107,6 +125,8 @@ class SourceCorpus:
 
     def locate(self, locator):
         """Open a persisted read in this packet; reject a locator that belongs to another source."""
+        if self.research_materials is not None and self.research_materials.authorize is not None:
+            self.research_materials.authorize()
         try:
             key, fingerprint, start, end = locator.split(":")
             doc = self.documents[key]

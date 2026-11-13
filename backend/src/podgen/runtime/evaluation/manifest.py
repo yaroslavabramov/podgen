@@ -20,6 +20,7 @@ from podgen.writing.reading_audit.consistency import KEY as CONSISTENCY_KEY
 from podgen.writing.reading_audit.consistency import VERSION as CONSISTENCY_VERSION
 from podgen.writing.reading_audit.memory_projection import KEY as MEMORY_KEY
 from podgen.writing.reading_audit.memory_projection import VERSION as MEMORY_VERSION
+from podgen.writing.research_materials.schemas import adapt as research_schema
 from podgen.writing.revision.contracts import VERSION as REVISION_VERSION
 
 from . import source_tool_contract
@@ -56,7 +57,7 @@ def create_manifest(repo, generation, command, journal, materials):
         else None
     )
     references = preview_references(materials, behavior.projection)
-    tools = source_tool_contract.create(behavior) if editorial else None
+    tools = source_tool_contract.create(behavior, materials) if editorial else None
     producer = CodeProducer(
         kind="code",
         component="whole-episode-evaluation",
@@ -79,7 +80,9 @@ def create_manifest(repo, generation, command, journal, materials):
         else:
             role = prompt_stage(stage)
         prompt = behavior.instructions(role, materials.format)
-        instructions = prompt.body
+        from podgen.writing.research_materials.pinning import instructions as adapt_instructions
+
+        instructions = adapt_instructions(materials, role, prompt.body)
         prompt_versions[stage] = prompt.version
         prompt = repo.create(
             command.project_id,
@@ -96,19 +99,27 @@ def create_manifest(repo, generation, command, journal, materials):
         )
         prompts[stage] = prompt.ref.model_dump(mode="json")
         schemas[stage] = bind_schema(
-            response_schema(
+            research_schema(
+                materials,
                 stage,
-                command.input_contract,
-                projection_version=behavior.projection,
-                plan_review_schema_version=behavior.plan_review_schema if editorial else None,
-                planning_ending_guidance=behavior.planning_ending_guidance if editorial else None,
-                planning_output_contract=planning_contract,
-                **(
-                    {"revision_verification_contract": behavior.verification} if behavior.verification else {}
+                response_schema(
+                    stage,
+                    command.input_contract,
+                    projection_version=behavior.projection,
+                    plan_review_schema_version=behavior.plan_review_schema if editorial else None,
+                    planning_ending_guidance=behavior.planning_ending_guidance if editorial else None,
+                    planning_output_contract=planning_contract,
+                    **(
+                        {"revision_verification_contract": behavior.verification}
+                        if behavior.verification
+                        else {}
+                    ),
+                    reader_schema_version=reader_version if independent(command) else None,
+                    fact_schema_version=behavior.fact_schema if revised else None,
+                    reading_audit_consistency_contract=CONSISTENCY_VERSION
+                    if behavior.reading_audit
+                    else None,
                 ),
-                reader_schema_version=reader_version if independent(command) else None,
-                fact_schema_version=behavior.fact_schema if revised else None,
-                reading_audit_consistency_contract=CONSISTENCY_VERSION if behavior.reading_audit else None,
             ),
             references,
         )
@@ -146,6 +157,12 @@ def create_manifest(repo, generation, command, journal, materials):
             "technical script versions; canonical EpisodeSpec/StoryPlan/ScriptRevision mapping remains open",
         ],
     )
+    from podgen.writing.research_materials.pinning import KEY as RESEARCH_KEY
+    from podgen.writing.research_materials.pinning import pin as research_pin
+
+    research = research_pin(materials)
+    if research is not None:
+        manifest[RESEARCH_KEY] = research
     if editorial and behavior.plan_review_schema is not None:
         manifest[PRESERVE_KEY] = behavior.plan_review_schema
     if tools is not None:

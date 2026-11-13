@@ -16,6 +16,8 @@ from podgen.writing.projections import CONTRACT, validate_model_content
 from podgen.writing.reading_audit.consistency import VERSION as CONSISTENCY_VERSION
 from podgen.writing.reading_audit.consistency import from_manifest as consistency_from_manifest
 from podgen.writing.reading_views import reading_audience
+from podgen.writing.research_materials.pinning import instructions as adapt_instructions
+from podgen.writing.research_materials.schemas import adapt as research_schema
 from podgen.writing.revision import verification
 from podgen.writing.revision.context import from_manifest as revision_context_from_manifest
 
@@ -47,7 +49,7 @@ def preview_request(
     tools = (
         source_tool_contract.from_manifest(snapshot.manifest)
         if snapshot
-        else source_tool_contract.create(behavior)
+        else source_tool_contract.create(behavior, materials)
     )
     if behavior:
         behavior.validate_model(stage, profile)
@@ -107,25 +109,29 @@ def preview_request(
     def schema():
         if snapshot and stage in snapshot.manifest["response_schemas"]:
             return snapshot.manifest["response_schemas"][stage]
-        return response_schema(
+        return research_schema(
+            materials,
             stage,
-            CONTRACT,
-            projection_version=projection,
-            planning_output_contract=planning_contract,
-            plan_review_schema_version=plan_review_version,
-            planning_ending_guidance=ending,
-            reader_schema_version=reader_version,
-            **(
-                {"revision_verification_contract": behavior.verification}
-                if behavior and behavior.verification
-                else {}
+            response_schema(
+                stage,
+                CONTRACT,
+                projection_version=projection,
+                planning_output_contract=planning_contract,
+                plan_review_schema_version=plan_review_version,
+                planning_ending_guidance=ending,
+                reader_schema_version=reader_version,
+                **(
+                    {"revision_verification_contract": behavior.verification}
+                    if behavior and behavior.verification
+                    else {}
+                ),
+                fact_schema_version=fact_version,
+                reading_audit_consistency_contract=consistency_from_manifest(snapshot.manifest)
+                if snapshot
+                else CONSISTENCY_VERSION
+                if behavior.reading_audit
+                else None,
             ),
-            fact_schema_version=fact_version,
-            reading_audit_consistency_contract=consistency_from_manifest(snapshot.manifest)
-            if snapshot
-            else CONSISTENCY_VERSION
-            if behavior.reading_audit
-            else None,
         )
 
     from .reading_workflow import ALL_READING_STAGES, base_stage
@@ -168,7 +174,9 @@ def preview_request(
                 role = "revision-verification"
             if stage != base and base == "fact-review" and behavior.reading_audit:
                 role = "fact-verification"
-            instructions = behavior.instructions(role, materials.format).body
+            instructions = adapt_instructions(
+                materials, role, behavior.instructions(role, materials.format).body
+            )
         readings = None
         revision = None
         if base == "revise":
@@ -228,7 +236,10 @@ def preview_request(
         if instructions is None:
             if snapshot:
                 raise ContractError("preview_stage_not_pinned")
-            instructions = behavior.instructions(prompt_stage(stage), materials.format).body
+            role = prompt_stage(stage)
+            instructions = adapt_instructions(
+                materials, role, behavior.instructions(role, materials.format).body
+            )
         return compile_role_request(
             run_id,
             stage,

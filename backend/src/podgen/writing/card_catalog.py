@@ -6,4 +6,6 @@ def card_id(packet, card):
 
 
 def catalog(packet):
+    if getattr(packet, "contract", None) == "research-editorial-input/1":
+        return [row.material_id for row in packet.sections]
     return [card_id(packet, card) for card in packet.dossier.knowledge_cards]

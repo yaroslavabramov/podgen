@@ -10,6 +10,7 @@ from podgen.runtime.models.gateway import ModelGateway
 from podgen.writing.materials import load_author_materials, load_own_plan_materials
 from podgen.writing.model_references import bind_schema, run_references
 from podgen.writing.projection_versions import manifest_version
+from podgen.writing.research_materials.schemas import adapt as research_schema
 
 from . import author_material
 from .compiler import COMPILER_VERSION, materials_hash
@@ -101,6 +102,10 @@ class WritingEvaluation:
                 if existing["input_fingerprint"] != digest(command_payload(command)):
                     raise Conflict("run_id_reused_with_different_input")
                 manifest = journal.manifest(command.run_id)
+                if command.input_contract == "editorial-role-packets/1":
+                    from podgen.writing.research_materials.pinning import validate as validate_research
+
+                    validate_research(self._materials(command), manifest)
                 if command.plan_mode == "own-plan":
                     checkpoint = PlanningCheckpoint.load(journal, command.run_id)
                     if stop_after_plan and (
@@ -248,17 +253,23 @@ class WritingEvaluation:
             )
             for stage in stages_for(command):
                 if manifest["response_schemas"][stage] != bind_schema(
-                    response_schema(
+                    research_schema(
+                        materials,
                         stage,
-                        command.input_contract,
-                        projection_version=manifest_version(manifest),
-                        planning_output_contract=planning_contract,
-                        plan_review_schema_version=plan_review_version,
-                        planning_ending_guidance=ending_version,
-                        reader_schema_version=manifest.get("reader_review_schema_version"),
-                        fact_schema_version=manifest.get("fact_review_schema_version"),
-                        reading_audit_consistency_contract=manifest.get("reading_audit_consistency_contract"),
-                        revision_verification_contract=manifest.get("revision_verification_contract"),
+                        response_schema(
+                            stage,
+                            command.input_contract,
+                            projection_version=manifest_version(manifest),
+                            planning_output_contract=planning_contract,
+                            plan_review_schema_version=plan_review_version,
+                            planning_ending_guidance=ending_version,
+                            reader_schema_version=manifest.get("reader_review_schema_version"),
+                            fact_schema_version=manifest.get("fact_review_schema_version"),
+                            reading_audit_consistency_contract=manifest.get(
+                                "reading_audit_consistency_contract"
+                            ),
+                            revision_verification_contract=manifest.get("revision_verification_contract"),
+                        ),
                     ),
                     references,
                 ):

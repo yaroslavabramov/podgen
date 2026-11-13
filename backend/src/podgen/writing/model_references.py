@@ -91,8 +91,10 @@ class ModelReferences:
                     if not isinstance(child, list):
                         raise ContractError("invalid_material_reference_list")
                     result[key] = [reference(ref) for ref in child]
-                elif key == "card_id":
+                elif key in ("card_id", "material_id"):
                     result[key] = reference(child)
+                elif key in ("previous_material", "next_material"):
+                    result[key] = reference(child) if child is not None else None
                 else:
                     result[key] = walk(child)
             return result
@@ -104,13 +106,16 @@ def preview_references(materials, projection_version):
     if (
         creative_materials(projection_version)
         and getattr(materials, "packet", None) is not None
-        and materials.packet.contract == "editorial-input/2"
+        and materials.packet.contract in ("editorial-input/2", "research-editorial-input/1")
     ):
         return ModelReferences.create(materials.packet)
     return None
 
 
 def run_references(materials, manifest):
+    from .research_materials.pinning import validate
+
+    validate(materials, manifest)
     expected = preview_references(materials, manifest_version(manifest))
     if expected is None:
         if CATALOG_KEY in manifest:

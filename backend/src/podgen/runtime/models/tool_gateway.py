@@ -121,6 +121,12 @@ def _execute(journal, root, corpus, contract, call, index, turn, guard, history)
         or result["passage"].get("read_id") != data["read_id"]
     ):
         raise ContractError("source_tool_read_binding_mismatch")
+    if "material_passage" in result and (
+        "error" in result
+        or call["name"] != "read_material"
+        or result["material_passage"].get("read_id") != "R" + data["read_id"].removeprefix("E")
+    ):
+        raise ContractError("material_tool_read_binding_mismatch")
     diagnostics = getattr(corpus, "last_search_diagnostics", None)
     if call["name"] == "search_sources" and diagnostics is not None:
         journal.event(root, "source_search_diagnostics", data=dict(call_index=index, **diagnostics))

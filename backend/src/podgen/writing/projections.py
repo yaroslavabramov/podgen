@@ -86,6 +86,10 @@ def assignment_view(packet):
 
 
 def knowledge_view(packet, *, labels, selected=None):
+    if packet.contract == "research-editorial-input/1":
+        from .research_materials.views import contents
+
+        return contents(packet)
     documents = {doc.key: doc for doc in packet.documents}
     cards = []
     for card in packet.dossier.knowledge_cards:
@@ -139,7 +143,15 @@ def attach_author_support(
     plan_selection_contract,
     author_plan_handoff=None,
     author_source_excerpts=None,
+    research_materials=None,
 ):
+    if packet.contract == "research-editorial-input/1":
+        from .research_materials.views import planning_view, selected_sections
+
+        # The owning materials object supplies complete section text, never whole source documents.
+        payload["support"] = selected_sections(research_materials, selected)
+        payload.update(planning_view(research_materials))
+        return
     if not creative_materials(projection_version):
         payload["support"] = knowledge_view(packet, labels=False, selected=selected)
         return
@@ -218,23 +230,28 @@ def role_payload(
     if stage.startswith("plan"):
         if planning_duration_contract is not None:
             payload["duration_context"] = duration_context(packet.assignment, include_requested=False)
-        payload["dossier"] = dict(
-            summary=packet.dossier.summary,
-            throughline_constraints=list(packet.dossier.throughline_constraints),
-            threads=[thread.model_dump(mode="json") for thread in packet.dossier.threads],
-            knowledge_cards=knowledge_view(packet, labels=True),
-        )
-        if creative_materials(projection_version) and (
-            stage in ("plan", "plan-revise")
-            or projection_version in (V8, V9)
-            and stage.startswith("plan-review")
-        ):
-            payload["dossier"] = creative_dossier_view(
-                creative_knowledge_view(packet, labels=True, projection_version=projection_version)
+        if packet.contract == "research-editorial-input/1":
+            from .research_materials.views import planning_view
+
+            payload.update(planning_view(materials))
+        else:
+            payload["dossier"] = dict(
+                summary=packet.dossier.summary,
+                throughline_constraints=list(packet.dossier.throughline_constraints),
+                threads=[thread.model_dump(mode="json") for thread in packet.dossier.threads],
+                knowledge_cards=knowledge_view(packet, labels=True),
             )
-        payload["material_catalog"] = list(materials.material_catalog)
-        if stage.startswith("plan-review") and projection_version != V9:
-            payload["evidence"] = evidence_view(packet)
+            if creative_materials(projection_version) and (
+                stage in ("plan", "plan-revise")
+                or projection_version in (V8, V9)
+                and stage.startswith("plan-review")
+            ):
+                payload["dossier"] = creative_dossier_view(
+                    creative_knowledge_view(packet, labels=True, projection_version=projection_version)
+                )
+            payload["material_catalog"] = list(materials.material_catalog)
+            if stage.startswith("plan-review") and projection_version != V9:
+                payload["evidence"] = evidence_view(packet)
         if candidate is not None:
             payload["candidate_plan"] = candidate_view(candidate, projection_version=projection_version)
             if is_scene_plan(candidate):
@@ -311,6 +328,7 @@ def role_payload(
                 draft=stage == "draft",
                 selected=selected_labels(plan, packet),
                 author_plan_handoff=author_plan_handoff,
+                research_materials=materials,
                 author_source_excerpts=author_source_excerpts,
                 projection_version=projection_version,
                 plan_selection_contract=plan_selection_contract,
@@ -318,11 +336,14 @@ def role_payload(
         if historical(projection_version):
             payload["necessary_limits"] = list(packet.dossier.throughline_constraints)
     attach_reference(payload, stage, craft_reference)
-    validate_model_content(payload, materials.documents)
+    if packet.contract != "research-editorial-input/1":
+        validate_model_content(payload, materials.documents)
     return payload
 
 
 def evidence_view(packet):
+    if packet.contract == "research-editorial-input/1":
+        return []
     documents = {d.key: d for d in packet.documents}
     passages = {}
     for card in packet.dossier.knowledge_cards:

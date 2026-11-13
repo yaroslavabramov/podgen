@@ -31,6 +31,12 @@ def from_manifest(manifest):
 
 
 def research_cautions(packet):
+    if packet.contract == "research-editorial-input/1":
+        return [
+            dict(note=note, source_id=source.source_id)
+            for source in packet.sources
+            for note in source.limitations
+        ]
     notes = {}
     for card in packet.dossier.knowledge_cards:
         for text in card.limitations:
@@ -62,6 +68,8 @@ def evidence_views(packet):
 
 def evidence_for_materials(materials, contract):
     """The same canonical packet rows supply delivery and lossless audit-memory matching."""
+    if materials.packet.contract == "research-editorial-input/1":
+        return [], []
     if contract is None:
         from .projections import evidence_view
 
