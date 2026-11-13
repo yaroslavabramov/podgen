@@ -53,6 +53,9 @@ class CountingIndex:
     def check_access(self):
         pass
 
+    def refresh_dependencies(self):
+        self.check_access()
+
     @contextmanager
     def document(self, source, doc, code):
         yield self.begin_document(source, doc, code)

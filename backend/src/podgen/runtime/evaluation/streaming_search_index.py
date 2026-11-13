@@ -12,7 +12,7 @@ from podgen.retrieval import RetrievalUnavailable
 from .document_projection import DocumentProjection, identity
 from .legacy_source_index import adopt as adopt_legacy
 from .source_search_index import WHERE, PostgresSearchIndex
-from .source_search_membership import bind
+from .source_search_membership import bind, register_dependencies
 
 
 class StreamingSearchIndex(PostgresSearchIndex):
@@ -87,6 +87,12 @@ class StreamingSearchIndex(PostgresSearchIndex):
         self.registered_dependencies.update(hashes)
         self.document_keys.update(keys)
         return ready
+
+    def refresh_dependencies(self):
+        """Bind fresh provenance even when document/ranking identity is unchanged."""
+        with self.transaction() as (tx, hashes):
+            register_dependencies(self, tx, hashes)
+        self.registered_dependencies.update(hashes)
 
     def append_batch(self, source_id, doc, ranges, language, vectors, *, previous, cursor, texts=None):
         key = identity(doc, self.profile, language)

@@ -33,9 +33,9 @@ class StreamingSearch(HybridSearch):
 
         revision = digest([[key, doc.digest] for key, doc in sorted(self.documents.items())])
         if getattr(self, "revision", None) == revision:
-            # A completed immutable membership needs fresh authorization, not
-            # repeated language detection, projection lookup and rebinding.
-            self.index.check_access()
+            # Ranking identity excludes provenance. Bind newly admitted access
+            # dependencies without repeating completed document computation.
+            self.index.refresh_dependencies()
             return
         refresh(self)
         self.revision = revision

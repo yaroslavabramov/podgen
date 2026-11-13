@@ -51,7 +51,7 @@ def test_completed_preparation_never_loads_inference_models(monkeypatch):
     access_checks = []
 
     class Ready:
-        def check_access(self):
+        def refresh_dependencies(self):
             access_checks.append(True)
 
         def prepare_documents(self, group):

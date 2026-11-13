@@ -6,7 +6,7 @@ from podgen.persistence.database import one, query
 from .source_search_index import WHERE
 
 
-def bind(index, tx, source_id, key, hashes):
+def register_dependencies(index, tx, hashes):
     missing = hashes - index.registered_dependencies
     if missing:
         query(
@@ -16,6 +16,10 @@ def bind(index, tx, source_id, key, hashes):
             r=index.params["r"],
             hashes=sorted(missing),
         )
+
+
+def bind(index, tx, source_id, key, hashes):
+    register_dependencies(index, tx, hashes)
     query(
         tx,
         "INSERT INTO source_search_memberships VALUES(:p,:r,:h,:s,:document) ON CONFLICT DO NOTHING",
