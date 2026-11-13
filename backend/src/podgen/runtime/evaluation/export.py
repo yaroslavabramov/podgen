@@ -1,24 +1,18 @@
 """Evaluator export: all attempts, full candidates and real request/response bodies."""
 
 import json
-import os
 from pathlib import Path
-from uuid import uuid4
 
 from podgen.domain.contracts.common import BlobRef, RuntimeRef
 from podgen.domain.errors import Conflict
 
 from . import author_material
 from .contracts import STAGES
+from .export_archive import export_attempt as _export_attempt
+from .export_files import projection as _projection
+from .export_files import write as _write
 from .journal import EvaluationJournal
 from .usage import refused_without_generation, unsent_without_generation
-
-
-def _write(path, data):
-    path.parent.mkdir(parents=True, exist_ok=True)
-    temporary = path.with_name(path.name + "." + uuid4().hex + ".tmp")
-    temporary.write_bytes(data)
-    os.replace(temporary, path)
 
 
 def _claim_directory(directory, project, run_id):
@@ -44,73 +38,6 @@ def _claim_directory(directory, project, run_id):
             raise Conflict("export_directory_claim_race") from None
     if any(path.is_symlink() for path in directory.rglob("*")):
         raise Conflict("unsafe_export_symlink")
-
-
-def _projection(invocation):
-    return {
-        key: str(value) if key.endswith("_id") and value is not None else value
-        for key, value in invocation.items()
-    }
-
-
-def _export_attempt(journal, invocation, base, write_json, directory):
-    request_ref = RuntimeRef(record_kind="tool_execution", record_id=invocation["request_record_id"])
-    request = journal.read(request_ref)
-    if invocation["attempt_kind"] in ("total_input_retry", "technical_retry"):
-        write_json(base / "request-record.json", request)
-    _write(
-        directory / base / "request.json",
-        journal.read_blob(request_ref, BlobRef.model_validate(request["request_blob"])),
-    )
-    events = []
-    for index, event in enumerate(journal.events(invocation)):
-        ref = RuntimeRef(record_kind="tool_execution", record_id=event["record_id"])
-        record = journal.read(ref)
-        events.append(dict(record_ref=ref.model_dump(mode="json"), **record))
-        for field in ("response_blob", "wire_request_blob", "wire_response_blob"):
-            if record.get(field):
-                _write(
-                    directory / base / f"{index:03d}-{event['event_kind']}-{field}.json",
-                    journal.read_blob(ref, BlobRef.model_validate(record[field])),
-                )
-        if event["event_kind"] == "count_intent" and record["data"].get("request_blob"):
-            _write(
-                directory / base / f"{index:03d}-count-request.json",
-                journal.read_blob(ref, BlobRef.model_validate(record["data"]["request_blob"])),
-            )
-    write_json(base / "events.json", events)
-    source_events = [
-        record for record in events if record["event_kind"] in ("source_tool_call", "source_tool_result")
-    ]
-    if source_events:
-        write_json(base / "source-tools.json", source_events)
-    search_events = [record for record in events if record["event_kind"] == "source_search_diagnostics"]
-    if search_events:
-        write_json(base / "source-search.json", search_events)
-    from .source_tool_contract import applies, from_manifest
-
-    if invocation["operation_kind"] == "role" and applies(
-        invocation["stage"], from_manifest(journal.manifest(invocation["run_id"]))
-    ):
-        from .model_turns import rows
-
-        for turn in rows(journal, invocation):
-            prefix = base / "turns" / f"{turn['turn_index']:03d}"
-            write_json(prefix / "state.json", _projection(turn))
-            write_json(
-                prefix / "events.json",
-                [
-                    record
-                    for record in events
-                    if record["data"].get("source_turn_index") == turn["turn_index"]
-                ],
-            )
-            ref = RuntimeRef(record_kind="tool_execution", record_id=turn["request_record_id"])
-            stored = journal.read(ref)
-            _write(
-                directory / prefix / "request.json",
-                journal.read_blob(ref, BlobRef.model_validate(stored["request_blob"])),
-            )
 
 
 def export_run(repo, project, run_id, directory):
