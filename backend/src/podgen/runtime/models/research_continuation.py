@@ -84,7 +84,11 @@ def resolve_structured(
                     turn_index=turn, request_hash=digest(request), request=request, call_index=call_index
                 ),
             )
-            history.appended(ref, "source_structured_material_request")
+            history.appended(
+                ref,
+                "source_structured_material_request",
+                data=dict(turn_index=turn, request_hash=digest(request)),
+            )
         call_index += 1
     append_response(conversation, response, profile.provider)
     conversation.append(

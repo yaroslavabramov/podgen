@@ -78,7 +78,7 @@ def _execute(journal, root, corpus, contract, call, index, turn, guard, history)
     intents = history.for_call("source_tool_call", index)
     if not intents:
         ref = journal.event(root, "source_tool_call", data=data)
-        history.appended(ref, "source_tool_call")
+        history.appended(ref, "source_tool_call", data=data)
     elif intents[0]["data"] != data:
         raise Conflict("source_tool_call_changed")
     definition = next((tool for tool in contract["definitions"] if tool["name"] == call["name"]), None)
@@ -140,7 +140,7 @@ def _execute(journal, root, corpus, contract, call, index, turn, guard, history)
         journal.event(root, "source_search_diagnostics", data=dict(call_index=index, **diagnostics))
     json.dumps(result, ensure_ascii=False, allow_nan=False)
     ref = journal.event(root, "source_tool_result", data=dict(data, result=result))
-    history.appended(ref, "source_tool_result")
+    history.appended(ref, "source_tool_result", data=dict(data, result=result))
     return result
 
 

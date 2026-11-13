@@ -61,6 +61,11 @@ class EvaluationJournal:
     def read(self, ref):
         return self.repo.get_runtime(self.project, ref)
 
+    def event_metadata(self, roots):
+        from .history_metadata import stream
+
+        return stream(self, roots)
+
     def read_blob(self, ref, blob):
         return self.repo.read_runtime_blob(self.project, ref, blob)
 

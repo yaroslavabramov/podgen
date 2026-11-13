@@ -53,7 +53,7 @@ class EventHistory:
     def for_call(self, kind, index):
         return [row for row in self.of_kind(kind) if row["data"].get("call_index") == index]
 
-    def appended(self, ref, kind):
+    def appended(self, ref, kind, *, data=None):
         if kind in self.KINDS:
             self.records.append(dict(self.journal.read(ref), _record_id=ref.record_id))
 
@@ -160,10 +160,16 @@ class TurnJournal:
         )
         ref = self.journal.event(self.root, kind, reply=reply, data=value)
         if self.history is not None:
-            self.history.appended(ref, kind)
+            self.history.appended(ref, kind, data=value)
         return ref
 
     def last_response(self, invocation):
+        if self.history is not None and hasattr(self.history, "provider_response"):
+            record = self.history.provider_response(self.index)
+            if record is None:
+                return None
+            ref = RuntimeRef(record_kind="tool_execution", record_id=record["_record_id"])
+            return self.journal.read_blob(ref, BlobRef.model_validate(record["response_blob"]))
         records = (
             self.history.of_kind("provider_response")
             if self.history is not None
@@ -178,15 +184,18 @@ class TurnJournal:
 
 def charged_rows(journal, root, *, history=None):
     all_rows = rows(journal, root)
-    submitted = {
-        record["data"]["source_turn_index"]
-        for record in (
-            history.of_kind("submit_intent")
-            if history is not None
-            else events(journal, root, kinds={"submit_intent"})
-        )
-        if "source_turn_index" in record["data"]
-    }
+    if history is not None and hasattr(history, "submitted_turns"):
+        submitted = history.submitted_turns()
+    else:
+        submitted = {
+            record["data"]["source_turn_index"]
+            for record in (
+                history.of_kind("submit_intent")
+                if history is not None
+                else events(journal, root, kinds={"submit_intent"})
+            )
+            if "source_turn_index" in record["data"]
+        }
     charged = []
     for row in all_rows:
         if row["turn_index"] not in submitted:

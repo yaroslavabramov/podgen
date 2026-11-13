@@ -20,14 +20,14 @@ class ResearchContext:
 
     def event(self, kind, data, *, reply=None):
         ref = self.journal.event(self.root, kind, data=data, reply=reply)
-        self.history.appended(ref, kind)
+        self.history.appended(ref, kind, data=data)
         return ref
 
     def measured(self, body, index, label):
         key = digest(body)
-        for record in self.history.of_kind("source_context_count"):
-            if record["data"]["request_hash"] == key:
-                return record["data"]["input_tokens"]
+        saved = self.history.counted(key)
+        if saved is not None:
+            return saved.data["input_tokens"]
         self.guard()
         try:
             reply = self.gateway.provider_factory(self.profile).count(count_request(body))
@@ -52,18 +52,11 @@ class ResearchContext:
         return count
 
     def request(self, body, index, segment_start):
-        saved = next(
-            (
-                row
-                for row in self.history.of_kind("source_context_plan")
-                if row["data"]["turn_index"] == index
-            ),
-            None,
-        )
+        saved = self.history.context_plan(index)
         if saved:
-            if saved["data"]["conversation_hash"] != digest(body):
+            if saved.data["conversation_hash"] != digest(body):
                 raise Conflict("research_context_plan_changed")
-            checkpoint = saved["data"]["checkpoint"]
+            checkpoint = saved.data["checkpoint"]
         else:
             count = self.measured(body, index, "normal")
             capacity = self.profile.context_limit - self.profile.output_limit
@@ -113,16 +106,9 @@ class ResearchContext:
         saved = self.history.for_call("source_tool_result", call_index)[0]
         if saved["data"]["name"] != "save_working_state" or "error" in saved["data"]["result"]:
             raise ContractError("research_checkpoint_not_saved")
-        existing = next(
-            (
-                row
-                for row in self.history.of_kind("source_context_segment")
-                if row["data"]["next_turn"] == turn_index + 1
-            ),
-            None,
-        )
+        existing = self.history.context_segment(turn_index + 1)
         if existing:
-            return existing
+            return self.history.read(existing.reference)
         blob = self.journal.blob(
             json.dumps(conversation, ensure_ascii=False, allow_nan=False, separators=(",", ":")).encode()
         )
