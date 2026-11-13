@@ -9,7 +9,7 @@ from podgen.domain.canonical import digest
 from podgen.domain.contracts.common import ArtifactRef, Contract
 from podgen.domain.contracts.evidence import SourceRights
 from podgen.domain.errors import ContractError
-from podgen.sources.acquisition.contracts import AcquisitionRequest
+from podgen.sources.acquisition.contracts import AcquisitionRequest, AcquisitionResult
 from podgen.sources.acquisition.service import acquire_source
 
 
@@ -50,7 +50,10 @@ def reusable_outcomes(journal, config):
         for row in previous["sources"]:
             if row["report_ref"] != selection["report_ref"]:
                 raise ContractError("research_reusable_selection_report_mismatch")
-            key = document_url(row["reported_url"])
+            try:
+                key = document_url(row["reported_url"])
+            except (ValueError, ContractError):
+                key = row["reported_url"]
             prior = result.get(key)
             # Do not replace a retained readable version with a failed later attempt.
             if prior is None or (
@@ -84,11 +87,25 @@ async def acquire_corpus(journal, operation_id, config, *, acquire=acquire_sourc
         reusable = reusable_outcomes(journal, config)
         outputs = []
         for url in urls:
-            canonical = document_url(url)
+            invalid = False
+            try:
+                canonical = document_url(url)
+            except (ValueError, ContractError):
+                # A malformed reported link is an individual failed acquisition,
+                # not permission to skip the rest of the research corpus.
+                canonical, invalid = url, True
             key = root + ":document:" + digest(canonical)
             outcome = journal.get(key)
             if outcome is None:
                 outcome = reusable.get(canonical)
+                if outcome is None and invalid:
+                    request_ref = journal.put(key + ":request", dict(reported_url=url))
+                    outcome = AcquisitionResult(
+                        acquisition_record_ref=request_ref,
+                        sources=[],
+                        status="failed",
+                        diagnostics=["invalid_reported_source_url"],
+                    ).model_dump(mode="json")
                 if outcome is None:
                     request = AcquisitionRequest(
                         operation_id=uuid5(operation_id, canonical),

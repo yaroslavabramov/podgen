@@ -102,3 +102,18 @@ def test_url_dedup_does_not_merge_query_or_path_variants():
     assert document_url("https://example.org/A") != document_url("https://example.org/a")
     with pytest.raises(ContractError):
         document_url("file:///tmp/report")
+
+
+def test_malformed_reported_link_records_failure_without_losing_other_documents():
+    journal, config = MemoryJournal(), settings()
+    completed(journal, ["https://example.org:bad/page", "https://example.org/valid"])
+    calls = []
+
+    async def acquire(repo, project, request):
+        calls.append(request.url)
+        return outcome(journal)
+
+    result = asyncio.run(acquire_corpus(journal, uuid4(), config, acquire=acquire))
+    assert calls == ["https://example.org/valid"]
+    assert result["sources"][0]["acquisition"]["diagnostics"] == ["invalid_reported_source_url"]
+    assert len(result["sources"]) == 2
