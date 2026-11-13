@@ -101,3 +101,9 @@ async def test_document_extractor_honors_text_layer_only_profile(monkeypatch):
     result = await DocumentExtractors().extract(document, AcquisitionProfile(pdf_mode="text_layer_only"))
     assert result.name == "pypdfium2"
     assert "marker_disabled_text_layer_only" in result.warnings
+
+
+@pytest.mark.asyncio
+async def test_malformed_pdf_text_layer_is_explicit_extraction_failure():
+    with pytest.raises(ValueError, match="pdf_extraction_failed"):
+        await pdf.extract_pdf_bytes(b"%PDF-invalid", use_marker=False)

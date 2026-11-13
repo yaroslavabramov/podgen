@@ -98,6 +98,7 @@ def _fallback_pypdf2(pdf_path: str) -> str:
     """Fallback extraction using PyPDF2 when pypdfium2 is unavailable."""
     try:
         from PyPDF2 import PdfReader
+        from PyPDF2.errors import PdfReadError
 
         reader = PdfReader(pdf_path)
         pages = []
@@ -111,6 +112,8 @@ def _fallback_pypdf2(pdf_path: str) -> str:
             "PDF extraction fallback unavailable: neither pypdfium2 nor PyPDF2 can be used. "
             "Install one of them to extract PDF content."
         ) from exc
+    except PdfReadError as error:
+        raise ValueError("pdf_text_layer_unreadable:" + str(error)) from error
 
 
 async def extract_pdf_bytes(
