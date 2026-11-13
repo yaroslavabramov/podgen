@@ -1,6 +1,6 @@
 # Initial fact review with retained sources only
 
-Status: prepared and tested; no live provider call made. The coordinator must inspect the code commit before live submission. The initial request hash is approved:
+Status: prepared, tested and executed once after coordinator approval of commit `3aee97e6`. Full live result, trace and measurements are in `live/README.md`. The initial approved request hash is:
 
 `400d5c617fd04a13c41edfef0ce8692ea8ac6e891f4c35da36981ae0c93dee1d`
 

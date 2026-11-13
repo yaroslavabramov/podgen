@@ -1,0 +1,30 @@
+{
+  "initial_request_hash": "400d5c617fd04a13c41edfef0ce8692ea8ac6e891f4c35da36981ae0c93dee1d",
+  "trace_files_verified": 370,
+  "native_usage_matches_journal": true,
+  "fact_review_status": "completed",
+  "attempt_index": 0,
+  "read_source_calls": 18,
+  "read_source_ids": [
+    "S11",
+    "S14",
+    "S2",
+    "S26",
+    "S27",
+    "S3",
+    "S36",
+    "S4",
+    "S45",
+    "S47",
+    "S49",
+    "S50",
+    "S53",
+    "S54",
+    "S6",
+    "S61",
+    "S9"
+  ],
+  "audit_decisions": 16,
+  "audit_covers_all_utterances": true,
+  "support_labels_empty": true
+}

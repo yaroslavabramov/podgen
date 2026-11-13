@@ -1,0 +1,95 @@
+{
+  "source_run_id": "f7e9dbac-c64c-5698-807a-fa8b25e69a2f",
+  "source_invocation_id": "65a6cc67-d013-51d7-a1eb-f3a75438cdb8",
+  "source_stage_status": "completed",
+  "event_counts": {
+    "source_context_count": 34,
+    "source_context_plan": 34,
+    "role_input_measurement": 34,
+    "count_intent": 34,
+    "count_response": 34,
+    "submit_intent": 34,
+    "provider_response": 34,
+    "source_tool_call": 33,
+    "source_tool_result": 33,
+    "source_search_diagnostics": 13,
+    "source_tools_final_response": 1
+  },
+  "tool_counts": {
+    "read_material": 4,
+    "search_sources": 13,
+    "read_source": 14,
+    "list_sources": 1,
+    "list_research_results": 1,
+    "read_research_result": 0
+  },
+  "report_read_calls": [
+    {
+      "name": "read_material",
+      "arguments": {
+        "material_id": "M6",
+        "start": 0,
+        "end": null,
+        "context": false
+      },
+      "call_index": 0
+    },
+    {
+      "name": "read_material",
+      "arguments": {
+        "material_id": "M7",
+        "start": 0,
+        "end": null,
+        "context": false
+      },
+      "call_index": 1
+    },
+    {
+      "name": "read_material",
+      "arguments": {
+        "material_id": "M8",
+        "start": 0,
+        "end": null,
+        "context": false
+      },
+      "call_index": 2
+    },
+    {
+      "name": "read_material",
+      "arguments": {
+        "material_id": "M3",
+        "start": 0,
+        "end": null,
+        "context": false
+      },
+      "call_index": 13
+    }
+  ],
+  "report_read_results": [
+    {
+      "name": "read_material",
+      "call_index": 0,
+      "error": null,
+      "passage_length": 6596
+    },
+    {
+      "name": "read_material",
+      "call_index": 1,
+      "error": null,
+      "passage_length": 4605
+    },
+    {
+      "name": "read_material",
+      "call_index": 2,
+      "error": null,
+      "passage_length": 4085
+    },
+    {
+      "name": "read_material",
+      "call_index": 13,
+      "error": null,
+      "passage_length": 2847
+    }
+  ],
+  "material_scoped_searches": []
+}

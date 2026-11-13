@@ -1,0 +1,71 @@
+{
+  "phases": {
+    "startup": {
+      "seconds": 100.51387066597817,
+      "sql_calls": 100150,
+      "sql_select": 96073,
+      "sql_set": 2654,
+      "sql_insert": 1334,
+      "sql_update": 89,
+      "objects": {
+        "read_calls": 1,
+        "read_bytes": 1035145,
+        "stream_calls": 50
+      }
+    },
+    "fact_review": {
+      "seconds": 512.0887395419995,
+      "sql_calls": 65375,
+      "sql_select": 62722,
+      "sql_set": 1009,
+      "sql_insert": 1386,
+      "sql_update": 219,
+      "sql_with": 39,
+      "objects": {
+        "read_calls": 175,
+        "read_bytes": 60960694,
+        "stream_calls": 260,
+        "stage_calls": 260,
+        "staged_bytes": 36016771,
+        "publish_calls": 260,
+        "published_bytes": 36016771
+      }
+    },
+    "export": {
+      "seconds": 56.3058070410043,
+      "sql_calls": 47155,
+      "sql_select": 46427,
+      "sql_set": 728,
+      "objects": {
+        "read_calls": 220,
+        "read_bytes": 28802188
+      }
+    },
+    "whole_review": {
+      "seconds": 668.9097146250133,
+      "sql_calls": 212684,
+      "sql_select": 205224,
+      "sql_set": 4391,
+      "sql_insert": 2720,
+      "sql_update": 310,
+      "sql_with": 39,
+      "objects": {
+        "read_calls": 396,
+        "read_bytes": 90798027,
+        "stream_calls": 310,
+        "stage_calls": 260,
+        "staged_bytes": 36016771,
+        "publish_calls": 260,
+        "published_bytes": 36016771
+      }
+    }
+  },
+  "search_calls": 13,
+  "search_seconds": 152.04735191498185,
+  "process_peak_rss_bytes": 1208057856,
+  "limitations": [
+    "Object counters cover the repository store, not cached Unicode projection reads.",
+    "Staging/publication are logical store operations, not physical disk writes; RSS is the process-wide high-water mark.",
+    "Provider costs and token/cache usage remain in complete native trace receipts; USD is not inferred from an unpinned price."
+  ]
+}

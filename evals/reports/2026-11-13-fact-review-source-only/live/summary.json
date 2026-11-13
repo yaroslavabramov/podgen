@@ -1,0 +1,28 @@
+{
+  "event_counts": {
+    "source_context_count_intent": 43,
+    "source_context_count": 43,
+    "source_context_plan": 43,
+    "role_input_measurement": 43,
+    "count_receipt_reused": 43,
+    "submit_intent": 43,
+    "provider_response": 43,
+    "source_tool_call": 42,
+    "source_tool_result": 42,
+    "source_search_diagnostics": 13,
+    "source_tools_final_response": 1
+  },
+  "tool_counts": {
+    "list_sources": 11,
+    "read_source": 18,
+    "search_sources": 13
+  },
+  "source_requests": [],
+  "tool_errors": [],
+  "unknown_usage_turns": [],
+  "recommendation": "revise",
+  "findings": 4,
+  "finding_priorities": {
+    "important": 4
+  }
+}
