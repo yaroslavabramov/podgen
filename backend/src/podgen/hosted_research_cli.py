@@ -15,7 +15,7 @@ from podgen.persistence.database import Database
 from podgen.persistence.objects import FileObjectStore
 from podgen.persistence.repository import Repository
 from podgen.research.hosted.contracts import Approval, ResearchConfig
-from podgen.research.hosted.export import export
+from podgen.research.hosted.export import export, write_json
 from podgen.research.hosted.journal import ResearchJournal
 from podgen.research.hosted.provider import GeminiResearchProvider
 from podgen.research.hosted.service import advance, approve, manifest, prepare
@@ -68,8 +68,6 @@ def main(argv=None):
                     ),
                 )
             elif args.operation == "acquire-sources":
-                from podgen.research.hosted.export import write_json
-
                 selection = SourceSelection.model_validate_json(args.source_config.read_bytes())
                 acquired = asyncio.run(acquire_report_sources(journal, selection))
                 write_json(args.export_dir / ("sources-" + str(selection.operation_id) + ".json"), acquired)
@@ -80,6 +78,7 @@ def main(argv=None):
         result = export(journal, args.export_dir)
         if operation and operation.get("operation_error"):
             result["operation_error"] = operation["operation_error"]
+            write_json(args.export_dir / "status.json", result)
         print(json.dumps(result, ensure_ascii=False))
         return (
             0
@@ -88,12 +87,15 @@ def main(argv=None):
             else 2
         )
     except (ContractError, ValidationError) as error:
-        print(
-            json.dumps(
-                dict(ok=False, code=getattr(error, "code", "validation_error"), detail=str(error)),
-                ensure_ascii=False,
-            )
-        )
+        failure = dict(ok=False, code=getattr(error, "code", "validation_error"), detail=str(error))
+        # The operation may have saved a receipt before local parsing failed.
+        # Refresh the observable state without concealing the original error.
+        try:
+            failure.update(export(journal, args.export_dir))
+            write_json(args.export_dir / "status.json", failure)
+        except (ContractError, ValueError, OSError):
+            pass
+        print(json.dumps(failure, ensure_ascii=False))
         return 2
     finally:
         db.engine.dispose()
