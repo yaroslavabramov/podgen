@@ -1,0 +1,943 @@
+{
+  "stage": "fact-review-2",
+  "journal_model_turns": 12,
+  "last_tool_choice": "none",
+  "instructions_sha256": "ef6e64fd357938c59fa439e9d76012a31d2b84294103faa26445ee100445d19a",
+  "same_instructions_as_fact_review_1": true,
+  "previous_evidence": [
+    {
+      "evidence_id": "H1",
+      "original_id": "E7",
+      "kind": "source_read",
+      "source_id": "S56",
+      "start": 4800,
+      "end": 7200,
+      "exact_frozen_slice": true,
+      "text_sha256": "0a4e4247264d73d1f7c5114788db859c12627e1aea1af24475a1aa936780e61b"
+    },
+    {
+      "evidence_id": "H2",
+      "original_id": "E10",
+      "kind": "source_read",
+      "source_id": "S4",
+      "start": 820,
+      "end": 4100,
+      "exact_frozen_slice": true,
+      "text_sha256": "da967618fb9e2ede629473fc11ad9b3ede0d6ca1fb1fbbfde666d2b5b52b4b27"
+    },
+    {
+      "evidence_id": "H3",
+      "original_id": "E1",
+      "kind": "source_read",
+      "source_id": "S27",
+      "start": 0,
+      "end": 2400,
+      "exact_frozen_slice": true,
+      "text_sha256": "5780d4fa92f129de77584ebb38256b7bbc6c42d30f4553bbdd49bb5d02462929"
+    },
+    {
+      "evidence_id": "H4",
+      "original_id": "E8",
+      "kind": "source_read",
+      "source_id": "S45",
+      "start": 6200,
+      "end": 7900,
+      "exact_frozen_slice": true,
+      "text_sha256": "f6bb1201dac186c61fd6849d10034d3d34304c95a1c503bba9f9b8928069c817"
+    },
+    {
+      "evidence_id": "H5",
+      "original_id": "E2",
+      "kind": "source_read",
+      "source_id": "S27",
+      "start": 2400,
+      "end": 4800,
+      "exact_frozen_slice": true,
+      "text_sha256": "24571fff78e92c96e3b5a3d40d7b0772ba96d94a68006c020a0e337f3f23e839"
+    },
+    {
+      "evidence_id": "H6",
+      "original_id": "E11",
+      "kind": "source_read",
+      "source_id": "S36",
+      "start": 0,
+      "end": 2400,
+      "exact_frozen_slice": true,
+      "text_sha256": "fac71f8594f19e46e56ba20f55ffd88b1ffd9edef13cd556265a03a01ce5e7ff"
+    },
+    {
+      "evidence_id": "H7",
+      "original_id": "E4",
+      "kind": "source_read",
+      "source_id": "S31",
+      "start": 0,
+      "end": 2580,
+      "exact_frozen_slice": true,
+      "text_sha256": "344afe9b2b54fd6f01224c369952f49611195dd50a02e546fc0f6b51b570b66b"
+    },
+    {
+      "evidence_id": "H8",
+      "original_id": "E3",
+      "kind": "source_read",
+      "source_id": "S27",
+      "start": 4800,
+      "end": 7200,
+      "exact_frozen_slice": true,
+      "text_sha256": "02bf69f792c416b9416ef1999583b205230f3c4a6a062e78731d779a8f920f15"
+    },
+    {
+      "evidence_id": "H9",
+      "original_id": "E10",
+      "kind": "source_read",
+      "source_id": "S49",
+      "start": 4800,
+      "end": 7200,
+      "exact_frozen_slice": true,
+      "text_sha256": "a2b345ee2467ecc6347eec4a9b6a110fad4171f9a80ddd8b4bfcddac53c3935b"
+    },
+    {
+      "evidence_id": "H10",
+      "original_id": "E4",
+      "kind": "source_read",
+      "source_id": "S27",
+      "start": 7200,
+      "end": 8345,
+      "exact_frozen_slice": true,
+      "text_sha256": "af51205fc8f3523dcf0c2907856b88033c2924f100bceaceb93a67fd57dbc96e"
+    },
+    {
+      "evidence_id": "H11",
+      "original_id": "E5",
+      "kind": "source_read",
+      "source_id": "S36",
+      "start": 2300,
+      "end": 4959,
+      "exact_frozen_slice": true,
+      "text_sha256": "d7660b234ab792dc9d2f334a71f04087684757c5338806f524df3eb79c63e629"
+    },
+    {
+      "evidence_id": "H12",
+      "original_id": "E6",
+      "kind": "source_read",
+      "source_id": "S54",
+      "start": 0,
+      "end": 4950,
+      "exact_frozen_slice": true,
+      "text_sha256": "5ae7b92663685297ba5c06e0796eaa0da25af0b62c89d24ed852088bcb2d8a04"
+    },
+    {
+      "evidence_id": "H13",
+      "original_id": "E5",
+      "kind": "source_read",
+      "source_id": "S56",
+      "start": 0,
+      "end": 2400,
+      "exact_frozen_slice": true,
+      "text_sha256": "78c8c7bc3b0f8c60f1590da6aba3cca70dd5c5a2cccbd60b9eadf5c5abc13871"
+    },
+    {
+      "evidence_id": "H14",
+      "original_id": "E6",
+      "kind": "source_read",
+      "source_id": "S56",
+      "start": 2400,
+      "end": 4800,
+      "exact_frozen_slice": true,
+      "text_sha256": "e57e9e73ba696b81c3cf69fe7d672e8cf74c4e4f82031830aae8ed873315bff6"
+    },
+    {
+      "evidence_id": "H15",
+      "original_id": "E2",
+      "kind": "source_read",
+      "source_id": "S58",
+      "start": 0,
+      "end": 1600,
+      "exact_frozen_slice": true,
+      "text_sha256": "3a9a430c64510b27c9cd81c3d1ad4eacb1a833525ded4a4be23654513c136294"
+    }
+  ],
+  "tool_calls": [
+    {
+      "name": "search_sources",
+      "arguments": {
+        "query": "Beagle chronometers ashore boats FitzRoy pocket chronometer chronometers taken on shore survey",
+        "within": null,
+        "offset": 0
+      },
+      "result": {
+        "hits": [
+          {
+            "source_id": "S58",
+            "start": 786,
+            "end": 1602,
+            "read_start": 586,
+            "preview": ". He referred to it affectionately as the 'journeyman watch'. While most of the chronometers remained in the captain's cabin, FitzRoy took this pocket watch on shore to measure the celestial observations essential to his timekeeping measurements.\n\nFitzRoy described it as 'a very ",
+            "preview_start": 786,
+            "preview_end": 1066
+          },
+          {
+            "source_id": "S58",
+            "start": 0,
+            "end": 902,
+            "read_start": 0,
+            "preview": "ion, we're taking a look at some of the other significant timekeepers in the Museum's care.\n\nChronometers were effectively portable pieces of Greenwich: they carried a reference to precise time across oceans, allowing sailors to turn time into longitude.\n\nOur collection holds mor",
+            "preview_start": 102,
+            "preview_end": 382
+          },
+          {
+            "source_id": "S56",
+            "start": 2811,
+            "end": 3750,
+            "read_start": 2611,
+            "preview": ">\\[4\\]</sup>\n\nThe *Beagle* however, would be gone for several years and was required to take chronometers ashore and in boat expeditions up rivers to determine the coordinates of specific reference points as instructed by the Admiralty.  It could not be guaranteed that any one ch",
+            "preview_start": 3072,
+            "preview_end": 3352
+          },
+          {
+            "source_id": "S56",
+            "start": 13078,
+            "end": 13860,
+            "read_start": 12878,
+            "preview": "Anthony Randall, Richard Good, *Catalogue of Watches in the British Museum: Volume 6, Pocket Chronometers, Marine Chronometers and Other Portable Precision Timekeepers*, The British Museum Press, 1990 ISBN 0-7141-0551-1.\n\n## External links\n\n\\[edit\\]\n- Pocket chronometer used on b",
+            "preview_start": 13562,
+            "preview_end": 13842
+          },
+          {
+            "source_id": "S56",
+            "start": 615,
+            "end": 1509,
+            "read_start": 415,
+            "preview": "\nMeticulous naval inventories show that HMS *Beagle* carried a total of at least 34 recorded chronometers on its three main survey voyages from 1826 to 1843, and 22 on the second voyage with Darwin on board, when they had a dedicated cabin.  Some were Navy property and others wer",
+            "preview_start": 615,
+            "preview_end": 895
+          },
+          {
+            "source_id": "S56",
+            "start": 13769,
+            "end": 13909,
+            "read_start": 13569,
+            "preview": "-7141-0551-1.\n\n## External links\n\n\\[edit\\]\n- Pocket chronometer used on board HMS *Beagle*, *National Museum Australia*, archived 1 Jan 2012",
+            "preview_start": 13769,
+            "preview_end": 13909
+          }
+        ],
+        "sources": {
+          "S58": {
+            "title_preview": "Time machines: chronometers from the collection"
+          },
+          "S56": {
+            "title_preview": "Ship's chronometer from HMS *Beagle*"
+          }
+        },
+        "next_offset": 6,
+        "total_hits": 125
+      }
+    },
+    {
+      "name": "search_sources",
+      "arguments": {
+        "query": "H4 diameter five inches centimetres John Harrison 13",
+        "within": null,
+        "offset": 0
+      },
+      "result": {
+        "hits": [
+          {
+            "source_id": "S36",
+            "start": 0,
+            "end": 897,
+            "read_start": 0,
+            "preview": " chronometer (H5) resembled a large pocket watch, weighed three pounds, and with a five inch diameter, could fit in a sea captain’s hand. Having perfected his solution, the exhausted Harrison, now well into his seven",
+            "preview_start": 681,
+            "preview_end": 897
+          },
+          {
+            "source_id": "S49",
+            "start": 0,
+            "end": 884,
+            "read_start": 0,
+            "preview": "# K1\n\nA one day marine timekeeper with a 102mm diameter white enamel dial, in imitation of that of H4, with scrolling decoration at the quarters and roman hour numerals and Arabic ten-minute figures. It has polished and blued steel beetle and poker hands with a fine polished stee",
+            "preview_start": 0,
+            "preview_end": 280
+          },
+          {
+            "source_id": "S36",
+            "start": 763,
+            "end": 1722,
+            "read_start": 563,
+            "preview": " five inch diameter, could fit in a sea captain’s hand. Having perfected his solution, the exhausted Harrison, now well into his seventies, never made another clock.\n\n\nThe proof of Harrison’s success came in 1770, when a copy of his chronometer made by another watchmaker, Larcum ",
+            "preview_start": 763,
+            "preview_end": 1043
+          },
+          {
+            "source_id": "S27",
+            "start": 3242,
+            "end": 4204,
+            "read_start": 3042,
+            "preview": " tested, it became clear that the clock would struggle to keep time to the desired accuracy. Harrison was forced to make many changes and adjustments.\n\n## Harrison marine timekeeper – H4\n\nAround 1751–52 Harrison commissioned John Jefferys to make a watch with a radically new type",
+            "preview_start": 3352,
+            "preview_end": 3632
+          },
+          {
+            "source_id": "S27",
+            "start": 7387,
+            "end": 8345,
+            "read_start": 7187,
+            "preview": "\nHarrison eventually received generous compensation, but not all that he felt he was owed. Parliament ruled that Harrison should be rewarded for his services to the nation, no doubt with the King’s encouragement.\n\nHarrison is remembered in history as solving the problem of longit",
+            "preview_start": 7387,
+            "preview_end": 7667
+          },
+          {
+            "source_id": "S49",
+            "start": 1516,
+            "end": 2373,
+            "read_start": 1316,
+            "preview": "working condition. \n\n\nThe timekeeper was commissioned by the Board of Longitude as a copy of H4 in 1766 and was completed in 1769. It was issued to Captain James Cook on his second and third great voyages of discovery to the South Seas",
+            "preview_start": 2138,
+            "preview_end": 2373
+          }
+        ],
+        "sources": {
+          "S36": {
+            "title_preview": "Thomas Earnshaw and the Marine Chronometer"
+          },
+          "S49": {
+            "title_preview": "K1"
+          },
+          "S27": {
+            "title_preview": "Longitude found - the story of Harrison's timekeepers"
+          }
+        },
+        "next_offset": 6,
+        "total_hits": 153
+      }
+    },
+    {
+      "name": "read_source",
+      "arguments": {
+        "source_id": "S49",
+        "start": 0,
+        "end": 2200
+      },
+      "result": {
+        "passage": {
+          "read_id": "E3",
+          "source_id": "S49",
+          "source": "K1",
+          "start": 0,
+          "end": 2200,
+          "text": "# K1\n\nA one day marine timekeeper with a 102mm diameter white enamel dial, in imitation of that of H4, with scrolling decoration at the quarters and roman hour numerals and Arabic ten-minute figures. It has polished and blued steel beetle and poker hands with a fine polished steel pointer seconds hand with a counter poised tail.\n\n\nThe timekeeper has a brass, one-day full plate fusee movement with four turned pillars, with a highly engraved slide plate, balance bridge and third wheel bridge. The plate is engraved ‘Larcum Kendall LONDON 1769’. The general level of finish of the brass-work is very high with all brass movement parts highly polished. The fusee, which has Harrison’s maintaining power, has a brass pipe around the winding square. The timekeeper has a nominal four-wheel train plus a great wheel with a remontoir interposed at the fourth wheel. The third wheel, with internally cut teeth, runs within the potence plate and meshes with a fourth (remontoir) wheel, leading to a fifth and fly, with the remontoir spring driving a fourth (contrate) wheel, which drives the steel escape wheel.\n\n\nThe timekeeper contains Harrison’s adapted verge escapement with diamond pallets, acting with the hardened steel escape wheel (correctly called the ‘balance wheel’). The hardened steel balance has a three turn blued steel spiral balance spring, of tapered form, with a long, somewhat straighter tail, acting against a bimetallic compensation curb, and a secondary ‘isochronal curb pin. The jewelling extends to the balance (diamond upper endstone in a polished steel setting), escape wheel, contrate wheel and third wheel, all with endstones, and the pallets as mentioned.\n\n\nThe timekeeper is held in a large, silver pair case with stirrup bow, 165mms high, 124mms wide and 28mms deep. Both inner and outer cases are hallmarked for London, 1769-70 and with the case-maker’s mark ‘P.M’. for Peter Mournier of Frith St, Soho.\n\n\nThe chronometer is in fine, original condition. The case has a few slight scratches to the finish, and was rhodium plated in the 1940s. The dial enamel is perfect and the movement is in excellent clean, working condition. \n\n\nThe timekeeper was commissioned by the B"
+        },
+        "source_length": 8820,
+        "next_start": null
+      },
+      "source_delivery_exact": true
+    },
+    {
+      "name": "search_sources",
+      "arguments": {
+        "query": "Harrison 1773 parliament reward 8750 1773",
+        "within": null,
+        "offset": 0
+      },
+      "result": {
+        "hits": [
+          {
+            "source_id": "S27",
+            "start": 6591,
+            "end": 7547,
+            "read_start": 6391,
+            "preview": ".\n\nHarrison eventually received generous compensation, but not all that he felt he was owed. Parliament ruled that Harrison should be rewarded for his services to",
+            "preview_start": 7385,
+            "preview_end": 7547
+          },
+          {
+            "source_id": "S27",
+            "start": 5763,
+            "end": 6719,
+            "read_start": 5563,
+            "preview": "t time within the most stringent limits of the 1714 Act. The Board's recommendation was that parliament should award Harrison £10,000, when he demonstrated the principles of H4.\n\nThe remaining £10,000 (less payments already made) was to be awarded once it was shown that other mak",
+            "preview_start": 5875,
+            "preview_end": 6155
+          },
+          {
+            "source_id": "S45",
+            "start": 86025,
+            "end": 86823,
+            "read_start": 85825,
+            "preview": "ment whatsoever. | \n|  |  | ... ... | \n| Act 12 Anne. Not exceeding 8750l. to be paid to Mr. Harrison for his invention of a Time-keeper, &c. |  | XXIX. And whereas *John Harrison* of *Red Lion Square*, having, under the  Encouragement of an Act, made in the Twelfth Year of Her M",
+            "preview_start": 86537,
+            "preview_end": 86817
+          },
+          {
+            "source_id": "S45",
+            "start": 87475,
+            "end": 88315,
+            "read_start": 87275,
+            "preview": "ibed from Pickering's *The Statutes at Large from Magna Charta, to the End of the Thirteenth Parliament of Great Britain, Anno 1773, Continued,* Vol 30, p.419 (1773)\n\n \n\n|  |  | *An act for the repeal of all former acts concerning the longitude at  sea, except so much thereof as ",
+            "preview_start": 88005,
+            "preview_end": 88285
+          },
+          {
+            "source_id": "S27",
+            "start": 7387,
+            "end": 8345,
+            "read_start": 7187,
+            "preview": "\nHarrison eventually received generous compensation, but not all that he felt he was owed. Parliament ruled that Harrison should be rewarded for his services to the nation, no doubt with the King’s encouragement.\n\nHarrison is remembered in history as solving the problem of longit",
+            "preview_start": 7387,
+            "preview_end": 7667
+          },
+          {
+            "source_id": "S45",
+            "start": 67051,
+            "end": 68009,
+            "read_start": 66851,
+            "preview": "th the advice and consent of the lords spiritual and  temporal, and commons, in this present parliament assembled, and by the  authority of the same, That one moiety of the greatest reward which is  directed in and by the said act, made in the twelfth year of the reign  of Queen ",
+            "preview_start": 67333,
+            "preview_end": 67613
+          }
+        ],
+        "sources": {
+          "S27": {
+            "title_preview": "Longitude found - the story of Harrison's timekeepers"
+          },
+          "S45": {
+            "title_preview": "Transcripts of the Longitude Acts"
+          }
+        },
+        "next_offset": 6,
+        "total_hits": 150
+      }
+    },
+    {
+      "name": "read_source",
+      "arguments": {
+        "source_id": "S45",
+        "start": 84900,
+        "end": 88170
+      },
+      "result": {
+        "passage": {
+          "read_id": "E5",
+          "source_id": "S45",
+          "source": "Transcripts of the Longitude Acts",
+          "start": 84900,
+          "end": 88170,
+          "text": "e same  accordingly. | \n| Treasury impowered to raise the said sum, or any Part thereof, by Loans or Exchequer Bills, on the Credit of the Sinking Fund. |  | II. And it is hereby enacted by the Authority aforesaid, That in case the said Commissioners of His Majesty's Treasury now or for the Time being, or any Three or more of them, or the High Treasurer for the Time being, shall think it advisable to raise the said Sum of Two millions three hundred forty-nine thousand eight hundred and fix Pounds, Twelve Shillings and Seven-pence Three Farthings, or any Part thereof, by Loans or Exchequer Bills, in Manner herein-after mentioned, and it shall and may he lawful to and for any Peron or Persons, Natives or Foreigners, Bodies; Politick or Corporate, to advance or lend to His Majesty, at the Receipt of His Majesty's Exchequer, any Sum or Sums of Money not exceeding the said Sum of Two millions three hundred forty-nine thousand eight hundred and fix Pounds, Twelve Shillings and Seven-pence Three Farthings, upon the Credit of the said Surplusses, Excesses, and Overplus Monies, or Other Revenues composing the Sinking Fund, and to have and receive Interest for the Forbearance of the money lent, so as such Loans be allowed to be made by the said Commissioners of the Treasury, or any Three or more of them, now or for the Time being, or the High Treasurer for the time being, who are or is hereby authorised to issue his or their Warrants for that Purpose, as such Loans shall be wanted for the publick Service; and moreover, that no Money to be lent upon the Security of this Act shall be rated or assessed to any Tax or Assessment whatsoever. | \n|  |  | ... ... | \n| Act 12 Anne. Not exceeding 8750l. to be paid to Mr. Harrison for his invention of a Time-keeper, &c. |  | XXIX. And whereas *John Harrison* of *Red Lion Square*, having, under the  Encouragement of an Act, made in the Twelfth Year of Her Majesty Queen *Anne*, intituled, *An Act for granting a Reward for the Discovery of the  Longitude at Sea*, applied himself, with unremitting Industry for the  Space of Forty-eight Years, to the making an Instrument for ascertaining  the Longitude at Sea; and having constructed a Time-keeper for that  Purpose, and discovered the Principles of constructing the fame, by  which other Time-keepers have been already made, and found to answer  with great Exactness from which Discovery, it is apprehended that great  Benefit will arise to the Trade and Navigation of these Kingdoms, is  highly deserving of publick Encouragement and Reward; be it therefore  enacted by the Authority aforesaid, That it shall and may be lawful to  and for the Treasurer of His Majesty's Navy, and he is hereby directed,  out of any Sums of Money now in His Hands, to pay, or cause to be paid  to the said *John Harrison*, a Sum not exceeding Eight thousand seven  hundred and fifty Pounds, as a further Reward and Encouragement, over  and above the Sums already received by him for his said Invention of a  Time-keeper, and his Discovery of the Principles upon which the same was  constructed. | \n\n\n\n\n\nTranscribed from Pickering's *The Statutes at Large from Magna Charta, to the End of the Thirteenth Parliament of Great Britain, Anno 1773, Continued,* Vol 30, p.419 (1773)"
+        },
+        "source_length": 227524,
+        "next_start": null
+      },
+      "source_delivery_exact": true
+    },
+    {
+      "name": "search_sources",
+      "arguments": {
+        "query": "Resolution Cook cost purchase 4151 1772 Kendall watch price ship four times",
+        "within": null,
+        "offset": 0
+      },
+      "result": {
+        "hits": [
+          {
+            "source_id": "S49",
+            "start": 5381,
+            "end": 6237,
+            "read_start": 5181,
+            "preview": " William, who admitted that it was even better made than his father's original. Kendall was paid the agreed £450, plus an ex-gratia payment of £50 for ‘...the extraordinary trouble in adjusting it for 9 months’ and taking it and H4 to pieces. \n\n\nIn 1772 K1 was sent for trials wit",
+            "preview_start": 5381,
+            "preview_end": 5661
+          },
+          {
+            "source_id": "S49",
+            "start": 6112,
+            "end": 7012,
+            "read_start": 5912,
+            "preview": "cairn Island, only returning to England in 1840. It employed many of the features of H4, but Kendall omitted the essential remontoir mechanism, thus prejudicing its chances of success and it never performed well. Further simplified designs by Kendall, including a type of escapeme",
+            "preview_start": 6140,
+            "preview_end": 6420
+          },
+          {
+            "source_id": "S36",
+            "start": 1568,
+            "end": 2563,
+            "read_start": 1368,
+            "preview": "nimum of three marine chronometers, in order to spot if one was malfunctioning. It had taken Kendall two years of skilled work to make the single copy given to Cook, at a cost of £450. Unless the price and production time of the new technology could be substantially reduced, equi",
+            "preview_start": 1714,
+            "preview_end": 1994
+          },
+          {
+            "source_id": "S49",
+            "start": 4536,
+            "end": 5510,
+            "read_start": 4336,
+            "preview": "s the Board also decided that a copy of the timekeeper must be made and Harrison recommended Kendall, who may have contributed to the making of the fourth timekeeper itself in the preceding years. Kendall agreed to make the copy 'part for part', but made it clear he had little fa",
+            "preview_start": 4888,
+            "preview_end": 5168
+          },
+          {
+            "source_id": "S49",
+            "start": 2239,
+            "end": 3119,
+            "read_start": 2039,
+            "preview": "ssed to Vice Admiral Sir John Jervis in HMS ‘Victory’, and returned to the Board in 1802. \n\n\nKendall, Larcum (1719-90) was born on 21 September 1719 at Charlbury in Oxfordshire, the elder of two children of Moses Kendall, Mercer and Linen Draper, and Anne Larcum (originally of Ch",
+            "preview_start": 2499,
+            "preview_end": 2779
+          },
+          {
+            "source_id": "S36",
+            "start": 763,
+            "end": 1722,
+            "read_start": 563,
+            "preview": "on’s success came in 1770, when a copy of his chronometer made by another watchmaker, Larcum Kendall, was given to James Cook to test on his second voyage of discovery. The great explorer reported that the *“...watch exceeded the expectations of its most zealous advocate and...ha",
+            "preview_start": 950,
+            "preview_end": 1230
+          }
+        ],
+        "sources": {
+          "S49": {
+            "title_preview": "K1"
+          },
+          "S36": {
+            "title_preview": "Thomas Earnshaw and the Marine Chronometer"
+          }
+        },
+        "next_offset": 6,
+        "total_hits": 168
+      }
+    },
+    {
+      "name": "read_material",
+      "arguments": {
+        "material_id": "M7",
+        "start": 0,
+        "end": null,
+        "context": false
+      },
+      "result": {
+        "material_passage": {
+          "read_id": "R7",
+          "material_id": "M7",
+          "title": "Валидация и масштабирование: От прототипа к серийному производству",
+          "kind": "research_report_section",
+          "start": 0,
+          "end": 2400,
+          "report_start": 20896,
+          "report_end": 23296,
+          "text": "## Валидация и масштабирование: От прототипа к серийному производству\n\nСоздание H4 доказало принципиальную возможность точного хронометража в море. Однако H4 был произведением искусства, невероятно сложным в настройке и сборке. Он не подходил для массового производства, необходимого флоту Империи [cite: 46, 47, 48].\n\nПервым шагом к подтверждению метода стало создание точной копии H4, порученное выдающемуся лондонскому часовщику Ларкуму Кендаллу (Larcum Kendall). В 1769 году он представил хронометр K1, за который получил оговоренные £450 (плюс £50 за тонкую настройку) [cite: 37, 44, 49]. Для понимания масштаба цен: военный шлюп HMS *Resolution* водоизмещением 462 тонны был куплен британским флотом за £1,800 — лишь в четыре раза дороже одних часов [cite: 44]. \n\nИменно K1 отправился с капитаном Джеймсом Куком во второе кругосветное плавание (1772–1775) [cite: 44, 49, 50, 51, 52]. В этом тяжелейшем плавании сквозь льды Антарктики (где Кук опроверг существование Неведомой Южной земли в умеренных широтах) хронометр Кендалла продемонстрировал феноменальную надежность [cite: 44, 51]. Изначально скептически настроенный Кук вскоре сообщил в Адмиралтейство: \n> *\"Часы Кендалла превзошли ожидания своего самого ярого защитника\"* (Kendall’s watch has exceeded the expectations of its most zealous advocate) [cite: 44, 50]. \n\nВ судовом журнале великий навигатор ласково называл механизм *\"наш верный друг Часы\"* (our trusty friend the Watch) и *\"наш безотказный проводник\"* (our never-failing guide) [cite: 44, 49, 50]. Это плавание окончательно доказало морскому и научному истеблишменту жизнеспособность хронометрического метода долготы [cite: 44].\n\n### Конкуренция Арнольда и Эрншоу: Создание индустрии\n\nПереход от доказательства работоспособности (Харрисон и Кендалл) к созданию индустрии и доступных приборов был осуществлен другим поколением часовщиков — в первую очередь, Джоном Арнольдом (John Arnold, 1736–1799) и Томасом Эрншоу (Thomas Earnshaw, 1749–1829) [cite: 2, 5, 36, 39, 46, 47].\n\nКонструкция Харрисона была слишком идиосинкразичной: она требовала ремонтуара (механизма постоянной силы) и сложного спуска, требующего обильной смазки, которая густела или вытекала при перепадах температур [cite: 47, 49]. Чтобы морской хронометр мог производиться серийно, его конструкцию пришлось изобретать заново. Арнольд и Эрншоу сфокусировались на трех фундаментальных улучшениях:\n1. **Свобод"
+        },
+        "context": [],
+        "material_length": 4605,
+        "next_start": 2400,
+        "previous_material": "M6",
+        "next_material": "M8",
+        "reported_sources": [
+          {
+            "source_id": "S46",
+            "citation_number": 46,
+            "status": "not_acquired"
+          },
+          {
+            "source_id": "S47",
+            "citation_number": 47,
+            "status": "not_acquired"
+          },
+          {
+            "source_id": "S48",
+            "citation_number": 48,
+            "status": "unavailable"
+          },
+          {
+            "source_id": "S37",
+            "citation_number": 37,
+            "status": "not_acquired"
+          },
+          {
+            "source_id": "S44",
+            "citation_number": 44,
+            "status": "not_acquired"
+          },
+          {
+            "source_id": "S49",
+            "citation_number": 49,
+            "status": "available"
+          },
+          {
+            "source_id": "S50",
+            "citation_number": 50,
+            "status": "not_acquired"
+          },
+          {
+            "source_id": "S51",
+            "citation_number": 51,
+            "status": "not_acquired"
+          },
+          {
+            "source_id": "S52",
+            "citation_number": 52,
+            "status": "not_acquired"
+          },
+          {
+            "source_id": "S2",
+            "citation_number": 2,
+            "status": "not_acquired"
+          },
+          {
+            "source_id": "S5",
+            "citation_number": 5,
+            "status": "not_acquired"
+          },
+          {
+            "source_id": "S36",
+            "citation_number": 36,
+            "status": "available"
+          },
+          {
+            "source_id": "S39",
+            "citation_number": 39,
+            "status": "partial"
+          },
+          {
+            "source_id": "S1",
+            "citation_number": 1,
+            "status": "not_acquired"
+          },
+          {
+            "source_id": "S53",
+            "citation_number": 53,
+            "status": "not_acquired"
+          },
+          {
+            "source_id": "S54",
+            "citation_number": 54,
+            "status": "available"
+          },
+          {
+            "source_id": "S55",
+            "citation_number": 55,
+            "status": "unavailable"
+          },
+          {
+            "source_id": "S14",
+            "citation_number": 14,
+            "status": "not_acquired"
+          }
+        ],
+        "relationship": "reported_citations_only_not_verified_source_support"
+      },
+      "material_delivery_exact": true
+    },
+    {
+      "name": "search_sources",
+      "arguments": {
+        "query": "\"Resolution\" \"1,800\"",
+        "within": null,
+        "offset": 0
+      },
+      "result": {
+        "hits": [
+          {
+            "source_id": "S45",
+            "start": 217926,
+            "end": 218708,
+            "read_start": 217726,
+            "preview": "s of 20,000 *l.* and 5000*l*. |  | WHERAS by an Act passed in the Fifty eighth year of His late Majesty,  intituled *An Act for more effectually discovering the Longitude at Sea,  and encouraging Attempts find a Northern Passage between the* Atlantic *and* Pacific *Oceans, and to",
+            "preview_start": 217926,
+            "preview_end": 218206
+          },
+          {
+            "source_id": "S45",
+            "start": 220919,
+            "end": 221819,
+            "read_start": 220719,
+            "preview": " and Five thousand Pounds  respectively, and that such proportionate Rewards as His Majesty may be  pleased hereafter to direct and establish by His Order in Council under  the said Act, shall be Parts and Proportions only of the said Sums, so  that no more than the said respecti",
+            "preview_start": 220919,
+            "preview_end": 221199
+          },
+          {
+            "source_id": "S45",
+            "start": 10003,
+            "end": 10825,
+            "read_start": 9803,
+            "preview": " Hen.III. to 3 Geo.IV. inclusive, p.190 (1823)\n\n\n|  |  | *An Act for surveying the Chief Ports and Head Lands on the Coasts of Great Britain and Ireland, and the Islands and Plantations thereto belonging, in order to the more exact Determination of the Longitude and Latitude ther",
+            "preview_start": 10003,
+            "preview_end": 10283
+          },
+          {
+            "source_id": "S4",
+            "start": 34358,
+            "end": 35233,
+            "read_start": 34158,
+            "preview": " the order of 1 deg or less,\r\nd - d' = 23'.9 in the example. \r\nErrors in the altitudes which are on the 1:1000 level of \r\nthe altitudes themselves, affect (d - d' ) also on the \r\n1:1000 level and thus cause changes in the order of 1 \r\narcsec or less.\r\nIt follows that the necessit",
+            "preview_start": 34358,
+            "preview_end": 34638
+          },
+          {
+            "source_id": "S45",
+            "start": 218593,
+            "end": 219414,
+            "read_start": 218393,
+            "preview": "ng within One Degree of the *Northern Pole*, should be  entitled to receive a Reward of Five 1 thousand Pounds: And Whereas it  was further ena",
+            "preview_start": 219271,
+            "preview_end": 219414
+          },
+          {
+            "source_id": "S45",
+            "start": 177783,
+            "end": 178672,
+            "read_start": 177583,
+            "preview": " the Sum of Ten thousand Pounds. | \n| Rewards how to be certified |  | IV. Provided also, That in case any such Reward or Sum of Money to be  given or paid for any of the Purposes aforesaid shall not exceed the Sum  of One thousand Pounds, that then and in every such Case it shal",
+            "preview_start": 177783,
+            "preview_end": 178063
+          }
+        ],
+        "sources": {
+          "S45": {
+            "title_preview": "Transcripts of the Longitude Acts"
+          },
+          "S4": {
+            "title_preview": "1997 Lunars remake"
+          }
+        },
+        "next_offset": 6,
+        "total_hits": 165
+      }
+    },
+    {
+      "name": "search_sources",
+      "arguments": {
+        "query": "\"six weeks\" Jamaica Harrison voyage 1761 longitude",
+        "within": null,
+        "offset": 0
+      },
+      "result": {
+        "hits": [
+          {
+            "source_id": "S27",
+            "start": 4065,
+            "end": 5085,
+            "read_start": 3865,
+            "preview": "ptain so much that he asked to buy their next timekeeper.\n\n## The Harrisons and the Board of Longitude fall out\n\nBack in England however, trouble began. The Commissioners decided that the test had not been sufficient. This was the point when relations between the Harrisons and th",
+            "preview_start": 4372,
+            "preview_end": 4652
+          },
+          {
+            "source_id": "S27",
+            "start": 3242,
+            "end": 4204,
+            "read_start": 3042,
+            "preview": "a radically new type of balance. It worked well, so Harrison incorporated it into his fourth longitude timekeeper, H4.\n\nNo one in the 1750s thought of the pocket watch as a serious precision timekeeper. While H4 initially looked like a large pocket watch, the instrument was in fa",
+            "preview_start": 3612,
+            "preview_end": 3892
+          },
+          {
+            "source_id": "S27",
+            "start": 1606,
+            "end": 2541,
+            "read_start": 1406,
+            "preview": "n of Harrison's precision wooden clocks.\n\nIt seemed that it would be successful in measuring longitude. A trial was called for.\n\n\n## A trial at sea\n\nIn May 1736, Harrison and H1 were taken aboard HM ship *Centurion*, which was about to set sail for Lisbon. The aim was to put H1 t",
+            "preview_start": 1672,
+            "preview_end": 1952
+          },
+          {
+            "source_id": "S45",
+            "start": 43685,
+            "end": 44592,
+            "read_start": 43485,
+            "preview": " been proved in a late Voyage to *Jamaica*, under the Directions of the Commissioners of the Longitude: And whereas the said Commissioners at their Meeting on the seventeenth Day of *August* last did adjudge, that by the Trial made of the said Instrument, it was found of consider",
+            "preview_start": 43798,
+            "preview_end": 44078
+          },
+          {
+            "source_id": "S27",
+            "start": 6591,
+            "end": 7547,
+            "read_start": 6391,
+            "preview": " 1766, Astronomer Royal Nevil Maskelyne received Harrison’s timekeeper from the Board of Longitude so it could be further tested at the Royal Observatory, Greenwich.\n\nIn his personal diary, Maskelyne writes: ‘Monday May 5, 1766: I received it from the hands of Philip Stephens, Se",
+            "preview_start": 6591,
+            "preview_end": 6871
+          },
+          {
+            "source_id": "S27",
+            "start": 2401,
+            "end": 3363,
+            "read_start": 2201,
+            "preview": "the results of the Lisbon trial suggested that Harrison might qualify for a reward under the Longitude Act. The Admiralty requested a formal meeting of the Commissioners of Longitude.\n\nAccordingly, eight of them assembled on 30 June 1737 to discuss Harrison’s ‘curious instrument’",
+            "preview_start": 2523,
+            "preview_end": 2803
+          }
+        ],
+        "sources": {
+          "S27": {
+            "title_preview": "Longitude found - the story of Harrison's timekeepers"
+          },
+          "S45": {
+            "title_preview": "Transcripts of the Longitude Acts"
+          }
+        },
+        "next_offset": 6,
+        "total_hits": 160
+      }
+    },
+    {
+      "name": "search_sources",
+      "arguments": {
+        "query": "\"Polaris\" \"latitude\" dead reckoning current ocean",
+        "within": null,
+        "offset": 0
+      },
+      "result": {
+        "hits": [
+          {
+            "source_id": "S4",
+            "start": 32214,
+            "end": 32959,
+            "read_start": 32014,
+            "preview": " purposes.\r\nBesides the two declinations, one needed a good guess \r\nfor the latitude by dead-reckoning from the last \r\nmeridian passage observation. The local hour angles \r\nLHAM$ and LHAS are then found from the spherical\r\ntriangles PZM and PZS, respectively, where P is the \r\nNor",
+            "preview_start": 32408,
+            "preview_end": 32688
+          },
+          {
+            "source_id": "S45",
+            "start": 222343,
+            "end": 223208,
+            "read_start": 222143,
+            "preview": " Sea, and encouraging Attempts to find a Northern, Passage between* the Atlantic and Pacific Oceans, and to approach the Northern Pole,  divers Acts therein recited, and Parts of other Acts therein mentioned,  are repealed, and various other Regulations and Provisions are enacted",
+            "preview_start": 222489,
+            "preview_end": 222769
+          },
+          {
+            "source_id": "S45",
+            "start": 205114,
+            "end": 206011,
+            "read_start": 204914,
+            "preview": " to ascertain who are the first Discoverers of the  said Northern Passage into the *Pacific* Ocean, and who are the first  Approachers to within One Degree of the *Northern* Pole, and to whom  either the whole Rewards or the proportionate Rewards by this Act  respectively given d",
+            "preview_start": 205417,
+            "preview_end": 205697
+          },
+          {
+            "source_id": "S45",
+            "start": 219294,
+            "end": 220267,
+            "read_start": 219094,
+            "preview": " the *Northern Pole*, should be  entitled to receive a Reward of Five 1 thousand Pounds: And Whereas it  was further enacted for the Encouragement of Persons who may attempt the  said Passage or Approach to the *Northern Pole*, but not wholly  accomplish the same, that the Commis",
+            "preview_start": 219294,
+            "preview_end": 219574
+          },
+          {
+            "source_id": "S45",
+            "start": 204318,
+            "end": 205262,
+            "read_start": 204118,
+            "preview": " of Five Thousand Pounds. | \n| Commissioners may reward Attempts to approach the same. |  | XII. And for the Encouragement of Persons who may attempt the said  Passage, or approach to the *Northern* Pole, but not wholly accomplish the  same; be it enacted, That the said Commissio",
+            "preview_start": 204318,
+            "preview_end": 204598
+          },
+          {
+            "source_id": "S45",
+            "start": 77740,
+            "end": 78580,
+            "read_start": 77540,
+            "preview": "ments useful to Navigation. | \n| Rep. in part, by 14 Geo.3.c.66. |  | WHEREAS by several Acts made in twelfth Year of the Reign of Queen Anne,  and in the fourteenth and twenty-sixth Years of the Reign of his  present Majesty King George the Second, and in the second and fifth  Y",
+            "preview_start": 77740,
+            "preview_end": 78020
+          }
+        ],
+        "sources": {
+          "S4": {
+            "title_preview": "1997 Lunars remake"
+          },
+          "S45": {
+            "title_preview": "Transcripts of the Longitude Acts"
+          }
+        },
+        "next_offset": 6,
+        "total_hits": 142
+      }
+    },
+    {
+      "name": "search_sources",
+      "arguments": {
+        "query": "\"H4\" \"diameter\"",
+        "within": null,
+        "offset": 0
+      },
+      "result": {
+        "hits": [
+          {
+            "source_id": "S49",
+            "start": 1516,
+            "end": 2373,
+            "read_start": 1316,
+            "preview": "working condition. \n\n\nThe timekeeper was commissioned by the Board of Longitude as a copy of H4 in 1766 and was completed in 1769. It was issued to Captain James Cook on his second and third great voyages of discovery to the South Seas",
+            "preview_start": 2138,
+            "preview_end": 2373
+          },
+          {
+            "source_id": "S58",
+            "start": 6853,
+            "end": 7846,
+            "read_start": 6653,
+            "preview": "oped the first successful marine chronometers in the 18th century, culminating in his famous H4 timekeeper.\n\n## When were marine chronometers first used?\n\nSuccessful marine chronometers emerged in the 18th century. By the 19th century they were essential instruments on board nava",
+            "preview_start": 7329,
+            "preview_end": 7609
+          },
+          {
+            "source_id": "S27",
+            "start": 3242,
+            "end": 4204,
+            "read_start": 3042,
+            "preview": ". Harrison was forced to make many changes and adjustments.\n\n## Harrison marine timekeeper – H4\n\nAround 1751–52 Harrison commissioned John Jefferys to make a watch with a radically new type of balance. It worked well, so Harrison incorporated it into his fourth longitude timekeep",
+            "preview_start": 3443,
+            "preview_end": 3723
+          },
+          {
+            "source_id": "S36",
+            "start": 0,
+            "end": 897,
+            "read_start": 0,
+            "preview": " chronometer (H5) resembled a large pocket watch, weighed three pounds, and with a five inch diameter, could fit in a sea captain’s hand. Having perfected his solution, the exhausted Harrison, now well into his seven",
+            "preview_start": 681,
+            "preview_end": 897
+          },
+          {
+            "source_id": "S27",
+            "start": 7387,
+            "end": 8345,
+            "read_start": 7187,
+            "preview": "'s timekeepers on display\n\nYou can come and see a replica of H1, and the original H2, H3 and H4 on display at the Royal Observatory Greenwich.\n\nThe original H1 is undergoing conservation at our state-of-the-art conservation studios, the Prince Philip Maritime Collections Centre.",
+            "preview_start": 8066,
+            "preview_end": 8345
+          },
+          {
+            "source_id": "S49",
+            "start": 0,
+            "end": 884,
+            "read_start": 0,
+            "preview": "# K1\n\nA one day marine timekeeper with a 102mm diameter white enamel dial, in imitation of that of H4, with scrolling decoration at the quarters and roman hour numerals and Arabic ten-minute figures. It has polished and blued steel beetle and poker hands with a fine polished stee",
+            "preview_start": 0,
+            "preview_end": 280
+          }
+        ],
+        "sources": {
+          "S49": {
+            "title_preview": "K1"
+          },
+          "S58": {
+            "title_preview": "Time machines: chronometers from the collection"
+          },
+          "S27": {
+            "title_preview": "Longitude found - the story of Harrison's timekeepers"
+          },
+          "S36": {
+            "title_preview": "Thomas Earnshaw and the Marine Chronometer"
+          }
+        },
+        "next_offset": 6,
+        "total_hits": 104
+      }
+    }
+  ],
+  "all_source_slices_exact": true,
+  "unsupported_detail_rule_unchanged_from_initial": true
+}
