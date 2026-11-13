@@ -12,12 +12,22 @@ def export_inputs(repo, project, manifest, *, write_json, write_bytes):
     command = manifest["command"]
     shared_ref = RuntimeRef.model_validate(command["author_ref"])
     shared = repo.get_runtime(project, shared_ref)
-    if shared.get("contract") != "persisted-editorial-input/1":
-        raise ContractError("editorial_input_projection_required")
-    write_bytes(
-        "editorial-input-original.json",
-        repo.read_runtime_blob(project, shared_ref, BlobRef.model_validate(shared["original_input_blob"])),
-    )
+    if shared.get("contract") == "persisted-research-editorial-input/1":
+        from podgen.research.materials.export import export_materials
+
+        packet = export_materials(
+            repo, project, manifest, shared_ref, shared, write_json=write_json, write_bytes=write_bytes
+        )
+    else:
+        if shared.get("contract") != "persisted-editorial-input/1":
+            raise ContractError("editorial_input_projection_required")
+        packet = EditorialInput.model_validate(shared["content"])
+        write_bytes(
+            "editorial-input-original.json",
+            repo.read_runtime_blob(
+                project, shared_ref, BlobRef.model_validate(shared["original_input_blob"])
+            ),
+        )
     value = command.get("fixed_plan_input_ref")
     if value is None:
         return
@@ -33,9 +43,7 @@ def export_inputs(repo, project, manifest, *, write_json, write_bytes):
         return
     if saved.get("contract") != "writing-planning-clearance-v1":
         raise ContractError("unsupported_fixed_plan_export_source")
-    approved = load_approved_plan(
-        repo, project, shared_ref, EditorialInput.model_validate(shared["content"]), fixed_ref
-    )
+    approved = load_approved_plan(repo, project, shared_ref, packet, fixed_ref)
     journal = EvaluationJournal(repo, project)
     review_ref = RuntimeRef.model_validate(saved["plan_review_ref"])
     write_json("fixed-editorial-plan.json", approved.model_dump(mode="json"))

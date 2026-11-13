@@ -18,7 +18,7 @@ from tests.research_material_provider import ResearchProvider
 
 
 def test_full_research_workflow_preserves_report_and_only_original_source_evidence(
-    repo, scope, producer, monkeypatch
+    repo, scope, producer, monkeypatch, tmp_path
 ):
     project, _ = scope
     ref, *_ = saved(repo, scope, producer, monkeypatch)
@@ -128,3 +128,15 @@ def test_full_research_workflow_preserves_report_and_only_original_source_eviden
     count = len(provider.requests)
     evaluation.run(command)
     assert len(provider.requests) == count
+
+    from podgen.runtime.evaluation.export import export_run
+
+    destination = tmp_path / "export"
+    export_run(repo, project, command.run_id, destination)
+    assert json.loads((destination / "archive/revise-1/request.json").read_text()) == journal.request(
+        journal.invocation(command.run_id, "revise-1")
+    )
+    assert (destination / "review-result.md").read_text()
+    assert (destination / "research/report.md").read_text() == REPORT
+    assert (destination / "research/sources/S11.txt").read_text()
+    assert len(json.loads((destination / "research/sources.json").read_text())) == 2

@@ -33,4 +33,6 @@ Use the ordinary `podgen.writing_cli` with project, actor, object store and `POD
   --export-dir export
 ```
 
+Evaluator export writes the complete admitted report, readable source texts, admission, source/catalog ranges, original preparation and retained result/acquisition provenance under `research/`; fixed-plan clearances retain their original journal provenance.
+
 Prepare and preview are offline. `run` and `resume` execute model calls. The defaults retain one allowed plan revision and two allowed script revisions. Review the full actual request and instruction changes before a paid run; inspect the resulting plan and its separate review before evaluating downstream quality.
