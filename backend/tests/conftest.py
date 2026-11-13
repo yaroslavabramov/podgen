@@ -23,6 +23,7 @@ def database():
     db = Database(url)
     with db.transaction() as tx:
         config = Config(str(Path(__file__).resolve().parents[1] / "alembic.ini"))
+        config.set_main_option("script_location", str(Path(__file__).resolve().parents[1] / "migrations"))
         expected = set(ScriptDirectory.from_config(config).get_heads())
         assert set(tx.execute(text("SELECT version_num FROM alembic_version")).scalars()) == expected
     yield db

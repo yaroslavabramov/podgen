@@ -155,3 +155,52 @@ def test_history_pin_and_definitions_cannot_be_mixed(monkeypatch):
     manifest["source_tool_contract"].pop("history_view")
     with pytest.raises(ContractError, match="durable_source_tool_definitions_changed"):
         from_manifest(manifest)
+
+
+def test_persisted_history_pages_stream_once_and_reauthorize_cached_content(repo, scope, monkeypatch):
+    from types import SimpleNamespace
+
+    from podgen.domain.errors import AccessDenied
+    from podgen.persistence.database import query
+    from podgen.runtime.evaluation.journal import EvaluationJournal
+
+    journal = EvaluationJournal(repo, scope[0])
+    text = view.encoded([dict(speaker="assistant", text=f"Exact notes {scope[0]} 🚀. " * 1000)])
+    blob = journal.blob(text.encode())
+    raw = journal.blob(b"Raw provider transcript stays in the archive")
+    ref = journal.record(
+        dict(
+            data=dict(
+                history_view=view.VERSION,
+                history_blob=blob.model_dump(mode="json"),
+                conversation_blob=raw.model_dump(mode="json"),
+            )
+        )
+    )
+    history = SimpleNamespace(references={"source_context_segment": [ref]})
+    proxy = ResearchTools(journal, {}, None, history, lambda: None, history_view=view.VERSION)
+    streamed = []
+    original = repo.objects.iter_read
+
+    def read_chunks(project, target, **kwargs):
+        streamed.append(target)
+        yield from original(project, target, **kwargs)
+
+    monkeypatch.setattr(repo.objects, "iter_read", read_chunks)
+    monkeypatch.setattr(repo.objects, "read", lambda *args: pytest.fail("history must use bounded ranges"))
+
+    def page(start):
+        return proxy.execute(
+            "read_work_history", dict(kind="conversation", index=0, start=start, end=None), read_id="E2"
+        )
+
+    assert page(0)["text"] == text[:9600]
+    assert page(9600)["text"] == text[9600:19200]
+    assert streamed == [blob]
+    with repo.database.transaction() as tx:
+        query(
+            tx, "DELETE FROM project_members WHERE project_id=:p AND actor_id=:a", p=scope[0], a=repo.actor_id
+        )
+    with pytest.raises(AccessDenied):
+        page(0)
+    assert streamed == [blob]
