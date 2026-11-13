@@ -1,0 +1,222 @@
+{
+  "run_id": "293c8b5a-53df-5483-92ec-80c9bd7f2258",
+  "request_path": "/Users/yaroslavabramov/side/podgen/tmp/hosted-planning-2026-11-13/export/archive/plan/turns/011/request.json",
+  "request_sha256": "80225b605da2e6fe5affde98dd707c4e21ce6d992e3bb74c7913063284700f48",
+  "calls": [
+    {
+      "tool": "read_material",
+      "arguments": {
+        "material_id": "M2",
+        "start": 0,
+        "end": null,
+        "context": false
+      },
+      "error": null,
+      "next_start": 2400,
+      "read_id": "R1",
+      "material_id": "M2",
+      "title": "Введение: Навигационный кризис эпохи Великих географических открытий",
+      "kind": "research_report_section",
+      "start": 0,
+      "end": 2400,
+      "report_start": 97,
+      "report_end": 2497,
+      "text_sha256": "fe1396bc10b36143d8f8853c7accb418a33b04bd0aca3ef16789f77a4b235cfd",
+      "exact_frozen_text": true
+    },
+    {
+      "tool": "read_material",
+      "arguments": {
+        "material_id": "M2",
+        "start": 2400,
+        "end": null,
+        "context": false
+      },
+      "error": null,
+      "next_start": null,
+      "read_id": "R2",
+      "material_id": "M2",
+      "title": "Введение: Навигационный кризис эпохи Великих географических открытий",
+      "kind": "research_report_section",
+      "start": 2400,
+      "end": 3776,
+      "report_start": 2497,
+      "report_end": 3873,
+      "text_sha256": "734bf004eb8d9b829d7e36eb018b2d7ab4ec6c21cdec561780859f146a5b183e",
+      "exact_frozen_text": true
+    },
+    {
+      "tool": "read_material",
+      "arguments": {
+        "material_id": "M3",
+        "start": 0,
+        "end": 4000,
+        "context": false
+      },
+      "error": "invalid_material_range",
+      "next_start": null
+    },
+    {
+      "tool": "read_material",
+      "arguments": {
+        "material_id": "M3",
+        "start": 0,
+        "end": 2847,
+        "context": false
+      },
+      "error": null,
+      "next_start": null,
+      "read_id": "R4",
+      "material_id": "M3",
+      "title": "Фундаментальный принцип: Время как мера пространства",
+      "kind": "research_report_section",
+      "start": 0,
+      "end": 2847,
+      "report_start": 3873,
+      "report_end": 6720,
+      "text_sha256": "bd31e961f20ac8bb1d6c9e79ddd0f1e63de54f68317e203d91bd66f0e7d178db",
+      "exact_frozen_text": true
+    },
+    {
+      "tool": "read_material",
+      "arguments": {
+        "material_id": "M4",
+        "start": 0,
+        "end": 3493,
+        "context": false
+      },
+      "error": null,
+      "next_start": null,
+      "read_id": "R5",
+      "material_id": "M4",
+      "title": "Практическое значение ошибки часов: Углы, мили и широта",
+      "kind": "research_report_section",
+      "start": 0,
+      "end": 3493,
+      "report_start": 6720,
+      "report_end": 10213,
+      "text_sha256": "b6eebb592df6a176f77f3b0fb55d49f7df33b2b8af52aadb7976391de349e79b",
+      "exact_frozen_text": true
+    },
+    {
+      "tool": "read_material",
+      "arguments": {
+        "material_id": "M5",
+        "start": 0,
+        "end": 4087,
+        "context": false
+      },
+      "error": null,
+      "next_start": null,
+      "read_id": "R6",
+      "material_id": "M5",
+      "title": "Альтернативный путь: Астрономия и метод лунных расстояний",
+      "kind": "research_report_section",
+      "start": 0,
+      "end": 4087,
+      "report_start": 10213,
+      "report_end": 14300,
+      "text_sha256": "9cd3a5d05959ec3112290f58317d4d9b5616ef4bfe12334086ce8c6d9ea761da",
+      "exact_frozen_text": true
+    },
+    {
+      "tool": "read_material",
+      "arguments": {
+        "material_id": "M6",
+        "start": 0,
+        "end": 6596,
+        "context": false
+      },
+      "error": null,
+      "next_start": null,
+      "read_id": "R7",
+      "material_id": "M6",
+      "title": "Одинокий гений: Джон Харрисон и создание морского хронометра",
+      "kind": "research_report_section",
+      "start": 0,
+      "end": 6596,
+      "report_start": 14300,
+      "report_end": 20896,
+      "text_sha256": "f7cf308a3309b8809c1fcbe18b7d04cd1f3c58a41506127c023c1c33f90c01dc",
+      "exact_frozen_text": true
+    },
+    {
+      "tool": "read_material",
+      "arguments": {
+        "material_id": "M7",
+        "start": 0,
+        "end": 4605,
+        "context": false
+      },
+      "error": null,
+      "next_start": null,
+      "read_id": "R8",
+      "material_id": "M7",
+      "title": "Валидация и масштабирование: От прототипа к серийному производству",
+      "kind": "research_report_section",
+      "start": 0,
+      "end": 4605,
+      "report_start": 20896,
+      "report_end": 25501,
+      "text_sha256": "7cd58534e17d53e8643de97dd73277e37e1f7ee681095a4f2dcfbee4f76b19f9",
+      "exact_frozen_text": true
+    },
+    {
+      "tool": "read_material",
+      "arguments": {
+        "material_id": "M8",
+        "start": 0,
+        "end": 4085,
+        "context": false
+      },
+      "error": null,
+      "next_start": null,
+      "read_id": "R9",
+      "material_id": "M8",
+      "title": "Революция на мостике: Принятие хронометров Королевским флотом",
+      "kind": "research_report_section",
+      "start": 0,
+      "end": 4085,
+      "report_start": 25501,
+      "report_end": 29586,
+      "text_sha256": "88d5b2577f1270631c166a07bb2c970471e6c8d3e95e044d2d2d7b5dbe4f71a6",
+      "exact_frozen_text": true
+    },
+    {
+      "tool": "read_source",
+      "arguments": {
+        "source_id": "S27",
+        "start": 0,
+        "end": null
+      },
+      "error": null,
+      "next_start": 2400,
+      "read_id": "E10",
+      "source_id": "S27",
+      "source": "Longitude found - the story of Harrison's timekeepers",
+      "start": 0,
+      "end": 2400,
+      "text_sha256": "5780d4fa92f129de77584ebb38256b7bbc6c42d30f4553bbdd49bb5d02462929",
+      "exact_frozen_text": true
+    },
+    {
+      "tool": "read_source",
+      "arguments": {
+        "source_id": "S27",
+        "start": 2400,
+        "end": 6000
+      },
+      "error": null,
+      "next_start": null,
+      "read_id": "E11",
+      "source_id": "S27",
+      "source": "Longitude found - the story of Harrison's timekeepers",
+      "start": 2400,
+      "end": 6000,
+      "text_sha256": "f506c140637986ffdcee1564a236ddd43364bbdae08e4c5f7eee9b6cab6789bb",
+      "exact_frozen_text": true
+    }
+  ],
+  "final_tool_choice": "none",
+  "turns": 12
+}
