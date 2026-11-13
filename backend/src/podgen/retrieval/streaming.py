@@ -3,54 +3,42 @@
 from collections import OrderedDict
 from itertools import islice
 
-import numpy as np
-
 from podgen.domain.canonical import digest
 
-from . import QueryRejected, RetrievalUnavailable
+from . import QueryRejected
 from .assets import cache_root
 from .config import validate
 from .hybrid import HybridSearch
-from .lexical import language, words
+from .lexical import words
 from .onnx_models import models
 from .preview import page
-from .streaming_chunks import batches
 
 
 class StreamingSearch(HybridSearch):
     def __init__(self, documents, cards, profile, *, index, network=None):
         self.profile = validate(profile)
         self.documents, self.cards, self.index = documents, cards, index
-        self.models = network if network is not None else models(str(cache_root()))
+        self._models = network
         self.results = OrderedDict()
         self.refresh()
 
+    @property
+    def models(self):
+        if self._models is None:
+            self._models = models(str(cache_root()))
+        return self._models
+
     def refresh(self):
-        for source_id, doc in self.documents.items():
-            code = language(doc.text[:16000])
-            with self.index.document(source_id, doc, code) as state:
-                if state["completed"]:
-                    continue
-                cursor = state["cursor_position"]
-                for ranges, following in batches(doc.text, self.models, self.profile, cursor=cursor):
-                    vectors = (
-                        self.models.embed([doc.text[a:b] for a, b in ranges])
-                        if ranges
-                        else np.empty((0, 384))
-                    )
-                    if (
-                        vectors.shape != (len(ranges), 384)
-                        or not np.isfinite(vectors).all()
-                        or (len(ranges) and not np.allclose(np.linalg.norm(vectors, axis=1), 1, atol=1e-4))
-                    ):
-                        raise RetrievalUnavailable("source_search_embedding_shape_mismatch")
-                    self.index.append_batch(
-                        source_id, doc, ranges, code, vectors, previous=cursor, cursor=following
-                    )
-                    cursor = following
-                if not doc.text:
-                    self.index.finish_empty(source_id)
-        self.revision = digest([[key, doc.digest] for key, doc in sorted(self.documents.items())])
+        from .streaming_build import refresh
+
+        revision = digest([[key, doc.digest] for key, doc in sorted(self.documents.items())])
+        if getattr(self, "revision", None) == revision:
+            # A completed immutable membership needs fresh authorization, not
+            # repeated language detection, projection lookup and rebinding.
+            self.index.check_access()
+            return
+        refresh(self)
+        self.revision = revision
         self.results.clear()
 
     def _valid_chunk(self, chunk, allowed):

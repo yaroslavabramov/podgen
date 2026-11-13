@@ -4,6 +4,12 @@ from .chunks import spans
 
 
 def batches(text, network, profile, *, cursor=0):
+    for ranges, following, _ in prepared_batches(text, network, profile, cursor=cursor):
+        yield ranges, following
+
+
+def prepared_batches(text, network, profile, *, cursor=0):
+    """Return the already read window's exact passages with their coordinates."""
     width = profile["tokenization_characters"]
     batch_size = profile["index_batch_size"]
     while cursor < len(text):
@@ -25,7 +31,7 @@ def batches(text, network, profile, *, cursor=0):
         for offset in range(0, len(ranges), batch_size):
             selected = ranges[offset : offset + batch_size]
             following = stop if offset + batch_size >= len(ranges) else selected[-1][1]
-            yield selected, following
+            yield selected, following, [window[a - origin : b - origin] for a, b in selected]
         if not ranges:
-            yield [], stop
+            yield [], stop, []
         cursor = stop

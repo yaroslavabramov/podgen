@@ -50,6 +50,9 @@ class CountingIndex:
     def __init__(self):
         self.states, self.count = {}, 0
 
+    def check_access(self):
+        pass
+
     @contextmanager
     def document(self, source, doc, code):
         yield self.begin_document(source, doc, code)
@@ -57,7 +60,7 @@ class CountingIndex:
     def begin_document(self, source, doc, code):
         return self.states.setdefault(source, dict(completed=False, cursor_position=0))
 
-    def append_batch(self, source, doc, ranges, code, vectors, *, previous, cursor):
+    def append_batch(self, source, doc, ranges, code, vectors, *, previous, cursor, texts=None):
         state = self.states[source]
         assert state["cursor_position"] == previous
         self.count += len(ranges)

@@ -4,6 +4,8 @@ from collections import OrderedDict, defaultdict
 
 import numpy as np
 
+from podgen.persistence.source_reading import read_sources
+
 from . import QueryRejected, RetrievalUnavailable
 from .assets import cache_root
 from .chunks import Chunk, spans
@@ -118,7 +120,8 @@ class HybridSearch:
                 branch_ranks[chunk][name] = position
         candidates = sorted(reciprocal, key=lambda chunk: (-reciprocal[chunk], chunk.source_id, chunk.start))
         fusion_ranks = {chunk: rank for rank, chunk in enumerate(candidates, 1)}
-        texts = [self.documents[c.source_id].text[c.start : c.end] for c in candidates]
+        with read_sources([self.documents[c.source_id] for c in candidates]):
+            texts = [self.documents[c.source_id].text[c.start : c.end] for c in candidates]
         relevance = self.models.rerank(query, texts)
         if len(relevance) != len(candidates) or not np.isfinite(relevance).all():
             raise RetrievalUnavailable("source_search_reranker_shape_mismatch")

@@ -10,8 +10,9 @@ from podgen.persistence.database import one, query
 from podgen.retrieval import RetrievalUnavailable
 
 from .document_projection import DocumentProjection, identity
+from .legacy_source_index import adopt as adopt_legacy
 from .source_search_index import WHERE, PostgresSearchIndex
-from .source_search_membership import adopt_legacy, bind
+from .source_search_membership import bind
 
 
 class StreamingSearchIndex(PostgresSearchIndex):
@@ -52,23 +53,54 @@ class StreamingSearchIndex(PostgresSearchIndex):
         self.access.source_hashes.add(doc.digest)
         key = identity(doc, self.profile, language)
         with self.transaction() as (tx, hashes):
-            state = self.projections.begin(tx, key, doc, language)
-            bind(self, tx, source_id, key, hashes)
-            if state["cursor_position"] == 0 and not state["completed"]:
-                imported = adopt_legacy(self, tx, source_id, key, doc, language)
-                if imported is not None:
-                    state = imported
+            state = self._begin(tx, source_id, key, doc, language, hashes)
         # Cache registration only after commit; a failed transaction must retry it.
         self.registered_dependencies.update(hashes)
         self.document_keys[source_id] = key
         return state
 
-    def append_batch(self, source_id, doc, ranges, language, vectors, *, previous, cursor):
+    def _begin(self, tx, source_id, key, doc, language, hashes):
+        state = self.projections.begin(tx, key, doc, language)
+        bind(self, tx, source_id, key, hashes)
+        if state["cursor_position"] == 0 and not state["completed"]:
+            imported = adopt_legacy(self, tx, source_id, key, doc, language)
+            if imported is not None:
+                state = imported
+        return state
+
+    def prepare_documents(self, documents):
+        """Bind one bounded metadata batch, reusing completed work before inference."""
+        if len(documents) > 64:
+            raise Conflict("source_search_prepare_batch_too_large")
+        self.access.source_hashes.update(doc.digest for _, doc, _ in documents)
+        ready, keys, locked = set(), {}, set()
+        with self.transaction() as (tx, hashes):
+            for source_id, doc, language in documents:
+                key = identity(doc, self.profile, language)
+                if key not in locked:
+                    self.projections.lock_transaction(tx, key)
+                    locked.add(key)
+                state = self._begin(tx, source_id, key, doc, language, hashes if not keys else set())
+                keys[source_id] = key
+                if state["completed"]:
+                    ready.add(source_id)
+        self.registered_dependencies.update(hashes)
+        self.document_keys.update(keys)
+        return ready
+
+    def append_batch(self, source_id, doc, ranges, language, vectors, *, previous, cursor, texts=None):
         key = identity(doc, self.profile, language)
         if self.document_keys.get(source_id) != key:
             raise Conflict("source_search_document_binding_changed")
+        if texts is None:
+            from podgen.persistence.source_reading import read_sources
+
+            with read_sources([doc]):
+                texts = [doc.text[start:end] for start, end in ranges]
         with self.transaction() as (tx, _):
-            self.projections.append(tx, key, doc, ranges, language, vectors, previous=previous, cursor=cursor)
+            self.projections.append(
+                tx, key, doc, ranges, language, vectors, previous=previous, cursor=cursor, texts=texts
+            )
 
     def finish_empty(self, source_id):
         with self.transaction() as (tx, _):

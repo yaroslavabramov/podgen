@@ -32,13 +32,23 @@ class DocumentProjection:
     def __init__(self, index):
         self.index = index
 
+    def lock_key(self, key):
+        return f"source-document:{self.index.journal.project}:{key}"
+
+    def lock_transaction(self, tx, key):
+        held = one(
+            tx, "SELECT pg_try_advisory_xact_lock(hashtextextended(:key,0)) AS held", key=self.lock_key(key)
+        )
+        if not held["held"]:
+            raise RetrievalUnavailable("source_search_document_build_busy")
+
     @contextmanager
     def lock(self, key):
         # Inference holds a session lock, never a database transaction. Withdrawal
         # can commit while inference runs; the next authorized batch will fail.
         repo = self.index.journal.repo
         with repo.database.engine.connect().execution_options(isolation_level="AUTOCOMMIT") as tx:
-            lock_key = f"source-document:{self.index.journal.project}:{key}"
+            lock_key = self.lock_key(key)
             held = one(tx, "SELECT pg_try_advisory_lock(hashtextextended(:key,0)) AS held", key=lock_key)
             if not held["held"]:
                 raise RetrievalUnavailable("source_search_document_build_busy")
@@ -72,7 +82,7 @@ class DocumentProjection:
         )
         return dict(cursor_position=0, completed=False, chunk_count=0)
 
-    def append(self, tx, key, doc, ranges, language, vectors, *, previous, cursor):
+    def append(self, tx, key, doc, ranges, language, vectors, *, previous, cursor, texts):
         params = dict(p=self.index.journal.project, document=key)
         row = one(tx, "SELECT * FROM source_search_documents WHERE " + DOCUMENT + " FOR UPDATE", **params)
         if row is None or row["completed"] or row["cursor_position"] != previous:
@@ -80,10 +90,11 @@ class DocumentProjection:
         if not previous < cursor <= row["source_length"]:
             raise Conflict("source_search_build_cursor_invalid")
         config = {"en": "english", "ru": "russian"}.get(language, "simple")
-        for (start, end), vector in zip(ranges, vectors, strict=True):
+        for (start, end), vector, text in zip(ranges, vectors, texts, strict=True):
             if not 0 <= start < end <= cursor:
                 raise Conflict("source_search_chunk_range_invalid")
-            text = doc.text[start:end]
+            if len(text) != end - start:
+                raise Conflict("source_search_chunk_text_length_mismatch")
             tokens = words(text)
             query(
                 tx,
