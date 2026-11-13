@@ -44,16 +44,18 @@ def create(behavior, materials=None):
 
         declarations = research_definitions(declarations)
         from podgen.retrieval.config import streaming_profile
+        from podgen.runtime.models.research_history_view import VERSION as history_view
         from podgen.writing.research_materials.runtime_tools import definitions as runtime_definitions
         from podgen.writing.research_materials.runtime_tools import source_definitions
 
         return dict(
             version=DURABLE_RESEARCH_VERSION,
-            definitions=source_definitions(declarations) + runtime_definitions(),
+            definitions=source_definitions(declarations) + runtime_definitions(history_view=history_view),
             retrieval=streaming_profile(),
             max_read_chars=9600,
             default_read_chars=9600,
             context_policy="durable-model-window/1",
+            history_view=history_view,
         )
     return dict(
         **({"default_read_chars": 9600} if research else {}),
@@ -151,10 +153,16 @@ def validate_durable(manifest, value):
     from podgen.writing.research_materials.runtime_tools import definitions as runtime_definitions
     from podgen.writing.research_materials.runtime_tools import source_definitions
 
+    fields = {"version", "definitions", "retrieval", "max_read_chars", "default_read_chars", "context_policy"}
+    history_view = value.get("history_view")
+    if "history_view" in value:
+        if history_view != "research-work-history/1":
+            raise ContractError("unsupported_research_history_view")
+        fields.add("history_view")
+
     if (
         manifest.get("behavior_profile") != "production/1"
-        or set(value)
-        != {"version", "definitions", "retrieval", "max_read_chars", "default_read_chars", "context_policy"}
+        or set(value) != fields
         or value["retrieval"] != streaming_profile()
         or value["context_policy"] != "durable-model-window/1"
         or type(value["max_read_chars"]) is not int
@@ -166,10 +174,9 @@ def validate_durable(manifest, value):
     from podgen.writing.research_materials.tools import definitions as research_definitions
     from podgen.writing.source_tools import definitions
 
-    if (
-        value["definitions"]
-        != source_definitions(research_definitions(definitions(retrieval=True))) + runtime_definitions()
-    ):
+    if value["definitions"] != source_definitions(
+        research_definitions(definitions(retrieval=True))
+    ) + runtime_definitions(history_view=history_view):
         raise ContractError("durable_source_tool_definitions_changed")
     return value
 

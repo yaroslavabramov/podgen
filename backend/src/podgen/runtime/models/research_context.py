@@ -13,10 +13,11 @@ from .contracts import ProviderFault
 
 
 class ResearchContext:
-    def __init__(self, gateway, root, profile, original, history, guard):
+    def __init__(self, gateway, root, profile, original, history, guard, *, history_view=None):
         self.gateway, self.root, self.profile = gateway, root, profile
         self.original, self.history, self.guard = original, history, guard
         self.journal = gateway.journal
+        self.history_view = history_view
 
     def event(self, kind, data, *, reply=None):
         ref = self.journal.event(self.root, kind, data=data, reply=reply)
@@ -112,6 +113,17 @@ class ResearchContext:
         blob = self.journal.blob(
             json.dumps(conversation, ensure_ascii=False, allow_nan=False, separators=(",", ":")).encode()
         )
+        view = {}
+        if self.history_view is not None:
+            from . import research_history_view
+
+            if self.history_view != research_history_view.VERSION:
+                raise ContractError("unsupported_research_history_view")
+            semantic = research_history_view.encoded(research_history_view.conversation(conversation))
+            view = dict(
+                history_view=self.history_view,
+                history_blob=self.journal.blob(semantic.encode()).model_dump(mode="json"),
+            )
         ref = self.event(
             "source_context_segment",
             dict(
@@ -121,6 +133,7 @@ class ResearchContext:
                     record_kind="tool_execution", record_id=saved["_record_id"]
                 ).model_dump(mode="json"),
                 conversation_blob=blob.model_dump(mode="json"),
+                **view,
             ),
         )
         return self.history.read(ref)

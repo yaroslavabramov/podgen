@@ -69,6 +69,11 @@ class EvaluationJournal:
     def read_blob(self, ref, blob):
         return self.repo.read_runtime_blob(self.project, ref, blob)
 
+    def text_blob(self, ref, blob):
+        from podgen.persistence.text_source import verified_text
+
+        return verified_text(self.repo, self.project, ref, blob)
+
     def run(self, run_id):
         with self.repo.database.transaction() as tx:
             self.authorize(tx)

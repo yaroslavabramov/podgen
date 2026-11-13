@@ -43,11 +43,13 @@ def invoke(gateway, root, profile, contract, *, limits, totals, guard):
         model_turns.aggregate(journal, root, usage, "response_completed")
         journal.transition(root, "response_completed", provider_id=response["id"])
         return gateway._output_text(root, response)
-    proxy = ResearchTools(journal, root, corpus, history, guard)
+    proxy = ResearchTools(journal, root, corpus, history, guard, history_view=contract.get("history_view"))
     if corpus.material_resolver is not None:
         proxy.restore(corpus.material_resolver.restore(run_id=root["run_id"], guard=guard))
         corpus.refresh()
-    context = ResearchContext(gateway, root, profile, task, history, guard)
+    context = ResearchContext(
+        gateway, root, profile, task, history, guard, history_view=contract.get("history_view")
+    )
     segment = history.latest("source_context_segment")
     segment_start = segment["data"]["next_turn"] if segment else 0
     call_index = segment["data"]["checkpoint_call_index"] + 1 if segment else 0

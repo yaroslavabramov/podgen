@@ -1,31 +1,37 @@
 """Operational research navigation, explicit checkpoints and durable material handoffs."""
 
-import json
 from uuid import uuid5
 
 from podgen.domain.contracts.common import BlobRef
+from podgen.domain.errors import ContractError
+
+from . import research_history_view
 
 PAGE = 9600
 CATALOG_PAGE = 6
 
 
 def text_page(text, start, end):
-    stop = min(len(text), start + PAGE) if end is None else end
-    if not 0 <= start < stop <= len(text) or stop - start > PAGE:
-        return dict(error="invalid_history_range", length=len(text))
+    length = len(text)
+    stop = min(length, start + PAGE) if end is None else end
+    if not 0 <= start < stop <= length or stop - start > PAGE:
+        return dict(error="invalid_history_range", length=length)
     return dict(
         text=text[start:stop],
         start=start,
         end=stop,
-        length=len(text),
-        next_start=stop if stop < len(text) else None,
+        length=length,
+        next_start=stop if stop < length else None,
     )
 
 
 class ResearchTools:
-    def __init__(self, journal, root, corpus, history, guard):
+    def __init__(self, journal, root, corpus, history, guard, *, history_view=None):
         self.journal, self.root, self.corpus = journal, root, corpus
         self.history, self.guard = history, guard
+        if history_view not in (None, research_history_view.VERSION):
+            raise ContractError("unsupported_research_history_view")
+        self.history_view = history_view
 
     @property
     def last_search_diagnostics(self):
@@ -100,14 +106,24 @@ class ResearchTools:
                 saved = self.history.for_call("source_tool_result", args["index"])
                 if not saved:
                     return dict(error="unknown_work_history_entry")
-                text = json.dumps(saved[0]["data"], ensure_ascii=False, separators=(",", ":"))
+                data = saved[0]["data"]
+                text = research_history_view.encoded(
+                    research_history_view.tool_result(data) if self.history_view else data
+                )
             elif args["kind"] == "conversation":
                 refs = self.history.references["source_context_segment"]
                 if args["index"] >= len(refs):
                     return dict(error="unknown_work_history_entry")
                 ref = refs[args["index"]]
-                blob = BlobRef.model_validate(self.journal.read(ref)["data"]["conversation_blob"])
-                text = self.journal.read_blob(ref, blob).decode()
+                segment = self.journal.read(ref)["data"]
+                if self.history_view:
+                    if segment.get("history_view") != self.history_view:
+                        raise ContractError("research_history_view_missing")
+                    blob = BlobRef.model_validate(segment["history_blob"])
+                    text = self.journal.text_blob(ref, blob)
+                else:
+                    blob = BlobRef.model_validate(segment["conversation_blob"])
+                    text = self.journal.read_blob(ref, blob).decode()
             else:
                 return dict(error="unknown_work_history_kind")
             return dict(kind=args["kind"], index=args["index"], **text_page(text, args["start"], args["end"]))

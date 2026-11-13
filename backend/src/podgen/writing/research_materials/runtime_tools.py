@@ -132,14 +132,24 @@ TOOLS = (
 )
 
 
-def definitions():
+def definitions(*, history_view=None):
+    from podgen.domain.errors import ContractError
+
+    if history_view not in (None, "research-work-history/1"):
+        raise ContractError("unsupported_research_history_view")
     return [
         dict(
             type="function",
             name=name,
             strict=True,
             parameters=model.model_json_schema(),
-            description=description,
+            description=(
+                "Read prior task messages, actions, arguments and results in character pages. "
+                "Full working notes and exact source passages are retained; transport metadata is omitted. "
+                "This navigation creates no new evidence receipt; original E/R identifiers retain their meaning."
+                if name == "read_work_history" and history_view
+                else description
+            ),
         )
         for name, model, description in TOOLS
     ]

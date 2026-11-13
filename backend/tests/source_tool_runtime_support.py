@@ -56,6 +56,9 @@ class MemoryJournal:
     def read_blob(self, ref, blob):
         return self.blobs[blob.sha256]
 
+    def text_blob(self, ref, blob):
+        return self.read_blob(ref, blob).decode()
+
     def request(self, row):
         import json
 
