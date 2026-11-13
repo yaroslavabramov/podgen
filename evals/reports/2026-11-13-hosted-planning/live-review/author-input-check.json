@@ -1,5 +1,5 @@
 {
-  "scope": "Initial actual author request only; current export contains turns 000–002 and is not a complete author tool trace.",
+  "scope": "Initial actual author request checked separately; complete subsequent source-reading trace is saved in draft-reading-trace.json.",
   "request": "tmp/hosted-planning-2026-11-13/export/archive/draft/turns/000/request.json",
   "request_sha256": "9e1de7456c63548f32681a7dd86abd58f5d0bde9fac1e24e9894f3ee10f56472",
   "selected_materials": [
