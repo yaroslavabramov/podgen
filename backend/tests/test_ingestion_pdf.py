@@ -77,3 +77,27 @@ async def test_explicit_text_layer_only_never_starts_marker(monkeypatch):
     assert result.name == "pypdfium2"
     assert "marker_disabled_text_layer_only" in result.warnings
     assert not result.is_transformation
+
+
+@pytest.mark.asyncio
+async def test_document_extractor_honors_text_layer_only_profile(monkeypatch):
+    from podgen.sources.acquisition.contracts import AcquisitionProfile, FetchedDocument
+    from podgen.sources.extraction.extract import DocumentExtractors
+
+    def forbidden(*args):
+        pytest.fail("Acquisition profile must prevent Marker startup")
+
+    monkeypatch.setattr(pdf, "_run_marker_with_hard_timeout", forbidden)
+    monkeypatch.setattr(pdf, "_fallback_pypdfium2", lambda path: "Saved PDF text layer")
+    document = FetchedDocument(
+        "https://example.com/paper.pdf",
+        "https://example.com/paper.pdf",
+        [],
+        200,
+        {"content-type": "application/pdf"},
+        b"%PDF-original",
+        "2026-11-13T00:00:00Z",
+    )
+    result = await DocumentExtractors().extract(document, AcquisitionProfile(pdf_mode="text_layer_only"))
+    assert result.name == "pypdfium2"
+    assert "marker_disabled_text_layer_only" in result.warnings
