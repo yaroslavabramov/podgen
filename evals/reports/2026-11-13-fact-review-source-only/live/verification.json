@@ -26,5 +26,17 @@
   ],
   "audit_decisions": 16,
   "audit_covers_all_utterances": true,
-  "support_labels_empty": true
+  "support_labels_empty": true,
+  "physical_request_accounting": {
+    "completed_count_responses": 43,
+    "completed_generation_responses": 43,
+    "count_receipt_reused_events": 43,
+    "additional_count_requests_from_reuse": 0,
+    "wire_request_response_pairs_verified": {
+      "source_context_count": 43,
+      "provider_response": 43
+    },
+    "distinct_count_provider_request_ids": 43,
+    "basis": "Archived wire request and response bytes match event blob hashes/lengths; all verified replies have HTTP 200."
+  }
 }

@@ -91,5 +91,14 @@
       "passage_length": 2847
     }
   ],
-  "material_scoped_searches": []
+  "material_scoped_searches": [],
+  "physical_request_accounting": {
+    "completed_count_responses": 68,
+    "count_event_components": {
+      "source_context_count": 34,
+      "count_response": 34
+    },
+    "completed_generation_responses": 34,
+    "basis": "Saved source invocation event binding; baseline fact-review wire request/response blobs are absent from the experiment archive and saved longitude export. Not wire-verified."
+  }
 }

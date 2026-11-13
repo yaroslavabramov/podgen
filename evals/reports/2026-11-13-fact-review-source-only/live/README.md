@@ -21,7 +21,10 @@ The complete result is `fact-review-output.json`; `audit.json` contains its comp
 | `read_source` | 14 | 18 |
 | `search_sources` | 13 | 13 |
 | Total tool calls/results | 33 | 42 |
-| Completed count/generation responses | 34 / 34 | 43 / 43 |
+| Completed physical count responses | 68 (event-bound) | 43 (wire-verified) |
+| Completed generation responses | 34 (event-bound) | 43 (wire-verified) |
+
+The baseline performs two physical counts per turn: 34 `source_context_count` plus 34 `count_response` events, totaling 68, separately from 34 generation responses. Its fact-review wire request/response blobs are absent from this experiment archive and the saved longitude export (whose archive contains only the plan); the baseline figure is established by the saved invocation event binding, not wire verification. The new run has 43 `source_context_count` calls, zero `count_response` calls and 43 `count_receipt_reused` events. Reuse adds no physical request. All 43 new count and 43 generation request/response pairs were verified against their archived blob hashes and successful HTTP status; the 43 count provider request IDs are distinct.
 
 The original model actually consumed four successful report readings: M6 (6,596 characters), M7 (4,605), M8 (4,085), M3 (2,847), totaling 18,133 Unicode characters. It made no M-scoped search. Thus the variant removes access to synthesis that was actually read in the baseline, alongside report navigation/catalog fields. `source-run-tool-counts.json` records the original invocation and exact report-reading arguments/results. These counts were obtained read-only after the new review finished; no baseline findings entered its context.
 
