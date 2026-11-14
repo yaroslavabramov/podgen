@@ -9,8 +9,9 @@ from uuid import uuid4
 import pytest
 from sqlalchemy import event
 
-from podgen.domain.errors import AccessDenied, Conflict, ContractError
+from podgen.domain.errors import AccessDenied, Conflict
 from podgen.persistence.database import one, query
+from podgen.persistence.dependencies import DependencyLedger
 from podgen.persistence.repository import Repository
 from podgen.research.hosted.contracts import Approval, GeminiProfile, ResearchConfig
 from podgen.research.hosted.journal import ResearchJournal
@@ -215,7 +216,7 @@ def test_legacy_archive_is_adopted_once_and_unchanged(research, monkeypatch):
     assert advance(reopened, provider)["state"] == "in_progress"
 
 
-def test_head_rechecks_project_and_current_receipt_access(research):
+def test_head_rechecks_project_and_current_receipt_access(research, producer):
     journal = research
     advance(journal, Provider(response()))
     stranger = ResearchJournal(
@@ -224,16 +225,31 @@ def test_head_rechecks_project_and_current_receipt_access(research):
     with pytest.raises(AccessDenied):
         status(stranger)
     receipt = journal.get("exchange:1:receipt")
+    anchor = journal.repo.create(
+        journal.project,
+        "Policy",
+        dict(policy_kind="data", rules=dict(fixture=True)),
+        producer=producer,
+        operation_id=uuid4(),
+    )
+    event = DependencyLedger(journal.repo).invalidate(
+        journal.project,
+        anchor.ref,
+        reason="Independent live receipt SHA denial fixture",
+        category="quality",
+    )
     with journal.repo.database.transaction() as tx:
         query(
             tx,
             "INSERT INTO blob_access_revocations VALUES(:p,:sha,:event,'Head receipt denial')",
             p=journal.project,
             sha=receipt["raw_response_blob"]["sha256"],
-            event=uuid4(),
+            event=event,
         )
-    with pytest.raises(ContractError):
+    with pytest.raises(AccessDenied):
         status(reopen(journal))
+    with pytest.raises(AccessDenied):
+        reopen(journal).bytes("exchange:1:receipt", receipt["raw_response_blob"])
 
 
 def test_viewer_can_adopt_legacy_status_but_cannot_advance(research):

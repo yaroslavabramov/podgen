@@ -1,5 +1,6 @@
 """Cross old corpus ceilings with bounded batches; qualify the real durable SQL adapter."""
 
+from collections import Counter
 from contextlib import contextmanager
 from types import SimpleNamespace
 from uuid import uuid4
@@ -7,7 +8,7 @@ from uuid import uuid4
 import numpy as np
 import pytest
 
-from podgen.persistence.database import one
+from podgen.persistence.database import one, query
 from podgen.retrieval.config import streaming_profile
 from podgen.retrieval.streaming import StreamingSearch
 from podgen.runtime.evaluation.streaming_search_index import StreamingSearchIndex
@@ -198,10 +199,42 @@ def test_real_sql_search_retrieves_and_pages_a_needle_beyond_every_old_corpus_li
         )
         assert second["hits"] != first["hits"]
     else:
-        grouped = next(hit for hit in first["hits"] if "next_alias_page" in hit)
+        # The first pageable group need not be the large repeated passage.
+        # Qualify the actual full exact-copy group, including every selector.
+        grouped = max(first["hits"], key=lambda hit: hit.get("alias_count", 0))
+        ranked = search.diagnostics(args)["ranked"]
+        all_aliases = next(
+            row["aliases"]
+            for row in ranked
+            if row["source_id"] == grouped["source_id"]
+            and row["start"] == grouped["start"]
+            and row["end"] == grouped["end"]
+        )
+        def coordinates(value):
+            return value["source_id"], value["start"], value["end"]
+        retained = {coordinates(alias) for alias in all_aliases}
+        with repo.database.read_transaction() as tx:
+            indexed = list(
+                query(
+                    tx,
+                    "SELECT m.source_id,c.start_offset AS start,c.end_offset AS end,c.passage_sha256 FROM source_search_memberships m JOIN source_search_document_chunks c USING(project_id,document_key) WHERE m.project_id=:p AND m.shared_input_record_id=:r AND m.profile_sha256=:h",
+                    **index.params,
+                ).mappings()
+            )
+        largest = Counter(row["passage_sha256"] for row in indexed).most_common(1)[0][0]
+        expected = {coordinates(row) for row in indexed if row["passage_sha256"] == largest}
+        assert len(expected) > 12000 and expected <= retained
+        assert retained <= {coordinates(row) for row in indexed}
+        assert len(retained) == len(all_aliases) == grouped["alias_count"]
         second = search.search(SimpleNamespace(**grouped["next_alias_page"]["arguments"]))
         assert second["aliases"] and second["aliases"] != grouped["aliases"]
         assert second["alias_count"] == grouped["alias_count"] > 12000
         for alias in second["aliases"]:
             assert 0 <= alias["start"] < alias["end"] <= len(documents[alias["source_id"]].text)
+        assert second["aliases"] == all_aliases[2:8]
+        final_offset = 2 + ((len(all_aliases) - 3) // 6) * 6
+        final = search.search(
+            SimpleNamespace(**(grouped["next_alias_page"]["arguments"] | dict(offset=final_offset)))
+        )
+        assert final["aliases"] == all_aliases[final_offset:] and final["next_offset"] is None
     assert second["result_version"] == first["result_version"]

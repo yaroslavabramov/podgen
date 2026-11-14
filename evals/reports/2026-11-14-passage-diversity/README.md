@@ -65,8 +65,15 @@ vectors (zero passage embeddings) and verified old pinned pagination unchanged:
 was 1.19 GB (cumulative, including both policies). That strict-only version freed
 no problematic top-six slots, so its results do not qualify the final version.
 
+Current PostgreSQL confirmation passes all 25 passage-diversity cases and four
+streaming-search cases, within a 39-test related queue. The long-corpus case now
+selects the actual large clone group, verifies all >12000 expected SQL selectors
+remain in its complete alias list, checks every retained selector belongs to the
+index, and checks first/final alias pages with the pinned result version. The old
+failure chose the first small pageable group; no production filtering changed.
+The saved JUnit output is in the adjacent hosted-research-polling report.
+
 The baseline has saved rankings, but no comparable original timing, SQL/network
-or memory measurements. Final full SQL/ONNX replay, current PostgreSQL regression,
-bytes read/written, incremental memory and corpus/history growth measurements
-remain unverified: the shared heavy-test slot belongs to the coordinator. The
-grouping-only result must not be reported as complete end-to-end qualification.
+or memory measurements. Final full SQL/ONNX replay, bytes read/written, incremental
+memory and corpus/history growth measurements remain unverified. The grouping-only
+result must not be reported as complete end-to-end quality qualification.

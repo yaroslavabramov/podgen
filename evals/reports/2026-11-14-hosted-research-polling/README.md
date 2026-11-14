@@ -49,10 +49,30 @@ intent/receipt, unknown outcomes, failed GET, changed job, terminal and complete
 status, one-time legacy adoption, one-time job persistence/repair, complete report
 and export preservation, and bounded work at 1/20/100 polls.
 
-`test_hosted_research_head_persistence.py` is prepared for the coordinator's sole
-PostgreSQL test queue. It checks complete SQL/row/object-I/O work at 1/20/100
-polls, atomic rollback, reopen after receipt, revision conflicts, simultaneous
-advance, once-only adoption, current receipt revocation and viewer status access.
-It has not been run in this chat. SQL/real storage counts, actual peak RSS and
-migration execution remain unverified here; fake-provider timings do not establish
-end-to-end production performance. `runtime.dispatch.before_external` is retained.
+The PostgreSQL confirmation passed **39 related tests**: nine hosted-head tests,
+one existing hosted persistence test, 25 passage-diversity tests and four streaming
+retrieval tests. This includes transaction rollback, reopen after receipt, stale
+writers, simultaneous advance, legacy adoption, receipt revocation and viewer
+access. `runtime.dispatch.before_external` is retained.
+
+Actual complete-operation measurements are identical after 1/20/100 prior polls:
+
+| Operation | SQL calls | Rows returned/affected | Object reads | Bytes read | Object writes |
+|---|---:|---:|---:|---:|---:|
+| Next poll | 75 | 65 | 1 | 429 | 0 |
+| Status | 16 | 15 | 0 | 0 | 0 |
+
+The 429 bytes are the immutable request in this separate fixture, not a historical
+HTTP response. Identical fake response bodies reuse the existing content-addressed
+blob, hence zero response object writes; this does not measure storage cost for
+changing provider responses. SQL row totals sum nonnegative `cursor.rowcount`,
+including writes. No historical SQL timing baseline or process RSS was measured.
+
+`postgresql-confirmation.json` contains the actual `record_property` values;
+`postgresql-confirmation.junit.xml` is the saved test output. The original two
+failures were test defects: the receipt-denial fixture used an event absent from
+`invalidations`, and retrieval selected the first small pageable group. The fixes
+create a real invalidation event and require `AccessDenied` for both head and raw
+receipt reads; retrieval verifies the full >12000-copy group against indexed SQL
+selectors and its first/final pages. Production behavior and authorization checks
+were not changed to make these tests pass.

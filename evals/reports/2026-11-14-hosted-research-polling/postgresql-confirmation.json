@@ -1,0 +1,58 @@
+{
+  "qualification": "actual_postgresql_fake_provider_confirmation",
+  "tests": 39,
+  "failures": 0,
+  "cases_by_module": {
+    "tests.test_hosted_research_head_persistence": 9,
+    "tests.test_hosted_research_persistence": 1,
+    "tests.test_passage_diversity": 25,
+    "tests.test_streaming_source_search": 4
+  },
+  "measurements": [
+    {
+      "polls": 1,
+      "poll": {
+        "sql_calls": 75,
+        "sql_rows": 65,
+        "object_reads": 1,
+        "object_bytes_read": 429
+      },
+      "status": {
+        "sql_calls": 16,
+        "sql_rows": 15
+      }
+    },
+    {
+      "polls": 20,
+      "poll": {
+        "sql_calls": 75,
+        "sql_rows": 65,
+        "object_reads": 1,
+        "object_bytes_read": 429
+      },
+      "status": {
+        "sql_calls": 16,
+        "sql_rows": 15
+      }
+    },
+    {
+      "polls": 100,
+      "poll": {
+        "sql_calls": 75,
+        "sql_rows": 65,
+        "object_reads": 1,
+        "object_bytes_read": 429
+      },
+      "status": {
+        "sql_calls": 16,
+        "sql_rows": 15
+      }
+    }
+  ],
+  "junit_sha256": "14fa2b51b435897194d9d2f84713c287a181081e5b7344a09268643048e5a67e",
+  "limitations": [
+    "Fake provider returns identical response bodies; content-addressed storage reuses the existing blob, so observed response object writes are zero.",
+    "SQL rows count cursor.rowcount across statements, including writes; negative counts contribute zero.",
+    "No process RSS or SQL timing baseline for the historical implementation was measured."
+  ]
+}
