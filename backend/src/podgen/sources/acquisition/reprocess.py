@@ -2,6 +2,7 @@
 
 from podgen.domain.contracts.common import BlobRef
 from podgen.domain.errors import ContractError
+from podgen.persistence.artifact_preparation import verified_bytes
 from podgen.sources.extraction.extract import DocumentExtractors
 
 from .contracts import AcquisitionRequest, AcquisitionResult, FetchedDocument, ReExtractionRequest
@@ -17,7 +18,8 @@ async def reprocess_source(repo, project_id, request, *, extractors=None):
     store = AcquisitionStore(repo, project_id, request.operation_id)
     with store.lock():
         profile = load_profile(repo, project_id, request.profile_ref)
-        source = repo.get(project_id, request.source_revision_ref).payload
+        source_revision = repo.get(project_id, request.source_revision_ref)
+        source = source_revision.payload
         store.put("request", request.model_dump(mode="json"))
         saved = store.get("result")
         if saved:
@@ -56,9 +58,12 @@ async def reprocess_source(repo, project_id, request, *, extractors=None):
             profile,
             role,
             document,
-            request.source_revision_ref,
+            source_revision,
             extractors or DocumentExtractors(),
             acquisition_ref=acquisition_ref,
+            original_proof=verified_bytes(
+                repo, project_id, BlobRef.model_validate(source["original_blob"]), body
+            ),
         )
         status = (
             "available"

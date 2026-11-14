@@ -62,7 +62,7 @@ def _validate_inputs(repo, tx, project, payload, audience):
     from .repository import Repository
 
     readers = [repo]
-    if audience == "project":
+    if audience == "project" and repo.purpose != "generation":
         readers.append(Repository(repo.database, repo.objects, repo.actor_id, purpose="generation"))
     references = tuple(dict.fromkeys(ref for _, _, ref in walk_values(payload)))
     with ExitStack() as stack:

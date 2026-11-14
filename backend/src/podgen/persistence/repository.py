@@ -219,12 +219,16 @@ class Repository:
         episode_id=None,
         audience="project",
     ):
+        from .artifact_preparation import prepare
+
+        prepared = prepare(self, project_id, kind, payload, audience=audience)
         with self.database.transaction() as tx:
             return self._create(
                 tx,
                 project_id,
                 kind,
                 payload,
+                prepared=prepared,
                 producer=producer,
                 operation_id=operation_id,
                 input_refs=input_refs,
@@ -259,8 +263,11 @@ class Repository:
                 return result
 
             payload = json.load(staged, object_pairs_hook=unique)
+        from .artifact_preparation import prepare
+
+        prepared = prepare(self, project_id, kind, payload, audience=kwargs.get("audience", "project"))
         with self.database.transaction() as tx:
-            return self._create(tx, project_id, kind, payload, streaming=True, **kwargs)
+            return self._create(tx, project_id, kind, payload, streaming=True, prepared=prepared, **kwargs)
 
     def _create(self, tx, project_id, kind, payload, **kwargs):
         from .artifact_writer import create_revision
@@ -382,10 +389,10 @@ class Repository:
         return value
 
     # Structural binding validation is independent of SQL writes.
-    def _validate_bindings(self, tx, project_id, kind, payload, refs):
+    def _validate_bindings(self, tx, project_id, kind, payload, refs, *, inputs=None, prepared=None):
         from .validation import validate_bindings
 
-        validate_bindings(self, tx, project_id, kind, payload, refs)
+        validate_bindings(self, tx, project_id, kind, payload, refs, inputs=inputs, prepared=prepared)
 
     def _effective_edges(self, tx, project_id, revision_id):
         from .dependencies import effective_edges

@@ -27,6 +27,9 @@ class PackageImporter:
                     expected_length=blob.byte_length,
                 )
         saved = []
+        from .artifact_preparation import prepare_package
+
+        prepared = prepare_package(repo, project_id, package, refs, runtimes, blobs, root)
         with repo.database.transaction() as tx:
             repo._acl(tx, project_id, write=True)
             repo._lock(tx, project_id)
@@ -58,6 +61,7 @@ class PackageImporter:
                         input_refs=[refs[key] for key in item.input_keys],
                         audience=item.audience,
                         streaming=True,
+                        prepared=prepared,
                     )
                     refs[item.key] = revision.ref
                     saved.append(revision)

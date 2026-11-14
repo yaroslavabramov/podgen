@@ -5,7 +5,7 @@ from pydantic import TypeAdapter
 from podgen.domain.canonical import canonical_bytes, content_hash, digest, sorted_refs
 from podgen.domain.contracts import ArtifactRef, BlobRef, validate_payload
 from podgen.domain.errors import AccessDenied, Conflict, ContractError
-from podgen.domain.references import LINEAGE_FIELDS, check_subtype, walk_values
+from podgen.domain.references import LINEAGE_FIELDS, check_subtype
 
 from .database import json_text, one, query
 from .repository import CONFIG_KINDS, HIDDEN_KINDS, timestamp
@@ -25,6 +25,7 @@ def create_revision(
     episode_id=None,
     audience="project",
     streaming=False,
+    prepared=None,
 ):
     repo._acl(tx, project_id, write=True)
     repo._lock(tx, project_id)
@@ -47,36 +48,64 @@ def create_revision(
     from .repository import Repository
 
     public_reader = (
-        Repository(repo.database, repo.objects, repo.actor_id, purpose="generation")
+        (
+            repo
+            if repo.purpose == "generation"
+            else Repository(repo.database, repo.objects, repo.actor_id, purpose="generation")
+        )
         if audience == "project"
         else None
     )
-    refs, blobs, runtimes = {}, [], []
-    for field, path, ref in walk_values(payload):
+    if producer_dict["kind"] == "model" and producer_dict["profile_ref"]["kind"] != "ModelProfile":
+        raise ContractError("producer_profile_kind_mismatch")
+    from .artifact_inputs import ArtifactInputs
+
+    inputs = ArtifactInputs(repo, tx, project_id, payload, input_refs, producer_dict, public_reader)
+    with inputs.authorized():
+        return _publish(
+            repo,
+            tx,
+            project_id,
+            kind,
+            payload,
+            producer_dict,
+            operation_id,
+            artifact_id,
+            episode_id,
+            audience,
+            inputs,
+            prepared,
+        )
+
+
+def _publish(
+    repo,
+    tx,
+    project_id,
+    kind,
+    payload,
+    producer_dict,
+    operation_id,
+    artifact_id,
+    episode_id,
+    audience,
+    inputs,
+    prepared,
+):
+    refs, blobs = {}, []
+    for field, path, ref in inputs.occurrences:
         if isinstance(ref, ArtifactRef):
-            row = repo._resolve(tx, project_id, ref)
-            if public_reader:
-                public_reader._resolve(tx, project_id, ref)
-            check_subtype(field, row["payload"])
-            refs[ref.revision_id] = (ref, field, row)
+            if ref.revision_id not in refs:
+                refs[ref.revision_id] = (ref, set(), inputs.resolve(ref))
+            entry = refs[ref.revision_id]
+            check_subtype(field, entry[2]["payload"])
+            entry[1].add(field)
         elif isinstance(ref, BlobRef):
-            repo._check_blob(tx, project_id, ref, public_only=audience == "project")
-            repo.objects.read(project_id, ref)
+            if prepared is None:
+                raise ContractError("artifact_bytes_not_prepared")
+            prepared.require(repo, project_id, ref)
             blobs.append((path, ref))
-        else:
-            repo._runtime(tx, project_id, ref)
-            if public_reader:
-                public_reader._runtime(tx, project_id, ref)
-            runtimes.append(ref)
-    for ref in input_refs:
-        if public_reader:
-            public_reader._resolve(tx, project_id, ref)
-        refs.setdefault(ref.revision_id, (ref, "input_refs", repo._resolve(tx, project_id, ref)))
-    if producer_dict["kind"] == "model":
-        profile = ArtifactRef.model_validate(producer_dict["profile_ref"])
-        if profile.kind != "ModelProfile":
-            raise ContractError("producer_profile_kind_mismatch")
-        refs[profile.revision_id] = (profile, "model_profile_ref", repo._resolve(tx, project_id, profile))
+    runtimes = inputs.runtimes
     all_refs = sorted_refs([v[0] for v in refs.values()])
     if kind == "SourceRevision":
         source_id = UUID(payload["source_id"])
@@ -118,7 +147,7 @@ def create_revision(
         parent = ArtifactRef.model_validate(payload["parent_script_ref"])
         if artifact_id != parent.artifact_id:
             raise ContractError("parent_script_identity_mismatch")
-    repo._validate_bindings(tx, project_id, kind, payload, refs)
+    repo._validate_bindings(tx, project_id, kind, payload, refs, inputs=inputs, prepared=prepared)
     artifact_id = artifact_id or uuid4()
     existing = one(
         tx, "SELECT kind FROM artifacts WHERE project_id=:p AND artifact_id=:a", p=project_id, a=artifact_id
@@ -151,7 +180,7 @@ def create_revision(
         op=operation_id,
         fp=fingerprint,
     )
-    for target, field, row in refs.values():
+    for target, fields, row in refs.values():
         if row["project_id"] != project_id:
             publication = repo._publication(tx, project_id, row)
             query(
@@ -169,17 +198,20 @@ def create_revision(
             c=ref.revision_id,
             i=target.revision_id,
         )
-        relation = (
+        relations = {
             "lineage"
             if field in LINEAGE_FIELDS
+            or kind == "SourceRevision"
+            and target.artifact_id == artifact_id
+            and field == "input_refs"
             else "applies_policy"
             if target.kind in CONFIG_KINDS
             else "uses_content"
-        )
-        if kind == "SourceRevision" and target.artifact_id == artifact_id and field == "input_refs":
-            relation = "lineage"
-        repo._edge(tx, project_id, ref.revision_id, target.revision_id, relation)
-        if field in LINEAGE_FIELDS and kind in ("ScriptRevision", "ResearchNote", "StoryPlan"):
+            for field in fields
+        }
+        for relation in sorted(relations):
+            repo._edge(tx, project_id, ref.revision_id, target.revision_id, relation)
+        if fields & LINEAGE_FIELDS and kind in ("ScriptRevision", "ResearchNote", "StoryPlan"):
             for inherited in repo._effective_edges(tx, project_id, target.revision_id):
                 if inherited["relation"] != "lineage":
                     repo._edge(tx, project_id, ref.revision_id, inherited["input_id"], inherited["relation"])
@@ -201,6 +233,9 @@ def create_revision(
             id=runtime.record_id,
             k=runtime.record_kind,
         )
+    from .read_authorization import invalidate_publication_facts
+
+    invalidate_publication_facts(repo, tx)
     if audience == "evaluator":
         from .classification import classify_evaluator
 

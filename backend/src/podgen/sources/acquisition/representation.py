@@ -4,8 +4,12 @@ import re
 from uuid import uuid5
 
 from podgen.domain.canonical import digest
-from podgen.domain.contracts.evidence import SourceRepresentation
+from podgen.domain.contracts.common import ArtifactRef
+from podgen.domain.contracts.evidence import SourceDate, SourceRepresentation, SourceRevision
+from podgen.persistence.artifact_preparation import prepare
 from podgen.sources.extraction.quality import assess_web_fetch_health
+
+from .contracts import AcquiredSource
 
 
 def availability(document, extracted, profile):
@@ -43,13 +47,35 @@ def availability(document, extracted, profile):
     return state, reasons
 
 
-def save_representation(store, request, role, source_ref, document, extracted, profile):
+def save_representation(
+    store,
+    request,
+    role,
+    source,
+    document,
+    extracted,
+    profile,
+    text_proof,
+    original_proof,
+    acquisition_ref,
+    saved,
+):
     key = role + ":representation"
-    saved = store.get(key)
     if saved:
-        return saved
+        previous = store.repo.get(store.project, ArtifactRef.model_validate(saved["representation_ref"]))
+        result = AcquiredSource(
+            source_revision_ref=previous.payload["source_revision_ref"],
+            representation_refs=[previous.ref],
+            role=role,
+            acquisition_record_ref=acquisition_ref,
+            status=saved["status"],
+            diagnostics=saved["diagnostics"],
+        )
+        value = dict(source=result.model_dump(mode="json"))
+        store.put(role + ":outcome", value)
+        return value
     state, reasons = availability(document, extracted, profile)
-    text_blob = store.blob(extracted.text.encode("utf-8"), "text/plain; charset=utf-8")
+    text_blob = text_proof.ref
     # One range per paragraph, in Python Unicode code points used by TextSelector.
     blocks = []
     for i, match in enumerate(re.finditer(r"\S(?:.*?\S)?(?=\n\s*\n|$)", extracted.text, re.DOTALL)):
@@ -67,45 +93,89 @@ def save_representation(store, request, role, source_ref, document, extracted, p
         )
     warnings = extracted.warnings + reasons
     configuration = dict(acquisition=profile.model_dump(mode="json"), extractor=extracted.name)
-    extractor_profile_ref = store.create(
-        role + ":extractor-profile",
-        "ProcessingProfile",
-        dict(
-            profile_kind="extraction",
-            implementation=extracted.name,
-            version=extracted.version,
-            configuration=configuration,
-            input_profile_refs=[request.profile_ref.model_dump(mode="json")],
-        ),
+    verified = [text_proof] + ([original_proof] if original_proof is not None else [])
+    prepared = prepare(store.repo, store.project, "SourceRevision", source.payload, verified=verified)
+
+    def publish(publication):
+        completed_source = enrich_source(publication, role, source, extracted)
+        extractor_profile = publication.create(
+            role + ":extractor-profile",
+            "ProcessingProfile",
+            dict(
+                profile_kind="extraction",
+                implementation=extracted.name,
+                version=extracted.version,
+                configuration=configuration,
+                input_profile_refs=[request.profile_ref.model_dump(mode="json")],
+            ),
+        )
+        payload = SourceRepresentation(
+            source_revision_ref=completed_source.ref,
+            representation_kind="document_layout"
+            if extracted.name in ("marker", "pypdfium2", "PyPDF2")
+            else "html_text",
+            content_blob=text_blob,
+            canonical_text_blob=text_blob,
+            extractor=dict(
+                profile_ref=extractor_profile.ref,
+                name=extracted.name,
+                version=extracted.version,
+                configuration_hash=digest(configuration),
+            ),
+            normalization_version="preserve-extractor-text/1",
+            blocks=blocks,
+            extraction_report=dict(
+                coverage=extracted.coverage, missing_regions=[], reading_order_issues=[], warnings=warnings
+            ),
+            language=request.language,
+            is_transformation=extracted.is_transformation,
+        )
+        revision = publication.create(key, "SourceRepresentation", payload.model_dump(mode="json"))
+        value = dict(
+            representation_ref=revision.ref.model_dump(mode="json"),
+            status=state,
+            diagnostics=warnings,
+            title=extracted.title,
+            published_date=extracted.published_date,
+        )
+        publication.put(key, value)
+        result = AcquiredSource(
+            source_revision_ref=completed_source.ref,
+            representation_refs=[revision.ref],
+            role=role,
+            acquisition_record_ref=acquisition_ref,
+            status=state,
+            diagnostics=warnings,
+        )
+        outcome = dict(source=result.model_dump(mode="json"))
+        publication.put(role + ":outcome", outcome)
+        return outcome
+
+    return store.publication(publish, prepared=prepared)
+
+
+def enrich_source(publication, role, source, extracted):
+    if not extracted.title and not extracted.published_date:
+        return source
+    payload = source.payload
+    date = (
+        SourceDate(value=extracted.published_date, precision="unknown", basis="reported_by_" + extracted.name)
+        if extracted.published_date
+        else None
     )
-    payload = SourceRepresentation(
-        source_revision_ref=source_ref,
-        representation_kind="document_layout"
-        if extracted.name in ("marker", "pypdfium2", "PyPDF2")
-        else "html_text",
-        content_blob=text_blob,
-        canonical_text_blob=text_blob,
-        extractor=dict(
-            profile_ref=extractor_profile_ref,
-            name=extracted.name,
-            version=extracted.version,
-            configuration_hash=digest(configuration),
-        ),
-        normalization_version="preserve-extractor-text/1",
-        blocks=blocks,
-        extraction_report=dict(
-            coverage=extracted.coverage, missing_regions=[], reading_order_issues=[], warnings=warnings
-        ),
-        language=request.language,
-        is_transformation=extracted.is_transformation,
+    enriched = SourceRevision.model_validate(payload).model_copy(
+        update=dict(
+            title=extracted.title,
+            published_at=date,
+            source_metadata_evidence=payload["source_metadata_evidence"]
+            + [
+                dict(
+                    metadata_source_revision_ref=source.ref.model_dump(mode="json"),
+                    extractor=extracted.name,
+                    title=extracted.title,
+                    published_date=extracted.published_date,
+                )
+            ],
+        )
     )
-    ref = store.create(key, "SourceRepresentation", payload.model_dump(mode="json"))
-    value = dict(
-        representation_ref=ref.model_dump(mode="json"),
-        status=state,
-        diagnostics=warnings,
-        title=extracted.title,
-        published_date=extracted.published_date,
-    )
-    store.put(key, value)
-    return value
+    return publication.create(role + ":metadata-source", "SourceRevision", enriched.model_dump(mode="json"))

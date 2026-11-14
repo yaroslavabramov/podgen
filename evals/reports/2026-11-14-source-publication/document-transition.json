@@ -1,0 +1,88 @@
+{
+  "finished_document_transition": {
+    "total": {
+      "sql": 145,
+      "roles": 12,
+      "artifact_frontiers": 22,
+      "artifact_bodies": 13,
+      "object_streams": 2,
+      "object_bytes_read": 3030
+    },
+    "phases": {
+      "acquire": {
+        "sql": 60,
+        "roles": 12,
+        "artifact_frontiers": 6,
+        "artifact_bodies": 1
+      },
+      "create:original:source": {
+        "sql": 17,
+        "artifact_frontiers": 2,
+        "artifact_bodies": 3
+      },
+      "put:original:source": {
+        "sql": 7,
+        "artifact_frontiers": 3
+      },
+      "create:original:metadata-source": {
+        "sql": 17,
+        "artifact_frontiers": 2,
+        "artifact_bodies": 3
+      },
+      "create:original:extractor-profile": {
+        "sql": 11,
+        "artifact_frontiers": 1,
+        "artifact_bodies": 3
+      },
+      "create:original:representation": {
+        "sql": 19,
+        "artifact_frontiers": 2,
+        "artifact_bodies": 3
+      },
+      "put:original:representation": {
+        "sql": 7,
+        "artifact_frontiers": 3
+      },
+      "put:original:outcome": {
+        "sql": 7,
+        "artifact_frontiers": 3
+      }
+    }
+  },
+  "duplicate_reference_publication": [
+    {
+      "occurrences": 1,
+      "sql": 27,
+      "body_batches": 1,
+      "scalar_bodies": 1
+    },
+    {
+      "occurrences": 20,
+      "sql": 27,
+      "body_batches": 1,
+      "scalar_bodies": 1
+    },
+    {
+      "occurrences": 100,
+      "sql": 27,
+      "body_batches": 1,
+      "scalar_bodies": 1
+    }
+  ],
+  "method": "Actual Repository/acquisition, fake fetch and extractor; one complete document transition including request, original, source, extraction, metadata, representation, outcome and result. Setup artifacts excluded.",
+  "limitations": [
+    "Not comparable directly to the 54-source full-operation baseline; full replay remains the root acceptance step.",
+    "Publication facts still invalidate after writes: 22 artifact frontiers remain, including three repeated frontiers at source/representation/outcome checkpoints.",
+    "Local FileObjectStore measured; no paid requests, cloud latency or process peak RSS measured."
+  ],
+  "boundary": "Existing archive_write: REPEATABLE READ, project fence, membership FOR SHARE, SQL-only callback retry; byte proofs prepared outside callback. Descriptors returned after commit.",
+  "verification": {
+    "boundary_queue": 35,
+    "sqlalchemy_transaction_guard_followup": 5,
+    "guard_followup_overlaps_boundary_queue": 4,
+    "provider_calls": 0
+  },
+  "counter_definition": {
+    "artifact_bodies": "SELECT * FROM artifact_revisions statements: 4 operation-id misses, 4 input body batches, 4 newly-created result row reads, 1 acquisition profile read."
+  }
+}

@@ -8,10 +8,10 @@ from podgen.domain.errors import ContractError
 from podgen.domain.spoken import script_selection, spoken_view
 
 
-def validate_bindings(repo, tx, project_id, kind, payload, refs):
+def validate_bindings(repo, tx, project_id, kind, payload, refs, *, inputs=None, prepared=None):
     def resolved(value):
         ref = ArtifactRef.model_validate(value)
-        return repo._resolve(tx, project_id, ref)["payload"]
+        return (inputs.resolve(ref) if inputs is not None else repo._resolve(tx, project_id, ref))["payload"]
 
     def equal(actual, expected, code):
         if actual != expected:
@@ -46,7 +46,9 @@ def validate_bindings(repo, tx, project_id, kind, payload, refs):
     visit(payload)
     if kind == "CapabilityReport":
         profile_ref = ArtifactRef.model_validate(payload["profile_ref"])
-        profile = repo._resolve(tx, project_id, profile_ref)
+        profile = (
+            inputs.resolve(profile_ref) if inputs is not None else repo._resolve(tx, project_id, profile_ref)
+        )
         if profile_ref.kind not in (
             "ModelProfile",
             "ProcessingProfile",
@@ -174,7 +176,11 @@ def validate_bindings(repo, tx, project_id, kind, payload, refs):
             blob_value = representation.get("canonical_text_blob") or representation["content_blob"]
             from podgen.domain.contracts.common import BlobRef
 
-            text = repo.objects.read(project_id, BlobRef.model_validate(blob_value)).decode("utf-8")
+            blob = BlobRef.model_validate(blob_value)
+            if prepared is None or blob not in prepared.texts:
+                raise ContractError("artifact_evidence_bytes_not_prepared")
+            prepared.require(repo, project_id, blob)
+            text = prepared.texts[blob]
             selected = select_text(text, TextSelector.model_validate(selector))
             context = payload["context_selector"]
             if context["kind"] != "text":
