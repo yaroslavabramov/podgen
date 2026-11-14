@@ -8,9 +8,11 @@ from ..source import import_fragment
 from ..subjects import comparison_results, synthesis_part
 
 
-def prepare_sources(journal, config):
+def prepare_sources(journal, config, *, samples=None, outcomes=()):
     parts = (
-        comparison_results(journal, config.part_result_refs)
+        comparison_results(
+            journal, config.part_result_refs, **(dict(samples=samples) if samples is not None else {})
+        )
         if config.contract == "audio-evaluation-assembly/1"
         else [synthesis_part(journal, b) for b in config.bindings]
     )
@@ -43,7 +45,7 @@ def prepare_sources(journal, config):
             ],
             direction=SparseDirection.model_validate(first["source"]["source"]["direction"]),
         ),
-        {},
+        {RuntimeRef.model_validate(value.binding["records"][0]["ref"]): value for value in outcomes},
     )
     selectors = [s for p in parts for s in p["source"]["selectors"]]
     utterances = [u for p in parts for u in p["source"]["source"]["utterances"]]

@@ -4,12 +4,13 @@ from podgen.audio.media.processing import tools
 from podgen.audio.synthesis.contracts import SynthesisInput
 from podgen.audio.synthesis.registry import adapter
 from podgen.domain.canonical import digest
+from podgen.domain.contracts.common import RuntimeRef
 from podgen.domain.errors import AccessDenied, Conflict
 
 from .source import import_fragment
 
 
-def prepare(journal, config):
+def prepare(journal, config, *, outcomes=()):
     raw = config.model_dump(mode="json")
     saved = journal.get("manifest")
     if saved:
@@ -19,7 +20,8 @@ def prepare(journal, config):
             raise Conflict("audio_run_configuration_changed")
         return saved
     versions = tools()
-    inputs, cache = {}, {}
+    inputs = {}
+    cache = {RuntimeRef.model_validate(value.binding["records"][0]["ref"]): value for value in outcomes}
     for fragment in config.fragments:
         value = import_fragment(journal, fragment, cache)
         ref = journal.put("source:" + fragment.fragment_id, value)

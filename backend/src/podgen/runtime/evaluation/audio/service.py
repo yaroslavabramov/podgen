@@ -1,4 +1,4 @@
-from .attempts import baseline, execute, history, ledger
+from .attempts import OperationLedger, baseline, execute_sample
 from .matrix import full_comparison_complete
 from .prepare import prepare
 
@@ -11,22 +11,29 @@ def run(journal, config, transport, *, progress=lambda value: None, retake_cell=
         ):
             raise ValueError("explicit_audio_retake_cell_and_reason_required")
         statuses = []
+        operation = OperationLedger(journal, manifest)
         for cell in manifest["cells"]:
             if retake_cell is not None and cell["cell_id"] != retake_cell:
                 continue
-            status = execute(
-                journal, manifest, cell, config, transport, retake_reason=reason if retake_cell else None
+            result = execute_sample(
+                journal,
+                manifest,
+                cell,
+                config,
+                transport,
+                retake_reason=reason if retake_cell else None,
+                operation_ledger=operation,
             )
             value = dict(
                 cell_id=cell["cell_id"],
                 profile_id=cell["profile_id"],
                 fragment_id=cell["fragment_id"],
-                status=status,
+                status=result.status,
             )
             statuses.append(value)
             progress(value)
-        count, cost = ledger(journal, manifest)
-        selected = [baseline(history(journal, c)) for c in manifest["cells"]]
+        count, cost = operation.totals(journal, manifest)
+        selected = [baseline(operation.rows[c["cell_id"]]) for c in manifest["cells"]]
         completed = sum(bool(row and row["result"]) for row in selected)
         result = dict(
             contract="audio-comparison-status/1",

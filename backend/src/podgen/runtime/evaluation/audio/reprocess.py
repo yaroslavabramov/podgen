@@ -5,8 +5,7 @@ from podgen.domain.errors import ContractError
 
 from .attempts import history
 from .prepare import prepare
-from .processing_history import runs
-from .results import process
+from .results import process_result
 
 
 def reprocess(journal, config, cell_id, reason):
@@ -28,11 +27,16 @@ def reprocess_prepared(journal, config, manifest, cell_id, reason):
     if not attempts or not attempts[-1]["receipt"]:
         raise ContractError("audio_reprocess_requires_archived_receipt")
     current = attempts[-1]
+    return reprocess_attempt(journal, config, cell, current, reason).status
+
+
+def reprocess_attempt(journal, config, cell, current, reason):
+    """The execution owner supplies its exact attempt and processing descriptors."""
     key = current["key"]
     receipt = current["receipt"]
     if not receipt["complete"] or not 200 <= receipt["status_code"] < 300:
         raise ContractError("audio_reprocess_requires_complete_success_response")
-    revisions = runs(journal, key)
+    revisions = current["processing"]
     output_key = f"{key}:reprocess:{len(revisions)}"
     profile = next(p for p in config.profiles if p.profile_id == cell["profile_id"])
     request = PreparedRequest.model_validate(cell["request"])
@@ -49,4 +53,14 @@ def reprocess_prepared(journal, config, manifest, cell_id, reason):
             parent_ref=journal.ref(revisions[-1]["key"] + ":processing").model_dump(mode="json"),
         ),
     )
-    return process(journal, key, profile, config, request, response, output_key=output_key, reason=reason)
+    return process_result(
+        journal,
+        key,
+        profile,
+        config,
+        request,
+        response,
+        output_key=output_key,
+        reason=reason,
+        attempt=current["prepared"],
+    )

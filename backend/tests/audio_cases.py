@@ -101,6 +101,39 @@ class MemoryJournal:
     def get(self, key):
         return deepcopy(self.records.get(str(self.ref(key).record_id)))
 
+    def get_many(self, keys):
+        return [self.get(key) for key in keys]
+
+    def read_operation(self):
+        return nullcontext()
+
+    def attempt_keys(self, cells):
+        from podgen.runtime.evaluation.audio.attempts import prefix
+
+        result = {cell["cell_id"]: [] for cell in cells}
+        rows = sorted(
+            (
+                value
+                for value in self.records.values()
+                if value.get("contract") == "audio-attempt/1" and value["cell_id"] in result
+            ),
+            key=lambda value: value["take"],
+        )
+        for value in rows:
+            result[value["cell_id"]].append(prefix(value["cell_id"], value["take"]))
+        return result
+
+    def processing_keys(self, keys):
+        result = {}
+        for key in keys:
+            count = sum(
+                value.get("contract") == "audio-processing-attempt/1"
+                and value.get("source_receipt_ref") == self.ref(key + ":receipt").model_dump(mode="json")
+                for value in self.records.values()
+            )
+            result[key] = [key, *[f"{key}:reprocess:{index}" for index in range(1, count)]]
+        return result
+
     def put(self, key, value):
         record = str(self.ref(key).record_id)
         if record in self.records:
@@ -126,6 +159,9 @@ class MemoryJournal:
 
     def read(self, ref):
         return deepcopy(self.records[str(ref.record_id)])
+
+    def read_many(self, refs):
+        return [self.read(ref) for ref in refs]
 
     def record(self, value):
         return self.put(str(uuid4()), value)

@@ -1,25 +1,19 @@
-"""Independent local processing revisions of one paid synthesis receipt."""
+"""Explicit processing-history view over the bounded descriptor reader."""
+
+from .history_snapshot import get_many
 
 
 def runs(journal, key):
-    values = [
+    keys = journal.processing_keys([key])[key]
+    values = get_many(
+        journal, [value + suffix for value in keys for suffix in (":processing", ":result", ":failure")]
+    )
+    return [
         dict(
-            key=key,
-            prepared=journal.get(key + ":processing"),
-            result=journal.get(key + ":result"),
-            failure=journal.get(key + ":failure"),
+            key=value,
+            prepared=values[value + ":processing"],
+            result=values[value + ":result"],
+            failure=values[value + ":failure"],
         )
+        for value in keys
     ]
-    number = 1
-    while journal.get(f"{key}:reprocess:{number}:processing") is not None:
-        revision = f"{key}:reprocess:{number}"
-        values.append(
-            dict(
-                key=revision,
-                prepared=journal.get(revision + ":processing"),
-                result=journal.get(revision + ":result"),
-                failure=journal.get(revision + ":failure"),
-            )
-        )
-        number += 1
-    return values

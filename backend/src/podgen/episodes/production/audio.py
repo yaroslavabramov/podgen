@@ -10,12 +10,12 @@ from podgen.domain.contracts.common import RuntimeRef
 from podgen.domain.errors import ContractError
 from podgen.runtime.evaluation.audio.assembly.contracts import AssemblyConfig
 from podgen.runtime.evaluation.audio.assembly.service import build
-from podgen.runtime.evaluation.audio.attempts import OperationLedger, baseline, execute, history
+from podgen.runtime.evaluation.audio.attempts import OperationLedger, execute_sample
 from podgen.runtime.evaluation.audio.contracts import Fragment, TargetedComparisonConfig
 from podgen.runtime.evaluation.audio.journal import AudioJournal
 from podgen.runtime.evaluation.audio.prepare import prepare
 from podgen.runtime.evaluation.audio.results import ASSEMBLY_INPUT
-from podgen.runtime.evaluation.reading_outcome import read_outcome
+from podgen.runtime.evaluation.reading_validation import read_descriptor
 
 
 class FullRenderConfig(TargetedComparisonConfig):
@@ -101,29 +101,28 @@ def render(parent, config, progress, transport):
 
     from podgen.runtime.evaluation.journal import EvaluationJournal
 
-    checked = read_outcome(EvaluationJournal(parent.repo, parent.project), UUID(writing_run))
+    validated = read_descriptor(EvaluationJournal(parent.repo, parent.project), UUID(writing_run))
+    checked = validated.outcome if validated else None
     if checked is None or checked["status"] != "keep":
         raise ContractError("episode_audio_requires_native_keep_outcome")
     outcome = RuntimeRef.model_validate(progress["outcome_ref"])
     render_config = configuration(config, outcome, checked["output"])
     audio = AudioJournal(parent.repo, parent.project, render_config.run_id)
     with audio.lock():
-        manifest = prepare(audio, render_config)
+        manifest = prepare(audio, render_config, outcomes=[validated])
         ledger = OperationLedger(audio, manifest)
         refs = []
+        samples = []
         for cell in manifest["cells"]:
-            try:
-                status = execute(audio, manifest, cell, render_config, transport, operation_ledger=ledger)
-            finally:
-                ledger.refresh(cell)
-            if status != "completed":
-                raise ContractError("episode_audio_" + status)
-            saved = baseline(history(audio, cell))
-            refs.append(audio.ref(saved["processing_key"] + ":result"))
+            result = execute_sample(audio, manifest, cell, render_config, transport, operation_ledger=ledger)
+            if result.status != "completed":
+                raise ContractError("episode_audio_" + result.status)
+            refs.append(RuntimeRef.model_validate(result.result_ref))
+            samples.append(result)
     assembly = AssemblyConfig(
         assembly_id=uuid5(config.run_id, "audio-assembly/1"),
         comparison_run_id=audio.run_id,
         part_result_refs=refs,
     )
-    ref = build(audio, assembly)
+    ref = build(audio, assembly, samples=samples, outcomes=[validated])
     return audio, assembly, ref

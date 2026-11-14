@@ -7,7 +7,7 @@ from .contracts import prefix
 from .source import prepare_sources
 
 
-def prepare(journal, config):
+def prepare(journal, config, *, samples=None, outcomes=()):
     if journal.run_id != config.comparison_run_id:
         raise ContractError("assembly_wrong_comparison_run")
     key = prefix(config.assembly_id)
@@ -17,7 +17,7 @@ def prepare(journal, config):
         if saved["configuration_hash"] != digest(raw):
             raise Conflict("assembly_configuration_changed")
         return saved
-    full, parts = prepare_sources(journal, config)
+    full, parts = prepare_sources(journal, config, samples=samples, outcomes=outcomes)
     source_ref = journal.put(key + ":source", full)
     manifest = dict(
         contract="audio-evaluation-assembly-manifest/1",

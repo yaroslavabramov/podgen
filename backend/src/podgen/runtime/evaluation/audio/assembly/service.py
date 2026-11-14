@@ -12,9 +12,9 @@ from .joins import build_joins
 from .prepare import prepare
 
 
-def build(journal, config):
+def build(journal, config, *, samples=None, outcomes=()):
     with journal.lock():
-        manifest = prepare(journal, config)
+        manifest = prepare(journal, config, samples=samples, outcomes=outcomes)
         key = prefix(config.assembly_id)
         if journal.get(key + ":result"):
             return journal.ref(key + ":result").model_dump(mode="json")

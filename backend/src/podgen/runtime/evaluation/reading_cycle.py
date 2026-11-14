@@ -161,5 +161,7 @@ def execute_reading_cycle(
                     usage_ledger=split_usage(manifest, totals),
                 )
             journal.record(outcome, record_id=outcome_ref(command.run_id).record_id)
-            return outcome
+            from .reading_validation import certify
+
+            return certify(journal, command.run_id)
         script, script_ref = rewrite(index + 1, script, script_ref, readings, refs)

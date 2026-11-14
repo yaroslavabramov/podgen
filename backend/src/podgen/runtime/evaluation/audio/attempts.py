@@ -1,4 +1,4 @@
-"""Paid operations are explicit. A submit intent without a complete receipt is never sent again."""
+"""Execute one exact synthesis attempt; paid receipts and results stay with this operation."""
 
 import os
 from datetime import datetime, timezone
@@ -7,9 +7,9 @@ from decimal import Decimal
 from podgen.audio.synthesis.contracts import HttpReceipt, PreparedRequest
 from podgen.audio.synthesis.transport import encode_request
 
-from .contracts import VoiceCandidate
-from .costs import charge, estimate
-from .processing_history import runs
+from .accounting import OperationLedger
+from .accounting import ledger as ledger
+from .history_snapshot import load
 
 
 def stamp():
@@ -21,110 +21,85 @@ def prefix(cell_id, take):
 
 
 def history(journal, cell):
-    values = []
-    take = 1
-    while True:
-        key = prefix(cell["cell_id"], take)
-        record = journal.get(key + ":prepared")
-        if record is None:
-            break
-        processing = runs(journal, key)
-        values.append(
-            dict(
-                take=take,
-                key=key,
-                prepared=record,
-                intent=journal.get(key + ":submit"),
-                receipt=journal.get(key + ":receipt"),
-                result=processing[-1]["result"],
-                failure=processing[-1]["failure"],
-                processing=processing,
-                processing_key=processing[-1]["key"],
-            )
-        )
-        take += 1
-    return values
+    return load(journal, [cell])[cell["cell_id"]]
 
 
-def ledger(journal, manifest):
-    return OperationLedger(journal, manifest).totals(journal, manifest)
+def execute(journal, manifest, cell, config, transport, **options):
+    """Compatibility status API; production owners consume execute_sample's descriptor."""
+    return execute_sample(journal, manifest, cell, config, transport, **options).status
 
 
-def _cell_ledger(journal, cell):
-    attempts, committed = 0, Decimal(0)
-    for row in history(journal, cell):
-        if not row["intent"]:
-            continue
-        attempts += 1
-        audio = journal.get(row["key"] + ":audio")
-        if audio:
-            cost = estimate(
-                VoiceCandidate.model_validate(row["prepared"]["profile"]),
-                audio["usage"],
-                audio["usage_basis"],
-            )
-            committed += charge(cost)
-        else:
-            committed += Decimal(row["prepared"]["reservation_usd"])
-    return attempts, committed
+def execute_sample(journal, manifest, cell, config, transport, *, retake_reason=None, operation_ledger=None):
+    operation = operation_ledger or OperationLedger(journal, manifest)
+    operation.totals(journal, manifest)
+    try:
+        status = _execute(journal, manifest, cell, config, transport, operation, retake_reason)
+    except BaseException:
+        # SQL/object publication may have committed before its acknowledgement
+        # was lost. Never trust this cell's in-memory state after an exception.
+        operation.invalidate(cell)
+        raise
+    finally:
+        # Numeric accounting and immutable results are updated from the work just
+        # performed, including a submit whose acknowledgement was lost.
+        if not operation.is_dirty(cell):
+            operation.update(cell)
+    return operation.result(cell, status)
 
 
-class OperationLedger:
-    """Accounting under one run lock; no authorization facts survive a provider wait."""
-
-    def __init__(self, journal, manifest):
-        self.journal, self.manifest = journal, manifest
-        self.cells = {cell["cell_id"]: _cell_ledger(journal, cell) for cell in manifest["cells"]}
-        self.attempts = sum(row[0] for row in self.cells.values())
-        self.committed = sum((row[1] for row in self.cells.values()), Decimal(0))
-
-    def refresh(self, cell):
-        before, after = self.cells[cell["cell_id"]], _cell_ledger(self.journal, cell)
-        self.attempts += after[0] - before[0]
-        self.committed += after[1] - before[1]
-        self.cells[cell["cell_id"]] = after
-
-    def totals(self, journal, manifest):
-        if journal is not self.journal or manifest is not self.manifest:
-            raise ValueError("audio_ledger_operation_mismatch")
-        return self.attempts, self.committed
+def _processed(row, processed):
+    revision = dict(
+        key=processed.key,
+        prepared=processed.prepared,
+        result=processed.result,
+        failure=processed.failure,
+        decoded=processed.decoded,
+    )
+    if row["processing"] and row["processing"][-1]["key"] == processed.key:
+        row["processing"][-1] = revision
+    else:
+        row["processing"].append(revision)
+    row.update(result=processed.result, failure=processed.failure, processing_key=processed.key)
+    if processed.audio is not None:
+        row["audio"] = processed.audio
+    return processed.status
 
 
-def execute(journal, manifest, cell, config, transport, *, retake_reason=None, operation_ledger=None):
+def _execute(journal, manifest, cell, config, transport, operation, retake_reason):
+    from .results import process_result, processing_contract
+
     profile = next(p for p in config.profiles if p.profile_id == cell["profile_id"])
-    previous = history(journal, cell)
-    if retake_reason is None and previous:
-        row = previous[-1]
+    previous = operation.rows[cell["cell_id"]]
+    row = previous[-1] if previous and retake_reason is None else None
+    if row:
         if row["result"]:
             return "completed"
         if row["failure"]:
-            from .results import processing_contract
-
             latest = row["processing"][-1]
             if (
                 row["receipt"]
                 and latest["prepared"]
                 and latest["prepared"]["processing_contract"] != processing_contract(config)
             ):
-                from .reprocess import reprocess_prepared
+                from .reprocess import reprocess_attempt
 
-                return reprocess_prepared(
-                    journal,
-                    config,
-                    manifest,
-                    cell["cell_id"],
-                    "Resume local processing with "
-                    + processing_contract(config)
-                    + "; reuse the saved provider receipt.",
+                return _processed(
+                    row,
+                    reprocess_attempt(
+                        journal,
+                        config,
+                        cell,
+                        row,
+                        "Resume local processing with "
+                        + processing_contract(config)
+                        + "; reuse the saved provider receipt.",
+                    ),
                 )
             return row["failure"]["status"]
         if row["intent"] and row["receipt"] is None:
             return "outcome_unknown"
-        take = row["take"]
-    else:
-        take = len(previous) + 1
     credential = os.environ.get(profile.credential_env)
-    if not credential and not (previous and previous[-1]["receipt"] and retake_reason is None):
+    if not credential and not (row and row["receipt"]):
         journal.put(
             f"unavailable:{cell['cell_id']}",
             dict(
@@ -134,62 +109,68 @@ def execute(journal, manifest, cell, config, transport, *, retake_reason=None, o
             ),
         )
         return "not_configured"
-    key = prefix(cell["cell_id"], take)
-    if journal.get(key + ":prepared") is None:
-        parent = journal.ref(previous[-1]["key"] + ":prepared").model_dump(mode="json") if previous else None
-        journal.put(
-            key + ":prepared",
-            dict(
-                contract="audio-attempt/1",
-                cell_id=cell["cell_id"],
-                take=take,
-                request=cell["request"],
-                wire_request_blob=journal.blob(
-                    encode_request(PreparedRequest.model_validate(cell["request"])), "application/json"
-                ),
-                source_ref=cell["source_ref"],
-                profile=profile.model_dump(mode="json"),
-                reservation_usd=profile.reservation_usd,
-                attempt_kind="artistic_retake" if retake_reason else "original",
-                reason=retake_reason,
-                parent_attempt_ref=parent,
-            ),
-        )
-    receipt = journal.get(key + ":receipt")
     request = PreparedRequest.model_validate(cell["request"])
-    if receipt is None:
-        count, committed = (
-            operation_ledger.totals(journal, manifest) if operation_ledger else ledger(journal, manifest)
+    if row is None:
+        take = previous[-1]["take"] + 1 if previous else 1
+        key = prefix(cell["cell_id"], take)
+        prepared = dict(
+            contract="audio-attempt/1",
+            cell_id=cell["cell_id"],
+            take=take,
+            request=cell["request"],
+            wire_request_blob=journal.blob(encode_request(request), "application/json"),
+            source_ref=cell["source_ref"],
+            profile=profile.model_dump(mode="json"),
+            reservation_usd=profile.reservation_usd,
+            attempt_kind="artistic_retake" if retake_reason else "original",
+            reason=retake_reason,
+            parent_attempt_ref=journal.ref(previous[-1]["key"] + ":prepared").model_dump(mode="json")
+            if previous
+            else None,
         )
+        journal.put(key + ":prepared", prepared)
+        row = dict(
+            take=take,
+            key=key,
+            prepared=prepared,
+            intent=None,
+            receipt=None,
+            audio=None,
+            budget=None,
+            result=None,
+            failure=None,
+            processing=[dict(key=key, prepared=None, result=None, failure=None, decoded=None)],
+            processing_key=key,
+        )
+        previous.append(row)
+    key, receipt = row["key"], row["receipt"]
+    if receipt is None:
+        count, committed = operation.totals(journal, manifest)
         if count >= config.max_attempts or committed + Decimal(profile.reservation_usd) > Decimal(
             config.max_cost_usd
         ):
-            if journal.get(key + ":budget") is None:
-                journal.put(
-                    key + ":budget",
-                    dict(
-                        contract="audio-budget-block/1",
-                        status="budget_exhausted",
-                        attempts_submitted=count,
-                        cost_or_reservation_usd=str(committed),
-                        max_attempts=config.max_attempts,
-                        max_cost_usd=config.max_cost_usd,
-                    ),
-                )
+            budget = dict(
+                contract="audio-budget-block/1",
+                status="budget_exhausted",
+                attempts_submitted=count,
+                cost_or_reservation_usd=str(committed),
+                max_attempts=config.max_attempts,
+                max_cost_usd=config.max_cost_usd,
+            )
+            if row["budget"] is None:
+                journal.put(key + ":budget", budget)
+                row["budget"] = budget
             return "budget_exhausted"
-        if journal.get(key + ":submit"):
-            return "outcome_unknown"
         from podgen.runtime.dispatch import before_external
 
-        before_external("audio_submit", f"{journal.run_id}:{cell['cell_id']}:{take}")
-        journal.put(
-            key + ":submit",
-            dict(
-                contract="audio-submit-intent/1",
-                prepared_ref=journal.ref(key + ":prepared").model_dump(mode="json"),
-                submitted_at=stamp(),
-            ),
+        before_external("audio_submit", f"{journal.run_id}:{cell['cell_id']}:{row['take']}")
+        intent = dict(
+            contract="audio-submit-intent/1",
+            prepared_ref=journal.ref(key + ":prepared").model_dump(mode="json"),
+            submitted_at=stamp(),
         )
+        journal.put(key + ":submit", intent)
+        row["intent"] = intent
         response = transport.submit(request, credential)
         receipt = dict(
             contract="audio-http-receipt/1",
@@ -205,45 +186,55 @@ def execute(journal, manifest, cell, config, transport, *, retake_reason=None, o
             received_at=stamp(),
         )
         journal.put(key + ":receipt", receipt)
-    response = HttpReceipt(
-        receipt["status_code"],
-        receipt["headers"],
-        journal.bytes(key + ":receipt", receipt["raw_response_blob"]),
-        receipt["elapsed_ms"],
-        receipt["complete"],
-        receipt["error"],
-    )
+        row["receipt"] = receipt
+    else:
+        response = HttpReceipt(
+            receipt["status_code"],
+            receipt["headers"],
+            journal.bytes(key + ":receipt", receipt["raw_response_blob"]),
+            receipt["elapsed_ms"],
+            receipt["complete"],
+            receipt["error"],
+        )
+    failure = None
     if not response.complete:
-        status = "outcome_unknown"
-        journal.put(
-            key + ":failure",
-            dict(
-                contract="audio-failure/1",
-                status=status,
-                reason=response.error or "incomplete_http_response",
-                receipt_ref=journal.ref(key + ":receipt").model_dump(mode="json"),
-            ),
+        failure = dict(
+            contract="audio-failure/1",
+            status="outcome_unknown",
+            reason=response.error or "incomplete_http_response",
+            receipt_ref=journal.ref(key + ":receipt").model_dump(mode="json"),
         )
-        return status
-    if not 200 <= response.status_code < 300:
-        journal.put(
-            key + ":failure",
-            dict(
-                contract="audio-failure/1",
-                status="provider_rejected",
-                phase="provider",
-                http_status=response.status_code,
-                receipt_ref=journal.ref(key + ":receipt").model_dump(mode="json"),
-            ),
+    elif not 200 <= response.status_code < 300:
+        failure = dict(
+            contract="audio-failure/1",
+            status="provider_rejected",
+            phase="provider",
+            http_status=response.status_code,
+            receipt_ref=journal.ref(key + ":receipt").model_dump(mode="json"),
         )
-        return "provider_rejected"
-    from .results import process
-
-    return process(journal, key, profile, config, request, response)
+    if failure:
+        journal.put(key + ":failure", failure)
+        row["failure"] = failure
+        row["processing"][-1]["failure"] = failure
+        return failure["status"]
+    return _processed(
+        row,
+        process_result(
+            journal,
+            key,
+            profile,
+            config,
+            request,
+            response,
+            output_key=row["processing_key"],
+            attempt=row["prepared"],
+            processing=row["processing"][-1]["prepared"],
+        ),
+    )
 
 
 def baseline(rows):
-    """Earliest usable synthesis take; later artistic takes never replace the comparison baseline."""
+    """Earliest usable take; explicit artistic retakes never replace this baseline."""
     for row in rows:
         successful = [revision for revision in row["processing"] if revision["result"]]
         if successful:

@@ -4,36 +4,29 @@ from uuid import UUID, uuid5
 
 from podgen.audio.synthesis.contracts import SynthesisInput, SynthesisUtterance
 from podgen.domain.canonical import digest
-from podgen.domain.contracts.common import RuntimeRef
 from podgen.domain.errors import ContractError
 
 from ..reading_cycle import outcome_ref
-from ..reading_outcome import read_outcome
+from ..reading_validation import read_descriptor
 
 
 def import_fragment(journal, fragment, cache):
-    outcome = journal.base.read(fragment.outcome_ref)
+    descriptor = cache.get(fragment.outcome_ref)
+    outcome = descriptor.outcome if descriptor is not None else journal.base.read(fragment.outcome_ref)
     if outcome.get("contract") != "independent-reading-outcome/1":
         raise ContractError("audio_source_is_not_native_outcome")
     run_id = UUID(outcome["run_id"])
     if fragment.outcome_ref != outcome_ref(run_id):
         raise ContractError("audio_source_is_not_native_outcome")
-    if run_id not in cache:
-        cache[run_id] = read_outcome(journal.base, run_id)
-    checked = cache[run_id]
-    if checked is None or checked != outcome or checked["status"] != "keep":
+    if descriptor is None:
+        descriptor = read_descriptor(journal.base, run_id, outcome=outcome)
+        cache[fragment.outcome_ref] = descriptor
+    if descriptor is None or descriptor.outcome != outcome or outcome["status"] != "keep":
         raise ContractError("audio_source_not_evaluation_approved")
+    descriptor.authorize(journal.base)
     script = outcome["output"]
     if digest(script) != outcome["script_hash"]:
         raise ContractError("audio_source_script_hash_mismatch")
-    for role in ("reader", "fact"):
-        review = journal.base.read(RuntimeRef.model_validate(outcome["reading_refs"][role]))
-        if (
-            review["script_hash"] != outcome["script_hash"]
-            or review["script_ref"] != outcome["script_ref"]
-            or review["output"]["recommendation"] != "keep"
-        ):
-            raise ContractError("audio_final_reviews_not_bound_to_source")
     utterances, selectors = [], []
     previous = (-1, -1)
     script_id = UUID(outcome["script_ref"]["record_id"])
