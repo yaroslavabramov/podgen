@@ -306,6 +306,7 @@ try:
     with probe.scope("completed_resume"):
         assert runner.run() == result
     assert (dict(tape.seen), hosted.calls, speech.calls) == calls_before
+    probe.server.mark_completed_operation()
     from podgen.runtime.evaluation.journal import EvaluationJournal
     from podgen.runtime.evaluation.reading_outcome import read_outcome
 
@@ -353,3 +354,4 @@ finally:
         )
     )
     db.engine.dispose()
+    probe.server.close()

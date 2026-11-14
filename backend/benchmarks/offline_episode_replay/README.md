@@ -31,7 +31,13 @@ identity and WAV bytes must match. A completed resume must consume no more respo
 Outputs include SQL call-site/phase metrics, object traffic, peak RSS, the equality
 oracle, complete export, completed database dump and immutable object copy. The
 additional `cold_outcome_read` phase is separate from complete-run totals. SQL counts
-are client executions, excluding statements internal to database functions/triggers.
+in `sql` are client executions. `server_sql` separately reports PostgreSQL top-level
+and nested statements (including function/trigger SQL), rows, buffers, temporary
+traffic and WAL. The observer uses a separate untracked connection; it never resets
+statistics. Eviction or reset invalidates the measurement. Top-level time and buffer
+metrics include nested work: do not add them to the nested totals. Phase snapshots
+are inclusive and can overlap. `completed_operation` ends after the completed
+resume, before the additional cold read; `overall` covers the entire measured worker.
 Elapsed time excludes paid provider latency; peak RSS units in this report are macOS
 bytes. A failed or interrupted run is not a qualification result. Its profile and
 failure log are retained, but its temporary database is stopped and removed.

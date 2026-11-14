@@ -9,11 +9,13 @@ from collections import Counter, defaultdict
 from contextlib import contextmanager
 from pathlib import Path
 
+from server_probe import ServerProbe
 from sqlalchemy import event
 
 
 class Probe:
     def __init__(self, database, output):
+        self.server = ServerProbe(database.engine.url)
         self.output = Path(output)
         self.phase = "setup"
         self.counts = Counter()
@@ -56,11 +58,13 @@ class Probe:
     @contextmanager
     def scope(self, name):
         old, self.phase = self.phase, name
+        server_before = self.server.snapshot()
         started = time.monotonic()
         try:
             yield
         finally:
             self.durations[name + ":wall"] += time.monotonic() - started
+            self.server.finish_phase(name, server_before)
             self.phase = old
             self.save()
 
@@ -69,6 +73,7 @@ class Probe:
             json.dumps(
                 dict(
                     sql=dict(self.counts),
+                    server_sql=self.server.report(),
                     seconds=dict(self.durations),
                     peak_rss_bytes=resource.getrusage(resource.RUSAGE_SELF).ru_maxrss,
                     stacks=[dict(phase=p, stack=list(s), count=n) for (p, s), n in self.stacks.most_common()],

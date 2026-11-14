@@ -102,6 +102,25 @@ def main():
             )
             subprocess.run(
                 [
+                    pg / "psql",
+                    "-h",
+                    socket,
+                    "-p",
+                    "55479",
+                    "-U",
+                    "runner",
+                    "-d",
+                    "replay",
+                    "-v",
+                    "ON_ERROR_STOP=1",
+                    "-c",
+                    "CREATE EXTENSION IF NOT EXISTS pg_stat_statements",
+                ],
+                check=True,
+                stdout=subprocess.DEVNULL,
+            )
+            subprocess.run(
+                [
                     sys.executable,
                     str(Path(__file__).with_name("worker.py")),
                 ],
