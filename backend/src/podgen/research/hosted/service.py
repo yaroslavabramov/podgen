@@ -8,8 +8,9 @@ from podgen.domain.errors import Conflict, ContractError
 
 from .contracts import TERMINAL_STATUSES, Approval, ResearchConfig
 from .material import report
+from .projection import intent_head, receipt_head
 from .provider import prepare as prepare_request
-from .state import exchanges, latest, status
+from .state import head, latest, status
 
 
 def now():
@@ -43,7 +44,7 @@ def prepare(journal, config):
             request_blob=journal.blob(canonical_bytes(request)),
             created_at=now(),
         )
-        journal.put("manifest", manifest)
+        journal.create_manifest(manifest)
         return manifest
 
 
@@ -87,12 +88,12 @@ def authorized(journal):
     return value
 
 
-def process(journal, current):
+def process(journal, current, *, projection=None):
     if journal.get("result"):
-        return status(journal)
+        return status(journal, projection=projection)
     key, value = current
     if value["status"] != "completed":
-        return status(journal)
+        return status(journal, projection=projection)
     material = report(value)
     receipt = journal.get(key + ":receipt")
     journal.put(
@@ -111,7 +112,7 @@ def process(journal, current):
             cost_basis="provider_invoice_not_available",
         ),
     )
-    return status(journal)
+    return status(journal, projection=projection)
 
 
 def advance(journal, provider, *, operation="resume"):
@@ -119,25 +120,31 @@ def advance(journal, provider, *, operation="resume"):
         raise ValueError("invalid_research_operation")
     with journal.lock():
         value = authorized(journal)
-        current = latest(journal)
+        saved = journal.ensure_job(head(journal, locked=True))
+        if journal.get("result") and operation != "reprocess":
+            return status(journal, projection=saved)
+        current = latest(journal, projection=saved)
         if operation == "reprocess":
             if not current or current[1]["status"] != "completed":
                 raise ContractError("hosted_research_no_completed_receipt")
-            return process(journal, current)
+            return process(journal, current, projection=saved)
         if current and current[1]["status"] in TERMINAL_STATUSES:
-            return process(journal, current)
-        previous = list(exchanges(journal))
-        if not current and previous:
-            return status(journal)  # Unknown submit outcome must never trigger another POST.
+            return process(journal, current, projection=saved)
+        if not current and saved["exchanges"]:
+            return status(journal, projection=saved)  # Unknown submit outcome never triggers another POST.
         if operation == "cancel" and not current:
             raise ContractError("hosted_research_cancel_requires_known_job")
         profile = ResearchConfig.model_validate(value["config"]).profile
         credential = os.environ.get(profile.credential_env)
         if not credential:
-            return {**status(journal), "operation_error": "credential_missing"}
+            return {**status(journal, projection=saved), "operation_error": "credential_missing"}
         action = "cancel" if operation == "cancel" else "get" if current else "submit"
-        key = f"exchange:{len(previous) + 1}"
-        journal.put(
+        from podgen.runtime.dispatch import before_external
+
+        before_external("hosted_research_" + action, str(journal.run_id))
+        key = f"exchange:{saved['exchanges'] + 1}"
+        submitting = intent_head(saved, action)
+        journal.exchange(
             key + ":intent",
             dict(
                 operation=action,
@@ -146,34 +153,31 @@ def advance(journal, provider, *, operation="resume"):
                 approval_ref=journal.ref("approval").model_dump(mode="json"),
                 provider_job_id=current[1]["id"] if current else None,
             ),
+            saved,
+            submitting,
         )
         request = value["request"]
         if action == "submit":
             response = provider.submit(request, credential)
         else:
             response = getattr(provider, action)(request, current[1]["id"], credential)
-        journal.put(
-            key + ":receipt",
-            dict(
-                contract="hosted-research-http/1",
-                status_code=response.status_code,
-                headers=response.headers,
-                complete=response.complete,
-                error=response.error,
-                raw_response_blob=journal.blob(response.body),
-                received_at=now(),
-                intent_ref=journal.ref(key + ":intent").model_dump(mode="json"),
-            ),
+        receipt = dict(
+            contract="hosted-research-http/1",
+            status_code=response.status_code,
+            headers=response.headers,
+            complete=response.complete,
+            error=response.error,
+            raw_response_blob=journal.blob(response.body),
+            received_at=now(),
+            intent_ref=journal.ref(key + ":intent").model_dump(mode="json"),
         )
-        updated = latest(journal)
+        captured = receipt_head(submitting, key, receipt, response.body)
+        journal.exchange(key + ":receipt", receipt, submitting, captured)
+        updated = latest(journal, projection=captured)
         if updated:
-            job = dict(
-                provider_job_id=updated[1]["id"], manifest_ref=journal.ref("manifest").model_dump(mode="json")
-            )
-            journal.put("job", job)
-            result = process(journal, updated)
+            result = process(journal, updated, projection=captured)
         else:
-            result = status(journal)
+            result = status(journal, projection=captured)
         if (
             not response.complete
             or response.error

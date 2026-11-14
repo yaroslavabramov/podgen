@@ -99,17 +99,18 @@ def test_crash_after_receipt_recovers_without_network(monkeypatch):
             "completed", steps=[dict(type="model_output", content=[dict(type="text", text="Full report")])]
         )
     )
-    original = journal.put
+    original = journal.exchange
 
-    def crash(key, value):
-        if key == "job":
+    def crash(key, *args):
+        result = original(key, *args)
+        if key.endswith(":receipt"):
             raise RuntimeError("power failure after durable receipt")
-        return original(key, value)
+        return result
 
-    journal.put = crash
+    journal.exchange = crash
     with pytest.raises(RuntimeError):
         advance(journal, provider)
-    journal.put = original
+    journal.exchange = original
     assert advance(journal, provider)["state"] == "completed"
     assert len(provider.calls) == 1
 

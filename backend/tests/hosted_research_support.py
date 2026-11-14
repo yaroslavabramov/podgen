@@ -1,6 +1,7 @@
 import hashlib
 import json
 from contextlib import nullcontext
+from copy import deepcopy
 from types import SimpleNamespace
 from uuid import uuid4, uuid5
 
@@ -17,8 +18,59 @@ class MemoryJournal:
         self.project = uuid4()
         self.repo = SimpleNamespace(actor_id=uuid4())
         self.records, self.blobs = {}, {}
+        self.projection = None
 
-    def lock(self):
+    def head(self):
+        return self.projection
+
+    def create_manifest(self, value):
+        from podgen.research.hosted.projection import empty
+
+        result = self.put("manifest", value)
+        self.projection = empty()
+        return result
+
+    def adopt_head(self, value):
+        if self.projection is None:
+            self.projection = value
+        return self.projection
+
+    def exchange(self, key, value, previous, updated):
+        assert self.projection == previous
+        records = {name: deepcopy(self.records.get(name)) for name in (key, "job")}
+        try:
+            result = self.put(key, value)
+            if updated["job_recorded"] and not previous["job_recorded"]:
+                self._append_job(updated)
+            self.projection = updated
+            return result
+        except BaseException:
+            for name, previous_value in records.items():
+                if previous_value is None:
+                    self.records.pop(name, None)
+                else:
+                    self.records[name] = previous_value
+            raise
+
+    def _append_job(self, value):
+        self.put(
+            "job",
+            dict(
+                provider_job_id=value["current"]["id"],
+                manifest_ref=self.ref("manifest").model_dump(mode="json"),
+            ),
+        )
+
+    def ensure_job(self, previous):
+        if not previous["current"] or previous["job_recorded"] or previous.get("integrity_error"):
+            return previous
+        self._append_job(previous)
+        updated = deepcopy(previous)
+        updated.update(revision=previous["revision"] + 1, job_recorded=True)
+        self.projection = updated
+        return updated
+
+    def lock(self, *, write=True):
         return nullcontext()
 
     def ref(self, key):
