@@ -11,7 +11,7 @@ from podgen.domain.errors import AccessDenied, ContractError
 
 from .database import Database, one, query
 from .execution.reads import current_inputs
-from .read_authorization import _read_connection, authorized_read, checked_node
+from .read_authorization import _read_connection, authorization_state, authorized_read, checked_node
 
 CONFIG_KINDS = {
     "PolicyBundle",
@@ -85,7 +85,7 @@ class Repository:
         return role
 
     def _lock(self, tx, project_id):
-        state = self._read_authorization.get()
+        state = authorization_state(self, tx)
         if state is not None and state.transaction is tx and project_id in state.write_projects:
             return
         # A write fence, not a topology change: waiting RR writers must retry

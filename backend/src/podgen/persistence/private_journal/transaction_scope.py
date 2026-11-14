@@ -3,6 +3,7 @@
 from podgen.domain.errors import AccessDenied
 from podgen.persistence.access_facts import access_facts
 from podgen.persistence.database import one
+from podgen.persistence.read_authorization import authorization_state
 
 
 def load(repo, tx, project, command, *, lock):
@@ -42,7 +43,7 @@ def load(repo, tx, project, command, *, lock):
         command.kind == "legacy_adopted" and row["run_storage"] == "legacy"
     ):
         raise AccessDenied()
-    state = repo._read_authorization.get()
+    state = authorization_state(repo, tx)
     state.completed["private_run_owner", project, command.run_id] = dict(
         actor_id=row["owner_actor_id"], execution_storage=row["run_storage"]
     )

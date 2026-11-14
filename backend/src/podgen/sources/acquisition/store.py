@@ -8,8 +8,6 @@ from podgen.domain.contracts.common import CodeProducer, RuntimeRef
 from podgen.domain.errors import Conflict
 from podgen.persistence.archive_authorization import archive_write
 from podgen.persistence.database import one, query
-from podgen.persistence.read_authorization import _read_connection, read_operation
-from podgen.persistence.runtime_records import append_runtime
 
 from .contracts import VERSION
 
@@ -17,6 +15,75 @@ from .contracts import VERSION
 class AcquisitionStore:
     def __init__(self, repo, project_id, operation_id):
         self.repo, self.project, self.operation = repo, project_id, operation_id
+        self.completion, self.completed = None, None
+        self.outcomes, self.texts = {}, {}
+        self.initial = {}
+
+    def start(self, request):
+        """One SQL boundary owns request registration, config and recovery state."""
+        from podgen.persistence.acquisition_reads import load
+        from podgen.persistence.artifact_batch import publish
+        from podgen.persistence.publication_plan import PublicationBatch, PublicationIdentities
+
+        from .profile import load_profile
+
+        keys = ["request", "result"] + [
+            role + ":" + suffix
+            for role in ("original", "mediawiki", "jina", "promoted_pdf", "browser")
+            for suffix in ("outcome", "original", "source", "extracted", "representation")
+        ]
+        refs = {key: self.ref(key) for key in keys}
+        raw = request.model_dump(mode="json")
+
+        def initialize(tx):
+            loaded = load(self.repo, self.project, tuple(refs.values()))
+            records = {key: loaded.get(ref.record_id) for key, ref in refs.items()}
+            if records["request"] is not None and records["request"] != raw:
+                raise Conflict("source_acquisition_record_changed")
+            if records["result"] is not None:
+                return None, records
+            if records["request"] is None:
+                identities = PublicationIdentities(
+                    tx,
+                    (tx.get_transaction(), tx.get_nested_transaction()),
+                    self.project,
+                    frozenset(ref.record_id for ref in refs.values()),
+                    {row["record_id"]: row for row in loaded.rows},
+                )
+                publish(
+                    self.repo,
+                    tx,
+                    self.project,
+                    PublicationBatch(runtimes=(self.node("request", raw),)),
+                    identities=identities,
+                )
+            else:
+                from podgen.persistence.acquisition_policy import JournalBinding, semantic_inputs
+                from podgen.persistence.runtime_records import _validate_inputs
+
+                required = semantic_inputs(JournalBinding(self.operation, "request"), raw)
+                _validate_inputs(
+                    self.repo, tx, self.project, [ref.model_dump(mode="json") for ref in required], "project"
+                )
+            request_row = next(
+                (row for row in loaded.rows if row["record_id"] == self.ref("request").record_id), None
+            )
+            if request_row is not None and request_row["reference_policy"] == "legacy/1":
+                from .legacy_recovery import decode
+
+                records = decode(tx, self.project, self.operation, records)
+            profile = load_profile(self.repo, self.project, request.profile_ref)
+            return profile, records
+
+        profile, records = archive_write(self.repo, self.project, initialize)
+        self.initial = records
+        return profile, records["result"]
+
+    def stages(self, role, suffixes):
+        keys = [role + ":" + suffix for suffix in suffixes]
+        if all(key in self.initial for key in keys):
+            return {key: self.initial.pop(key) for key in keys}
+        return self.get_many(keys)
 
     def ref(self, key):
         return RuntimeRef(record_kind="acquisition_record", record_id=uuid5(self.operation, key))
@@ -29,52 +96,56 @@ class AcquisitionStore:
             raise ValueError("acquisition_read_batch_too_large")
         if not keys:
             return {}
+        from podgen.persistence.acquisition_reads import load
+
         refs = {key: self.ref(key) for key in dict.fromkeys(keys)}
-        with read_operation(self.repo):
-            with _read_connection(self.repo) as tx:
-                self.repo._acl(tx, self.project)
-                found = set(
-                    query(
-                        tx,
-                        "SELECT record_id FROM runtime_records WHERE project_id=:p AND record_id=ANY(:ids)",
-                        p=self.project,
-                        ids=[ref.record_id for ref in refs.values()],
-                    ).scalars()
-                )
-            selected = [(key, ref) for key, ref in refs.items() if ref.record_id in found]
-            values = self.repo.get_runtime_many(self.project, [ref for _, ref in selected])
-            return dict.fromkeys(keys) | dict(zip((key for key, _ in selected), values, strict=True))
+        found = load(self.repo, self.project, tuple(refs.values()))
+        return {key: found.get(ref.record_id) for key, ref in refs.items()}
 
     def put(self, key, payload):
         return archive_write(self.repo, self.project, lambda tx: self._put(tx, key, payload))
 
     def _put(self, tx, key, payload):
+        from podgen.persistence.artifact_batch import publish
+        from podgen.persistence.publication_plan import PublicationBatch
+
         try:
-            return append_runtime(self.repo, tx, self.project, self.ref(key), payload, replay=True)
+            return publish(
+                self.repo, tx, self.project, PublicationBatch(runtimes=(self.node(key, payload),))
+            )[key]
         except Conflict as error:
             if error.code == "runtime_id_reused_with_different_input":
                 raise Conflict("source_acquisition_record_changed") from error
             raise
 
-    def blob(self, body, media):
-        return self.repo.save_blob(self.project, io.BytesIO(body), media)
+    def node(self, key, payload):
+        from podgen.persistence.acquisition_policy import JournalBinding
+        from podgen.persistence.publication_plan import RuntimeNode
+
+        parts = key.split(":", 1)
+        binding = JournalBinding(self.operation, parts[-1], parts[0] if len(parts) == 2 else "")
+        return RuntimeNode(key, self.ref(key), payload, journal=binding)
+
+    def receipt(self, key, body, media_type, build):
+        from podgen.persistence.blob_publication import publish_staged
+
+        with self.repo.database.transaction() as tx:
+            self.repo._acl(tx, self.project, write=True)
+        with self.repo.objects.stage(self.project, io.BytesIO(body), media_type) as staged:
+            return publish_staged(
+                self.repo, self.project, [staged], publish=lambda tx, refs: self._put(tx, key, build(refs[0]))
+            )
 
     def bytes(self, key, blob):
         return self.repo.read_runtime_blob(self.project, self.ref(key), blob)
 
-    def create(self, key, kind, payload, *, artifact_id=None):
-        from podgen.persistence.artifact_preparation import prepare
-
-        prepared = prepare(self.repo, self.project, kind, payload)
-        return self.publication(
-            lambda publication: publication.create(key, kind, payload, artifact_id=artifact_id).ref,
-            prepared=prepared,
+    def producer(self, key):
+        return CodeProducer(
+            kind="code",
+            component="source-acquisition",
+            build_id=VERSION,
+            operation_id=uuid5(self.operation, key),
         )
-
-    def publication(self, publish, *, prepared=None):
-        # The boundary retries only rolled-back SQL. Prepared bytes remain owned
-        # by the caller; returned descriptors escape only after commit succeeds.
-        return archive_write(self.repo, self.project, lambda tx: publish(Publication(self, tx, prepared)))
 
     @contextmanager
     def lock(self):
@@ -92,29 +163,3 @@ class AcquisitionStore:
                 yield
             finally:
                 query(connection, "SELECT pg_advisory_unlock(hashtextextended(:key,0))", key=key)
-
-
-class Publication:
-    """One document transition; artifact and checkpoint use existing writers."""
-
-    def __init__(self, store, tx, prepared):
-        self.store, self.tx, self.prepared = store, tx, prepared
-
-    def put(self, key, payload):
-        return self.store._put(self.tx, key, payload)
-
-    def create(self, key, kind, payload, *, artifact_id=None):
-        store = self.store
-        operation = uuid5(store.operation, key)
-        return store.repo._create(
-            self.tx,
-            store.project,
-            kind,
-            payload,
-            producer=CodeProducer(
-                kind="code", component="source-acquisition", build_id=VERSION, operation_id=operation
-            ),
-            operation_id=operation,
-            artifact_id=artifact_id,
-            prepared=self.prepared,
-        )

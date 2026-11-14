@@ -2,7 +2,7 @@ from uuid import uuid5
 
 from podgen.domain.contracts.common import RuntimeRef
 from podgen.domain.errors import ContractError
-from podgen.domain.packages import PackageRuntime, package_nodes, relative_path, substitute, validate_package
+from podgen.domain.packages import PackageArtifact, package_nodes, relative_path, validate_package
 
 from .database import json_text, one, query
 
@@ -33,38 +33,52 @@ class PackageImporter:
         with repo.database.transaction() as tx:
             repo._acl(tx, project_id, write=True)
             repo._lock(tx, project_id)
-            for ref in refs.values():
-                repo._resolve(tx, project_id, ref)
-            for ref in runtimes.values():
-                repo._runtime(tx, project_id, ref)
-            for item in package_nodes(package):
-                body = substitute(item.payload, refs, runtimes, blobs, root)
-                if isinstance(item, PackageRuntime):
-                    from .runtime_records import append_runtime
+            from .artifact_batch import publish
+            from .publication_plan import ArtifactNode, PublicationBatch, RuntimeNode
 
-                    ref = RuntimeRef(
+            artifact_nodes = tuple(
+                ArtifactNode(
+                    item.key,
+                    item.kind,
+                    item.payload,
+                    producer,
+                    uuid5(package.package_id, "operation:" + item.key),
+                    input_keys=tuple(item.input_keys),
+                    identity_of=item.identity_of,
+                    episode_id=episode_id,
+                    audience=item.audience,
+                    streaming=True,
+                )
+                for item in package.artifacts
+            )
+            runtime_nodes = tuple(
+                RuntimeNode(
+                    item.key,
+                    RuntimeRef(
                         record_kind=item.record_kind,
                         record_id=uuid5(package.package_id, "runtime:" + item.key),
-                    )
-                    append_runtime(repo, tx, project_id, ref, body, item.audience, replay=True)
-                    runtimes[item.key] = ref
-                else:
-                    revision = repo._create(
-                        tx,
-                        project_id,
-                        item.kind,
-                        body,
-                        producer=producer,
-                        operation_id=uuid5(package.package_id, "operation:" + item.key),
-                        episode_id=episode_id,
-                        artifact_id=refs[item.identity_of].artifact_id if item.identity_of else None,
-                        input_refs=[refs[key] for key in item.input_keys],
-                        audience=item.audience,
-                        streaming=True,
-                        prepared=prepared,
-                    )
-                    refs[item.key] = revision.ref
-                    saved.append(revision)
+                    ),
+                    item.payload,
+                    audience=item.audience,
+                )
+                for item in package.runtime_records
+            )
+            values = publish(
+                repo,
+                tx,
+                project_id,
+                PublicationBatch(
+                    artifacts=artifact_nodes,
+                    runtimes=runtime_nodes,
+                    external_artifacts=refs,
+                    external_runtimes=runtimes,
+                    blobs=blobs,
+                    prepared=prepared,
+                    root=root,
+                ),
+            )
+            saved = [values[item.key] for item in package_nodes(package) if isinstance(item, PackageArtifact)]
+            runtimes.update({item.key: values[item.key] for item in package.runtime_records})
             provenance = dict(
                 test_data=package.test_data,
                 description=package.description,

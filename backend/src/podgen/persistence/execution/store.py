@@ -205,9 +205,14 @@ def append(repo, tx, project, run_id, set_id, records, owned_blobs, *, metadata=
             )
         )
     insert_rows(tx, "execution_tool_results", results)
-    invalidate_publication_facts(repo, tx)
+    from podgen.persistence.publication_scope import AccessChange
+
+    changed_refs = tuple(
+        {(project, ref.record_id) for ref, _, _ in records}
+        | {(project, consumer) for consumer, _ in controls.edges}
+    )
+    invalidate_publication_facts(repo, tx, effect=AccessChange(runtimes=changed_refs))
     protect_owned(tx, project, hashes)
-    invalidate_publication_facts(repo, tx)
 
     for ref, payload, _ in records:
         metadata.put(

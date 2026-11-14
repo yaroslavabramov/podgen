@@ -13,6 +13,8 @@ def protect_private_owned(tx, project, entry_id, fresh_hashes):
     as witness. Neither borrowed input bytes nor unrelated history are visited.
     An empty first-ownership set performs no query or traversal.
     """
+    from podgen.persistence.publication_scope import AccessChange, notify
+
     for hashes in hash_batches(fresh_hashes):
         aliases = set(
             query(
@@ -33,4 +35,5 @@ def protect_private_owned(tx, project, entry_id, fresh_hashes):
         )
         if aliases:
             origins = protected_alias_origins(tx, project, dict.fromkeys(aliases, entry_id))
-            _mark(tx, project, origins, execution=True)
+            if _mark(tx, project, origins, execution=True):
+                notify(tx, AccessChange())

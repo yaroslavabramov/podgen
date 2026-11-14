@@ -19,13 +19,13 @@ SELECT 'artifact', subject_id::text, 'artifact', input_id::text FROM revalidatio
 WHERE project_id=:project AND input_id=ANY(CAST(:artifacts AS uuid[]))
 UNION
 SELECT 'runtime', record_id::text, 'artifact', revision_id::text FROM runtime_artifact_refs
-WHERE project_id=:project AND revision_id=ANY(CAST(:artifacts AS uuid[]))
+WHERE project_id=:project AND privacy_required AND revision_id=ANY(CAST(:artifacts AS uuid[]))
 UNION
 SELECT 'runtime', record_id::text, 'runtime', target_record_id::text FROM runtime_runtime_refs
-WHERE project_id=:project AND target_record_id=ANY(CAST(:runtimes AS uuid[]))
+WHERE project_id=:project AND privacy_required AND target_record_id=ANY(CAST(:runtimes AS uuid[]))
 UNION
 SELECT 'artifact', revision_id::text, 'runtime', record_id::text FROM runtime_links
-WHERE project_id=:project AND record_id=ANY(CAST(:runtimes AS uuid[]))
+WHERE project_id=:project AND privacy_required AND record_id=ANY(CAST(:runtimes AS uuid[]))
 UNION
 SELECT 'blob', sha256, 'runtime', record_id::text FROM runtime_blob_refs
 WHERE project_id=:project AND record_id=ANY(CAST(:runtimes AS uuid[])) AND is_owned

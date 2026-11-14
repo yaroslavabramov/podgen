@@ -20,6 +20,11 @@ _SNAPSHOTS = ContextVar("podgen_fixed_authorization_snapshots", default=())
 
 @contextmanager
 def authorized_read(repo, transaction):
+    from .publication_scope import owner_for
+
+    publication = owner_for(transaction)
+    if publication is not None:
+        publication.sync()
     existing = repo._read_authorization.get()
     if (
         existing is not None
@@ -32,24 +37,51 @@ def authorized_read(repo, transaction):
         yield
         return
     state = ReadAuthorization(transaction, repo.actor_id, repo.purpose)
+    if publication is not None:
+        publication.states.append((state, repo))
     token = repo._read_authorization.set(state)
     active = _SNAPSHOTS.set((*_SNAPSHOTS.get(), state))
     try:
         yield
     finally:
+        if publication is not None:
+            publication.states[:] = [(s, r) for s, r in publication.states if s is not state]
         _SNAPSHOTS.reset(active)
         repo._read_authorization.reset(token)
 
 
-def invalidate_publication_facts(repo, transaction):
-    """Publication changes refs/privacy, never roles in this same locked snapshot."""
+def authorization_state(repo, transaction=None):
+    """Scope guard, including fast paths which read completed directly."""
+    from .publication_scope import owner_for
+
     state = repo._read_authorization.get()
-    if (
-        state is None
-        or state.transaction is not transaction
-        or state.actor != repo.actor_id
-        or state.purpose != repo.purpose
-    ):
+    tx = transaction if transaction is not None else state.transaction if state is not None else None
+    publication = owner_for(tx)
+    if publication is not None:
+        publication.sync()
+    return state
+
+
+def invalidate_publication_facts(repo, transaction, *, effect=None):
+    """Publication changes refs/privacy, never roles in this same locked snapshot."""
+    from .publication_scope import changed
+
+    if changed(transaction, effect):
+        return
+    invalidate_transaction(transaction, current=authorization_state(repo, transaction))
+
+
+def invalidate_transaction(transaction, *, current=None):
+    states = [s for s in _SNAPSHOTS.get() if s.transaction is transaction]
+    states.extend(op.state for op in _OPERATIONS.get() if op.state.transaction is transaction)
+    if current is not None and current.transaction is transaction and all(s is not current for s in states):
+        states.append(current)
+    for state in states:
+        _invalidate_state(state)
+
+
+def _invalidate_state(state):
+    if state is None:
         return
     previous = state.completed.get(("access_facts",))
     roles = dict(previous.roles) if previous is not None else {}
@@ -57,13 +89,13 @@ def invalidate_publication_facts(repo, transaction):
     if roles:
         from .access_facts import AccessFacts
 
-        facts = AccessFacts(repo, transaction)
+        facts = AccessFacts(previous.repo, state.transaction)
         facts.roles.update(roles)
         state.completed[("access_facts",)] = facts
 
 
 def checked_node(repo, transaction, key, load):
-    state = repo._read_authorization.get()
+    state = authorization_state(repo, transaction)
     if (
         state is None
         or state.transaction is not transaction

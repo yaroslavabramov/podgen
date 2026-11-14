@@ -4,6 +4,7 @@ from sqlalchemy.exc import DBAPIError
 
 from .access_facts import access_facts
 from .database import one
+from .publication_scope import publication_scope
 from .read_authorization import authorized_read
 
 
@@ -29,10 +30,12 @@ def archive_write(repo, project, write):
                     p=project,
                     a=repo.actor_id,
                 )
-                with authorized_read(repo, tx):
+                with publication_scope(tx, project) as publication, authorized_read(repo, tx):
                     repo._read_authorization.get().write_projects.add(project)
                     access_facts(repo, tx).roles[project] = dict(member) if member is not None else None
-                    return write(tx)
+                    result = write(tx)
+                    publication.sync()
+                    return result
         except DBAPIError as error:
             if getattr(error.orig, "sqlstate", None) != "40001" or attempt == 2:
                 raise

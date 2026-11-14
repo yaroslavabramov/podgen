@@ -6,7 +6,7 @@ from podgen.domain.canonical import digest
 from podgen.domain.contracts.common import ArtifactRef, BlobRef, RuntimeRef
 from podgen.persistence.access_facts import access_facts
 from podgen.persistence.database import query
-from podgen.persistence.read_authorization import authorized_read
+from podgen.persistence.read_authorization import authorization_state, authorized_read
 from podgen.persistence.repository import HIDDEN_KINDS, Repository
 from podgen.persistence.scope import ScopeAccess
 
@@ -64,7 +64,7 @@ class Resources:
             )
             for blob in facts.artifacts.bindings[row["revision_id"]]:
                 self.blob(purpose, row["project_id"], blob, read=False)
-        state = reader._read_authorization.get()
+        state = authorization_state(reader, tx)
         for key, row in tuple(state.completed.items()):
             if key[0] == "artifact":
                 consumer = key[1]

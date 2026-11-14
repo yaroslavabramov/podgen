@@ -11,8 +11,12 @@ FRONTIER = 64
 
 
 class ArtifactFacts:
-    def __init__(self, tx, blobs):
+    def __init__(self, tx, blobs, *, publication=None):
         self.tx, self.blobs = tx, blobs
+        self.publication = publication
+        self.reset()
+
+    def reset(self):
         self.rows, self.edges, self.bindings, self.privacy_links = {}, {}, {}, {}
         self.runtime_links, self.integrity_blobs = {}, {}
         self.missing, self.blocked, self.expanded = set(), set(), set()
@@ -28,6 +32,9 @@ class ArtifactFacts:
         return row
 
     def load(self, identities):
+        if self.publication is not None:
+            self.publication.sync()
+        identities = tuple(identities)
         pending = [
             identity
             for identity in set(identities)
@@ -100,6 +107,8 @@ class ArtifactFacts:
             self._block(self.parents[self._pending_denials.popleft()])
 
     def expand(self, identities):
+        if self.publication is not None:
+            self.publication.sync()
         pending, visited = set(identities) - self.expanded, set()
         if not pending:
             return

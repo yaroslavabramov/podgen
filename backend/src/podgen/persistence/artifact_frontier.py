@@ -31,7 +31,7 @@ SELECT r.project_id,r.revision_id,r.artifact_id,r.kind,r.input_refs,r.audience,
                 WHERE l.project_id=r.project_id AND l.artifact_revision_id=r.revision_id),
         'runtimes',COALESCE((SELECT jsonb_agg(jsonb_build_object(
             'record_id',l.record_id,'record_kind',l.record_kind)) FROM runtime_links l
-            WHERE l.project_id=r.project_id AND l.revision_id=r.revision_id),'[]'::jsonb)
+            WHERE l.project_id=r.project_id AND l.revision_id=r.revision_id AND l.read_required),'[]'::jsonb)
     ) AS access_graph
 FROM artifact_revisions r WHERE r.revision_id=ANY(:ids)
 """

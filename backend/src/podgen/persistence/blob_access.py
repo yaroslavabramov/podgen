@@ -24,12 +24,16 @@ def validate_binding(reference, row):
 class BlobFacts:
     """Exact byte bindings loaded by metadata frontier, with one access decision."""
 
-    def __init__(self, repo, tx, role):
+    def __init__(self, repo, tx, role, *, publication=None):
         self.repo, self.tx, self.role, self.rows = repo, tx, role, {}
+        self.publication = publication
 
     def load(self, project, keys):
+        keys = tuple(keys)
         from .database import query
 
+        if self.publication is not None:
+            self.publication.sync()
         pending = [key for key in set(keys) if (project, key) not in self.rows]
         for offset in range(0, len(pending), 64):
             for row in query(

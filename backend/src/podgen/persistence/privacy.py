@@ -2,8 +2,10 @@
 
 from .database import query
 from .privacy_graph import hash_batches, privacy_closure
+from .publication_scope import access_mutation
 
 
+@access_mutation
 def revoke_content(tx, project_id, revision_id, event_id, reason):
     closure = privacy_closure(tx, project_id, artifact_ids=[revision_id])
     for hashes in hash_batches({value for kind, value in closure if kind == "blob"}):

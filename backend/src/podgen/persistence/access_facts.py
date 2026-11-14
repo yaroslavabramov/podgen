@@ -3,12 +3,12 @@
 from .artifact_access import ArtifactFacts
 from .blob_access import BlobFacts
 from .database import query
-from .read_authorization import checked_node
+from .read_authorization import authorization_state, checked_node
 from .runtime_access import RuntimeFacts
 
 
 def access_facts(repo, tx):
-    state = repo._read_authorization.get()
+    state = authorization_state(repo, tx)
     if (
         state is None
         or state.transaction is not tx
@@ -21,9 +21,12 @@ def access_facts(repo, tx):
 
 class AccessFacts:
     def __init__(self, repo, tx):
+        from .publication_scope import owner_for
+
+        self.publication = owner_for(tx)
         self.repo, self.tx, self.roles = repo, tx, {}
-        self.blobs = BlobFacts(repo, tx, self.role)
-        self.artifacts = ArtifactFacts(tx, self.blobs)
+        self.blobs = BlobFacts(repo, tx, self.role, publication=self.publication)
+        self.artifacts = ArtifactFacts(tx, self.blobs, publication=self.publication)
         state = repo._read_authorization.get()
         self.runtimes = RuntimeFacts(
             tx,
@@ -31,7 +34,15 @@ class AccessFacts:
             self.artifacts,
             graph=repo._runtime_graph.get(),
             cache_writes=state is not None and state.transaction is tx and state.owner is not None,
+            publication=self.publication,
         )
+
+    def reset(self, *, preserve_roles=False):
+        if not preserve_roles:
+            self.roles.clear()
+        self.blobs.rows.clear()
+        self.artifacts.reset()
+        self.runtimes.reset()
 
     def prefetch_runtime_links(self):
         """Load artifact→runtime frontiers as a union, before scalar authorization.
@@ -54,6 +65,8 @@ class AccessFacts:
                 self.runtimes.prefetch(owner, references)
 
     def role(self, project):
+        if self.publication is not None:
+            self.publication.sync()
         if project not in self.roles:
             rows = list(
                 query(

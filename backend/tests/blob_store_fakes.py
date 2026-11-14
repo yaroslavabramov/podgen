@@ -125,6 +125,7 @@ class BlobDatabase:
                 ]
             )
         if sql.startswith("INSERT INTO blobs") and "project_id_0" in params:
+            inserted = []
             for index in range(sum(key.startswith("project_id_") for key in params)):
                 row = {
                     key: params[f"{key}_{index}"]
@@ -136,7 +137,8 @@ class BlobDatabase:
                 )
                 if not duplicate:
                     self.rows[row["project_id"], row["storage_key"]] = row
-            return Rows([])
+                    inserted.append(row)
+            return Rows(inserted if "RETURNING" in sql else [])
         if sql.startswith("SELECT * FROM blobs"):
             return Rows(
                 [

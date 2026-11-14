@@ -86,6 +86,10 @@ def register(tx, project, entry_id, references):
     )
     prior_hashes = {row["sha256"] for row in catalog if not row["inserted"]}
     fresh = {row["sha256"] for row in catalog if row["inserted"]} - prior_hashes
+    if fresh:
+        from podgen.persistence.publication_scope import AccessChange, notify
+
+        notify(tx, AccessChange())
     stored = {(row["sha256"], row["media_type"]): row for row in catalog}
     if any(
         (row := stored.get((ref.sha256, ref.media_type))) is None

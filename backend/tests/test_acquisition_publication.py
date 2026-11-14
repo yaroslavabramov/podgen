@@ -2,11 +2,12 @@
 
 import asyncio
 import io
+import json
 from collections import Counter, defaultdict
 from concurrent.futures import ThreadPoolExecutor
 from concurrent.futures import TimeoutError as FutureTimeout
 from threading import Event
-from uuid import uuid4, uuid5
+from uuid import uuid4
 
 import pytest
 from psycopg.errors import SerializationFailure
@@ -19,7 +20,7 @@ from podgen.persistence.artifact_preparation import prepare
 from podgen.persistence.database import query
 from podgen.persistence.packages import PackageImporter
 from podgen.sources.acquisition import service
-from podgen.sources.acquisition.store import AcquisitionStore, Publication
+from podgen.sources.acquisition.store import AcquisitionStore
 from podgen.sources.extraction.contracts import ExtractedDocument
 from tests.source_acquisition_support import ARTICLE, Fetcher, setup
 from tests.test_artifact_publication import transaction_guard
@@ -53,15 +54,31 @@ def test_document_owner_serializes_acl_changes(repo, scope, producer, monkeypatc
         payload = source.payload | dict(source_id=str(uuid4()))
         prepared = prepare(repo, scope[0], "SourceRevision", payload)
 
-        def publish(publication):
-            descriptor = publication.create("new:source", "SourceRevision", payload)
-            entered.set()
-            assert release.wait(10)
-            publication.put("new:source", dict(source_revision_ref=descriptor.ref.model_dump(mode="json")))
-            return descriptor
+        from podgen.domain.contracts.common import RuntimeRef
+        from podgen.persistence import artifact_batch
+        from podgen.persistence.archive_authorization import archive_write
+        from podgen.persistence.publication_plan import ArtifactNode, PublicationBatch, RuntimeNode
+
+        node = ArtifactNode("source", "SourceRevision", payload, producer, uuid4())
+        checkpoint = RuntimeNode(
+            "checkpoint",
+            RuntimeRef(record_kind="acquisition_record", record_id=uuid4()),
+            dict(source={"$artifact": "source"}),
+        )
+        batch = PublicationBatch(artifacts=(node,), runtimes=(checkpoint,), prepared=prepared)
+        insert = artifact_batch.insert_rows
+
+        def blocked(tx, table, rows, **options):
+            result = insert(tx, table, rows, **options)
+            if table == "artifact_revisions":
+                entered.set()
+                assert release.wait(10)
+            return result
+
+        monkeypatch.setattr(artifact_batch, "insert_rows", blocked)
 
         def operation():
-            return store.publication(publish, prepared=prepared)
+            return archive_write(repo, scope[0], lambda tx: artifact_batch.publish(repo, tx, scope[0], batch))
     else:
         original = store._put
 
@@ -73,7 +90,7 @@ def test_document_owner_serializes_acl_changes(repo, scope, producer, monkeypatc
         monkeypatch.setattr(store, "_put", put)
 
         def operation():
-            return store.put("new:checkpoint", dict(complete=True))
+            return store.put("request", request.model_dump(mode="json"))
 
     def modify_role():
         with repo.database.transaction() as tx:
@@ -111,33 +128,33 @@ async def test_serialization_retry_repeats_only_rolled_back_document_sql(
 ):
     request, _ = setup(repo, scope, producer)
     fetcher, extractor = Fetcher(), Extractor()
-    original = Publication.put
-    rolled_back = []
+    from podgen.persistence import artifact_batch
 
-    def retry(self, key, payload):
-        value = original(self, key, payload)
-        if key == "original:" + checkpoint and not rolled_back:
-            rolled_back.append(payload)
+    original, rolled_back = artifact_batch.insert_rows, []
+
+    def retry(tx, table, rows, **options):
+        value = original(tx, table, rows, **options)
+        final = table == "artifact_revisions" and any(row["kind"] == "SourceRepresentation" for row in rows)
+        outcome = table == "runtime_records" and any(
+            json.loads(row.get("journal_binding", "{}")).get("stage") == "outcome" for row in rows
+        )
+        if (final if checkpoint == "source" else outcome) and not rolled_back:
+            rolled_back.append(True)
             raise DBAPIError("synthetic serialization retry", {}, SerializationFailure("fixture"))
         return value
 
-    monkeypatch.setattr(Publication, "put", retry)
+    monkeypatch.setattr(artifact_batch, "insert_rows", retry)
     result = await service.acquire_source(repo, scope[0], request, fetcher=fetcher, extractors=extractor)
     assert result.status == "available" and len(fetcher.calls) == extractor.calls == 1
-    assert len(rolled_back) == 1
-    missing = (
-        rolled_back[0]["source_revision_ref"]
-        if checkpoint == "source"
-        else rolled_back[0]["source"]["source_revision_ref"]
-    )
+    assert rolled_back == [True]
     with repo.database.read_transaction() as tx:
-        assert not list(
+        assert (
             query(
                 tx,
-                "SELECT revision_id FROM artifact_revisions WHERE project_id=:p AND revision_id=CAST(:id AS uuid)",
+                "SELECT count(*) FROM artifact_revisions WHERE project_id=:p AND kind='SourceRevision'",
                 p=scope[0],
-                id=missing["revision_id"],
-            ).scalars()
+            ).scalar_one()
+            == 1
         )
 
 
@@ -153,34 +170,37 @@ async def test_artifacts_and_document_checkpoint_commit_together(
 ):
     request, _ = setup(repo, scope, producer)
     fetcher, extractor = Fetcher(), Extractor()
-    original = Publication.put
+    from podgen.persistence import artifact_batch
 
-    def interrupt(self, key, payload):
-        if key == "original:" + checkpoint:
+    original = artifact_batch.insert_rows
+
+    def interrupt(tx, table, rows, **options):
+        value = original(tx, table, rows, **options)
+        final = table == "artifact_revisions" and any(row["kind"] == "SourceRepresentation" for row in rows)
+        outcome = table == "runtime_records" and any(
+            json.loads(row.get("journal_binding", "{}")).get("stage") == "outcome" for row in rows
+        )
+        if final if checkpoint == "source" else outcome:
             raise Interrupted()
-        return original(self, key, payload)
+        return value
 
-    monkeypatch.setattr(Publication, "put", interrupt)
+    monkeypatch.setattr(artifact_batch, "insert_rows", interrupt)
     with pytest.raises(Interrupted):
         await service.acquire_source(repo, scope[0], request, fetcher=fetcher, extractors=extractor)
     store = AcquisitionStore(repo, scope[0], request.operation_id)
     assert store.get("original:original") is not None
-    assert store.get("original:" + checkpoint) is None
-    rolled_back = (
-        ["source"] if checkpoint == "source" else ["metadata-source", "extractor-profile", "representation"]
-    )
+    assert store.get("original:extracted") is not None
+    assert store.get("original:outcome") is None
     with repo.database.read_transaction() as tx:
-        assert not list(
+        assert (
             query(
                 tx,
-                "SELECT revision_id FROM artifact_revisions WHERE project_id=:p AND operation_id=ANY(:ids)",
+                "SELECT count(*) FROM artifact_revisions WHERE project_id=:p AND kind IN ('SourceRevision','SourceRepresentation')",
                 p=scope[0],
-                ids=[uuid5(request.operation_id, "original:" + key) for key in rolled_back],
-            ).scalars()
+            ).scalar_one()
+            == 0
         )
-    if checkpoint == "outcome":
-        assert store.get("original:extracted") is not None
-    monkeypatch.setattr(Publication, "put", original)
+    monkeypatch.setattr(artifact_batch, "insert_rows", original)
     result = await service.acquire_source(repo, scope[0], request, fetcher=fetcher, extractors=extractor)
     assert result.status == "available" and len(fetcher.calls) == extractor.calls == 1
     assert (
@@ -221,25 +241,30 @@ async def test_finished_document_transition_work(repo, scope, producer, monkeypa
         work["sql"] += 1
         phases[phase[0]]["sql"] += 1
         for label, fragment in (
+            ("revision_inserts", "INSERT INTO artifact_revisions"),
+            ("version_bumps", "validity_version=validity_version+"),
             ("roles", "SELECT role FROM project_members"),
             ("artifact_frontiers", "AS access_graph"),
             ("artifact_bodies", "SELECT * FROM artifact_revisions"),
+            ("dependency_body_batches", "SELECT * FROM artifact_revisions WHERE revision_id=ANY"),
         ):
             if fragment in statement:
                 work[label] += 1
                 phases[phase[0]][label] += 1
 
-    for name in ("create", "put"):
-        original = getattr(Publication, name)
+    from podgen.persistence import artifact_batch
 
-        def stage(self, key, *args, _name=name, _original=original, **kwargs):
-            previous, phase[0] = phase[0], _name + ":" + key
-            try:
-                return _original(self, key, *args, **kwargs)
-            finally:
-                phase[0] = previous
+    original_publish = artifact_batch.publish
 
-        monkeypatch.setattr(Publication, name, stage)
+    def stage(repo, tx, project, batch, **options):
+        previous = phase[0]
+        phase[0] = "final-document" if batch.artifacts else "receipt:" + batch.runtimes[0].journal.stage
+        try:
+            return original_publish(repo, tx, project, batch, **options)
+        finally:
+            phase[0] = previous
+
+    monkeypatch.setattr(artifact_batch, "publish", stage)
     original_read, original_iter = repo.objects.read, repo.objects.iter_read
 
     def read(project, ref):
@@ -270,6 +295,17 @@ async def test_finished_document_transition_work(repo, scope, producer, monkeypa
     )
     assert result.status == "available" and len(fetcher.calls) == extractor.calls == 1
     assert work["object_reads"] == 0 and work["object_streams"] == 2
+    assert phases["final-document"]["revision_inserts"] == 1
+    assert phases["final-document"]["version_bumps"] == 1
+    assert (
+        work["artifact_bodies"] == work["dependency_body_batches"] + 2
+    )  # Profile read and one batch identity lookup.
+    assert store_checkpoint_absent(repo, scope[0], request.operation_id)
+
+
+def store_checkpoint_absent(repo, project, operation):
+    store = AcquisitionStore(repo, project, operation)
+    return store.get("original:source") is None and store.get("original:representation") is None
 
 
 async def representation(repo, scope, producer):
@@ -338,3 +374,39 @@ async def test_package_text_evidence_can_use_external_representation_without_pac
         *scope, ArtifactPackage.model_validate(raw), tmp_path, producer=producer
     )
     assert result[0].payload["exact_text"] == ARTICLE
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("changed", [False, True])
+async def test_reprocess_preserves_source_identity_unless_metadata_changes(repo, scope, producer, changed):
+    from podgen.sources.acquisition.contracts import ReExtractionRequest
+    from podgen.sources.acquisition.reprocess import reprocess_source
+
+    request, _ = setup(repo, scope, producer)
+
+    class First:
+        async def extract(self, *args, **kwargs):
+            return ExtractedDocument(
+                ARTICLE, "synthetic-metadata", "1", title="Original title", published_date="2026-01-02"
+            )
+
+    first = await service.acquire_source(repo, scope[0], request, fetcher=Fetcher(), extractors=First())
+    source = first.sources[0].source_revision_ref
+
+    class Second:
+        async def extract(self, *args, **kwargs):
+            return ExtractedDocument(
+                ARTICLE, "synthetic-metadata", "1", title="Corrected title" if changed else "Original title"
+            )
+
+    command = ReExtractionRequest(
+        operation_id=uuid4(),
+        source_revision_ref=source,
+        profile_ref=request.profile_ref,
+        reason="Synthetic metadata recheck",
+    )
+    second = await reprocess_source(repo, scope[0], command, extractors=Second())
+    result = repo.get(scope[0], second.sources[0].source_revision_ref)
+    assert (result.ref != source) == changed
+    assert result.payload["title"] == ("Corrected title" if changed else "Original title")
+    assert result.payload["published_at"]["value"] == "2026-01-02"

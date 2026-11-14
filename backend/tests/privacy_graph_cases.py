@@ -59,8 +59,8 @@ class Graph:
 
 
 class Rows:
-    def __init__(self, rows):
-        self.rows = rows
+    def __init__(self, rows, rowcount=0):
+        self.rows, self.rowcount = rows, rowcount
 
     def __enter__(self):
         return self
@@ -79,7 +79,7 @@ class GraphConnection:
     def execute(self, statement, params, execution_options=None):
         if str(statement).lstrip().startswith("INSERT"):
             self.writes.append((str(statement), params))
-            return Rows([])
+            return Rows([], rowcount=len(params.get("hashes", ())))
         assert execution_options == {"yield_per": 512}
         self.expansions.append(params)
         return Rows(self.graph.expand(params))

@@ -62,7 +62,17 @@ def test_only_topology_survives_fresh_public_reads(repo, scope, revocation):
             owner = repo._runtime_graph.get()
             assert len(owner.nodes) == len(nodes)
             assert all(
-                set(vars(node)) == {"project_id", "record_id", "record_kind", "audience", "references"}
+                set(vars(node))
+                == {
+                    "project_id",
+                    "record_id",
+                    "record_kind",
+                    "audience",
+                    "references",
+                    "execution_run_id",
+                    "execution_input_set_id",
+                    "reference_policy",
+                }
                 for node in owner.nodes.values()
             )
             if revocation == "blob":

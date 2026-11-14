@@ -50,14 +50,13 @@ def transaction_guard(repo, monkeypatch, finalize):
 
 
 def test_transaction_guard_detects_archive_callback_io(factory, monkeypatch, request):
-    from podgen.sources.acquisition.store import AcquisitionStore
+    from podgen.persistence.archive_authorization import archive_write
 
     f = factory
     _, blob = f.source()
     transaction_guard(f.repo, monkeypatch, request.addfinalizer)
-    store = AcquisitionStore(f.repo, f.project, uuid4())
     with pytest.raises(AssertionError, match="object I/O inside"):
-        store.publication(lambda _: f.repo.objects.read(f.project, blob))
+        archive_write(f.repo, f.project, lambda _: f.repo.objects.read(f.project, blob))
 
 
 def test_each_reference_field_is_validated_after_unique_read(factory):
@@ -138,7 +137,7 @@ def test_duplicate_reference_occurrences_do_not_repeat_database_work(factory, re
         event.remove(f.repo.database.engine, "before_cursor_execute", count)
     record_property("duplicate_reference_publication", metrics)
     assert len({m["sql"] for m in metrics}) == 1
-    assert all(m["body_batches"] == 1 and m["scalar_bodies"] == 1 for m in metrics)
+    assert all(m["body_batches"] == 1 and m.get("scalar_bodies", 0) == 0 for m in metrics)
 
 
 def test_blob_verification_is_outside_transaction_and_acl_is_fresh(factory, monkeypatch, request):

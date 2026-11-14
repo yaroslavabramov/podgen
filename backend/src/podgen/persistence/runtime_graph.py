@@ -12,6 +12,7 @@ class RuntimeNode:
     record_kind: str
     audience: str
     references: tuple
+    reference_policy: str = "legacy/1"
     execution_run_id: object | None = None
     execution_input_set_id: object | None = None
 
@@ -25,6 +26,7 @@ class RuntimeNode:
                 "audience",
                 "execution_run_id",
                 "execution_input_set_id",
+                "reference_policy",
             )
         }
 
@@ -51,6 +53,11 @@ class RuntimeGraph:
     def clear(self):
         self.nodes.clear()
         self.edge_count = 0
+
+    def discard(self, project, identity):
+        previous = self.nodes.pop((project, identity), None)
+        if previous is not None:
+            self.edge_count -= len(previous.references)
 
 
 @contextmanager

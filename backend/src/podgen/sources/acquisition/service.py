@@ -4,10 +4,9 @@ from podgen.sources.extraction.extract import DocumentExtractors
 
 from .browser import BrowserSourceFetcher
 from .contracts import AcquisitionRequest, AcquisitionResult
-from .fallbacks import jina_request, mediawiki_url, promoted_pdf
+from .flow import AcquisitionFlow, FetchStep
 from .http import HttpSourceFetcher
 from .network import _check_ssrf
-from .profile import load_profile
 from .stages import acquire_document, saved_extracted_text
 from .store import AcquisitionStore
 
@@ -16,11 +15,8 @@ async def acquire_source(repo, project_id, request, *, fetcher=None, extractors=
     request = AcquisitionRequest.model_validate(request)
     store = AcquisitionStore(repo, project_id, request.operation_id)
     with store.lock():
-        profile = load_profile(repo, project_id, request.profile_ref)
-        raw = request.model_dump(mode="json")
-        store.put("request", raw)
-        saved = store.get("result")
-        if saved:
+        profile, saved = store.start(request)
+        if saved is not None:
             return AcquisitionResult.model_validate(saved)
         try:
             _check_ssrf(request.url)
@@ -33,52 +29,22 @@ async def acquire_source(repo, project_id, request, *, fetcher=None, extractors=
             )
             store.put("result", result.model_dump(mode="json"))
             return result
+        flow = AcquisitionFlow(request, profile, store.ref("request"))
+        store.completion = flow.candidate
         fetcher, extractors = fetcher or HttpSourceFetcher(), extractors or DocumentExtractors()
-        sources, diagnostics = [], []
-
-        async def obtain(role, url, *, headers=None, transport=None):
+        while isinstance(step := flow.decide(), FetchStep):
+            transport = (browser_fetcher or BrowserSourceFetcher()) if step.role == "browser" else fetcher
             source = await acquire_document(
-                store, request, profile, role, url, transport or fetcher, extractors, headers=headers
+                store, request, profile, step.role, step.url, transport, extractors, headers=step.headers
             )
-            if source:
-                sources.append(source)
-            else:
-                diagnostics.extend(store.get(role + ":outcome")["diagnostics"])
-            return source
-
-        await obtain("original", request.url)
-        if profile.prefer_mediawiki:
-            target = mediawiki_url(request.url)
-            if target:
-                await obtain("mediawiki", target)
-        if not any(source.status == "available" for source in sources) and profile.enable_jina:
-            jina = jina_request(request.url, profile)
-            if jina:
-                source = await obtain("jina", jina[0], headers=jina[1])
-                if source and source.representation_refs:
-                    target = promoted_pdf(saved_extracted_text(store, source), request.url)
-                    if target:
-                        await obtain("promoted_pdf", target)
-            else:
-                diagnostics.append("jina_credential_missing")
-        if not any(source.status == "available" for source in sources) and profile.enable_browser:
-            await obtain("browser", request.url, transport=browser_fetcher or BrowserSourceFetcher())
-        status = (
-            "available"
-            if any(source.status == "available" for source in sources)
-            else (
-                "unconfirmed"
-                if any(source.status == "unconfirmed" for source in sources)
-                else "unavailable"
-                if sources
-                else "failed"
-            )
-        )
-        result = AcquisitionResult(
-            acquisition_record_ref=store.ref("request"),
-            sources=sources,
-            status=status,
-            diagnostics=diagnostics,
-        )
-        store.put("result", result.model_dump(mode="json"))
+            outcome = store.outcomes[step.role]
+            text = store.texts.get(step.role)
+            if step.role == "jina" and source and source.representation_refs and text is None:
+                text = saved_extracted_text(store, source)
+            flow.accept(step.role, outcome, text)
+        result = AcquisitionResult.model_validate(flow.decide())
+        if store.completed is None:
+            store.put("result", result.model_dump(mode="json"))
+        elif store.completed != result.model_dump(mode="json"):
+            raise RuntimeError("acquisition_terminal_result_mismatch")
         return result

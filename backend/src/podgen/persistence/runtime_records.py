@@ -43,9 +43,10 @@ def append_runtime(repo, tx, project, ref, payload, audience="project", *, repla
     )
     # Ref/blob decisions cannot survive publication; locked roles are unchanged
     # within this same transaction.
+    from .publication_scope import Append
     from .read_authorization import invalidate_publication_facts
 
-    invalidate_publication_facts(repo, tx)
+    invalidate_publication_facts(repo, tx, effect=Append(runtimes=((project, ref.record_id),)))
     if audience == "evaluator":
         from .classification import classify_evaluator
 

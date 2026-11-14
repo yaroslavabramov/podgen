@@ -140,4 +140,8 @@ def publish(repo, tx, project, command):
                     for entry in sources[offset : offset + 128]
                 ],
             )
-    invalidate_publication_facts(repo, tx)
+    from podgen.persistence.publication_scope import AccessChange
+
+    invalidate_publication_facts(
+        repo, tx, effect=AccessChange(runtimes=((project, result.reference.record_id),))
+    )

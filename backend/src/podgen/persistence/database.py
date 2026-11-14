@@ -34,3 +34,10 @@ def query(connection, sql, **params):
 
 def one(connection, sql, **params):
     return query(connection, sql, **params).mappings().first()
+
+
+def bounded_rows(connection, sql, identities, **params):
+    """Read a caller-owned finite identity set in bounded SQL parameter batches."""
+    identities = tuple(dict.fromkeys(identities))
+    for offset in range(0, len(identities), 64):
+        yield from query(connection, sql, ids=list(identities[offset : offset + 64]), **params).mappings()

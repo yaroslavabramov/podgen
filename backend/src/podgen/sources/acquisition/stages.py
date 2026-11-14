@@ -8,17 +8,16 @@ from podgen.persistence.artifact_preparation import verified_bytes
 from podgen.sources.extraction.contracts import ExtractedDocument
 
 from .contracts import AcquiredSource
-from .persistence import load_original, save_original, save_source
+from .persistence import load_original, save_original
 from .representation import save_representation
 
 
 async def acquire_document(store, request, profile, role, url, fetcher, extractors, *, headers=None):
     key = role + ":outcome"
-    records = store.get_many(
-        [role + ":" + suffix for suffix in ("outcome", "original", "source", "extracted", "representation")]
-    )
+    records = store.stages(role, ("outcome", "original", "source", "extracted", "representation"))
     saved = records[key]
     if saved is not None:
+        store.outcomes[role] = saved
         return AcquiredSource.model_validate(saved["source"]) if saved["source"] else None
     original = load_original(store, role, records[role + ":original"])
     if original is None:
@@ -28,10 +27,18 @@ async def acquire_document(store, request, profile, role, url, fetcher, extracto
         try:
             document = await fetcher.fetch(url, profile, headers=headers)
         except (ValueError, RuntimeError, OSError, TimeoutError, ImportError, httpx.HTTPError) as error:
-            store.put(key, dict(source=None, diagnostics=[type(error).__name__ + ":" + str(error)]))
+            store.outcomes[role] = dict(source=None, diagnostics=[type(error).__name__ + ":" + str(error)])
+            store.put(key, store.outcomes[role])
             return None
         original = save_original(store, request, role, document)
-    source = save_source(store, request, role, original, records[role + ":source"])
+    from podgen.domain.contracts.common import ArtifactRef
+
+    prior = records[role + ":source"]
+    source = (
+        store.repo.get(store.project, ArtifactRef.model_validate(prior["source_revision_ref"]))
+        if prior
+        else None
+    )
     return await extract_document(
         store,
         request,
@@ -66,56 +73,74 @@ async def extract_document(
         )
     saved = records[key]
     if saved is not None:
+        store.outcomes[role] = saved
         return AcquiredSource.model_validate(saved["source"])
-    try:
-        extracted_record = records[role + ":extracted"]
-        if extracted_record is None:
-            from podgen.runtime.dispatch import before_external
+    extracted_record = records[role + ":extracted"]
+    if extracted_record is None:
+        from podgen.runtime.dispatch import before_external
 
-            before_external("source_extract", f"{request.operation_id}:{role}")
+        before_external("source_extract", f"{request.operation_id}:{role}")
+        try:
             extracted = await extractors.extract(document, profile, role=role)
-            blob = store.blob(extracted.text.encode("utf-8"), "text/plain; charset=utf-8")
-            extracted_record = dict(
+        except ContractError:
+            raise
+        except (ValueError, RuntimeError, OSError, TimeoutError, ImportError) as error:
+            from .representation import publish_document
+
+            value = publish_document(
+                store,
+                request,
+                role,
+                source,
+                document,
+                None,
+                profile,
+                None,
+                original_proof,
+                acquisition_ref,
+                "extraction_failed",
+                [type(error).__name__ + ":" + str(error)],
+            )
+            store.outcomes[role] = value
+            return AcquiredSource.model_validate(value["source"])
+        extracted_record = dict(metadata={k: v for k, v in extracted.__dict__.items() if k != "text"})
+
+        def receipt(blob):
+            extracted_record.update(
                 text_blob=blob.model_dump(mode="json"),
-                metadata={k: v for k, v in extracted.__dict__.items() if k != "text"},
+                original_ref=acquisition_ref.model_dump(mode="json"),
+                request_ref=store.ref("request").model_dump(mode="json"),
             )
-            store.put(role + ":extracted", extracted_record)
-        else:
-            extracted = ExtractedDocument(
-                text=store.bytes(
-                    role + ":extracted", BlobRef.model_validate(extracted_record["text_blob"])
-                ).decode("utf-8"),
-                **extracted_record["metadata"],
-            )
-        text_blob = BlobRef.model_validate(extracted_record["text_blob"])
-        text_proof = verified_bytes(store.repo, store.project, text_blob, extracted.text.encode("utf-8"))
-        represented = save_representation(
-            store,
-            request,
-            role,
-            source,
-            document,
-            extracted,
-            profile,
-            text_proof,
-            original_proof,
-            acquisition_ref,
-            records[role + ":representation"],
+            return extracted_record
+
+        store.receipt(
+            role + ":extracted", extracted.text.encode("utf-8"), "text/plain; charset=utf-8", receipt
         )
-        return AcquiredSource.model_validate(represented["source"])
-    except ContractError:
-        raise
-    except (ValueError, RuntimeError, OSError, TimeoutError, ImportError) as error:
-        result = AcquiredSource(
-            source_revision_ref=source.ref,
-            representation_refs=[],
-            role=role,
-            acquisition_record_ref=acquisition_ref,
-            status="extraction_failed",
-            diagnostics=[type(error).__name__ + ":" + str(error)],
+    else:
+        extracted = ExtractedDocument(
+            text=store.bytes(
+                role + ":extracted", BlobRef.model_validate(extracted_record["text_blob"])
+            ).decode("utf-8"),
+            **extracted_record["metadata"],
         )
-    store.put(key, dict(source=result.model_dump(mode="json")))
-    return result
+    store.texts[role] = extracted.text
+    text_blob = BlobRef.model_validate(extracted_record["text_blob"])
+    text_proof = verified_bytes(store.repo, store.project, text_blob, extracted.text.encode("utf-8"))
+    represented = save_representation(
+        store,
+        request,
+        role,
+        source,
+        document,
+        extracted,
+        profile,
+        text_proof,
+        original_proof,
+        acquisition_ref,
+        records[role + ":representation"],
+    )
+    store.outcomes[role] = represented
+    return AcquiredSource.model_validate(represented["source"])
 
 
 def saved_extracted_text(store, source):

@@ -69,12 +69,14 @@ def append_evaluation_batch(repo, tx, project, records):
     if not pending:
         return
     insert_rows(tx, "runtime_records", pending, json_columns=("payload",))
-    # Invalidation surrounds classification: no pre-insert permission fact may be
-    # used once new consumers or same-SHA aliases have entered the graph.
+    # INSERT and its complete reference projection precede the append effect.
+    # The classifier separately owns byte-access invalidation.
+    from .publication_scope import Append
     from .read_authorization import invalidate_publication_facts
 
-    invalidate_publication_facts(repo, tx)
+    invalidate_publication_facts(
+        repo, tx, effect=Append(runtimes=tuple((project, row["record_id"]) for row in pending))
+    )
     from .classification import classify_evaluator_batch
 
     classify_evaluator_batch(tx, project, [row["record_id"] for row in pending])
-    invalidate_publication_facts(repo, tx)

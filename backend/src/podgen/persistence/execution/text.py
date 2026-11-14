@@ -3,7 +3,7 @@
 from podgen.domain.canonical import digest
 from podgen.domain.errors import AccessDenied
 from podgen.persistence.database import query
-from podgen.persistence.read_authorization import _read_connection, checked_node
+from podgen.persistence.read_authorization import _read_connection, authorization_state, checked_node
 
 from .live import authorize
 from .reads import current_inputs
@@ -18,7 +18,7 @@ def authorize_texts(repo, store, run_id, project, bindings):
     row = store.sets[run_id]
     with _read_connection(repo) as tx:
         authorize(repo, tx, project, row["set_id"])
-        state = repo._read_authorization.get()
+        state = authorization_state(repo, tx)
         bindings = tuple(bindings)
         pending = {
             digest(dict(ref=reference.model_dump(mode="json"), blob=blob.model_dump(mode="json"))): (

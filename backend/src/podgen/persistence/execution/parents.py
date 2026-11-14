@@ -2,12 +2,12 @@
 
 from podgen.domain.errors import AccessDenied
 from podgen.persistence.database import one
-from podgen.persistence.read_authorization import checked_node
+from podgen.persistence.read_authorization import authorization_state, checked_node
 
 
 def authorize_parents(repo, tx, project, records, *, include_parents=True):
     records = tuple(sorted(set(records), key=str))
-    state = repo._read_authorization.get()
+    state = authorization_state(repo, tx)
     active = (
         state is not None
         and state.transaction is tx

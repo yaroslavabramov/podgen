@@ -6,14 +6,18 @@ from .database import query
 
 
 class RuntimeFacts:
-    def __init__(self, tx, blobs, artifacts, *, graph=None, cache_writes=False):
+    def __init__(self, tx, blobs, artifacts, *, graph=None, cache_writes=False, publication=None):
         self.tx, self.blobs, self.artifacts, self.graph = tx, blobs, artifacts, graph
-        self.rows, self.references, self.missing = {}, {}, set()
-        self.semantic_sources = {}
+        self.reset()
         # Only the owned READ ONLY transaction can publish positive metadata.
         # A writable archive transaction may reuse committed metadata, but its
         # inserts must never escape a rollback through this invocation owner.
         self.cache_writes = cache_writes
+        self.publication = publication
+
+    def reset(self):
+        self.rows, self.references, self.missing = {}, {}, set()
+        self.semantic_sources = {}
 
     def prefetch(self, project, references):
         self._closure(project, [reference.record_id for reference in references])
@@ -26,6 +30,8 @@ class RuntimeFacts:
     def _closure(self, project, identities):
         from .runtime_frontier import load
 
+        if self.publication is not None:
+            self.publication.sync()
         graph = self.graph
         pending = {
             identity
@@ -61,17 +67,8 @@ class RuntimeFacts:
             found = set()
             for row in load(self.tx, project, unknown, known):
                 key = project, row["record_id"]
-                header = {
-                    field: row[field] for field in ("project_id", "record_id", "record_kind", "audience")
-                }
-                header.update(
-                    {field: row.get(field) for field in ("execution_run_id", "execution_input_set_id")}
-                )
-                references = [ArtifactRef.model_validate(value) for value in row["artifact_references"]]
-                if header["execution_input_set_id"] is None:
-                    references.extend(RuntimeRef.model_validate(value) for value in row["runtime_references"])
-                references.extend(BlobRef.model_validate(value) for value in row["blob_references"])
-                self.rows[key], self.references[key] = header, references
+                self._accept(row)
+                header, references = self.rows[key], self.references[key]
                 found.add(row["record_id"])
                 if header["execution_input_set_id"] is None:
                     pending.update(ref.record_id for ref in references if isinstance(ref, RuntimeRef))
@@ -89,7 +86,30 @@ class RuntimeFacts:
         self.blobs.load(project, blob_keys)
         self._semantic_sources(project)
 
+    def _accept(self, row):
+        key = row["project_id"], row["record_id"]
+        self.rows[key] = {
+            field: row[field]
+            for field in (
+                "project_id",
+                "record_id",
+                "record_kind",
+                "audience",
+                "execution_run_id",
+                "execution_input_set_id",
+                "reference_policy",
+            )
+        }
+        refs = [ArtifactRef.model_validate(value) for value in row["artifact_references"]]
+        if row["execution_input_set_id"] is None:
+            refs.extend(RuntimeRef.model_validate(value) for value in row["runtime_references"])
+        refs.extend(BlobRef.model_validate(value) for value in row["blob_references"])
+        self.references[key] = refs
+
     def _semantic_sources(self, project):
+        for key, row in self.rows.items():
+            if row.get("reference_policy") == "acquisition-journal/2":
+                self.semantic_sources[key] = []
         pending = [
             identity
             for owner, identity in self.rows

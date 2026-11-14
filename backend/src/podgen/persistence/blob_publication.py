@@ -65,71 +65,89 @@ def _inspect_batch(repo, tx, project, staged):
     return found
 
 
-def _lookup_batch(tx, project, staged):
-    found = {}
-    for row in query(
-        tx,
-        """SELECT * FROM blobs WHERE project_id=:p
-        AND sha256=ANY(CAST(:hashes AS text[])) AND media_type=ANY(CAST(:media AS text[]))""",
-        p=project,
-        hashes=list({item.sha256 for item in staged}),
-        media=list({item.media_type for item in staged}),
-    ).mappings():
-        found[row["sha256"], row["media_type"]] = BlobRef(
-            **{key: row[key] for key in ("storage_key", "sha256", "byte_length", "media_type")}
-        )
-    return found
+def publish_staged(repo, project, staged, *, publish=None):
+    """One storage policy; optionally commit a receipt with its blob bindings.
 
+    The callback is SQL-only. A legacy-key winner is verified outside the rolled
+    back transaction before either its binding or receipt can be returned.
+    """
+    from .archive_authorization import archive_write
 
-def publish_staged(repo, project, staged):
-    """Shared scalar/batch policy. Every object operation is outside SQL."""
     if not staged or len(staged) > 64:
         raise ContractError("invalid_blob_publication_size")
     with repo.database.transaction() as tx:
         existing = _inspect_batch(repo, tx, project, staged)
     published = {}
     for item in staged:
-        key = (item.sha256, item.media_type)
+        key = item.sha256, item.media_type
         if key in existing:
             item.matches(existing[key])
             repo.objects.verify_existing(project, existing[key], item)
             published[key] = existing[key]
         else:
             published[key] = repo.objects.publish(project, item)
-    with repo.database.transaction() as tx:
-        # Same fresh post-upload check as scalar publication, including missing
-        # identities: a revoked SHA can never be resurrected under a new key.
+
+    def commit(tx):
         current = _inspect_batch(repo, tx, project, staged)
         new = {key: ref for key, ref in published.items() if key not in current}
-        insert_rows(
-            tx,
-            "blobs",
-            [
-                dict(
-                    project_id=project,
-                    storage_key=ref.storage_key,
-                    sha256=ref.sha256,
-                    byte_length=ref.byte_length,
-                    media_type=ref.media_type,
-                )
-                for ref in new.values()
-            ],
-            on_conflict=True,
+        inserted = (
+            insert_rows(
+                tx,
+                "blobs",
+                [
+                    dict(
+                        project_id=project,
+                        storage_key=ref.storage_key,
+                        sha256=ref.sha256,
+                        byte_length=ref.byte_length,
+                        media_type=ref.media_type,
+                    )
+                    for ref in new.values()
+                ],
+                on_conflict=True,
+                returning=True,
+            )
+            or []
         )
-        winners = _lookup_batch(tx, project, staged) if new else current
+        winners = current | {
+            (row["sha256"], row["media_type"]): BlobRef(
+                **{key: row[key] for key in ("storage_key", "sha256", "byte_length", "media_type")}
+            )
+            for row in inserted
+        }
+        missing = [item for item in staged if (item.sha256, item.media_type) not in winners]
+        if missing:
+            # READ COMMITTED scalar writers can lose INSERT to a row committed
+            # after the first inspection. This fresh, race-only lookup checks the
+            # winner and current flags; RR receipt writers retry 40001 instead.
+            winners.update(_inspect_batch(repo, tx, project, missing))
+        if any((item.sha256, item.media_type) not in winners for item in staged):
+            raise ContractError("blob_publication_missing")
+        changed = []
         for item in staged:
-            winner = winners.get((item.sha256, item.media_type))
-            if winner is None:
-                raise ContractError("blob_publication_missing")
+            winner = winners[item.sha256, item.media_type]
             item.matches(winner)
-    changed = [
-        item
-        for item in staged
-        if winners[item.sha256, item.media_type] != published[item.sha256, item.media_type]
-    ]
-    if changed:
-        for item in changed:
-            repo.objects.verify_existing(project, winners[item.sha256, item.media_type], item)
-        with repo.database.transaction() as tx:
-            _inspect_batch(repo, tx, project, staged)
-    return [winners[item.sha256, item.media_type] for item in staged]
+            if winner != published[item.sha256, item.media_type]:
+                changed.append((item, winner))
+        if changed:
+            raise _UnverifiedWinners(changed)
+        refs = [winners[item.sha256, item.media_type] for item in staged]
+        return publish(tx, refs) if publish is not None else refs
+
+    for attempt in range(3):
+        try:
+            if publish is not None:
+                return archive_write(repo, project, commit)
+            with repo.database.transaction() as tx:
+                return commit(tx)
+        except _UnverifiedWinners as error:
+            for item, winner in error.changed:
+                repo.objects.verify_existing(project, winner, item)
+                published[item.sha256, item.media_type] = winner
+            if attempt == 2:
+                raise ContractError("blob_publication_unstable") from None
+
+
+class _UnverifiedWinners(Exception):
+    def __init__(self, changed):
+        self.changed = changed

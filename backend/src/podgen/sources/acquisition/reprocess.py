@@ -6,7 +6,6 @@ from podgen.persistence.artifact_preparation import verified_bytes
 from podgen.sources.extraction.extract import DocumentExtractors
 
 from .contracts import AcquisitionRequest, AcquisitionResult, FetchedDocument, ReExtractionRequest
-from .profile import load_profile
 from .stages import extract_document
 from .store import AcquisitionStore
 
@@ -17,13 +16,11 @@ async def reprocess_source(repo, project_id, request, *, extractors=None):
         raise ContractError("source_reextraction_requires_source_and_reason")
     store = AcquisitionStore(repo, project_id, request.operation_id)
     with store.lock():
-        profile = load_profile(repo, project_id, request.profile_ref)
+        profile, saved = store.start(request)
+        if saved is not None:
+            return AcquisitionResult.model_validate(saved)
         source_revision = repo.get(project_id, request.source_revision_ref)
         source = source_revision.payload
-        store.put("request", request.model_dump(mode="json"))
-        saved = store.get("result")
-        if saved:
-            return AcquisitionResult.model_validate(saved)
         body = repo.read_blob(
             project_id, request.source_revision_ref, BlobRef.model_validate(source["original_blob"])
         )

@@ -226,6 +226,9 @@ class DependencyLedger:
                 integration=integration_id,
                 body=json_text(event),
             )
+            from .publication_scope import AccessChange, notify
+
+            notify(tx, AccessChange())
             repo._bump(tx, project_id)
             return event
 
