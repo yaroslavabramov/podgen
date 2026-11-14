@@ -46,8 +46,8 @@ class ElapsedBudget:
                     tx,
                     """SELECT record_id FROM runtime_records
                 WHERE project_id=:p AND record_kind='tool_execution'
-                  AND payload->>'contract'='resume-elapsed-authorization/1'
-                  AND payload->>'run_id'=:run""",
+                  AND podgen_runtime_reference_document(payload)->>'contract'='resume-elapsed-authorization/1'
+                  AND podgen_runtime_reference_document(payload)->>'run_id'=:run""",
                     p=journal.project,
                     run=str(run_id),
                 ).scalars()

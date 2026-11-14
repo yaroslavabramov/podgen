@@ -107,3 +107,53 @@ def test_elapsed_extension_is_an_explicit_resume_option():
         ]
     )
     assert args.max_elapsed_seconds == 98000
+
+
+def test_elapsed_lookup_preserves_unrelated_raw_nul_unicode_and_uses_grant_index(expired):
+    from podgen.persistence.database import json_text, query
+
+    _, command, _, journal, frozen = expired
+    ceiling = command.limits.max_elapsed_seconds + 100
+    with journal.lock(command.run_id):
+        expected = ElapsedBudget.load(journal, frozen, requested=ceiling)
+    identity = uuid4()
+    payload = dict(full_text="Сохранить\x00原文 🌍", nested=dict(value="\x00"))
+    raw = json_text(payload)
+    with journal.repo.database.transaction() as tx:
+        query(
+            tx,
+            "INSERT INTO runtime_records VALUES(:p,:r,'tool_execution',CAST(:body AS json),'project')",
+            p=journal.project,
+            r=identity,
+            body=raw,
+        )
+        assert (
+            query(
+                tx,
+                "SELECT payload FROM runtime_records WHERE project_id=:p AND record_id=:r",
+                p=journal.project,
+                r=identity,
+            ).scalar_one()
+            == payload
+        )
+        assert (
+            query(
+                tx,
+                "SELECT payload::text FROM runtime_records WHERE project_id=:p AND record_id=:r",
+                p=journal.project,
+                r=identity,
+            ).scalar_one()
+            == raw
+        )
+        tx.exec_driver_sql("SET LOCAL enable_seqscan=off")
+        plan = query(
+            tx,
+            """EXPLAIN (FORMAT JSON) SELECT record_id FROM runtime_records
+            WHERE project_id=:p AND record_kind='tool_execution'
+              AND podgen_runtime_reference_document(payload)->>'contract'='resume-elapsed-authorization/1'
+              AND podgen_runtime_reference_document(payload)->>'run_id'=:run""",
+            p=journal.project,
+            run=str(command.run_id),
+        ).scalar_one()
+        assert "runtime_elapsed_authorizations_by_run" in json.dumps(plan)
+    assert ElapsedBudget.load(journal, frozen) == expected
