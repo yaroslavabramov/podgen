@@ -66,7 +66,7 @@ def prepare(journal, config):
         availability=availability,
         expected_samples=config.expected_samples,
         source_refs={key: value["ref"] for key, value in inputs.items()},
-        processing_contract="ffmpeg-lossless-comparison/1",
+        processing_contract=getattr(config, "processing_contract", "ffmpeg-lossless-comparison/1"),
     )
     journal.put("manifest", manifest)
     return manifest

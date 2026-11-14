@@ -98,6 +98,25 @@ def execute(journal, manifest, cell, config, transport, *, retake_reason=None, o
         if row["result"]:
             return "completed"
         if row["failure"]:
+            from .results import processing_contract
+
+            latest = row["processing"][-1]
+            if (
+                row["receipt"]
+                and latest["prepared"]
+                and latest["prepared"]["processing_contract"] != processing_contract(config)
+            ):
+                from .reprocess import reprocess_prepared
+
+                return reprocess_prepared(
+                    journal,
+                    config,
+                    manifest,
+                    cell["cell_id"],
+                    "Resume local processing with "
+                    + processing_contract(config)
+                    + "; reuse the saved provider receipt.",
+                )
             return row["failure"]["status"]
         if row["intent"] and row["receipt"] is None:
             return "outcome_unknown"

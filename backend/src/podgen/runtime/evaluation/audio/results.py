@@ -6,6 +6,12 @@ from podgen.domain.errors import ContractError
 
 from .costs import estimate
 
+ASSEMBLY_INPUT = "ffmpeg-assembly-input/1"
+
+
+def processing_contract(config):
+    return getattr(config, "processing_contract", VERSION)
+
 
 def process(journal, key, profile, config, request, response, *, output_key=None, reason=None):
     output_key = output_key or key
@@ -15,7 +21,7 @@ def process(journal, key, profile, config, request, response, *, output_key=None
             output_key + ":processing",
             dict(
                 contract="audio-processing-attempt/1",
-                processing_contract=VERSION,
+                processing_contract=processing_contract(config),
                 tool_versions=tools(),
                 source_receipt_ref=journal.ref(key + ":receipt").model_dump(mode="json"),
                 reason=reason,
@@ -51,14 +57,30 @@ def process(journal, key, profile, config, request, response, *, output_key=None
                 provider_output_ref=journal.ref(key + ":audio").model_dump(mode="json"),
             ),
         )
-        listening, normalized = normalize(pcm, config.loudness_lufs, config.true_peak_dbtp)
+        if processing_contract(config) == ASSEMBLY_INPUT:
+            # Full-episode parts are assembly inputs, not loudness-matched
+            # auditions. Apply one common gain to the complete master instead.
+            listening_blob = pcm_blob
+            normalized = dict(
+                contract=ASSEMBLY_INPUT,
+                normalization_type="none",
+                applied_gain_db=0,
+                integrated_lufs=metrics["integrated_lufs"],
+                true_peak_dbtp=metrics["true_peak_dbtp"],
+                sample_rate_hz=metrics["sample_rate_hz"],
+                channels=metrics["channels"],
+                codec="pcm_s32le",
+            )
+        else:
+            listening, normalized = normalize(pcm, config.loudness_lufs, config.true_peak_dbtp)
+            listening_blob = journal.blob(listening, "audio/wav")
         result = dict(
             contract="audio-sample-result/1",
             cell_id=attempt["cell_id"],
             take=attempt["take"],
             provider_audio_blob=audio_blob,
             decoded_pcm_blob=pcm_blob,
-            blind_audio_blob=journal.blob(listening, "audio/wav"),
+            blind_audio_blob=listening_blob,
             metrics=metrics,
             normalization=normalized,
             cost=dict(

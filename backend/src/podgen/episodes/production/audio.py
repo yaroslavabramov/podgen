@@ -14,6 +14,7 @@ from podgen.runtime.evaluation.audio.attempts import OperationLedger, baseline, 
 from podgen.runtime.evaluation.audio.contracts import Fragment, TargetedComparisonConfig
 from podgen.runtime.evaluation.audio.journal import AudioJournal
 from podgen.runtime.evaluation.audio.prepare import prepare
+from podgen.runtime.evaluation.audio.results import ASSEMBLY_INPUT
 from podgen.runtime.evaluation.reading_outcome import read_outcome
 
 
@@ -24,6 +25,10 @@ class FullRenderConfig(TargetedComparisonConfig):
     @property
     def manifest_contract(self):
         return "episode-audio-render-manifest/1"
+
+    @property
+    def processing_contract(self):
+        return ASSEMBLY_INPUT
 
 
 def partition(script, outcome_ref, limit):
