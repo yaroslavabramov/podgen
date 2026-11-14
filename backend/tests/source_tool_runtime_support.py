@@ -72,6 +72,9 @@ class MemoryJournal:
         self.read_count += 1
         return deepcopy(self.records[ref.record_id])
 
+    def read_many(self, references):
+        return [self.read(ref) for ref in references]
+
     def read_blob(self, ref, blob):
         return self.blobs[blob.sha256]
 

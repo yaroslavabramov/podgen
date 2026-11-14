@@ -114,6 +114,24 @@ def main():
                 env=env,
                 check=True,
             )
+            subprocess.run(
+                [
+                    pg / "pg_dump",
+                    "-h",
+                    socket,
+                    "-p",
+                    "55471",
+                    "-U",
+                    "runner",
+                    "-d",
+                    "replay",
+                    "-Fc",
+                    "-f",
+                    args.out / "completed.dump",
+                ],
+                check=True,
+            )
+            shutil.copytree(objects, args.out / "objects", copy_function=clone)
         finally:
             subprocess.run(
                 [pg / "pg_ctl", "-D", data, "stop", "-m", "fast"], check=True, stdout=subprocess.DEVNULL

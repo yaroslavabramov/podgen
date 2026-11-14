@@ -19,15 +19,20 @@ def rows(journal, root):
 
 
 def events(journal, root, *, kinds=None):
+    references = [
+        RuntimeRef(record_kind="tool_execution", record_id=event["record_id"])
+        for event in journal.events(root)
+        if kinds is None or event["event_kind"] in kinds
+    ]
+    records = []
     with journal.read_operation():
-        return [
-            dict(
-                journal.read(RuntimeRef(record_kind="tool_execution", record_id=event["record_id"])),
-                _record_id=event["record_id"],
+        for offset in range(0, len(references), 64):
+            batch = references[offset : offset + 64]
+            records.extend(
+                dict(record, _record_id=ref.record_id)
+                for ref, record in zip(batch, journal.read_many(batch), strict=True)
             )
-            for event in journal.events(root)
-            if kinds is None or event["event_kind"] in kinds
-        ]
+    return records
 
 
 class EventHistory:
