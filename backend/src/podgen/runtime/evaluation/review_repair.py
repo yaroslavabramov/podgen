@@ -71,11 +71,18 @@ def _plan(journal, original, draft):
 
 def prepare_anchor_repair(journal, original, *, draft, draft_ref, guard):
     guard()
-    repairs = [
-        row
-        for row in journal.attempts(original["run_id"], original["stage"])
-        if row["operation_kind"] == "anchor_repair"
-    ]
+    attempts = journal.attempts(original["run_id"], original["stage"])
+    current = next((row for row in attempts if row["invocation_id"] == original["invocation_id"]), None)
+    if current is None or any(
+        current[field] != original[field]
+        for field in ("request_record_id", "attempt_index", "operation_kind")
+    ):
+        raise RunFailure("review_anchor_repair_not_eligible")
+    # The gateway commits provider binding and usage without mutating its
+    # caller's descriptor. Recovery uses this exact attempt's saved state,
+    # including the response captured earlier in this same process.
+    original = current
+    repairs = [row for row in attempts if row["operation_kind"] == "anchor_repair"]
     if repairs:
         return repairs[-1]
     plan, request = _plan(journal, original, draft)
