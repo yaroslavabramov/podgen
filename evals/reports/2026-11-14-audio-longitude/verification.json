@@ -1,0 +1,50 @@
+{
+  "source_script_hash": "99495661216565f78657ee247bfee198d977d8c85d9c5d5d65997ec1e17ba7cd",
+  "exact_provider_text": true,
+  "utterances": 26,
+  "parts": [
+    {
+      "fragment_id": "longitude-part-01",
+      "request_sha256": "5e2a5f5c6040e76dc20515a6219e49cda36aab40d7744a5650e2204e9dd93419",
+      "usage": {
+        "input_tokens": 1432,
+        "audio_tokens": 8191
+      },
+      "http_status": 200
+    },
+    {
+      "fragment_id": "longitude-part-02",
+      "request_sha256": "260a230120dfccae8a1382d1a9b1450f7e3f2252200b9cd99cbaadeddbc3513b",
+      "usage": {
+        "input_tokens": 1613,
+        "audio_tokens": 9233
+      },
+      "http_status": 200
+    }
+  ],
+  "provider_usage": {
+    "input_tokens": 3045,
+    "audio_tokens": 17424
+  },
+  "duration_seconds": 696.92,
+  "normalization": {
+    "contract": "ffmpeg-lossless-comparison/1",
+    "target_lufs": -22.2,
+    "target_true_peak_dbtp": -1.0,
+    "integrated_lufs": -22.2,
+    "true_peak_dbtp": -2.52,
+    "normalization_type": "linear",
+    "applied_gain_db": -1.0799999999999983,
+    "sample_rate_hz": 48000,
+    "channels": 1,
+    "codec": "pcm_s24le",
+    "preferred_lufs": -22.2,
+    "headroom_db": 0.3,
+    "per_part_gain_applied": false
+  },
+  "mp3_sha256": "55c8e27a7c0c356cd39f42f84ebded4c9f3c74afe25e023ba687f88bd5f8f21a",
+  "mp3_full_decode": "passed",
+  "tempo_changed": false,
+  "acoustic_review": "not_performed",
+  "spoken_word_fidelity": "not_reviewed"
+}

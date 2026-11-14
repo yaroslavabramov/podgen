@@ -1,0 +1,19 @@
+{
+  "contract": "audio-evaluation-assembly/1",
+  "assembly_id": "805aa08f-d1b6-5dbd-975b-0378a59a1a57",
+  "comparison_run_id": "8a271f94-be31-5324-b1ea-4d8a41ceab3c",
+  "part_result_refs": [
+    {
+      "record_kind": "tool_execution",
+      "record_id": "d47e242f-4b93-5e8b-8860-5ec3c66fd053"
+    },
+    {
+      "record_kind": "tool_execution",
+      "record_id": "1d7659b7-43aa-5a1b-ac66-59261af81425"
+    }
+  ],
+  "preferred_lufs": -22.2,
+  "true_peak_dbtp": -1,
+  "headroom_db": 0.3,
+  "join_context_seconds": 10
+}
