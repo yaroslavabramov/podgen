@@ -14,9 +14,27 @@ class IndexAccess:
         self.journal, self.reference = journal, shared_input_ref
         self.source_hashes = set()
         self.admission_references = []
+        self.run_id = None
 
     @contextmanager
     def transaction(self):
+        from podgen.persistence.execution.inputs import refresh
+        from podgen.persistence.execution.live import StaleInputs
+
+        for attempt in range(3):
+            yielded = False
+            try:
+                with self._transaction() as current:
+                    yielded = True
+                    yield current
+                return
+            except StaleInputs as stale:
+                if yielded or attempt == 2:
+                    raise
+                refresh(self.journal.repo, stale.project, stale.set_id)
+
+    @contextmanager
+    def _transaction(self):
         journal = self.journal
         with journal.repo.database.transaction() as tx:
             # Same ordering as immutable archive publication and supported content withdrawal.
@@ -31,6 +49,21 @@ class IndexAccess:
                 facts = access_facts(journal.repo, tx)
                 facts.roles[journal.project] = dict(member) if member is not None else None
                 journal.authorize(tx)
+                if self.run_id is not None:
+                    from podgen.persistence.execution.live import authorize
+
+                    bound = journal.execution.sets[self.run_id]
+                    authorize(journal.repo, tx, journal.project, bound["set_id"])
+                    hashes = set(self.source_hashes)
+                    if hashes and one(
+                        tx,
+                        "SELECT 1 FROM blob_access_revocations WHERE project_id=:p AND sha256=ANY(:hashes)",
+                        p=journal.project,
+                        hashes=sorted(hashes),
+                    ):
+                        raise AccessDenied()
+                    yield tx, hashes
+                    return
                 runtime_roots = [
                     ref for ref in [self.reference, *self.admission_references] if isinstance(ref, RuntimeRef)
                 ]

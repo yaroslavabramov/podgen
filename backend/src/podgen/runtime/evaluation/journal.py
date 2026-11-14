@@ -19,6 +19,9 @@ from .contracts import command_payload
 class EvaluationJournal:
     def __init__(self, repo, project):
         self.repo, self.project = repo, project
+        from podgen.persistence.execution.session import ExecutionStore
+
+        self.execution = ExecutionStore(repo, project)
 
     def runtime_graph(self):
         from podgen.persistence.runtime_graph import runtime_graph
@@ -66,11 +69,20 @@ class EvaluationJournal:
     def record(self, payload, *, record_id=None, kind="tool_execution"):
         ref = RuntimeRef(record_kind=kind, record_id=record_id or uuid4())
 
-        def write(tx):
-            self.authorize(tx)
-            append_runtime(self.repo, tx, self.project, ref, payload, "evaluator", replay=True)
+        if payload.get("contract") in ("writing-evaluation-output-v1", "independent-reading-output/1"):
+            from uuid import UUID
 
-        archive_write(self.repo, self.project, write)
+            run_id = UUID(payload["run_id"])
+            payload = dict(payload, journal_version="execution-journal/2")
+            self.execution.prepare(run_id)
+            self.execution.publish(lambda tx: self.execution.append(tx, run_id, [(ref, payload, True)], []))
+        else:
+
+            def write(tx):
+                self.authorize(tx)
+                append_runtime(self.repo, tx, self.project, ref, payload, "evaluator", replay=True)
+
+            archive_write(self.repo, self.project, write)
         return ref
 
     def read(self, ref):
@@ -194,12 +206,13 @@ class EvaluationJournal:
             rows, stage, attempt_index, attempt_kind, operation_kind, parent_invocation_id
         )
         invocation_id = attempt_identity(run_id, stage, attempt_index, attempt_kind, parent)
-        blob = self.blob(
-            json.dumps(body, ensure_ascii=False, allow_nan=False, separators=(",", ":")).encode()
-        )
+        raw = json.dumps(body, ensure_ascii=False, allow_nan=False, separators=(",", ":")).encode()
+        blob = self.blob(raw)
+        self.execution.prepare_context(run_id, dict(context=context, authorization=authorization))
         ref = RuntimeRef(record_kind="tool_execution", record_id=uuid5(invocation_id, "request"))
         record = dict(
             contract="model-request-v1",
+            journal_version="execution-journal/2",
             invocation_id=str(invocation_id),
             run_id=str(run_id),
             stage=stage,
@@ -218,7 +231,9 @@ class EvaluationJournal:
 
         def write(tx):
             self.authorize(tx)
-            append_runtime(self.repo, tx, self.project, ref, record, "evaluator", replay=True)
+            from podgen.persistence.execution.objects import OwnedBlob
+
+            self.execution.append(tx, run_id, [(ref, record, True)], [OwnedBlob(blob, raw)])
             query(
                 tx,
                 """INSERT INTO evaluation_model_invocations(project_id,run_id,invocation_id,stage,status,request_record_id,attempt_index,parent_invocation_id,parent_attempt_index,attempt_kind,operation_kind)
@@ -235,7 +250,7 @@ class EvaluationJournal:
                 operation=operation_kind,
             )
 
-        archive_write(self.repo, self.project, write)
+        self.execution.publish(write)
         return self.invocation(run_id, stage, attempt_index)
 
     def request(self, invocation):

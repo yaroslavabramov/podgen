@@ -48,7 +48,10 @@ class RuntimeFacts:
                 else:
                     self.rows[key] = node.header()
                     self.references[key] = node.references
-                    pending.update(ref.record_id for ref in node.references if isinstance(ref, RuntimeRef))
+                    if node.execution_input_set_id is None:
+                        pending.update(
+                            ref.record_id for ref in node.references if isinstance(ref, RuntimeRef)
+                        )
             if not unknown:
                 continue
             known = {identity for owner, identity in self.rows if owner == project}
@@ -60,12 +63,17 @@ class RuntimeFacts:
                 header = {
                     field: row[field] for field in ("project_id", "record_id", "record_kind", "audience")
                 }
+                header.update(
+                    {field: row.get(field) for field in ("execution_run_id", "execution_input_set_id")}
+                )
                 references = [ArtifactRef.model_validate(value) for value in row["artifact_references"]]
-                references.extend(RuntimeRef.model_validate(value) for value in row["runtime_references"])
+                if header["execution_input_set_id"] is None:
+                    references.extend(RuntimeRef.model_validate(value) for value in row["runtime_references"])
                 references.extend(BlobRef.model_validate(value) for value in row["blob_references"])
                 self.rows[key], self.references[key] = header, references
                 found.add(row["record_id"])
-                pending.update(ref.record_id for ref in references if isinstance(ref, RuntimeRef))
+                if header["execution_input_set_id"] is None:
+                    pending.update(ref.record_id for ref in references if isinstance(ref, RuntimeRef))
                 if graph is not None and self.cache_writes:
                     graph.remember(header, references)
             self.missing.update((project, identity) for identity in unknown - found)

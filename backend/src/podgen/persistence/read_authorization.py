@@ -11,6 +11,7 @@ class ReadAuthorization:
     actor: object
     purpose: str
     completed: dict = field(default_factory=dict)
+    write_projects: set = field(default_factory=set)
     owner: object | None = None
 
 

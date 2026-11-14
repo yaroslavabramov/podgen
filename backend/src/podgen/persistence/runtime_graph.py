@@ -12,9 +12,21 @@ class RuntimeNode:
     record_kind: str
     audience: str
     references: tuple
+    execution_run_id: object | None = None
+    execution_input_set_id: object | None = None
 
     def header(self):
-        return {key: getattr(self, key) for key in ("project_id", "record_id", "record_kind", "audience")}
+        return {
+            key: getattr(self, key)
+            for key in (
+                "project_id",
+                "record_id",
+                "record_kind",
+                "audience",
+                "execution_run_id",
+                "execution_input_set_id",
+            )
+        }
 
 
 class RuntimeGraph:

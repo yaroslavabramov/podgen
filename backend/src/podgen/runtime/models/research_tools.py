@@ -159,5 +159,15 @@ class ResearchTools:
 
     def restore(self, admissions):
         self.corpus._materials.runtime_admissions[:] = admissions
+        prepare = getattr(self.guard, "prepare_inputs", None)
+        if prepare is not None:
+            prepare()
+        else:
+            self.journal.execution.prepare(
+                self.root["run_id"], evaluation=[admission.reference for admission in admissions]
+            )
         for admission in admissions:
+            bind_text = getattr(admission.text, "bind_execution", None)
+            if bind_text is not None:
+                bind_text(self.journal.execution, self.root["run_id"])
             self.corpus.admit(admission)

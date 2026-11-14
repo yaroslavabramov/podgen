@@ -115,6 +115,7 @@ def _invoke(gateway, root, profile, contract, *, limits, totals, guard):
             pending_events=context.pending_events,
         )
         context.pending_events = []
+        pending_count = context.receipt(body)
         prior = ledger.before(index)
         physical = type(gateway)(
             turn_journal,
@@ -133,7 +134,7 @@ def _invoke(gateway, root, profile, contract, *, limits, totals, guard):
                 ),
                 guard=guard,
                 full_response=True,
-                count_receipt=context.receipt(body),
+                count_receipt=pending_count,
                 prepared_phase=prepared_phase,
                 request_snapshot=request_snapshot,
                 manifest_snapshot=manifest_snapshot,

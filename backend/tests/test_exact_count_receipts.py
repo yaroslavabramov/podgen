@@ -84,6 +84,8 @@ def measured(monkeypatch):
     history = ResearchHistory(journal, journal.root)
     context = ResearchContext(gateway, journal.root, profile, body, history, lambda: None)
     assert context.measured(body, 0, "normal") == 100
+    # This test mutates persisted evidence, after its normal combined checkpoint.
+    context.pending_phase.commit()
     return journal, profile, body, context, counts
 
 

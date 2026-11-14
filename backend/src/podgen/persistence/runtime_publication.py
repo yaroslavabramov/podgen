@@ -22,6 +22,7 @@ def append_evaluation_batch(repo, tx, project, records):
     if not records or len(records) > MAX_RECORDS:
         raise ContractError("invalid_runtime_publication_size")
     repo._acl(tx, project, write=True)
+    repo._lock(tx, project)
     if repo.purpose != "evaluation" or repo._acl(tx, project) not in ("owner", "evaluator", "operator"):
         raise AccessDenied()
     identities = {ref.record_id: ref for ref, _, _ in records}

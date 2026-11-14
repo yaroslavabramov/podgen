@@ -5,7 +5,7 @@ import time
 from collections import Counter, defaultdict
 from contextlib import contextmanager
 
-from sqlalchemy import event
+from sqlalchemy import event, text
 
 from podgen.runtime.evaluation.fact_source_experiment.measurements import Measurements
 
@@ -13,6 +13,10 @@ from podgen.runtime.evaluation.fact_source_experiment.measurements import Measur
 class Metrics(Measurements):
     def __init__(self, database, objects):
         super().__init__(database, objects)
+        with database.engine.begin() as tx:
+            tx.execute(text("CREATE EXTENSION IF NOT EXISTS pg_stat_statements"))
+        self.database = database
+        self.server_phases = {}
         self.stack, self.operations, self.templates = [], defaultdict(Counter), Counter()
         self.phase_name = "outside"
         self.turn = None
@@ -39,10 +43,32 @@ class Metrics(Measurements):
     def phase(self, name):
         previous = self.phase_name
         self.phase_name = name
+        measured = name in ("startup", "fact_review", "export")
+        if measured:
+            with self.database.engine.begin() as tx:
+                tx.execute(text("SELECT pg_stat_statements_reset()"))
         try:
             with super().phase(name):
                 yield
         finally:
+            if measured:
+                with self.database.engine.connect() as tx:
+                    rows = [
+                        dict(row)
+                        for row in tx.execute(
+                            text("""SELECT toplevel,query,calls,rows,total_exec_time,
+                        shared_blks_hit,shared_blks_read FROM pg_stat_statements
+                        WHERE dbid=(SELECT oid FROM pg_database WHERE datname=current_database())
+                        AND query NOT LIKE '%pg_stat_statements%' ORDER BY total_exec_time DESC""")
+                        ).mappings()
+                    ]
+                self.server_phases[name] = dict(
+                    track="all: includes nested SQL executed by functions and triggers",
+                    calls=sum(row["calls"] for row in rows),
+                    nested_calls=sum(row["calls"] for row in rows if not row["toplevel"]),
+                    returned_or_modified_rows=sum(row["rows"] for row in rows),
+                    statements=rows,
+                )
             self.phase_name = previous
 
     @contextmanager
@@ -71,6 +97,7 @@ class Metrics(Measurements):
     def snapshot(self):
         return dict(
             super().snapshot(),
+            server_sql=self.server_phases,
             sql_including_coordination=sum(self.templates.values()),
             sql_executions=dict(self.executions),
             sql_driver_calls=dict(self.driver_calls),

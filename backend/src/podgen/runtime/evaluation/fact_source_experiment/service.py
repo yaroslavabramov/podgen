@@ -70,6 +70,7 @@ def run(
                 guard()
                 profile = manifest["source_tool_contract"]["retrieval"]
                 index = StreamingSearchIndex(journal, materials.shared_ref, profile, run_id=run_id)
+                index.access.run_id = run_id
                 corpus = SourceCorpus(materials, retrieval=profile, index=index, fact_input_mode=VERSION)
                 corpus.material_resolver = ResearchMaterialResolver(journal, materials)
                 metrics.instrument_search(corpus)

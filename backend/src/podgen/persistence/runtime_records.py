@@ -10,6 +10,7 @@ from .database import json_text, one, query
 
 def append_runtime(repo, tx, project, ref, payload, audience="project", *, replay=False):
     repo._acl(tx, project, write=True)
+    repo._lock(tx, project)
     if audience not in ("project", "evaluator"):
         raise ContractError("invalid_audience")
     if audience == "evaluator" and (

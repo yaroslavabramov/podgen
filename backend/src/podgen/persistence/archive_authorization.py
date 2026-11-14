@@ -3,7 +3,7 @@
 from sqlalchemy.exc import DBAPIError
 
 from .access_facts import access_facts
-from .database import one, query
+from .database import one
 from .read_authorization import authorized_read
 
 
@@ -20,7 +20,7 @@ def archive_write(repo, project, write):
                 # DependencyLedger withdraws under the project's FOR UPDATE lock. If a
                 # withdrawal won before this snapshot acquired its lock, PostgreSQL
                 # raises 40001; retry takes a fresh snapshot and sees the withdrawal.
-                query(tx, "SELECT project_id FROM projects WHERE project_id=:p FOR SHARE", p=project)
+                repo._lock(tx, project)
                 # Also serialize direct ACL deletion/demotion, without relying on callers
                 # of project_members to acquire the project's lock themselves.
                 member = one(
@@ -30,6 +30,7 @@ def archive_write(repo, project, write):
                     a=repo.actor_id,
                 )
                 with authorized_read(repo, tx):
+                    repo._read_authorization.get().write_projects.add(project)
                     access_facts(repo, tx).roles[project] = dict(member) if member is not None else None
                     return write(tx)
         except DBAPIError as error:

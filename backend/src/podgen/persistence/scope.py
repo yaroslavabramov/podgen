@@ -124,6 +124,18 @@ class ScopeAccess:
             )
         ):
             raise AccessDenied()
+        if row.get("execution_input_set_id") is not None:
+            from .execution.live import authorize
+            from .execution.parents import authorize_parents
+
+            authorize_parents(self.repo, tx, project_id, [ref.record_id])
+            authorize(self.repo, tx, project_id, row["execution_input_set_id"])
+            from podgen.domain.contracts.common import BlobRef
+
+            for linked in facts.runtimes.references[project_id, ref.record_id]:
+                if isinstance(linked, BlobRef):
+                    facts.blobs.check(project_id, linked)
+            return dict(row)
         references = facts.runtimes.references[project_id, ref.record_id]
         for linked in references:
             if isinstance(linked, ArtifactRef):

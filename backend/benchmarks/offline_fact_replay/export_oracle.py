@@ -1,5 +1,6 @@
 """Compare complete exports, allowing only explicitly paired technical identities."""
 
+import hashlib
 import json
 import tarfile
 from pathlib import Path
@@ -77,6 +78,32 @@ class ExportOracle:
                 return value
             if digest(value) in blob_substitutions:
                 value = blob_substitutions[digest(value)]
+            if value.get("journal_version") == "execution-journal/2":
+                assert value.get("contract") in (
+                    "model-request-v1",
+                    "model-invocation-event-v1",
+                    "writing-evaluation-output-v1",
+                    "independent-reading-output/1",
+                )
+                value = {key: item for key, item in value.items() if key != "journal_version"}
+                if value.get("event_kind") in ("source_tool_call", "source_tool_result"):
+                    data = value["data"]
+                    assert (
+                        data["arguments_hash"] == hashlib.sha256(data["raw_arguments"].encode()).hexdigest()
+                    )
+                    parent = next(
+                        row for row in new_events if row["record_ref"] == data["provider_response_ref"]
+                    )
+                    assert parent["event_kind"] == "provider_response"
+                    assert parent["data"]["source_turn_index"] == data["turn_index"]
+                    value = dict(
+                        value,
+                        data={
+                            key: item
+                            for key, item in data.items()
+                            if key not in ("provider_response_ref", "arguments_hash")
+                        },
+                    )
             result = {}
             for key, item in value.items():
                 # Wall-clock creation time and HTTP request IDs belong to this
@@ -117,6 +144,11 @@ class ExportOracle:
             different.append(name)
         assert not different, ("export_changed", different[:20], len(different))
         return dict(
+            archive_contract="execution-journal/2",
+            verified_technical_delta=[
+                "journal_version",
+                "exact tool provider_response_ref and arguments_hash",
+            ],
             files_verified=len(current),
             byte_exact_files=byte_exact,
             json_equal_after_technical_substitutions=json_equal,

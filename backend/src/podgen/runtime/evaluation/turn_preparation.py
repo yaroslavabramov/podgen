@@ -32,14 +32,13 @@ def stage_prepare(owner, body, *, pending_events=(), admission_refs=(), original
         output_record_id=None,
         attempt_index=0,
     )
+    owner.journal.execution.prepare(owner.root["run_id"], evaluation=admission_refs)
     phase = owner.publication(turn)
     # Context plan precedes the physical request in the historical event stream.
     for kind, data in pending_events:
         root_phase = owner.journal.publication(owner.root)
         root_phase.event(kind, data=data, history=owner.history)
-        phase.records.extend(root_phase.records)
-        phase.events.extend(root_phase.events)
-        phase.committed.extend(root_phase.committed)
+        phase.absorb(root_phase)
     blob = phase.blob(json.dumps(body, ensure_ascii=False, allow_nan=False, separators=(",", ":")).encode())
     original = (
         original_record

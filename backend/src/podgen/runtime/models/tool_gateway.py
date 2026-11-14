@@ -1,5 +1,6 @@
 """Durable tool orchestration around the ordinary counted, guarded provider submission."""
 
+import hashlib
 import json
 from copy import deepcopy
 from uuid import uuid5
@@ -49,6 +50,12 @@ def _calls(response):
                 isinstance(item.get(key), str) and item[key] for key in ("call_id", "name", "arguments")
             ):
                 raise ContractError("provider_malformed_tool_call")
+            from podgen.persistence.execution.provider_calls import valid_identifier
+
+            if not valid_identifier(item["call_id"], max_bytes=512) or not valid_identifier(
+                item["name"], max_bytes=256
+            ):
+                raise ContractError("provider_malformed_tool_call")
             if item.get("status") not in (None, "completed"):
                 raise ContractError("provider_tool_call_incomplete")
             calls.append(item)
@@ -91,13 +98,40 @@ def _execute(journal, root, corpus, contract, call, index, turn, guard, history)
         raw_arguments=call["arguments"],
         arguments=arguments,
     )
+    provider_events = history.of_kind("provider_response")
+    provider_event = next(
+        (row for row in reversed(provider_events) if row["data"].get("source_turn_index") == turn), None
+    )
+    if provider_event is None:
+        raise ContractError("source_tool_provider_response_missing")
+    from podgen.runtime.evaluation.legacy_execution import adopt_response
+
+    adopt_response(journal, root, provider_event)
+    data.update(
+        provider_response_ref=RuntimeRef(
+            record_kind="tool_execution", record_id=provider_event["_record_id"]
+        ).model_dump(mode="json"),
+        arguments_hash=hashlib.sha256(call["arguments"].encode()).hexdigest(),
+    )
     intents = history.for_call("source_tool_call", index)
-    if not intents:
+    durable_intent = call["name"] in ("request_source", "request_research", "save_working_state")
+    if not intents and durable_intent:
         phase = journal.publication(root)
         phase.event("source_tool_call", data=data, history=history)
         phase.commit(guard=guard)
-    elif intents[0]["data"] != data:
-        raise Conflict("source_tool_call_changed")
+    elif intents:
+        saved_data = intents[0]["data"]
+        expected = (
+            data
+            if intents[0].get("journal_version")
+            else {
+                key: value
+                for key, value in data.items()
+                if key not in ("provider_response_ref", "arguments_hash")
+            }
+        )
+        if saved_data != expected:
+            raise Conflict("source_tool_call_changed")
     definition = next((tool for tool in contract["definitions"] if tool["name"] == call["name"]), None)
     if definition is None:
         result = dict(error="unknown_source_tool")
@@ -107,7 +141,7 @@ def _execute(journal, root, corpus, contract, call, index, turn, guard, history)
         except ValidationError:
             result = dict(error="invalid_source_tool_arguments")
         else:
-            if intents:
+            if intents or not durable_intent:
                 guard()
             from podgen.retrieval import RetrievalUnavailable
 
@@ -158,6 +192,8 @@ def _execute(journal, root, corpus, contract, call, index, turn, guard, history)
     if call["name"] == "search_sources" and diagnostics is not None:
         phase.event("source_search_diagnostics", data=dict(call_index=index, **diagnostics))
     json.dumps(result, ensure_ascii=False, allow_nan=False)
+    if not durable_intent and not intents:
+        phase.event("source_tool_call", data=data, history=history)
     phase.event("source_tool_result", data=dict(data, result=result), history=history)
     phase.commit()
     return result

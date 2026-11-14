@@ -10,7 +10,14 @@ from podgen.runtime.evaluation.compiler import count_request
 from podgen.runtime.evaluation.contracts import RunFailure
 
 from .contracts import ProviderFault
-from .count_receipts import CONTRACT, ExactCount, identity, native_count, provider_configuration
+from .count_receipts import (
+    CONTRACT,
+    ExactCount,
+    PendingExactCount,
+    identity,
+    native_count,
+    provider_configuration,
+)
 
 
 class ResearchContext:
@@ -20,6 +27,8 @@ class ResearchContext:
         self.journal = gateway.journal
         self.history_view = history_view
         self.pending_events = []
+        self.pending_phase = None
+        self.pending_counts = {}
 
     def event(self, kind, data, *, reply=None):
         phase = self.publication()
@@ -28,7 +37,12 @@ class ResearchContext:
         return ref
 
     def publication(self):
-        phase = self.journal.publication(self.root)
+        phase = (
+            self.pending_phase
+            if self.pending_phase is not None and not self.pending_phase.finished
+            else self.journal.publication(self.root)
+        )
+        self.pending_phase = None
         for kind, data in self.pending_events:
             phase.event(kind, data=data, history=self.history)
         self.pending_events = []
@@ -86,9 +100,10 @@ class ResearchContext:
                 reply=reply,
             )
             raise ContractError("invalid_context_input_count") from None
-        self.event(
+        receipt_phase = self.publication()
+        ref = receipt_phase.event(
             "source_context_count",
-            dict(
+            data=dict(
                 request_hash=key,
                 input_tokens=count,
                 turn_index=index,
@@ -100,10 +115,24 @@ class ResearchContext:
                 provider_configuration=provider_configuration(self.profile),
             ),
             reply=reply,
+            history=self.history,
+        )
+        self.pending_phase = receipt_phase
+        self.pending_counts[count_identity] = PendingExactCount(
+            ref,
+            count_identity,
+            count,
+            receipt_phase,
+            native_count(body, self.profile.provider),
+            deepcopy(provider_configuration(self.profile)),
+            reply,
         )
         return count
 
     def receipt(self, body):
+        pending = self.pending_counts.get(identity(body, self.profile))
+        if pending is not None and not pending.phase.finished:
+            return pending
         saved = self.history.exact_count(identity(body, self.profile))
         if saved:
             return ExactCount(saved.reference, saved.data["count_identity"], saved.data["input_tokens"])
@@ -155,9 +184,7 @@ class ResearchContext:
             self.measured(result, index, "checkpoint" if checkpoint else "normal") + self.profile.output_limit
             > self.profile.context_limit
         ):
-            phase = self.journal.publication(self.root)
-            for kind, data in self.pending_events:
-                phase.event(kind, data=data, history=self.history)
+            phase = self.publication()
             phase.event(
                 "source_context_unfinished",
                 data=dict(turn_index=index, reason="checkpoint_does_not_fit_model_window"),
@@ -179,7 +206,8 @@ class ResearchContext:
         existing = self.history.context_segment(turn_index + 1)
         if existing:
             return self.history.read(existing.reference)
-        blob = self.journal.blob(
+        phase = self.publication()
+        blob = phase.blob(
             json.dumps(conversation, ensure_ascii=False, allow_nan=False, separators=(",", ":")).encode()
         )
         view = {}
@@ -191,11 +219,11 @@ class ResearchContext:
             semantic = research_history_view.encoded(research_history_view.conversation(conversation))
             view = dict(
                 history_view=self.history_view,
-                history_blob=self.journal.blob(semantic.encode()).model_dump(mode="json"),
+                history_blob=phase.blob(semantic.encode()).model_dump(mode="json"),
             )
-        ref = self.event(
+        ref = phase.event(
             "source_context_segment",
-            dict(
+            data=dict(
                 next_turn=turn_index + 1,
                 checkpoint_call_index=call_index,
                 checkpoint_result_ref=RuntimeRef(
@@ -204,7 +232,9 @@ class ResearchContext:
                 conversation_blob=blob.model_dump(mode="json"),
                 **view,
             ),
+            history=self.history,
         )
+        phase.commit()
         return self.history.read(ref)
 
     def restart(self, segment):

@@ -12,6 +12,9 @@ class OperationGuard:
         self.command, self.manifest, self.materials = command, manifest, materials
         self.loader, self.checkpoint = loader, checkpoint
         self.frozen_identity = self._identity() if isinstance(materials, ResearchMaterials) else None
+        self.prepared_admissions = None
+        if self.supports_publication_snapshot:
+            self.prepare_inputs()
 
     def _identity(self):
         # Bind immutable descriptors, not corpus text. Content bytes are verified
@@ -44,22 +47,31 @@ class OperationGuard:
     def supports_publication_snapshot(self):
         return isinstance(self.materials, ResearchMaterials)
 
-    def authorize_publication(self, tx):
-        """Same publication snapshot, separate generation/evaluator principals."""
-        if not isinstance(self.materials, ResearchMaterials):
-            raise RuntimeError("publication_guard_requires_frozen_materials")
-        self.checkpoint()
-        if self._identity() != self.frozen_identity:
-            raise Conflict("frozen_materials_changed")
-        from podgen.persistence.read_authorization import authorized_read
-
+    def prepare_inputs(self):
         references = [self.materials.shared_ref]
         if self.materials.fixed_ref is not None:
             references.append(self.materials.fixed_ref)
-        with authorized_read(self.generation, tx):
-            self.generation.authorize_runtime_many(self.command.project_id, references)
-        with authorized_read(self.journal.repo, tx):
-            self.journal.repo.authorize_runtime_many(self.command.project_id, self.admission_refs())
+        admissions = tuple(self.admission_refs())
+        if self.prepared_admissions != admissions:
+            self.journal.execution.prepare(self.command.run_id, generation=references, evaluation=admissions)
+            self.prepared_admissions = admissions
+            for document in (*self.materials.documents, *self.materials.runtime_admissions):
+                bind_text = getattr(getattr(document, "text", None), "bind_execution", None)
+                if bind_text is not None:
+                    bind_text(self.journal.execution, self.command.run_id)
+        return self.journal.execution.sets[self.command.run_id]
+
+    def authorize_publication(self, tx):
+        """Live action authorization shares the publication snapshot."""
+        self.checkpoint()
+        if self._identity() != self.frozen_identity:
+            raise Conflict("frozen_materials_changed")
+        if tuple(self.admission_refs()) != self.prepared_admissions:
+            raise Conflict("execution_admissions_not_prepared")
+        from podgen.persistence.execution.live import authorize
+
+        row = self.journal.execution.sets[self.command.run_id]
+        authorize(self.journal.repo, tx, self.command.project_id, row["set_id"], action=True)
         self.checkpoint()
 
     def __call__(self):
@@ -70,23 +82,11 @@ class OperationGuard:
             return
         if self._identity() != self.frozen_identity:
             raise Conflict("frozen_materials_changed")
-        # The initial load validated content-addressed immutable descriptors and
-        # the complete packet/hash. Boundaries reauthorize those same references,
-        # including a fixed approved plan and every admitted runtime dependency.
-        from podgen.persistence.read_authorization import read_operation
+        self.prepare_inputs()
+        from podgen.persistence.execution.live import authorize
 
-        project = self.command.project_id
-        with read_operation(self.generation):
-            references = [self.materials.shared_ref]
-            if self.materials.fixed_ref is not None:
-                references.append(self.materials.fixed_ref)
-            self.generation.authorize_runtime_many(project, references)
-        with self.journal.read_operation():
-            references = []
-            for admission in self.materials.runtime_admissions:
-                ref = admission.catalog.get("admission_ref")
-                if ref is None:
-                    raise Conflict("runtime_admission_reference_missing")
-                references.append(RuntimeRef.model_validate(ref))
-            self.journal.repo.authorize_runtime_many(project, references)
+        row = self.journal.execution.sets[self.command.run_id]
+        self.journal.execution.publish(
+            lambda tx: authorize(self.journal.repo, tx, self.command.project_id, row["set_id"], action=True)
+        )
         self.checkpoint()

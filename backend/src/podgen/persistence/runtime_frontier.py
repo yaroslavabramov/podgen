@@ -11,16 +11,19 @@ WITH RECURSIVE runtime_reach(record_id) AS (
     UNION
     SELECT edge.target_record_id
     FROM runtime_runtime_refs edge JOIN runtime_reach parent ON edge.record_id=parent.record_id
-    WHERE edge.project_id=:p AND NOT(edge.target_record_id=ANY(CAST(:known AS uuid[])))
+    JOIN runtime_records owner ON owner.project_id=edge.project_id AND owner.record_id=edge.record_id
+    WHERE edge.project_id=:p AND owner.execution_input_set_id IS NULL
+      AND NOT(edge.target_record_id=ANY(CAST(:known AS uuid[])))
 )
-SELECT r.project_id,r.record_id,r.record_kind,r.audience,
+SELECT r.project_id,r.record_id,r.record_kind,r.audience,r.execution_run_id,r.execution_input_set_id,
     COALESCE((SELECT jsonb_agg(jsonb_build_object(
         'artifact_id',a.artifact_id,'revision_id',a.revision_id,'kind',a.kind))
         FROM runtime_artifact_refs a WHERE a.project_id=r.project_id AND a.record_id=r.record_id),
         '[]'::jsonb) AS artifact_references,
     COALESCE((SELECT jsonb_agg(jsonb_build_object(
         'record_id',a.target_record_id,'record_kind',a.record_kind))
-        FROM runtime_runtime_refs a WHERE a.project_id=r.project_id AND a.record_id=r.record_id),
+        FROM runtime_runtime_refs a WHERE a.project_id=r.project_id AND a.record_id=r.record_id
+          AND r.execution_input_set_id IS NULL),
         '[]'::jsonb) AS runtime_references,
     COALESCE((SELECT jsonb_agg(jsonb_build_object(
         'storage_key',a.storage_key,'sha256',a.sha256,'byte_length',a.byte_length,'media_type',a.media_type))

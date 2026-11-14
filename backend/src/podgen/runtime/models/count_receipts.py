@@ -118,3 +118,32 @@ class ExactCount:
         if type(reply.get("input_tokens")) is not int or reply["input_tokens"] != self.input_tokens:
             raise Conflict("count_receipt_response_changed")
         return self.input_tokens
+
+
+@dataclass(frozen=True)
+class PendingExactCount(ExactCount):
+    """Validated count bytes staged in the same upcoming dispatch transaction."""
+
+    phase: object
+    native_request: dict
+    configuration: dict
+    reply: object
+
+    def validate(self, journal, body, profile):
+        from podgen.runtime.evaluation.validation import load_unique_json
+
+        if self.identity != identity(body, profile) or not 0 <= self.input_tokens <= 2**63 - 1:
+            raise Conflict("count_receipt_request_changed")
+        if self.native_request != native_count(
+            body, profile.provider
+        ) or self.configuration != provider_configuration(profile):
+            raise Conflict("count_receipt_native_request_changed")
+        if not 200 <= self.reply.status_code < 300:
+            raise Conflict("count_receipt_binding_changed")
+        wire = getattr(self.reply, "request_body", None)
+        if wire is not None and not self.reply.redacted and load_unique_json(wire) != self.native_request:
+            raise Conflict("count_receipt_wire_changed")
+        response = load_unique_json(self.reply.body)
+        if type(response.get("input_tokens")) is not int or response["input_tokens"] != self.input_tokens:
+            raise Conflict("count_receipt_response_changed")
+        return self.input_tokens

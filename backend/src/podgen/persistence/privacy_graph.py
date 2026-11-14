@@ -28,7 +28,7 @@ SELECT 'artifact', revision_id::text, 'runtime', record_id::text FROM runtime_li
 WHERE project_id=:project AND record_id=ANY(CAST(:runtimes AS uuid[]))
 UNION
 SELECT 'blob', sha256, 'runtime', record_id::text FROM runtime_blob_refs
-WHERE project_id=:project AND record_id=ANY(CAST(:runtimes AS uuid[]))
+WHERE project_id=:project AND record_id=ANY(CAST(:runtimes AS uuid[])) AND is_owned
 UNION
 SELECT 'blob', b.sha256, 'artifact', a.revision_id::text FROM artifact_blobs AS a JOIN blobs AS b USING(project_id,storage_key)
 WHERE a.project_id=:project AND a.revision_id=ANY(CAST(:artifacts AS uuid[]))
@@ -47,17 +47,33 @@ SELECT 'artifact', p.revision_id::text, 'blob', marked.sha256
 FROM unnest(CAST(:hashes AS text[])) AS marked(sha256) JOIN catalog_publications AS p
   ON p.project_id=:project AND p.config->'published_assets' @>
      jsonb_build_array(jsonb_build_object('blob_ref',jsonb_build_object('sha256',marked.sha256)))
+UNION
+SELECT 'input_set',set_id::text,'artifact',identity FROM execution_input_resources
+WHERE project_id=:project AND owner_project_id=:project AND privacy_required
+ AND resource_kind='artifact' AND identity=ANY(CAST(CAST(:artifacts AS uuid[]) AS text[]))
+UNION
+SELECT 'input_set',set_id::text,'runtime',identity FROM execution_input_resources
+WHERE project_id=:project AND owner_project_id=:project AND privacy_required
+ AND resource_kind='runtime' AND identity=ANY(CAST(CAST(:runtimes AS uuid[]) AS text[]))
+UNION
+SELECT 'input_set',set_id::text,'blob',binding->>'sha256' FROM execution_input_resources
+WHERE project_id=:project AND owner_project_id=:project AND privacy_required
+ AND resource_kind='blob' AND binding->>'sha256'=ANY(CAST(:hashes AS text[]))
+UNION
+SELECT 'runtime',record_id::text,'input_set',execution_input_set_id::text FROM runtime_records
+WHERE project_id=:project AND execution_input_set_id=ANY(CAST(:input_sets AS uuid[]))
 ) AS frontier ORDER BY node_kind, identity, source_kind, source_identity
 """)
 
 
-def _protected_origins(tx, project_id, *, artifact_ids=(), runtime_ids=()):
+def privacy_closure(tx, project_id, *, artifact_ids=(), runtime_ids=(), hash_origins=None):
     """Expand each reached node once and retain one genuinely reaching root."""
     origins = {
         (kind, UUID(str(value))): UUID(str(value))
         for kind, values in (("artifact", artifact_ids), ("runtime", runtime_ids))
         for value in values
     }
+    origins.update({("blob", sha): origin for sha, origin in (hash_origins or {}).items()})
     pending = deque(origins)
     while pending:
         batch = list(islice(pending, BATCH_SIZE))
@@ -68,6 +84,7 @@ def _protected_origins(tx, project_id, *, artifact_ids=(), runtime_ids=()):
             artifacts=[value for kind, value in batch if kind == "artifact"],
             runtimes=[value for kind, value in batch if kind == "runtime"],
             hashes=[value for kind, value in batch if kind == "blob"],
+            input_sets=[value for kind, value in batch if kind == "input_set"],
         )
         with tx.execute(EXPAND, args, execution_options={"yield_per": BATCH_SIZE}) as result:
             for row in result.mappings():
@@ -78,6 +95,11 @@ def _protected_origins(tx, project_id, *, artifact_ids=(), runtime_ids=()):
                 if key not in origins:
                     origins[key] = origins[source, previous]
                     pending.append(key)
+    return origins
+
+
+def _protected_origins(tx, project_id, **roots):
+    origins = privacy_closure(tx, project_id, **roots)
     return {value: origin for (kind, value), origin in origins.items() if kind == "blob"}
 
 
@@ -93,3 +115,7 @@ def hash_batches(hashes):
     values = iter(sorted(hashes))
     while batch := list(islice(values, BATCH_SIZE)):
         yield batch
+
+
+def protected_alias_origins(tx, project_id, origins):
+    return _protected_origins(tx, project_id, hash_origins=origins)

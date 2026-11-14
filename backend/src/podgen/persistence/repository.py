@@ -10,6 +10,7 @@ from podgen.domain.contracts import ArtifactRef, ArtifactRevision
 from podgen.domain.errors import AccessDenied, ContractError
 
 from .database import Database, one, query
+from .execution.reads import current_inputs
 from .read_authorization import _read_connection, authorized_read, checked_node
 
 CONFIG_KINDS = {
@@ -84,7 +85,14 @@ class Repository:
         return member["role"]
 
     def _lock(self, tx, project_id):
-        query(tx, "SELECT validity_version FROM projects WHERE project_id=:p FOR UPDATE", p=project_id)
+        state = self._read_authorization.get()
+        if state is not None and state.transaction is tx and project_id in state.write_projects:
+            return
+        # A write fence, not a topology change: waiting RR writers must retry
+        # rather than validate against a snapshot predating first SHA protection.
+        query(tx, "UPDATE projects SET validity_version=validity_version WHERE project_id=:p", p=project_id)
+        if state is not None and state.transaction is tx:
+            state.write_projects.add(project_id)
 
     def _validity(self, tx, project_id):
         return one(tx, "SELECT validity_version FROM projects WHERE project_id=:p", p=project_id)[
@@ -159,6 +167,7 @@ class Repository:
         if actual != row["content_hash"]:
             raise ContractError("artifact_integrity_error")
 
+    @current_inputs
     def get(self, project_id, ref):
         with _read_connection(self) as tx:
             row = self._resolve(tx, project_id, ref)
@@ -187,6 +196,7 @@ class Repository:
 
         validate_binding(ref, row)
 
+    @current_inputs
     def read_blob(self, project_id, artifact_ref, blob_ref):
         from .read_authorization import object_io
         from .text_source import authorized_blob
@@ -285,6 +295,7 @@ class Repository:
         """Freshly authorize a frozen reference without fetching its semantic body."""
         self.authorize_runtime_many(project_id, [ref])
 
+    @current_inputs
     def authorize_runtime_many(self, project_id, references):
         from .access_facts import access_facts
 
@@ -293,6 +304,7 @@ class Repository:
             for reference in references:
                 self._runtime(tx, project_id, reference)
 
+    @current_inputs
     def get_runtime(self, project_id, ref):
         with _read_connection(self) as tx:
             self._runtime(tx, project_id, ref)
@@ -301,6 +313,7 @@ class Repository:
             facts = access_facts(self, tx)
             return facts.runtimes.payload(project_id, ref)
 
+    @current_inputs
     def get_runtime_many(self, project_id, references):
         """Read at most 64 requested bodies in order, preserving duplicate references.
 
@@ -331,6 +344,7 @@ class Repository:
             }
             return [payloads[reference.record_id] for reference in references]
 
+    @current_inputs
     def read_runtime_blob(self, project_id, runtime_ref, blob_ref):
         from .read_authorization import object_io
         from .text_source import authorized_blob

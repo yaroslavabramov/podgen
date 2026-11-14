@@ -15,7 +15,11 @@ _CACHE = tempfile.TemporaryDirectory(prefix="podgen-unicode-")
 _LOCK = Lock()
 
 
-def _authorize_binding(repo, project, reference, blob):
+def _authorize_binding(repo, project, reference, blob, prepared=None):
+    if prepared is not None:
+        from .execution.text import authorize_text
+
+        return authorize_text(repo, *prepared, project, reference, blob)
     with _read_connection(repo) as tx:
 
         def check():
@@ -37,23 +41,30 @@ def _authorize_binding(repo, project, reference, blob):
             return True
 
         checked_node(repo, tx, ("text_binding", project, reference, blob), check)
+        return project
 
 
 @contextmanager
-def authorized_blob(repo, project, reference, blob):
+def authorized_blob(repo, project, reference, blob, prepared=None):
     # SQL phase ends before yielding to the object reader. Remote object_io then
     # releases its snapshot; returning bytes always rechecks fresh authorization.
     with read_operation(repo):
-        _authorize_binding(repo, project, reference, blob)
-        yield
-        _authorize_binding(repo, project, reference, blob)
+        owner = _authorize_binding(repo, project, reference, blob, prepared)
+        yield owner
+        _authorize_binding(repo, project, reference, blob, prepared)
 
 
 class VerifiedText:
     def __init__(self, repo, project, reference, blob):
         self.repo, self.project, self.reference, self.blob = repo, project, reference, blob
+        self.prepared = None
+        self.blob_project = project
         self.sha256 = blob.sha256
         self.path = Path(_CACHE.name) / blob.sha256
+
+    def bind_execution(self, store, run_id):
+        self.repo = store.repo
+        self.prepared = (store, run_id)
 
     def __eq__(self, other):
         if not isinstance(other, VerifiedText):
@@ -78,7 +89,7 @@ class VerifiedText:
                 temporary = Path(output.name)
                 try:
                     with object_io(self.repo):
-                        for chunk in self.repo.objects.iter_read(self.project, self.blob):
+                        for chunk in self.repo.objects.iter_read(self.blob_project, self.blob):
                             output.write(decoder.decode(chunk).encode("utf-32-le"))
                     output.write(decoder.decode(b"", final=True).encode("utf-32-le"))
                     output.flush()
@@ -87,7 +98,8 @@ class VerifiedText:
                     temporary.unlink(missing_ok=True)
 
     def verify(self):
-        with authorized_blob(self.repo, self.project, self.reference, self.blob):
+        with authorized_blob(self.repo, self.project, self.reference, self.blob, self.prepared) as owner:
+            self.blob_project = owner
             self._ensure()
 
     def __len__(self):
@@ -96,7 +108,8 @@ class VerifiedText:
         return self.path.stat().st_size // 4
 
     def __getitem__(self, key):
-        with authorized_blob(self.repo, self.project, self.reference, self.blob):
+        with authorized_blob(self.repo, self.project, self.reference, self.blob, self.prepared) as owner:
+            self.blob_project = owner
             self._ensure()
             length = self.path.stat().st_size // 4
             if isinstance(key, slice):

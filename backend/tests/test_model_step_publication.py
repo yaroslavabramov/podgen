@@ -208,7 +208,7 @@ def test_crash_after_submit_commit_resumes_unknown_without_sending_again(repo, s
 
 @pytest.mark.parametrize("document_count", [1, 129])
 @pytest.mark.parametrize("history_length", [0, 128])
-def test_ordinary_counted_turn_has_six_bounded_input_checks_and_no_history_rereads(
+def test_ordinary_counted_turn_uses_prepared_inputs_without_graph_or_history_rereads(
     repo, scope, producer, monkeypatch, document_count, history_length
 ):
     from collections import Counter
@@ -318,10 +318,11 @@ def test_ordinary_counted_turn_has_six_bounded_input_checks_and_no_history_rerea
         )
     finally:
         event.remove(repo.database.engine, "before_cursor_execute", capture)
-    assert len(validations) == 6
+    assert len(validations) == 0
     assert counters["history"] == 1  # One exact turn lookup; ledger never scans history again.
-    assert counters["UPDATE"] == 4  # submitting/receipt, each with the atomic root usage projection
-    assert counters["INSERT"] <= 22  # six runtime/event/classification batches + turn + blob groups
+    # Four state projections plus five project serialization fences; none expands inputs.
+    assert counters["UPDATE"] == 9
+    assert counters["INSERT"] <= 25  # explicit record/blob/control edges plus event/turn projections
     assert counters["SELECT"] < 120 + 32 * ((document_count + 63) // 64)
     assert counters["WITH"] <= 24  # Acquisition metadata is loaded per union, never per document.
     print(
@@ -415,12 +416,14 @@ def test_action_guard_sees_new_sha_classification_in_same_publication_snapshot(r
 
     journal, root, _, _, _, _, _, _, _, _ = setup(repo, scope)
     project, _ = scope
-    blob = repo.save_blob(project, io.BytesIO(b"SYNTHETIC same SHA source and receipt"), "text/plain")
+    body = b"SYNTHETIC same SHA source and receipt"
+    blob = repo.save_blob(project, io.BytesIO(body), "text/plain")
     source = RuntimeRef(record_kind="user_input", record_id=uuid4())
     repo.append_runtime(project, source, dict(blob=blob.model_dump(mode="json")))
     generation = Repository(repo.database, repo.objects, repo.actor_id, purpose="generation")
     assert generation.get_runtime(project, source)
     phase = journal.publication(root)
+    assert phase.blob(body, "text/plain") == blob
     ref = phase.record(dict(blob=blob.model_dump(mode="json")))
 
     class Guard:

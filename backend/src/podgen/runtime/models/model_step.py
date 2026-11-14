@@ -49,6 +49,9 @@ class ModelStep:
         from podgen.runtime.evaluation.wire_budget import check_tokens, check_visible, visible_sizes
 
         step = self
+        pending_receipt = getattr(count_receipt, "phase", None)
+        if pending_receipt is not None and not pending_receipt.finished:
+            step.phase.absorb(pending_receipt, prepend=True)
         try:
             with j.read_operation():
                 if request_snapshot is None:
@@ -62,6 +65,10 @@ class ModelStep:
                     manifest_snapshot if manifest_snapshot is not None else j.manifest(invocation["run_id"])
                 )
                 reused_count = count_receipt.validate(j, body, profile) if count_receipt is not None else None
+            register = getattr(count_receipt, "register", None)
+            if register is not None:
+                j.execution.prepare(invocation["run_id"], evaluation=[count_receipt.reference])
+                register(j, step.phase)
             contract = record["context"].get("role_input_contract")
             from .provider_contracts import validate as validate_provider_contract
 
@@ -159,8 +166,6 @@ class ModelStep:
                     step.fail(invocation, "invalid_input_token_count")
             step.phase.transition("counted", input_tokens=count)
             invocation = dict(invocation, status="counted", input_tokens=count)
-            if reused_count is None:
-                invocation = step.publish()
         if invocation["status"] == "counted":
             try:
                 check_visible(body, contract, max_visible_bytes=local_limits["visible_bytes"])
@@ -188,7 +193,14 @@ class ModelStep:
                 step.fail(invocation, "run_token_budget_exceeded", status="validation_failed")
             step.phase.event("submit_intent", data=dict(client_request_id=str(invocation["invocation_id"])))
             step.phase.transition("submitting", input_tokens=invocation["input_tokens"])
-            invocation = step.publish(guard=guard)
+            try:
+                invocation = step.publish(guard=guard)
+            except Exception:
+                # A received count remains replayable when dispatch authorization
+                # fails. Capturing it still performs current evaluator read checks.
+                # No submit intent may survive this unsuccessful dispatch boundary.
+                step.phase.capture_count_after_dispatch_failure(invocation["input_tokens"])
+                raise
             try:
                 reply = provider.submit(body, client_request_id=str(invocation["invocation_id"]))
             except ProviderFault as fault:

@@ -33,6 +33,7 @@ class MemoryJournal:
         self.root["request_record_id"] = self.store_request(body)
         self.roots = {self.root["invocation_id"]: self.root}
         self.repo = SimpleNamespace(actor_id=uuid4())
+        self.execution = SimpleNamespace(invocation=lambda _: None, prepare=lambda *args, **kwargs: None)
 
     def runtime_graph(self):
         return nullcontext()
@@ -174,7 +175,7 @@ class MemoryPublication(Publication):
         if self.state is not None:
             result = self.owner.transition(self.invocation, self.state[0], **self.state[1])
         self.finished = True
-        for callback in self.committed:
+        for callback in (*self.committed, *self.event_callbacks.values()):
             callback()
         ledger = getattr(self.owner, "ledger", None)
         if ledger is not None:
@@ -202,9 +203,7 @@ def install_memory_turns(monkeypatch):
             for kind, data in pending_events:
                 pending = self.journal.publication(self.root)
                 pending.event(kind, data=data, history=self.history)
-                phase.records.extend(pending.records)
-                phase.events.extend(pending.events)
-                phase.committed.extend(pending.committed)
+                phase.absorb(pending)
             return (
                 turn,
                 phase,

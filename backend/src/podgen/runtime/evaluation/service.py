@@ -364,6 +364,8 @@ class WritingEvaluation:
                 loader=self._materials,
                 checkpoint=checkpoint_guard,
             )
+            if corpus is not None and corpus.retrieval is not None:
+                corpus.retrieval.index.access.run_id = command.run_id
             authorize_recovery(
                 journal,
                 command,
