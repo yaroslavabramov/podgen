@@ -12,7 +12,26 @@ def request_payload(body):
         raise ContractError("unsupported_prompt_cache_layout")
     if version not in VERSIONS:
         return load_unique_json(body["input"][0]["content"][0]["text"])
-    users = [message for message in body["input"] if message["role"] == "user"]
+    # The saved conversation also contains provider reasoning and tool exchanges.
+    # Extract the user commission without mutating or folding those items into it.
+    users = []
+    for item in body["input"]:
+        if not isinstance(item, dict):
+            raise ContractError("invalid_multipart_input_item")
+        role = item.get("role")
+        if role == "user":
+            users.append(item)
+        elif role in ("system", "developer", "assistant"):
+            continue
+        elif role is None and item.get("type") in (
+            "reasoning",
+            "function_call",
+            "function_call_output",
+            "anthropic_assistant",
+        ):
+            continue
+        else:
+            raise ContractError("invalid_multipart_input_item")
     if len(users) != 1:
         raise ContractError("invalid_multipart_user_payload")
     result = {}
