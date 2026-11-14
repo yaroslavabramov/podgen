@@ -1,0 +1,129 @@
+{
+  "contract": "planning-continuation-receipt-accounting/1",
+  "run_id": "1cd0ac76-3326-58bb-83f0-6ee76847cefe",
+  "source_run_id": "00131ed0-d0ae-5a00-9d6d-d719197e0ced",
+  "status": "plan_ready",
+  "failure_code": null,
+  "stages": {
+    "plan-review-revised": {
+      "count_calls": 21,
+      "generation_calls": 21,
+      "in_run_count_receipt_reuse_events": 21,
+      "usage": {
+        "input_tokens": 571826,
+        "output_tokens": 2707,
+        "cached_input_tokens": 539877,
+        "cache_write_tokens": 31886,
+        "uncached_input_tokens": 31949,
+        "cache_write_ttl_30m_tokens": 31886,
+        "cache_write_ttl_12h_tokens": 0
+      },
+      "first_generation_created_at": "2026-11-14T21:30:30+00:00",
+      "final_generation_completed_at": "2026-11-14T21:32:17+00:00",
+      "generation_span_seconds": 107,
+      "event_kinds": {
+        "source_context_count_intent": 21,
+        "source_context_count": 21,
+        "source_context_plan": 21,
+        "role_input_measurement": 21,
+        "count_receipt_reused": 21,
+        "submit_intent": 21,
+        "provider_response": 21,
+        "source_tool_call": 20,
+        "source_tool_result": 20,
+        "source_search_diagnostics": 6,
+        "source_tools_final_response": 1
+      }
+    },
+    "plan-revise": {
+      "count_calls": 6,
+      "generation_calls": 6,
+      "in_run_count_receipt_reuse_events": 6,
+      "usage": {
+        "input_tokens": 100241,
+        "output_tokens": 7971,
+        "cached_input_tokens": 87286,
+        "cache_write_tokens": 12937,
+        "uncached_input_tokens": 12955,
+        "cache_write_ttl_30m_tokens": 12937,
+        "cache_write_ttl_12h_tokens": 0
+      },
+      "first_generation_created_at": "2026-11-14T21:29:09+00:00",
+      "final_generation_completed_at": "2026-11-14T21:30:28+00:00",
+      "generation_span_seconds": 79,
+      "event_kinds": {
+        "source_context_count_intent": 6,
+        "source_context_count": 6,
+        "source_context_plan": 6,
+        "role_input_measurement": 6,
+        "count_receipt_reused": 6,
+        "submit_intent": 6,
+        "provider_response": 6,
+        "source_tool_call": 5,
+        "source_tool_result": 5,
+        "source_search_diagnostics": 1,
+        "source_tools_final_response": 1
+      }
+    }
+  },
+  "count_calls": 27,
+  "generation_calls": 27,
+  "distinct_count_identities": 27,
+  "count_input_tokens": 672067,
+  "in_run_count_receipt_reuse_events": 27,
+  "count_reuse_note": "One exact native count per new request; saved receipt reused at submit. Reuse events are not extra count calls.",
+  "usage": {
+    "input_tokens": 672067,
+    "output_tokens": 10678,
+    "cached_input_tokens": 627163,
+    "cache_write_tokens": 44823,
+    "uncached_input_tokens": 44904,
+    "cache_write_ttl_30m_tokens": 44823,
+    "cache_write_ttl_12h_tokens": 0
+  },
+  "by_model": {
+    "gpt-6.1-terra": {
+      "generation_calls": 21,
+      "input_tokens": 571826,
+      "output_tokens": 2707,
+      "cached_input_tokens": 539877,
+      "cache_write_tokens": 31886
+    },
+    "gpt-6.1-sol": {
+      "generation_calls": 6,
+      "input_tokens": 100241,
+      "output_tokens": 7971,
+      "cached_input_tokens": 87286,
+      "cache_write_tokens": 12937
+    }
+  },
+  "rejected_requests": 0,
+  "uncertain_generation_outcomes": 0,
+  "technical_retries": 0,
+  "unknown_usage_invocations": [],
+  "generation_cost_usd": null,
+  "count_cost_usd": null,
+  "cache_cost_usd": null,
+  "usd_basis": "Usage receipts contain no dollar charges and frozen model profiles contain no price schedule; invoice USD is unknown.",
+  "research_submissions": 0,
+  "research_cost_usd": "0",
+  "author_generations": 0,
+  "script_review_generations": 0,
+  "tts_submissions": 0,
+  "tts_cost_usd": "0",
+  "audio_assembly_started": false,
+  "prior_paid_stages_repeated": false,
+  "source_manifest_unchanged": true,
+  "timing": {
+    "first_generation_created_at": "2026-11-14T21:29:09+00:00",
+    "last_generation_completed_at": "2026-11-14T21:32:17+00:00",
+    "new_generation_span_seconds": 188,
+    "note": "Response timestamps bound the new physical calls, including intervening tool/network waits; excludes initial preparation and final export."
+  },
+  "cumulative_with_parent": {
+    "count_calls": 114,
+    "generation_calls": 114,
+    "input_tokens": 2836178,
+    "output_tokens": 32903
+  }
+}

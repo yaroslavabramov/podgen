@@ -1,0 +1,16 @@
+{
+  "contract": "explicit-planning-continuation-authorization/1",
+  "recorded_at": "2026-11-14T21:28:41.620462+00:00",
+  "user_instruction": "пусть сделает еще одну перепись и редактуру",
+  "source_thread_id": "01a07e3b-bf31-7f52-8e9e-0ba159507b5a",
+  "source_writing_run_id": "00131ed0-d0ae-5a00-9d6d-d719197e0ced",
+  "additional_plan_revision_review_pairs": 1,
+  "stop_after_plan": true,
+  "research_authorized": false,
+  "script_authorized": false,
+  "audio_authorized": false,
+  "preserve_materials_models_prompts_parameters": true,
+  "continuation_run_id": "1cd0ac76-3326-58bb-83f0-6ee76847cefe",
+  "lineage_contract": "planning-continuation/1",
+  "lineage_file": "lineage.json"
+}

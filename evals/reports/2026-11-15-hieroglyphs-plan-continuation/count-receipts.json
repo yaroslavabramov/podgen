@@ -1,0 +1,326 @@
+[
+  {
+    "event_ref": {
+      "record_kind": "tool_execution",
+      "record_id": "d6f0fe56-266c-5e83-965f-fd63020fe035"
+    },
+    "count_identity": "76928002a6c57e2017e111f0e7da91e55e96c34217d698b1fd9fb8f0f5a64402",
+    "input_tokens": 15135,
+    "native_input_tokens": 15135,
+    "request_sha256": "6cfd6e52e2b02f0697aa1e2f9711b2b32f92ce92c3fa639b03fd11d0141c6da1",
+    "receipt_path": "tmp/hieroglyphs-30m-plan-continuation-2026-11-15/export/archive/plan-review-revised/001-source_context_count-response_blob.json",
+    "model": "gpt-6.1-terra"
+  },
+  {
+    "event_ref": {
+      "record_kind": "tool_execution",
+      "record_id": "3e8b4eb2-c551-5e0c-a577-d9a45b035926"
+    },
+    "count_identity": "92d5030167bdee06a116b070a4ecc95d06cb2fba97340f8ecf8217ee1a327b52",
+    "input_tokens": 16350,
+    "native_input_tokens": 16350,
+    "request_sha256": "71c521f920c52d1f490967237cd276edd1a12d003d76021bf1db1952dbbaeeaf",
+    "receipt_path": "tmp/hieroglyphs-30m-plan-continuation-2026-11-15/export/archive/plan-review-revised/010-source_context_count-response_blob.json",
+    "model": "gpt-6.1-terra"
+  },
+  {
+    "event_ref": {
+      "record_kind": "tool_execution",
+      "record_id": "e418226b-b24c-540f-bfab-ffd8746d9614"
+    },
+    "count_identity": "05d23bae843465f1033c2a16cc5c72ef68d7f1fe08781129b107a01e0eeb4378",
+    "input_tokens": 17571,
+    "native_input_tokens": 17571,
+    "request_sha256": "8887d3017e12b8ca5a33fb627ea81d5e0268f118823133a67e1e61e94b834317",
+    "receipt_path": "tmp/hieroglyphs-30m-plan-continuation-2026-11-15/export/archive/plan-review-revised/019-source_context_count-response_blob.json",
+    "model": "gpt-6.1-terra"
+  },
+  {
+    "event_ref": {
+      "record_kind": "tool_execution",
+      "record_id": "e9513b24-3155-5773-a0b7-85c78976684b"
+    },
+    "count_identity": "99f1c0aac2b046934426a9c1825488397ad433eb68106920ded2d441cc1c0b7c",
+    "input_tokens": 18846,
+    "native_input_tokens": 18846,
+    "request_sha256": "13ca5a0ba6b797c7f9a32fcb01db6a46d03d56dd891755a9de96b56cc0b1e0af",
+    "receipt_path": "tmp/hieroglyphs-30m-plan-continuation-2026-11-15/export/archive/plan-review-revised/028-source_context_count-response_blob.json",
+    "model": "gpt-6.1-terra"
+  },
+  {
+    "event_ref": {
+      "record_kind": "tool_execution",
+      "record_id": "0452e09a-2ed4-50d1-b8f8-a25e29c64546"
+    },
+    "count_identity": "0aa490b6923f3db7b6614106818e85750543fd050fb70e0764b021288ac671a1",
+    "input_tokens": 20806,
+    "native_input_tokens": 20806,
+    "request_sha256": "73d48b9eb3f77bf4ca24c0c7678c363b39903c0fb38347e045697d34bb6308c7",
+    "receipt_path": "tmp/hieroglyphs-30m-plan-continuation-2026-11-15/export/archive/plan-review-revised/037-source_context_count-response_blob.json",
+    "model": "gpt-6.1-terra"
+  },
+  {
+    "event_ref": {
+      "record_kind": "tool_execution",
+      "record_id": "0981ab43-8e63-5cf9-ae0b-da6496f62079"
+    },
+    "count_identity": "1b2f910eda0825807a2e2abf832585f03ebbd8ac73bec9e2c147b487becb935a",
+    "input_tokens": 21641,
+    "native_input_tokens": 21641,
+    "request_sha256": "1e8c9ead0e35818b967984c6289607746fc38ce24dc44cf95b98214cb229e5a1",
+    "receipt_path": "tmp/hieroglyphs-30m-plan-continuation-2026-11-15/export/archive/plan-review-revised/046-source_context_count-response_blob.json",
+    "model": "gpt-6.1-terra"
+  },
+  {
+    "event_ref": {
+      "record_kind": "tool_execution",
+      "record_id": "8167eee7-e6f2-5c0c-929a-a017607c7ed0"
+    },
+    "count_identity": "059f11480703af5ce9fac719853b85411a7b22574bee48f422b0d3e816e5cdef",
+    "input_tokens": 22771,
+    "native_input_tokens": 22771,
+    "request_sha256": "3d59adf89a9ebb3b51bda89f8aad6e9a43fe925fb21ce2c21924fd01bf4d93e5",
+    "receipt_path": "tmp/hieroglyphs-30m-plan-continuation-2026-11-15/export/archive/plan-review-revised/055-source_context_count-response_blob.json",
+    "model": "gpt-6.1-terra"
+  },
+  {
+    "event_ref": {
+      "record_kind": "tool_execution",
+      "record_id": "cade0a75-657d-5f61-9344-5a1a286a1e4c"
+    },
+    "count_identity": "60496ab1b7ced164453ec80cc5c9493bc5e5a9e4a54ce6102b329cf1e273b5db",
+    "input_tokens": 24675,
+    "native_input_tokens": 24675,
+    "request_sha256": "b0189a060081fe5acd215b87aed75b49ec676a68c67d821860ef391df7f6ad14",
+    "receipt_path": "tmp/hieroglyphs-30m-plan-continuation-2026-11-15/export/archive/plan-review-revised/064-source_context_count-response_blob.json",
+    "model": "gpt-6.1-terra"
+  },
+  {
+    "event_ref": {
+      "record_kind": "tool_execution",
+      "record_id": "43837823-4243-5db1-ab70-f053c4757c72"
+    },
+    "count_identity": "7bdbfcb1e70d31a77623b590082d7d9303b244c861bbe37bba71a68e656e2688",
+    "input_tokens": 25632,
+    "native_input_tokens": 25632,
+    "request_sha256": "ae9b76c0ce7387f4110e9586a2f6abe007aae67ffafc095c0cfbcf6bccffe562",
+    "receipt_path": "tmp/hieroglyphs-30m-plan-continuation-2026-11-15/export/archive/plan-review-revised/074-source_context_count-response_blob.json",
+    "model": "gpt-6.1-terra"
+  },
+  {
+    "event_ref": {
+      "record_kind": "tool_execution",
+      "record_id": "46da68f8-8d7b-54a6-ad61-abfeb836fe3e"
+    },
+    "count_identity": "f5166d33e471745376353ba541a26d0827b744b233ad669b588c5a0a813b57fd",
+    "input_tokens": 26886,
+    "native_input_tokens": 26886,
+    "request_sha256": "94855680b3f74c834a13de2c66b69408bd95e126a9e132db9eb0966a065f9862",
+    "receipt_path": "tmp/hieroglyphs-30m-plan-continuation-2026-11-15/export/archive/plan-review-revised/083-source_context_count-response_blob.json",
+    "model": "gpt-6.1-terra"
+  },
+  {
+    "event_ref": {
+      "record_kind": "tool_execution",
+      "record_id": "8ac1000c-95fc-5cf3-a17c-1d52800b77e7"
+    },
+    "count_identity": "752136d256bdd456bc27349002336d630cdcde3d024bc3cde12e4de10284e10e",
+    "input_tokens": 27878,
+    "native_input_tokens": 27878,
+    "request_sha256": "2afe05bae2edff74d3cbcdedd1f57769e653ce3f06db002c9cbfc8f7e94634d0",
+    "receipt_path": "tmp/hieroglyphs-30m-plan-continuation-2026-11-15/export/archive/plan-review-revised/093-source_context_count-response_blob.json",
+    "model": "gpt-6.1-terra"
+  },
+  {
+    "event_ref": {
+      "record_kind": "tool_execution",
+      "record_id": "07bd8731-bd69-5b80-99d4-24d8837b22e1"
+    },
+    "count_identity": "7f5c4f8598f2a1c97b2564839790a01587ecf2c5e9ad78807e6933d43cfbd557",
+    "input_tokens": 29061,
+    "native_input_tokens": 29061,
+    "request_sha256": "61fb8dbfeb552de367da460aa613ba9031d2083cdacb9bc4316a778971cec60c",
+    "receipt_path": "tmp/hieroglyphs-30m-plan-continuation-2026-11-15/export/archive/plan-review-revised/102-source_context_count-response_blob.json",
+    "model": "gpt-6.1-terra"
+  },
+  {
+    "event_ref": {
+      "record_kind": "tool_execution",
+      "record_id": "dee9cbee-6bcc-5acf-9bb6-8a50d1752687"
+    },
+    "count_identity": "d3b83d4981e8c5bb576e7bea1de7c09d068002b969908c17c9ac4e7c0401c5ed",
+    "input_tokens": 30144,
+    "native_input_tokens": 30144,
+    "request_sha256": "9bd88ed5ff6ecb6a4b2e525af665371c133d9398ae48d663e19b6d62f6407e72",
+    "receipt_path": "tmp/hieroglyphs-30m-plan-continuation-2026-11-15/export/archive/plan-review-revised/112-source_context_count-response_blob.json",
+    "model": "gpt-6.1-terra"
+  },
+  {
+    "event_ref": {
+      "record_kind": "tool_execution",
+      "record_id": "f6ca9892-f50c-53e4-aa27-959444c10cce"
+    },
+    "count_identity": "dd7cefd5daa0da62f94cecf661c22a2c58cc959bba17b8aa31ed93a1aa3ca1e7",
+    "input_tokens": 30852,
+    "native_input_tokens": 30852,
+    "request_sha256": "d7e52ec7ae39e70d11832372d90aac7b26b17d0f2b88c22afbc387197fba5530",
+    "receipt_path": "tmp/hieroglyphs-30m-plan-continuation-2026-11-15/export/archive/plan-review-revised/121-source_context_count-response_blob.json",
+    "model": "gpt-6.1-terra"
+  },
+  {
+    "event_ref": {
+      "record_kind": "tool_execution",
+      "record_id": "ad88507b-34c1-5333-a943-3dda91a6655f"
+    },
+    "count_identity": "2edc327947caeca3d9e1aa94a0949d709ccb29c789c7e2993fd0f71d023f1b3f",
+    "input_tokens": 31850,
+    "native_input_tokens": 31850,
+    "request_sha256": "09ddd0c367d69113bd8da248a97c140cbfad02c15339ba3fe3e8f54b2b37404f",
+    "receipt_path": "tmp/hieroglyphs-30m-plan-continuation-2026-11-15/export/archive/plan-review-revised/131-source_context_count-response_blob.json",
+    "model": "gpt-6.1-terra"
+  },
+  {
+    "event_ref": {
+      "record_kind": "tool_execution",
+      "record_id": "7cbc1d67-8ca8-5df5-afdf-9520d7bef77d"
+    },
+    "count_identity": "3ed8a73674c95bf8c061d8f61fad3fbf025d6ff39ea2e176863fcaf7cc43f2cb",
+    "input_tokens": 32961,
+    "native_input_tokens": 32961,
+    "request_sha256": "04598a78230041021be14afccb945c4b798174263f64c0ad743837e273e5e687",
+    "receipt_path": "tmp/hieroglyphs-30m-plan-continuation-2026-11-15/export/archive/plan-review-revised/140-source_context_count-response_blob.json",
+    "model": "gpt-6.1-terra"
+  },
+  {
+    "event_ref": {
+      "record_kind": "tool_execution",
+      "record_id": "8dbf422c-1cd5-58c6-83dd-f6e45e54c17d"
+    },
+    "count_identity": "8e825cfb7b76ada3bb73d41ea580095ce707ed74d92045423288adba6635d0be",
+    "input_tokens": 33905,
+    "native_input_tokens": 33905,
+    "request_sha256": "01c4b15ce16b36f6c11a04c6ceaa65117a220cd6ae00990599a3ad2e69b292bc",
+    "receipt_path": "tmp/hieroglyphs-30m-plan-continuation-2026-11-15/export/archive/plan-review-revised/150-source_context_count-response_blob.json",
+    "model": "gpt-6.1-terra"
+  },
+  {
+    "event_ref": {
+      "record_kind": "tool_execution",
+      "record_id": "b08ea4e3-e84d-5da0-81bb-50c41101da9f"
+    },
+    "count_identity": "ad509b20bfbb9590301f3ad0a3d2f6174647b23749af37616e1a06c32a3cc8f8",
+    "input_tokens": 34604,
+    "native_input_tokens": 34604,
+    "request_sha256": "043ac193367c4f787aa64ce90c510172e7227905643d09d233b4466fa089bc51",
+    "receipt_path": "tmp/hieroglyphs-30m-plan-continuation-2026-11-15/export/archive/plan-review-revised/159-source_context_count-response_blob.json",
+    "model": "gpt-6.1-terra"
+  },
+  {
+    "event_ref": {
+      "record_kind": "tool_execution",
+      "record_id": "76d5d627-19b1-5b08-a071-bc5c46e091bc"
+    },
+    "count_identity": "f70245bdb368bf2a069f8a641318bd6979e2709dfb10f3b149f87eb63bfe8d74",
+    "input_tokens": 36030,
+    "native_input_tokens": 36030,
+    "request_sha256": "369a38fd2bb3ece25fae90c7ea4b6e31167a5a04143a72a8ffff931cff226f2e",
+    "receipt_path": "tmp/hieroglyphs-30m-plan-continuation-2026-11-15/export/archive/plan-review-revised/169-source_context_count-response_blob.json",
+    "model": "gpt-6.1-terra"
+  },
+  {
+    "event_ref": {
+      "record_kind": "tool_execution",
+      "record_id": "20e96c80-d5a9-5fb8-9469-0fcc91c43ef7"
+    },
+    "count_identity": "eae6e25c373f7141115f813cb3813ac1205cb6d8e169529b879f871c98df1b57",
+    "input_tokens": 36337,
+    "native_input_tokens": 36337,
+    "request_sha256": "ac85509913d8f282c337a376f1d89cf1be2dac3708dbd077a98cfa62a837eed0",
+    "receipt_path": "tmp/hieroglyphs-30m-plan-continuation-2026-11-15/export/archive/plan-review-revised/178-source_context_count-response_blob.json",
+    "model": "gpt-6.1-terra"
+  },
+  {
+    "event_ref": {
+      "record_kind": "tool_execution",
+      "record_id": "524ee895-6455-5962-9c00-47a899d768d0"
+    },
+    "count_identity": "866e9f81fa9a3b095583b9d80e74bdeff8e56025c58c75a5ec00e8063cb42fcf",
+    "input_tokens": 37891,
+    "native_input_tokens": 37891,
+    "request_sha256": "7c43b1f30522fbb81c5b6bc6aeea0f9d3d9cc76eb0393ce1814995572a09f972",
+    "receipt_path": "tmp/hieroglyphs-30m-plan-continuation-2026-11-15/export/archive/plan-review-revised/187-source_context_count-response_blob.json",
+    "model": "gpt-6.1-terra"
+  },
+  {
+    "event_ref": {
+      "record_kind": "tool_execution",
+      "record_id": "2297804d-3260-5a70-a4be-dff75565b26b"
+    },
+    "count_identity": "fd273786d50fb5594ce65b659db8e8ea736ac76fcbddab6ef5472abe574d3c7c",
+    "input_tokens": 13956,
+    "native_input_tokens": 13956,
+    "request_sha256": "3df99865d6c5596c3ac88b360035db207863d4ae10febb06150b420adf76f6bf",
+    "receipt_path": "tmp/hieroglyphs-30m-plan-continuation-2026-11-15/export/archive/plan-revise/001-source_context_count-response_blob.json",
+    "model": "gpt-6.1-sol"
+  },
+  {
+    "event_ref": {
+      "record_kind": "tool_execution",
+      "record_id": "c4308c8f-540d-5424-82bb-e7fbf5a57e75"
+    },
+    "count_identity": "2d55717592ea129d9eb8cebb4d2c79e1aa32cd722b94b716816002d6092a9e56",
+    "input_tokens": 15157,
+    "native_input_tokens": 15157,
+    "request_sha256": "68841d870694001e2459ab2a1e519b485bb192d9fe8c0ba72a146d3afb2d0978",
+    "receipt_path": "tmp/hieroglyphs-30m-plan-continuation-2026-11-15/export/archive/plan-revise/010-source_context_count-response_blob.json",
+    "model": "gpt-6.1-sol"
+  },
+  {
+    "event_ref": {
+      "record_kind": "tool_execution",
+      "record_id": "c7d4ecc6-62b4-5be2-8de6-2e171071ddbd"
+    },
+    "count_identity": "f86699355bd06fa33ec12de3ddbbf85b1a6949281c7b24fb6f910285df705664",
+    "input_tokens": 16187,
+    "native_input_tokens": 16187,
+    "request_sha256": "ee3ff1d21bf0988c2c8cfa743593dd469fb3187bf7c902973c13f3fdf2cdb386",
+    "receipt_path": "tmp/hieroglyphs-30m-plan-continuation-2026-11-15/export/archive/plan-revise/020-source_context_count-response_blob.json",
+    "model": "gpt-6.1-sol"
+  },
+  {
+    "event_ref": {
+      "record_kind": "tool_execution",
+      "record_id": "342826bf-26e9-5cd6-9eab-5fadbed791fc"
+    },
+    "count_identity": "1c4d20315d7d0ee9a6d835812e9c49198ceba6aec4976dc8819bedee856a863d",
+    "input_tokens": 17101,
+    "native_input_tokens": 17101,
+    "request_sha256": "807bc6a5256549b2d9e098934afbd9f580660f35877f863b836d2d0d30eaf0a2",
+    "receipt_path": "tmp/hieroglyphs-30m-plan-continuation-2026-11-15/export/archive/plan-revise/029-source_context_count-response_blob.json",
+    "model": "gpt-6.1-sol"
+  },
+  {
+    "event_ref": {
+      "record_kind": "tool_execution",
+      "record_id": "2aec99c5-43b4-577e-ba3e-c807a9780e40"
+    },
+    "count_identity": "b593bf9d174a3790b94d57c8e589e8f62243e647f82ac920927589d0f73534c4",
+    "input_tokens": 18474,
+    "native_input_tokens": 18474,
+    "request_sha256": "69c7cd434fe81514044b0945ac82444315981c285c9ff291ef95b0d985e1e9dc",
+    "receipt_path": "tmp/hieroglyphs-30m-plan-continuation-2026-11-15/export/archive/plan-revise/038-source_context_count-response_blob.json",
+    "model": "gpt-6.1-sol"
+  },
+  {
+    "event_ref": {
+      "record_kind": "tool_execution",
+      "record_id": "9c167d68-767b-5a62-bed2-35e389b58b9e"
+    },
+    "count_identity": "cd899ce76032004eb83e82103c51b784a8e6dbfb5ab99f53d3fbe0088cb74a9b",
+    "input_tokens": 19366,
+    "native_input_tokens": 19366,
+    "request_sha256": "875c309157cfe0ec2749a5758c57e1c664bbc45d1a5f1b11d103a33e376a2014",
+    "receipt_path": "tmp/hieroglyphs-30m-plan-continuation-2026-11-15/export/archive/plan-revise/047-source_context_count-response_blob.json",
+    "model": "gpt-6.1-sol"
+  }
+]
