@@ -4,11 +4,64 @@ from dataclasses import replace
 from uuid import uuid5
 
 from podgen.domain.contracts.common import ArtifactRef, RuntimeRef
-from podgen.persistence.database import query
+from podgen.persistence.database import one, query
 from podgen.persistence.private_journal.contracts import ChargeChange, Checkpoint, HeadChange, operation_id
 from podgen.persistence.private_journal.head import next_head
 from podgen.persistence.private_journal.writer import commit
 from podgen.persistence.read_authorization import _read_connection
+
+
+def before_prepare(journal, run_id, stage, attempt_id, parent):
+    """Admit the last archived owner before the first new private stage/attempt."""
+    if journal.execution.current_head(run_id) is not None:
+        return
+    if journal.run(run_id)["execution_storage"] != "legacy":
+        return
+    root = parent
+    with _read_connection(journal.repo) as tx:
+        journal.authorize(tx)
+        if root is None:
+            stages = journal.manifest(run_id)["stages"]
+            preceding = stages[: stages.index(stage)]
+            saved = one(
+                tx,
+                """SELECT * FROM evaluation_model_invocations
+                WHERE project_id=:p AND run_id=:r AND stage=ANY(CAST(:stages AS text[]))
+                ORDER BY array_position(CAST(:stages AS text[]),stage) DESC,attempt_index DESC LIMIT 1""",
+                p=journal.project,
+                r=run_id,
+                stages=preceding,
+            )
+            root = dict(saved) if saved else None
+        turn = (
+            one(
+                tx,
+                """SELECT * FROM evaluation_model_turns
+            WHERE project_id=:p AND root_invocation_id=:root
+            ORDER BY turn_index DESC LIMIT 1""",
+                p=journal.project,
+                root=root["invocation_id"],
+            )
+            if root
+            else None
+        )
+    if root is not None:
+        adopt(journal, root, dict(root, **turn) if turn else root)
+        return
+    # An old run may have stopped after its manifest, before any model attempt.
+    bound = journal.execution.prepare(run_id)
+    command = Checkpoint(
+        run_id=run_id,
+        attempt_id=attempt_id,
+        operation_id=operation_id(run_id, "legacy_empty"),
+        kind="legacy_adopted",
+        input_set_id=bound["set_id"],
+        expected_revision=0,
+        data=dict(legacy_binding=dict(manifest_only=True)),
+        head=HeadChange(phase="prepared"),
+    )
+    commit(journal.repo, journal.project, command)
+    journal.execution.committed(run_id, next_head(None, command))
 
 
 def adopt(journal, root, invocation):

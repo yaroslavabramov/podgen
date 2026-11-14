@@ -39,6 +39,9 @@ def prepare(
         rows, stage, attempt_index, attempt_kind, operation_kind, parent_invocation_id
     )
     identity = attempt_identity(run_id, stage, attempt_index, attempt_kind, parent)
+    from .legacy_adoption import before_prepare
+
+    before_prepare(journal, run_id, stage, identity, parent)
     raw = json.dumps(body, ensure_ascii=False, allow_nan=False, separators=(",", ":")).encode()
     obj = prepare_bytes(raw, journal.project)
     parent_ref = (
