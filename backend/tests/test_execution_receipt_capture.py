@@ -96,3 +96,40 @@ def test_pending_count_strict_validation_keeps_raw_receipt_and_failure(repo, sco
         )
     kinds = [event["event_kind"] for event in journal.events(root)]
     assert "failure" in kinds and "submit_intent" not in kinds
+
+
+def test_pending_count_bytes_release_only_after_successful_absorbed_commit(repo, scope):
+    from types import SimpleNamespace
+
+    from podgen.runtime.models.gateway import ModelGateway
+    from podgen.runtime.models.research_context import ResearchContext
+    from podgen.runtime.models.research_history import ResearchHistory
+
+    journal, root, _, _, phase, snapshot, _, profile, _, _ = setup(repo, scope)
+    profile.provider = "openai"
+    context = ResearchContext(
+        ModelGateway(
+            journal, lambda _: SimpleNamespace(count=lambda body: WireReply(b'{"input_tokens":100}'))
+        ),
+        root,
+        profile,
+        snapshot[0],
+        ResearchHistory(journal, root),
+        lambda: None,
+    )
+    context.measured(snapshot[0], 0, "normal")
+    receipt = context.receipt(snapshot[0])
+    phase.absorb(context.pending_phase, prepend=True)
+
+    def rollback(tx):
+        raise RuntimeError("synthetic publication rollback")
+
+    phase.writes.append(rollback)
+    with pytest.raises(RuntimeError, match="synthetic publication rollback"):
+        phase.commit()
+    assert receipt.identity in context.pending_counts
+    assert not phase.finished
+    phase.writes.remove(rollback)
+    phase.commit()
+    assert not context.pending_counts
+    assert context.history.exact_count(receipt.identity) is not None

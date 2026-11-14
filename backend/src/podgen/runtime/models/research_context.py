@@ -127,6 +127,9 @@ class ResearchContext:
             deepcopy(provider_configuration(self.profile)),
             reply,
         )
+        # After durability, keep only the normal history reference. The pending
+        # proof holds complete count/wire bytes and must not accumulate by turn.
+        receipt_phase.committed.append(lambda: self.pending_counts.pop(count_identity, None))
         return count
 
     def receipt(self, body):

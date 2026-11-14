@@ -86,6 +86,7 @@ def measured(monkeypatch):
     assert context.measured(body, 0, "normal") == 100
     # This test mutates persisted evidence, after its normal combined checkpoint.
     context.pending_phase.commit()
+    assert not context.pending_counts
     return journal, profile, body, context, counts
 
 
