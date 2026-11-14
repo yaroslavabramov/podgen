@@ -1,0 +1,604 @@
+{
+  "baseline": {
+    "first": {
+      "phases": {
+        "startup": {
+          "seconds": 1.8105441670049913,
+          "sql_calls": 998,
+          "sql_select": 636,
+          "sql_set": 66,
+          "sql_with": 67,
+          "sql_update": 55,
+          "sql_insert": 173,
+          "sql_delete": 1,
+          "objects": {
+            "read_calls": 1,
+            "read_bytes": 1035145,
+            "stream_calls": 50,
+            "unicode_projection_created_bytes": 3728072,
+            "unicode_projection_read_calls": 52,
+            "unicode_projection_returned_bytes": 1941232
+          }
+        },
+        "fact_review": {
+          "seconds": 158.58708662498975,
+          "sql_calls": 5187,
+          "sql_select": 2413,
+          "sql_set": 382,
+          "sql_with": 868,
+          "sql_insert": 1127,
+          "sql_update": 395,
+          "sql_delete": 2,
+          "objects": {
+            "read_calls": 3,
+            "read_bytes": 36212422,
+            "stream_calls": 260,
+            "unicode_projection_read_calls": 2608,
+            "unicode_projection_returned_bytes": 11138344,
+            "stage_calls": 260,
+            "staged_bytes": 36016771,
+            "publish_calls": 260,
+            "published_bytes": 36016771
+          }
+        },
+        "export": {
+          "seconds": 0.963075084000593,
+          "sql_calls": 313,
+          "sql_select": 237,
+          "sql_set": 27,
+          "sql_with": 49,
+          "objects": {
+            "read_calls": 220,
+            "read_bytes": 28802188,
+            "unicode_projection_read_calls": 52,
+            "unicode_projection_returned_bytes": 3728120
+          }
+        },
+        "whole_review": {
+          "seconds": 161.3710884170141,
+          "sql_calls": 6508,
+          "sql_select": 3294,
+          "sql_set": 475,
+          "sql_with": 984,
+          "sql_update": 452,
+          "sql_insert": 1300,
+          "sql_delete": 3,
+          "objects": {
+            "read_calls": 224,
+            "read_bytes": 66049755,
+            "stream_calls": 310,
+            "unicode_projection_created_bytes": 3728072,
+            "unicode_projection_read_calls": 2712,
+            "unicode_projection_returned_bytes": 16807696,
+            "stage_calls": 260,
+            "staged_bytes": 36016771,
+            "publish_calls": 260,
+            "published_bytes": 36016771
+          }
+        }
+      },
+      "search_calls": 13,
+      "search_seconds": 146.63228554296074,
+      "process_peak_rss_bytes": 1304018944,
+      "limitations": [
+        "Object counters cover the repository store, not cached Unicode projection reads.",
+        "Staging/publication are logical store operations, not physical disk writes; RSS is the process-wide high-water mark.",
+        "Provider costs and token/cache usage remain in complete native trace receipts; USD is not inferred from an unpinned price."
+      ],
+      "server_sql": {
+        "startup": {
+          "track": "all: includes nested SQL executed by functions and triggers",
+          "calls": 12691,
+          "nested_calls": 11556,
+          "returned_or_modified_rows": 22646
+        },
+        "fact_review": {
+          "track": "all: includes nested SQL executed by functions and triggers",
+          "calls": 14810,
+          "nested_calls": 7877,
+          "returned_or_modified_rows": 40401
+        },
+        "export": {
+          "track": "all: includes nested SQL executed by functions and triggers",
+          "calls": 406,
+          "nested_calls": 0,
+          "returned_or_modified_rows": 6980
+        }
+      }
+    },
+    "repeat": {
+      "phases": {
+        "startup": {
+          "seconds": 1.0478583749791142,
+          "sql_calls": 460,
+          "sql_select": 343,
+          "sql_set": 17,
+          "sql_with": 18,
+          "sql_update": 6,
+          "sql_insert": 75,
+          "sql_delete": 1,
+          "objects": {
+            "read_calls": 1,
+            "read_bytes": 75282,
+            "unicode_projection_read_calls": 52,
+            "unicode_projection_returned_bytes": 1941232
+          }
+        },
+        "fact_review": {
+          "seconds": 157.32852233300218,
+          "sql_calls": 4929,
+          "sql_select": 2284,
+          "sql_set": 382,
+          "sql_with": 868,
+          "sql_insert": 998,
+          "sql_update": 395,
+          "sql_delete": 2,
+          "objects": {
+            "read_calls": 3,
+            "read_bytes": 35332299,
+            "stream_calls": 260,
+            "unicode_projection_read_calls": 2608,
+            "unicode_projection_returned_bytes": 11138344,
+            "stage_calls": 260,
+            "staged_bytes": 35136648,
+            "publish_calls": 131,
+            "published_bytes": 18632404
+          }
+        },
+        "export": {
+          "seconds": 0.9620451249938924,
+          "sql_calls": 313,
+          "sql_select": 237,
+          "sql_set": 27,
+          "sql_with": 49,
+          "objects": {
+            "read_calls": 220,
+            "read_bytes": 27922065,
+            "unicode_projection_read_calls": 52,
+            "unicode_projection_returned_bytes": 3728120
+          }
+        },
+        "whole_review": {
+          "seconds": 159.34460487499018,
+          "sql_calls": 5712,
+          "sql_select": 2872,
+          "sql_set": 426,
+          "sql_with": 935,
+          "sql_update": 403,
+          "sql_insert": 1073,
+          "sql_delete": 3,
+          "objects": {
+            "read_calls": 224,
+            "read_bytes": 63329646,
+            "stream_calls": 260,
+            "unicode_projection_read_calls": 2712,
+            "unicode_projection_returned_bytes": 16807696,
+            "stage_calls": 260,
+            "staged_bytes": 35136648,
+            "publish_calls": 131,
+            "published_bytes": 18632404
+          }
+        }
+      },
+      "search_calls": 13,
+      "search_seconds": 145.30728300003102,
+      "process_peak_rss_bytes": 1304018944,
+      "limitations": [
+        "Object counters cover the repository store, not cached Unicode projection reads.",
+        "Staging/publication are logical store operations, not physical disk writes; RSS is the process-wide high-water mark.",
+        "Provider costs and token/cache usage remain in complete native trace receipts; USD is not inferred from an unpinned price."
+      ],
+      "server_sql": {
+        "startup": {
+          "track": "all: includes nested SQL executed by functions and triggers",
+          "calls": 10600,
+          "nested_calls": 10037,
+          "returned_or_modified_rows": 20860
+        },
+        "fact_review": {
+          "track": "all: includes nested SQL executed by functions and triggers",
+          "calls": 14028,
+          "nested_calls": 7361,
+          "returned_or_modified_rows": 39627
+        },
+        "export": {
+          "track": "all: includes nested SQL executed by functions and triggers",
+          "calls": 406,
+          "nested_calls": 0,
+          "returned_or_modified_rows": 6980
+        }
+      }
+    },
+    "completed": {
+      "phases": {
+        "startup": {
+          "seconds": 1.2102587499830406,
+          "sql_calls": 526,
+          "sql_select": 358,
+          "sql_set": 20,
+          "sql_with": 60,
+          "sql_update": 6,
+          "sql_delete": 2,
+          "sql_insert": 80,
+          "objects": {
+            "read_calls": 1,
+            "read_bytes": 75282,
+            "unicode_projection_read_calls": 52,
+            "unicode_projection_returned_bytes": 1941232
+          }
+        },
+        "fact_review": {
+          "seconds": 1.2009580000012647,
+          "sql_calls": 316,
+          "sql_select": 238,
+          "sql_set": 34,
+          "sql_with": 44,
+          "objects": {
+            "read_calls": 2,
+            "read_bytes": 130434,
+            "unicode_projection_read_calls": 93,
+            "unicode_projection_returned_bytes": 2214980
+          }
+        },
+        "export": {
+          "seconds": 0.9542507090081926,
+          "sql_calls": 313,
+          "sql_select": 237,
+          "sql_set": 27,
+          "sql_with": 49,
+          "objects": {
+            "read_calls": 220,
+            "read_bytes": 28802188,
+            "unicode_projection_read_calls": 52,
+            "unicode_projection_returned_bytes": 3728120
+          }
+        },
+        "whole_review": {
+          "seconds": 3.3696679590211716,
+          "sql_calls": 1165,
+          "sql_select": 841,
+          "sql_set": 81,
+          "sql_with": 153,
+          "sql_update": 8,
+          "sql_delete": 2,
+          "sql_insert": 80,
+          "objects": {
+            "read_calls": 223,
+            "read_bytes": 29007904,
+            "unicode_projection_read_calls": 197,
+            "unicode_projection_returned_bytes": 7884332
+          }
+        }
+      },
+      "search_calls": 0,
+      "search_seconds": 0,
+      "process_peak_rss_bytes": 1304018944,
+      "limitations": [
+        "Object counters cover the repository store, not cached Unicode projection reads.",
+        "Staging/publication are logical store operations, not physical disk writes; RSS is the process-wide high-water mark.",
+        "Provider costs and token/cache usage remain in complete native trace receipts; USD is not inferred from an unpinned price."
+      ],
+      "server_sql": {
+        "startup": {
+          "track": "all: includes nested SQL executed by functions and triggers",
+          "calls": 3927,
+          "nested_calls": 3351,
+          "returned_or_modified_rows": 17370
+        },
+        "fact_review": {
+          "track": "all: includes nested SQL executed by functions and triggers",
+          "calls": 404,
+          "nested_calls": 0,
+          "returned_or_modified_rows": 12052
+        },
+        "export": {
+          "track": "all: includes nested SQL executed by functions and triggers",
+          "calls": 406,
+          "nested_calls": 0,
+          "returned_or_modified_rows": 6980
+        }
+      }
+    }
+  },
+  "v3_measured_81a4af8c": {
+    "first": {
+      "phases": {
+        "startup": {
+          "seconds": 1.8858141250093468,
+          "sql_calls": 1103,
+          "sql_select": 740,
+          "sql_set": 67,
+          "sql_with": 67,
+          "sql_update": 55,
+          "sql_insert": 173,
+          "sql_delete": 1,
+          "objects": {
+            "read_calls": 1,
+            "read_bytes": 1035145,
+            "stream_calls": 50,
+            "unicode_projection_created_bytes": 3728072,
+            "unicode_projection_read_calls": 52,
+            "unicode_projection_returned_bytes": 1941232
+          }
+        },
+        "fact_review": {
+          "seconds": 170.25044404197251,
+          "sql_calls": 4139,
+          "sql_select": 2387,
+          "sql_set": 449,
+          "sql_with": 704,
+          "sql_update": 392,
+          "sql_insert": 206,
+          "sql_delete": 1,
+          "objects": {
+            "read_calls": 3,
+            "read_bytes": 36212422,
+            "stream_calls": 260,
+            "unicode_projection_read_calls": 2608,
+            "unicode_projection_returned_bytes": 11138344,
+            "stage_calls": 260,
+            "staged_bytes": 36016771,
+            "publish_calls": 260,
+            "published_bytes": 36016771
+          }
+        },
+        "export": {
+          "seconds": 1.944355749990791,
+          "sql_calls": 564,
+          "sql_select": 481,
+          "sql_set": 45,
+          "sql_with": 38,
+          "objects": {
+            "read_calls": 220,
+            "read_bytes": 28802188,
+            "unicode_projection_read_calls": 52,
+            "unicode_projection_returned_bytes": 3728120
+          }
+        },
+        "whole_review": {
+          "seconds": 174.09697516600136,
+          "sql_calls": 5816,
+          "sql_select": 3616,
+          "sql_set": 561,
+          "sql_with": 809,
+          "sql_update": 449,
+          "sql_insert": 379,
+          "sql_delete": 2,
+          "objects": {
+            "read_calls": 224,
+            "read_bytes": 66049755,
+            "stream_calls": 310,
+            "unicode_projection_created_bytes": 3728072,
+            "unicode_projection_read_calls": 2712,
+            "unicode_projection_returned_bytes": 16807696,
+            "stage_calls": 260,
+            "staged_bytes": 36016771,
+            "publish_calls": 260,
+            "published_bytes": 36016771
+          }
+        }
+      },
+      "search_calls": 13,
+      "search_seconds": 157.435964541859,
+      "process_peak_rss_bytes": 1343733760,
+      "limitations": [
+        "Object counters cover the repository store, not cached Unicode projection reads.",
+        "Staging/publication are logical store operations, not physical disk writes; RSS is the process-wide high-water mark.",
+        "Provider costs and token/cache usage remain in complete native trace receipts; USD is not inferred from an unpinned price."
+      ],
+      "server_sql": {
+        "startup": {
+          "track": "all: includes nested SQL executed by functions and triggers",
+          "calls": 12795,
+          "nested_calls": 11556,
+          "returned_or_modified_rows": 22648
+        },
+        "fact_review": {
+          "track": "all: includes nested SQL executed by functions and triggers",
+          "calls": 10654,
+          "nested_calls": 5597,
+          "returned_or_modified_rows": 31370
+        },
+        "export": {
+          "track": "all: includes nested SQL executed by functions and triggers",
+          "calls": 641,
+          "nested_calls": 0,
+          "returned_or_modified_rows": 7428
+        }
+      }
+    },
+    "repeat": {
+      "phases": {
+        "startup": {
+          "seconds": 1.1413600830128416,
+          "sql_calls": 516,
+          "sql_select": 398,
+          "sql_set": 18,
+          "sql_with": 18,
+          "sql_update": 6,
+          "sql_insert": 75,
+          "sql_delete": 1,
+          "objects": {
+            "read_calls": 1,
+            "read_bytes": 75282,
+            "unicode_projection_read_calls": 52,
+            "unicode_projection_returned_bytes": 1941232
+          }
+        },
+        "fact_review": {
+          "seconds": 178.87810083298245,
+          "sql_calls": 4096,
+          "sql_select": 2344,
+          "sql_set": 449,
+          "sql_with": 704,
+          "sql_update": 392,
+          "sql_insert": 206,
+          "sql_delete": 1,
+          "objects": {
+            "read_calls": 3,
+            "read_bytes": 35332299,
+            "stream_calls": 260,
+            "unicode_projection_read_calls": 2608,
+            "unicode_projection_returned_bytes": 11138344,
+            "stage_calls": 260,
+            "staged_bytes": 35136648,
+            "publish_calls": 260,
+            "published_bytes": 35136648
+          }
+        },
+        "export": {
+          "seconds": 2.054436500009615,
+          "sql_calls": 564,
+          "sql_select": 481,
+          "sql_set": 45,
+          "sql_with": 38,
+          "objects": {
+            "read_calls": 220,
+            "read_bytes": 27922065,
+            "unicode_projection_read_calls": 52,
+            "unicode_projection_returned_bytes": 3728120
+          }
+        },
+        "whole_review": {
+          "seconds": 182.08169616595842,
+          "sql_calls": 5186,
+          "sql_select": 3231,
+          "sql_set": 512,
+          "sql_with": 760,
+          "sql_update": 400,
+          "sql_insert": 281,
+          "sql_delete": 2,
+          "objects": {
+            "read_calls": 224,
+            "read_bytes": 63329646,
+            "stream_calls": 260,
+            "unicode_projection_read_calls": 2712,
+            "unicode_projection_returned_bytes": 16807696,
+            "stage_calls": 260,
+            "staged_bytes": 35136648,
+            "publish_calls": 260,
+            "published_bytes": 35136648
+          }
+        }
+      },
+      "search_calls": 13,
+      "search_seconds": 163.96955266507575,
+      "process_peak_rss_bytes": 1343733760,
+      "limitations": [
+        "Object counters cover the repository store, not cached Unicode projection reads.",
+        "Staging/publication are logical store operations, not physical disk writes; RSS is the process-wide high-water mark.",
+        "Provider costs and token/cache usage remain in complete native trace receipts; USD is not inferred from an unpinned price."
+      ],
+      "server_sql": {
+        "startup": {
+          "track": "all: includes nested SQL executed by functions and triggers",
+          "calls": 10653,
+          "nested_calls": 10037,
+          "returned_or_modified_rows": 20029
+        },
+        "fact_review": {
+          "track": "all: includes nested SQL executed by functions and triggers",
+          "calls": 10474,
+          "nested_calls": 5597,
+          "returned_or_modified_rows": 31241
+        },
+        "export": {
+          "track": "all: includes nested SQL executed by functions and triggers",
+          "calls": 641,
+          "nested_calls": 0,
+          "returned_or_modified_rows": 7428
+        }
+      }
+    },
+    "completed": {
+      "phases": {
+        "startup": {
+          "seconds": 1.0789101250120439,
+          "sql_calls": 496,
+          "sql_select": 387,
+          "sql_set": 19,
+          "sql_with": 19,
+          "sql_update": 4,
+          "sql_delete": 1,
+          "sql_insert": 66,
+          "objects": {
+            "read_calls": 1,
+            "read_bytes": 75282,
+            "unicode_projection_read_calls": 52,
+            "unicode_projection_returned_bytes": 1941232
+          }
+        },
+        "fact_review": {
+          "seconds": 1.3851862080045976,
+          "sql_calls": 492,
+          "sql_select": 408,
+          "sql_set": 45,
+          "sql_with": 39,
+          "objects": {
+            "read_calls": 2,
+            "read_bytes": 130434,
+            "unicode_projection_read_calls": 93,
+            "unicode_projection_returned_bytes": 2214980
+          }
+        },
+        "export": {
+          "seconds": 1.4456198749830946,
+          "sql_calls": 564,
+          "sql_select": 481,
+          "sql_set": 45,
+          "sql_with": 38,
+          "objects": {
+            "read_calls": 220,
+            "read_bytes": 28802188,
+            "unicode_projection_read_calls": 52,
+            "unicode_projection_returned_bytes": 3728120
+          }
+        },
+        "whole_review": {
+          "seconds": 3.9153504160349257,
+          "sql_calls": 1562,
+          "sql_select": 1284,
+          "sql_set": 109,
+          "sql_with": 96,
+          "sql_update": 6,
+          "sql_delete": 1,
+          "sql_insert": 66,
+          "objects": {
+            "read_calls": 223,
+            "read_bytes": 29007904,
+            "unicode_projection_read_calls": 197,
+            "unicode_projection_returned_bytes": 7884332
+          }
+        }
+      },
+      "search_calls": 0,
+      "search_seconds": 0,
+      "process_peak_rss_bytes": 1343733760,
+      "limitations": [
+        "Object counters cover the repository store, not cached Unicode projection reads.",
+        "Staging/publication are logical store operations, not physical disk writes; RSS is the process-wide high-water mark.",
+        "Provider costs and token/cache usage remain in complete native trace receipts; USD is not inferred from an unpinned price."
+      ],
+      "server_sql": {
+        "startup": {
+          "track": "all: includes nested SQL executed by functions and triggers",
+          "calls": 2235,
+          "nested_calls": 1689,
+          "returned_or_modified_rows": 10234
+        },
+        "fact_review": {
+          "track": "all: includes nested SQL executed by functions and triggers",
+          "calls": 569,
+          "nested_calls": 0,
+          "returned_or_modified_rows": 12821
+        },
+        "export": {
+          "track": "all: includes nested SQL executed by functions and triggers",
+          "calls": 641,
+          "nested_calls": 0,
+          "returned_or_modified_rows": 7428
+        }
+      }
+    }
+  }
+}

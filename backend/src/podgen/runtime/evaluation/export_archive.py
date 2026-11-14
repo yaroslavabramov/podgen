@@ -6,66 +6,28 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 
 from podgen.domain.contracts.common import BlobRef, RuntimeRef
-from podgen.persistence.database import query
+from podgen.persistence.private_journal.archive_pages import event_pages, turn_pages
 
-from .export_files import json_array, projection, write
+from .export_files import json_array, projection, staged_files, write
 
 BATCH = 64
 
 
-def _pages(journal, invocation, table, identity_field, order):
-    params = dict(p=journal.project, identity=invocation["invocation_id"])
-    selector = f"project_id=:p AND {identity_field}=:identity"
-    with journal.repo.database.transaction() as tx:
-        journal.authorize(tx)
-        end = query(tx, f"SELECT max({order}) FROM {table} WHERE {selector}", **params).scalar()
-    cursor = -1
-    while end is not None and cursor < end:
-        with journal.repo.database.transaction() as tx:
-            journal.authorize(tx)
-            page = [
-                dict(row)
-                for row in query(
-                    tx,
-                    f"SELECT * FROM {table} WHERE {selector} AND {order}>:cursor "
-                    f"AND {order}<=:end ORDER BY {order} LIMIT :batch",
-                    **params,
-                    cursor=cursor,
-                    end=end,
-                    batch=BATCH,
-                ).mappings()
-            ]
-        if not page:
-            break
-        cursor = page[-1][order]
-        yield page
-
-
-def event_pages(journal, invocation):
-    return _pages(journal, invocation, "evaluation_invocation_events", "invocation_id", "sequence")
-
-
-def turn_pages(journal, invocation):
-    return _pages(journal, invocation, "evaluation_model_turns", "root_invocation_id", "turn_index")
-
-
 def read_many(journal, references):
-    return journal.repo.get_runtime_many(journal.project, references)
+    return journal.read_many(references)
 
 
 def export_attempt(journal, invocation, base, write_json, directory):
     request_ref = RuntimeRef(record_kind="tool_execution", record_id=invocation["request_record_id"])
     with journal.read_operation():
         request = journal.read(request_ref)
+        raw = journal.read_blob(request_ref, BlobRef.model_validate(request["request_blob"]))
         if invocation["attempt_kind"] in ("total_input_retry", "technical_retry"):
             write_json(base / "request-record.json", request)
-        write(
-            directory / base / "request.json",
-            journal.read_blob(request_ref, BlobRef.model_validate(request["request_blob"])),
-        )
+        write(directory / base / "request.json", raw)
     with TemporaryDirectory(prefix=".turn-events-", dir=directory) as spool:
         _events(journal, invocation, directory / base, Path(spool))
-        _turns(journal, invocation, base, write_json, directory, Path(spool))
+        _turns(journal, invocation, base, directory, Path(spool))
 
 
 def _events(journal, invocation, directory, spool):
@@ -118,13 +80,14 @@ def _events(journal, invocation, directory, spool):
                 # Consume the metadata batch before storage I/O. A remote read
                 # releases its snapshot; reauthorize the entire batch afterward,
                 # including records with no blob of their own.
-                for path, reference, blob in blobs:
-                    write(path, journal.read_blob(reference, blob))
                 if blobs:
-                    journal.repo.authorize_runtime_many(journal.project, references)
+                    with staged_files(directory) as staged:
+                        for path, reference, blob in blobs:
+                            write(staged / path.relative_to(directory), journal.read_blob(reference, blob))
+                        journal.authorize_many(references)
 
 
-def _turns(journal, invocation, base, write_json, directory, spool):
+def _turns(journal, invocation, base, directory, spool):
     from .source_tool_contract import applies, from_manifest
 
     if invocation["operation_kind"] != "role" or not applies(
@@ -137,23 +100,21 @@ def _turns(journal, invocation, base, write_json, directory, spool):
         ]
         with journal.read_operation():
             records = read_many(journal, references)
-            blobs = []
-            for turn, reference, stored in zip(turns, references, records, strict=True):
-                prefix = base / "turns" / f"{turn['turn_index']:03d}"
-                write_json(prefix / "state.json", projection(turn))
-                with json_array(directory / prefix / "events.json") as append:
-                    source = spool / f"{turn['turn_index']}.jsonl"
-                    if source.exists():
-                        with source.open(encoding="utf-8") as stream:
-                            for line in stream:
-                                append(json.loads(line))
-                blobs.append(
-                    (
-                        directory / prefix / "request.json",
-                        reference,
-                        BlobRef.model_validate(stored["request_blob"]),
+            with staged_files(directory / base / "turns") as staged:
+                for turn, reference, stored in zip(turns, references, records, strict=True):
+                    prefix = staged / f"{turn['turn_index']:03d}"
+                    write(
+                        prefix / "state.json",
+                        (json.dumps(projection(turn), ensure_ascii=False, indent=2) + "\n").encode(),
                     )
-                )
-            for path, reference, blob in blobs:
-                write(path, journal.read_blob(reference, blob))
-            journal.repo.authorize_runtime_many(journal.project, references)
+                    with json_array(prefix / "events.json") as append:
+                        source = spool / f"{turn['turn_index']}.jsonl"
+                        if source.exists():
+                            with source.open(encoding="utf-8") as stream:
+                                for line in stream:
+                                    append(json.loads(line))
+                    write(
+                        prefix / "request.json",
+                        journal.read_blob(reference, BlobRef.model_validate(stored["request_blob"])),
+                    )
+                journal.authorize_many(references)

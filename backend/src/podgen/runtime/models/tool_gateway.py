@@ -98,21 +98,27 @@ def _execute(journal, root, corpus, contract, call, index, turn, guard, history)
         raw_arguments=call["arguments"],
         arguments=arguments,
     )
-    provider_events = history.of_kind("provider_response")
-    provider_event = next(
-        (row for row in reversed(provider_events) if row["data"].get("source_turn_index") == turn), None
-    )
+    provider_event = journal.execution.provider_receipt(root["run_id"], root["invocation_id"], turn)
+    if provider_event is None:
+        provider_events = history.of_kind("provider_response")
+        provider_event = next(
+            (row for row in reversed(provider_events) if row["data"].get("source_turn_index") == turn), None
+        )
     if provider_event is None:
         raise ContractError("source_tool_provider_response_missing")
     from podgen.runtime.evaluation.provider_evidence import adopt_response
 
-    adopt_response(journal, root, provider_event)
+    adopted_provider = adopt_response(journal, root, provider_event)
     data.update(
         provider_response_ref=RuntimeRef(
             record_kind="tool_execution", record_id=provider_event["_record_id"]
         ).model_dump(mode="json"),
         arguments_hash=hashlib.sha256(call["arguments"].encode()).hexdigest(),
     )
+    if adopted_provider is not None:
+        data["provider_entry_id"] = str(adopted_provider)
+    if call.get("decision_entry_id"):
+        data["decision_entry_id"] = call["decision_entry_id"]
     intents = history.for_call("source_tool_call", index)
     durable_intent = call["name"] in ("request_source", "request_research", "save_working_state")
     if not intents and durable_intent:

@@ -62,13 +62,15 @@ def test_archive_visits_each_event_once_and_batches_body_reads(tmp_path, monkeyp
         events.append(dict(record_id=ref.record_id, event_kind=kind))
         expected.append(dict(record_ref=ref.model_dump(mode="json"), **record))
 
-    class Repo:
-        def get_runtime_many(self, project, references):
+    class Journal:
+        read_operation = staticmethod(nullcontext)
+
+        def read_many(self, references):
             assert len(references) <= 64
             calls.append(len(references))
             return [records[ref.record_id] for ref in references]
 
-    journal = SimpleNamespace(repo=Repo(), project=uuid4(), read_operation=nullcontext)
+    journal = Journal()
     monkeypatch.setattr(
         export_archive, "event_pages", lambda *a: (events[i : i + 64] for i in range(0, len(events), 64))
     )
@@ -116,7 +118,8 @@ def test_native_blob_and_count_request_bytes_remain_unchanged(tmp_path, monkeypa
     )
     journal = SimpleNamespace(
         project=uuid4(),
-        repo=SimpleNamespace(get_runtime_many=lambda *a: [record], authorize_runtime_many=lambda *a: None),
+        read_many=lambda *a: [record],
+        authorize_many=lambda *a: None,
         read_operation=nullcontext,
         read_blob=lambda *a: data,
     )
@@ -132,7 +135,8 @@ def test_native_blob_and_count_request_bytes_remain_unchanged(tmp_path, monkeypa
     assert (directory / "000-count-request.json").read_bytes() == data
 
 
-def test_turn_exports_preserve_filtered_event_order_and_empty_turns(tmp_path, monkeypatch):
+@pytest.mark.parametrize("denied", [False, True])
+def test_turn_exports_preserve_filtered_event_order_and_empty_turns(tmp_path, monkeypatch, denied):
     payload = b'{"exact":"saved request"}'
     blob = BlobRef(
         storage_key="request",
@@ -165,33 +169,39 @@ def test_turn_exports_preserve_filtered_event_order_and_empty_turns(tmp_path, mo
             max_tool_calls=24,
         ),
     )
+
+    def authorize_many(references):
+        if denied:
+            raise ValueError("access withdrawn during remote read")
+
     journal = SimpleNamespace(
         project=uuid4(),
-        repo=SimpleNamespace(
-            get_runtime_many=lambda project, refs: [
-                dict(request_blob=blob.model_dump(mode="json")) for _ in refs
-            ],
-            authorize_runtime_many=lambda *a: None,
-        ),
+        read_many=lambda refs: [dict(request_blob=blob.model_dump(mode="json")) for _ in refs],
+        authorize_many=authorize_many,
         read_operation=nullcontext,
         read_blob=lambda *a: payload,
         manifest=lambda _: manifest,
     )
     monkeypatch.setattr(export_archive, "turn_pages", lambda *a: iter([turns]))
 
-    def write_json(path, value):
-        target = tmp_path / path
-        target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_bytes(encoded(value))
-
-    export_archive._turns(
-        journal,
-        dict(operation_kind="role", stage="fact-review", run_id=uuid4()),
-        Path("archive"),
-        write_json,
-        tmp_path,
-        spool,
-    )
+    previous = tmp_path / "archive/turns/001"
+    if denied:
+        previous.mkdir(parents=True)
+        for name in ("state.json", "events.json", "request.json"):
+            (previous / name).write_bytes(b"previous complete file")
+    with pytest.raises(ValueError, match="access withdrawn") if denied else nullcontext():
+        export_archive._turns(
+            journal,
+            dict(operation_kind="role", stage="fact-review", run_id=uuid4()),
+            Path("archive"),
+            tmp_path,
+            spool,
+        )
+    if denied:
+        assert sorted(p.name for p in (tmp_path / "archive/turns").iterdir()) == ["001"]
+        assert sorted(p.name for p in previous.iterdir()) == ["events.json", "request.json", "state.json"]
+        assert all(p.read_bytes() == b"previous complete file" for p in previous.iterdir())
+        return
     for i in range(3):
         path = tmp_path / f"archive/turns/{i:03d}"
         assert (path / "request.json").read_bytes() == payload
@@ -201,3 +211,32 @@ def test_turn_exports_preserve_filtered_event_order_and_empty_turns(tmp_path, mo
         assert json.loads((path / "state.json").read_text())["invocation_id"] == str(
             turns[i]["invocation_id"]
         )
+
+
+def test_attempt_metadata_is_not_published_before_request_read_finishes(tmp_path):
+    blob = BlobRef(
+        storage_key="request",
+        sha256=sha256(b"request").hexdigest(),
+        byte_length=7,
+        media_type="application/json",
+    )
+    written = []
+
+    def denied(*args):
+        raise ValueError("access withdrawn during remote read")
+
+    journal = SimpleNamespace(
+        read_operation=nullcontext,
+        read=lambda _: dict(request_blob=blob.model_dump(mode="json")),
+        read_blob=denied,
+    )
+    with pytest.raises(ValueError, match="access withdrawn"):
+        export_archive.export_attempt(
+            journal,
+            dict(request_record_id=uuid4(), attempt_kind="technical_retry"),
+            Path("archive"),
+            lambda *args: written.append(args),
+            tmp_path,
+        )
+    assert not written
+    assert not list(tmp_path.iterdir())

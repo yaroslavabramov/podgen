@@ -94,21 +94,33 @@ def saved_result(journal, command):
     ref = outcome_ref(command.run_id)
     with journal.repo.database.read_transaction() as tx:
         journal.authorize(tx)
-        saved = one(
+        exists = one(
             tx,
-            """SELECT invocation_id,stage,request_record_id FROM evaluation_model_invocations
-               WHERE project_id=:p AND run_id=:r AND output_record_id=:ref AND status='completed'""",
+            """SELECT 1 FROM runtime_records
+               WHERE project_id=:p AND record_id=:ref AND record_kind=:kind""",
             p=command.project_id,
-            r=command.run_id,
             ref=ref.record_id,
+            kind=ref.record_kind,
         )
-    if saved is None:
+    if exists is None:
         return None
     record = journal.read(ref)
+    if record.get("contract") != CONTRACT or record.get("run_id") != str(command.run_id):
+        raise Conflict("writer_material_request_binding_mismatch")
+    # Real semantic records have one representation across storage versions.
+    # Only the journal knows how completion was recorded in each version.
+    saved = next(
+        (
+            attempt
+            for attempt in journal.attempts(command.run_id, record["stage"])
+            if attempt["status"] == "completed" and attempt["output_record_id"] == ref.record_id
+        ),
+        None,
+    )
+    if saved is None:
+        return None
     if (
-        record.get("contract") != CONTRACT
-        or record["run_id"] != str(command.run_id)
-        or record["stage"] != saved["stage"]
+        record["stage"] != saved["stage"]
         or record["invocation_id"] != str(saved["invocation_id"])
         or record["request_ref"]["record_id"] != str(saved["request_record_id"])
     ):

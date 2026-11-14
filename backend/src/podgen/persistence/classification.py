@@ -4,14 +4,16 @@ from .database import query
 from .privacy_graph import hash_batches, protected_alias_origins, protected_hash_origins, protected_hashes
 
 
-def _mark(tx, project, origins, *, artifact=False):
-    column = "artifact_revision_id" if artifact else "runtime_record_id"
+def _mark(tx, project, origins, *, artifact=False, execution=False):
+    column = (
+        "execution_entry_id" if execution else "artifact_revision_id" if artifact else "runtime_record_id"
+    )
     for batch in hash_batches(origins):
         query(
             tx,
             f"""INSERT INTO evaluator_blob_classifications(project_id,sha256,{column})
             SELECT :p,sha,origin FROM unnest(CAST(:hashes AS text[]),CAST(:origins AS uuid[])) AS bytes(sha,origin)
-            WHERE NOT EXISTS(SELECT 1 FROM evaluator_protected_hashes known
+            WHERE NOT EXISTS(SELECT 1 FROM protected_byte_hashes known
                 WHERE known.project_id=:p AND known.sha256=bytes.sha)
             ORDER BY sha ON CONFLICT DO NOTHING""",
             p=project,
@@ -42,7 +44,7 @@ def protect_owned(tx, project, owned, *, artifact=False):
         set(
             query(
                 tx,
-                """SELECT sha256 FROM evaluator_protected_hashes
+                """SELECT sha256 FROM protected_byte_hashes
         WHERE project_id=:p AND sha256=ANY(CAST(:hashes AS text[]))""",
                 p=project,
                 hashes=list(owned),

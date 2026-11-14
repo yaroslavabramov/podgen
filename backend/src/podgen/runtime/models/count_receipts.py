@@ -75,7 +75,7 @@ class ExactCount:
         record = journal.read(self.reference)
         data = record["data"]
         if (
-            record["event_kind"] != "source_context_count"
+            record["event_kind"] not in ("source_context_count", "count_response")
             or data.get("count_contract") != CONTRACT
             or not 200 <= record.get("provider_http_status", 0) < 300
             or data.get("count_identity") != self.identity
@@ -93,7 +93,8 @@ class ExactCount:
             raise Conflict("count_receipt_native_request_changed")
         intent = journal.read(RuntimeRef.model_validate(data["count_intent_ref"]))
         if (
-            intent["event_kind"] != "source_context_count_intent"
+            intent["event_kind"]
+            != ("count_intent" if record["event_kind"] == "count_response" else "source_context_count_intent")
             or intent["invocation_id"] != record["invocation_id"]
             or any(
                 intent["data"].get(key) != data.get(key)

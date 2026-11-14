@@ -3,12 +3,11 @@
 from podgen.domain.canonical import digest
 from podgen.domain.contracts.common import BlobRef, RuntimeRef
 from podgen.domain.errors import Conflict
-from podgen.persistence.batch_insert import insert_rows
 from podgen.persistence.execution.provider_calls import project_calls
 
 
 def adopt_response(journal, root, event):
-    if event.get("journal_version") == "execution-journal/2":
+    if event.get("journal_version") == "execution-journal/3":
         return
     ref = RuntimeRef(record_kind="tool_execution", record_id=event["_record_id"])
     with journal.read_operation():
@@ -18,20 +17,14 @@ def adopt_response(journal, root, event):
         ):
             raise Conflict("legacy_provider_response_binding_mismatch")
         raw = journal.read_blob(ref, BlobRef.model_validate(record["response_blob"]))
-    # These are actual historical control parents, not an arbitrary same-run grant.
-    references = [ref, RuntimeRef.model_validate(record["request_ref"])]
-    physical = record.get("data", {}).get("turn_request_ref")
-    if physical is not None:
-        references.append(RuntimeRef.model_validate(physical))
-    journal.execution.prepare(root["run_id"], evaluation=references)
+    from .legacy_receipts import adopt
+
     rows = project_calls(journal.project, root["run_id"], ref, record, raw)
-    journal.execution.publish(lambda tx: insert_rows(tx, "execution_provider_calls", rows, on_conflict=True))
+    return adopt(journal, root, ref, record, raw, rows)
 
 
 def register_structured(journal, root, event, requests, calls, turn, history):
     """Bind explicit structured research decisions to their saved response bytes."""
-    from podgen.persistence.execution.live import authorize
-    from podgen.persistence.execution.parents import authorize_parents
     from podgen.persistence.execution.provider_calls import project_call_rows
     from podgen.runtime.evaluation.validation import load_unique_json
     from podgen.runtime.models.research_continuation import structured_call, structured_requests
@@ -49,13 +42,41 @@ def register_structured(journal, root, event, requests, calls, turn, history):
         != digest(calls)
     ):
         raise Conflict("structured_research_decision_binding_mismatch")
-    adopt_response(journal, root, event)
+    adopted = adopt_response(journal, root, event)
     rows = project_call_rows(journal.project, root["run_id"], ref, record, calls)
+    from uuid import UUID
 
-    def write(tx):
-        bound = journal.execution.sets[root["run_id"]]
-        authorize(journal.repo, tx, journal.project, bound["set_id"])
-        authorize_parents(journal.repo, tx, journal.project, [ref.record_id], include_parents=False)
-        insert_rows(tx, "execution_provider_calls", rows, on_conflict=True)
+    from podgen.persistence.database import one
+    from podgen.persistence.private_journal.contracts import operation_id
+    from podgen.persistence.private_journal.structured import existing
+    from podgen.persistence.read_authorization import _read_connection
 
-    journal.execution.publish(write)
+    with _read_connection(journal.repo) as tx:
+        parent = one(
+            tx,
+            "SELECT entry_id,step_id FROM execution_entries WHERE project_id=:p AND archive_ids @> ARRAY[CAST(:id AS uuid)]",
+            p=journal.project,
+            id=ref.record_id,
+        )
+    if parent is None:
+        if adopted is None:
+            raise Conflict("legacy_structured_receipt_requires_adoption")
+        parent = dict(
+            entry_id=adopted, step_id=UUID(record["data"].get("source_turn_id", record["invocation_id"]))
+        )
+    normalized = [
+        {key: str(value) if isinstance(value, UUID) else value for key, value in row.items()} for row in rows
+    ]
+    operation = operation_id(parent["step_id"], "structured_decision", str(ref.record_id), digest(calls))
+    found = existing(journal.repo, journal.project, root["run_id"], operation, parent["entry_id"], normalized)
+    if found is not None:
+        return found
+    phase = journal.publication(root)
+    phase.structured_decision = dict(
+        provider_response_ref=ref,
+        provider_entry_id=parent["entry_id"],
+        provider_calls=normalized,
+        operation_id=operation,
+    )
+    phase.commit()
+    return phase.entry_id

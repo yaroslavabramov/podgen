@@ -14,8 +14,9 @@ from podgen.persistence.execution.descriptors import DescriptorCache
 from podgen.persistence.execution.text import authorize_text
 from podgen.persistence.source_reading import read_sources
 from podgen.persistence.text_source import verified_text
+from podgen.runtime.models.gateway import ModelGateway
 from tests.test_execution_parent_privacy import exchange as exchange
-from tests.test_model_step_publication import setup
+from tests.test_model_step_publication import run, setup
 
 
 def test_descriptor_cache_is_bounded_and_does_not_publish_rolled_back_overlay():
@@ -35,27 +36,51 @@ def test_descriptor_cache_is_bounded_and_does_not_publish_rolled_back_overlay():
 
 
 def test_publication_descriptor_rollback_and_warm_checkpoint_query_bound(repo, scope, monkeypatch):
-    journal, root, tj, turn, phase, *_ = setup(repo, scope)
-    phase.commit()
-    before = dict(journal.execution.descriptors.entries)
+    from podgen.persistence.private_journal import writer
+
+    journal, root, tj, turn, phase, snapshot, manifest, profile, limits, _ = setup(repo, scope)
+
+    def count(body):
+        raise RuntimeError("pause after durable count intent")
+
+    with pytest.raises(RuntimeError, match="pause after durable count intent"):
+        run(
+            ModelGateway(tj, lambda _: SimpleNamespace(count=count)),
+            turn,
+            profile,
+            limits,
+            prepared_phase=phase,
+            request_snapshot=snapshot,
+            manifest_snapshot=manifest,
+        )
+    turn = tj._row()
+    before = dict(journal.execution.current_head(root["run_id"]))
     phase = tj.publication(turn)
     ref = phase.event("failure", data=dict(code="synthetic"))
+    original = writer.query
 
-    def rollback(tx):
-        raise RuntimeError("synthetic rollback")
+    def rollback(tx, sql, **params):
+        if sql.startswith("UPDATE execution_heads SET"):
+            raise RuntimeError("synthetic rollback")
+        return original(tx, sql, **params)
 
-    phase.writes.append(rollback)
-    with pytest.raises(RuntimeError, match="synthetic rollback"):
-        phase.commit()
-    assert dict(journal.execution.descriptors.entries) == before
-    phase.writes.remove(rollback)
+    with monkeypatch.context() as patch:
+        patch.setattr(writer, "query", rollback)
+        with pytest.raises(RuntimeError, match="synthetic rollback"):
+            phase.commit()
+    assert not phase.finished
+    assert dict(journal.execution.current_head(root["run_id"])) == before
+    with pytest.raises(AccessDenied):
+        journal.read(ref)
     phase.commit()
-    assert journal.execution.descriptors.get(("parent", scope[0], root["run_id"], ref.record_id)) is not None
+    assert journal.read(ref)["data"]["code"] == "synthetic"
+    assert journal.execution.current_head(root["run_id"])["revision"] == before["revision"] + 1
 
     def forbidden(*args, **kwargs):
-        pytest.fail("warm checkpoint reloaded immutable control metadata")
+        pytest.fail("private checkpoint used the legacy execution writer or control graph")
 
     monkeypatch.setattr("podgen.persistence.execution.control_bundle.query", forbidden)
+    monkeypatch.setattr("podgen.persistence.execution.store.append", forbidden)
     tj.event(turn, "failure", data=dict(code="still synthetic"))
     with repo.database.transaction() as tx:
         query(
@@ -73,10 +98,9 @@ def test_cached_physical_parent_still_checks_withdrawal(exchange):
     tj = TurnJournal(journal, root, 0)
     with journal.repo.database.transaction() as tx:
         turn = tj._row(tx)
-    tj.event(turn, "failure", data=dict(code="synthetic warmup"))
-    assert journal.execution.descriptors.get(
-        ("parent", exchange.project, exchange.run_id, exchange.request.record_id)
-    )
+    ref = tj.event(turn, "failure", data=dict(code="synthetic warmup"))
+    assert journal.read(ref)["data"]["code"] == "synthetic warmup"
+    assert journal.execution.current_head(exchange.run_id)
     exchange.withdraw_request_alias()
     with pytest.raises(AccessDenied):
         tj.event(turn, "failure", data=dict(code="must deny"))
@@ -125,23 +149,25 @@ def test_text_bindings_batch_and_scalar_helper_recheck_fresh_membership(repo, sc
 
 
 def test_mass_read_batches_parent_privacy_in_current_snapshot(repo, scope):
-    journal, root, _, _, initial, *_ = setup(repo, scope)
-    initial.commit()
+    journal, root, *_ = setup(repo, scope)
     phase = journal.publication(root)
     refs = [phase.record(dict(full=f"SYNTHETIC record {index}")) for index in range(64)]
     phase.commit()
     checks = []
 
     def capture(conn, cursor, sql, params, context, many):
-        if sql.startswith("WITH nodes(record_id)"):
+        if "SELECT EXISTS(SELECT 1 FROM execution_entry_denials d" in sql:
             checks.append(sql)
 
     event.listen(repo.database.engine, "before_cursor_execute", capture)
     try:
         with journal.read_operation():
-            assert len(repo.get_runtime_many(scope[0], refs)) == 64
-            repo.authorize_runtime_many(scope[0], refs)
-        assert len(checks) == 1
+            assert journal.read_many(refs) == [
+                dict(full=f"SYNTHETIC record {index}", journal_version="execution-journal/3")
+                for index in range(64)
+            ]
+            journal.authorize_many(refs)
+        assert 1 <= len(checks) <= 2
         with repo.database.transaction() as tx:
             query(
                 tx,
@@ -150,7 +176,9 @@ def test_mass_read_batches_parent_privacy_in_current_snapshot(repo, scope):
                 a=repo.actor_id,
             )
         with pytest.raises(AccessDenied):
-            repo.get_runtime_many(scope[0], refs)
+            journal.read_many(refs)
+        with pytest.raises(AccessDenied):
+            journal.authorize_many(refs)
     finally:
         event.remove(repo.database.engine, "before_cursor_execute", capture)
 

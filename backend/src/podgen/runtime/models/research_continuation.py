@@ -75,7 +75,9 @@ def resolve_structured(
     event = history.provider_response(turn)
     from podgen.runtime.evaluation.provider_evidence import register_structured
 
-    register_structured(gateway.journal, root, event, requests, calls, turn, history)
+    decision_entry = register_structured(gateway.journal, root, event, requests, calls, turn, history)
+    if decision_entry is not None:
+        calls = [dict(call, decision_entry_id=str(decision_entry)) for call in calls]
     results = []
     for request, call in zip(requests, calls, strict=True):
         result = _execute(gateway.journal, root, proxy, contract, call, call_index, turn, guard, history)

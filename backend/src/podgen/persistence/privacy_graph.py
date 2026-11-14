@@ -62,6 +62,27 @@ WHERE project_id=:project AND owner_project_id=:project AND privacy_required
 UNION
 SELECT 'runtime',record_id::text,'input_set',execution_input_set_id::text FROM runtime_records
 WHERE project_id=:project AND execution_input_set_id=ANY(CAST(:input_sets AS uuid[]))
+UNION
+SELECT 'entry',entry_id::text,'input_set',input_set_id::text FROM execution_entries
+WHERE project_id=:project AND input_set_id=ANY(CAST(:input_sets AS uuid[]))
+UNION
+SELECT 'entry',e.entry_id::text,'entry',parent.entry_id::text
+FROM unnest(CAST(:entries AS uuid[])) AS parent(entry_id)
+JOIN execution_entries e ON e.project_id=:project AND e.parent_entries @> ARRAY[parent.entry_id]
+UNION
+SELECT 'blob',owned.sha256,'entry',e.entry_id::text FROM execution_entries e
+CROSS JOIN LATERAL unnest(e.owned_hashes) AS owned(sha256)
+WHERE e.project_id=:project AND e.entry_id=ANY(CAST(:entries AS uuid[]))
+UNION
+SELECT 'entry',e.entry_id::text,'blob',marked.sha256
+FROM unnest(CAST(:hashes AS text[])) AS marked(sha256)
+JOIN execution_entries e ON e.project_id=:project AND e.owned_hashes @> ARRAY[marked.sha256]
+UNION
+SELECT 'runtime',runtime_record_id::text,'entry',entry_id::text FROM semantic_execution_links
+WHERE project_id=:project AND entry_id=ANY(CAST(:entries AS uuid[])) AND runtime_record_id IS NOT NULL
+UNION
+SELECT 'artifact',artifact_revision_id::text,'entry',entry_id::text FROM semantic_execution_links
+WHERE project_id=:project AND entry_id=ANY(CAST(:entries AS uuid[])) AND artifact_revision_id IS NOT NULL
 ) AS frontier ORDER BY node_kind, identity, source_kind, source_identity
 """)
 
@@ -85,6 +106,7 @@ def privacy_closure(tx, project_id, *, artifact_ids=(), runtime_ids=(), hash_ori
             runtimes=[value for kind, value in batch if kind == "runtime"],
             hashes=[value for kind, value in batch if kind == "blob"],
             input_sets=[value for kind, value in batch if kind == "input_set"],
+            entries=[value for kind, value in batch if kind == "entry"],
         )
         with tx.execute(EXPAND, args, execution_options={"yield_per": BATCH_SIZE}) as result:
             for row in result.mappings():

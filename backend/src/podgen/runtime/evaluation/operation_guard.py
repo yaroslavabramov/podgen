@@ -11,12 +11,13 @@ class OperationGuard:
         self.generation, self.journal = generation, journal
         self.command, self.manifest, self.materials = command, manifest, materials
         self.loader, self.checkpoint = loader, checkpoint
-        self.frozen_identity = self._identity() if isinstance(materials, ResearchMaterials) else None
+        self.frozen_identity = self._identity()
         self.prepared_admissions = None
-        if self.supports_publication_snapshot:
-            self.prepare_inputs()
+        self.prepare_inputs()
 
     def _identity(self):
+        if not isinstance(self.materials, ResearchMaterials):
+            return digest(self.materials.as_payload())
         # Bind immutable descriptors, not corpus text. Content bytes are verified
         # by their own read boundary; packet mutation must not change this run.
         return digest(
@@ -48,31 +49,38 @@ class OperationGuard:
         return isinstance(self.materials, ResearchMaterials)
 
     def prepare_inputs(self):
-        references = [self.materials.shared_ref]
-        if self.materials.fixed_ref is not None:
+        references = (
+            [self.materials.shared_ref]
+            if isinstance(self.materials, ResearchMaterials)
+            else [self.command.author_ref, *(doc.ref for doc in self.materials.documents)]
+        )
+        if getattr(self.materials, "fixed_ref", None) is not None:
             references.append(self.materials.fixed_ref)
         admissions = tuple(self.admission_refs())
         if self.prepared_admissions != admissions:
             self.journal.execution.prepare(self.command.run_id, generation=references, evaluation=admissions)
             self.prepared_admissions = admissions
-            for document in (*self.materials.documents, *self.materials.runtime_admissions):
+            for document in (*self.materials.documents, *getattr(self.materials, "runtime_admissions", ())):
                 bind_text = getattr(getattr(document, "text", None), "bind_execution", None)
                 if bind_text is not None:
                     bind_text(self.journal.execution, self.command.run_id)
         return self.journal.execution.sets[self.command.run_id]
 
-    def authorize_publication(self, tx):
-        """Live action authorization shares the publication snapshot."""
+    def prepare_publication(self):
+        """Validate in-memory ownership; the typed writer owns fresh SQL authorization."""
         self.checkpoint()
         if self._identity() != self.frozen_identity:
             raise Conflict("frozen_materials_changed")
         if tuple(self.admission_refs()) != self.prepared_admissions:
             raise Conflict("execution_admissions_not_prepared")
+        self.checkpoint()
+
+    def authorize_publication(self, tx):
+        self.prepare_publication()
         from podgen.persistence.execution.live import authorize
 
         row = self.journal.execution.sets[self.command.run_id]
         authorize(self.journal.repo, tx, self.command.project_id, row["set_id"], action=True)
-        self.checkpoint()
 
     def __call__(self):
         self.checkpoint()

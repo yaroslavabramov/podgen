@@ -2,11 +2,12 @@
 
 import json
 from copy import deepcopy
+from uuid import uuid4
 
 import httpx2
 import pytest
 
-from podgen.domain.contracts.common import BlobRef
+from podgen.domain.contracts.common import BlobRef, RuntimeRef
 from podgen.domain.errors import ContractError
 from podgen.runtime.evaluation.source_tool_contract import from_manifest
 from podgen.runtime.models import research_history_view as view
@@ -17,6 +18,32 @@ from podgen.runtime.models.research_tools import ResearchTools
 from podgen.writing.research_materials.runtime_tools import definitions
 from tests.test_research_runtime import answer, invoke, research_setup
 from tests.test_source_tool_runtime import call, final
+
+
+def test_count_failure_selection_uses_compact_metadata_without_reading_old_errors(monkeypatch):
+    journal, *_ = research_setup(monkeypatch)
+    history = ResearchHistory(journal, journal.root)
+    ref = RuntimeRef(record_kind="tool_execution", record_id=uuid4())
+    history.appended(
+        ref,
+        "source_context_count_error",
+        data=dict(
+            count_identity="exact-candidate",
+            turn_index=2,
+            retryable=True,
+            full_error="SYNTHETIC full error belongs in the archive",
+        ),
+    )
+
+    def unexpected_read(*args, **kwargs):
+        pytest.fail("count candidate reread a historical error payload")
+
+    monkeypatch.setattr(journal, "read", unexpected_read)
+    for index in range(100):
+        assert history.retryable_count_error("another-candidate", index) is None
+    assert history.retryable_count_error("exact-candidate", 3) is None
+    assert history.retryable_count_error("exact-candidate", 2) == ref
+    assert "full_error" not in history.last_count_error.data
 
 
 @pytest.mark.parametrize("legacy", [False, True])

@@ -9,7 +9,7 @@ import httpx2
 import pytest
 
 from podgen.domain.canonical import digest
-from podgen.domain.contracts.common import RuntimeRef
+from podgen.domain.contracts.common import BlobRef, RuntimeRef
 from podgen.runtime.evaluation import model_turns
 from podgen.runtime.evaluation.compiler import count_request
 from podgen.runtime.evaluation.contracts import WritingRunCommand, command_payload
@@ -95,7 +95,8 @@ def test_ordinary_resume_reuses_legacy_count_without_repeating_paid_turn(repo, s
     class Crash(Exception):
         pass
 
-    # Exactly the old writer: no intent, native-request field, identity or configuration.
+    # Historical context-counter behavior: no intent, native-request field,
+    # identity or configuration. The surrounding runtime remains production.
     def old_measured(context, body, index, label):
         saved = context.history.counted(digest(body))
         if saved:
@@ -127,12 +128,28 @@ def test_ordinary_resume_reuses_legacy_count_without_repeating_paid_turn(repo, s
             historical.setattr(ResearchContext, "receipt", lambda self, body: None)
             with pytest.raises(Crash):
                 invoke(gateway, root, profile, limits)
+        # Physical descriptors deliberately omit the run envelope. Their events
+        # belong to the root invocation, including the source_turn_* binding.
         before = {
             event["record_id"]: journal.read(
                 RuntimeRef(record_kind="tool_execution", record_id=event["record_id"])
             )
-            for invocation in [root, *model_turns.rows(journal, root)]
-            for event in journal.events(invocation)
+            for event in journal.events(root)
+        }
+        assert any(record["data"].get("source_turn_index") == 0 for record in before.values())
+        assert {event["record_id"] for event in journal.events_for_turn(root, 0)} <= before.keys()
+        assert any(
+            record["event_kind"] == "source_context_count" and record["data"].get("turn_index") == 1
+            for record in before.values()
+        )
+        saved_bytes = {
+            (record_id, field): journal.read_blob(
+                RuntimeRef(record_kind="tool_execution", record_id=record_id),
+                BlobRef.model_validate(record[field]),
+            )
+            for record_id, record in before.items()
+            for field in ("response_blob", "wire_request_blob", "wire_response_blob")
+            if record.get(field) is not None
         }
         assert len(counts) == 3 and len(submits) == len(corpus.calls) == 1
         assert counts[0] == counts[1]  # Historical context and gateway counted the same native request.
@@ -151,6 +168,14 @@ def test_ordinary_resume_reuses_legacy_count_without_repeating_paid_turn(repo, s
     assert all(
         journal.read(RuntimeRef(record_kind="tool_execution", record_id=key)) == value
         for key, value in before.items()
+    )
+    assert all(
+        journal.read_blob(
+            RuntimeRef(record_kind="tool_execution", record_id=record_id),
+            BlobRef.model_validate(before[record_id][field]),
+        )
+        == raw
+        for (record_id, field), raw in saved_bytes.items()
     )
 
 

@@ -31,3 +31,16 @@ def revoke_content(tx, project_id, revision_id, event_id, reason):
             event=event_id,
             reason=reason,
         )
+
+    entries = [value for kind, value in closure if kind == "entry"]
+    for offset in range(0, len(entries), 512):
+        query(
+            tx,
+            """INSERT INTO execution_entry_denials(project_id,entry_id,event_id,reason)
+            SELECT :p,entry_id,:event,:reason FROM unnest(CAST(:entries AS uuid[])) AS reached(entry_id)
+            ON CONFLICT DO NOTHING""",
+            p=project_id,
+            entries=entries[offset : offset + 512],
+            event=event_id,
+            reason=reason,
+        )

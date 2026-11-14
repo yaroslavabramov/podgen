@@ -12,16 +12,19 @@ from podgen.persistence.archive_authorization import archive_write
 from podgen.persistence.database import one, query
 from podgen.persistence.runtime_records import append_runtime
 
-from .attempts import attempt_identity, validate_lineage, validate_preparation
+from .attempts import validate_lineage
 from .contracts import command_payload
 
 
 class EvaluationJournal:
     def __init__(self, repo, project):
         self.repo, self.project = repo, project
-        from podgen.persistence.execution.session import ExecutionStore
+        from .execution_session import ExecutionSession
 
-        self.execution = ExecutionStore(repo, project)
+        self.execution = ExecutionSession(repo, project)
+        from podgen.persistence.private_journal.archive import ExecutionArchiveAdapter
+
+        self.archive = ExecutionArchiveAdapter(repo, project)
 
     def runtime_graph(self):
         from podgen.persistence.runtime_graph import runtime_graph
@@ -69,13 +72,14 @@ class EvaluationJournal:
     def record(self, payload, *, record_id=None, kind="tool_execution"):
         ref = RuntimeRef(record_kind=kind, record_id=record_id or uuid4())
 
-        if payload.get("contract") in ("writing-evaluation-output-v1", "independent-reading-output/1"):
-            from uuid import UUID
+        if payload.get("contract") in (
+            "writing-evaluation-output-v1",
+            "independent-reading-output/1",
+            "writer-material-request/1",
+        ):
+            from .journal_completion import complete
 
-            run_id = UUID(payload["run_id"])
-            payload = dict(payload, journal_version="execution-journal/2")
-            self.execution.prepare(run_id)
-            self.execution.publish(lambda tx: self.execution.append(tx, run_id, [(ref, payload, True)], []))
+            complete(self, payload, ref)
         else:
 
             def write(tx):
@@ -86,10 +90,13 @@ class EvaluationJournal:
         return ref
 
     def read(self, ref):
-        return self.repo.get_runtime(self.project, ref)
+        return self.archive.read(ref)
+
+    def authorize_many(self, references):
+        return self.archive.authorize_many(references)
 
     def read_many(self, references):
-        return self.repo.get_runtime_many(self.project, references)
+        return self.archive.read_many(references)
 
     def event_metadata(self, roots):
         from .history_metadata import stream
@@ -97,7 +104,7 @@ class EvaluationJournal:
         return stream(self, roots)
 
     def read_blob(self, ref, blob):
-        return self.repo.read_runtime_blob(self.project, ref, blob)
+        return self.archive.read_blob(ref, blob)
 
     def text_blob(self, ref, blob):
         from podgen.persistence.text_source import verified_text
@@ -137,8 +144,8 @@ class EvaluationJournal:
             append_runtime(self.repo, tx, self.project, ref, manifest, "evaluator", replay=True)
             query(
                 tx,
-                """INSERT INTO evaluation_writing_runs(project_id,run_id,actor_id,input_fingerprint,manifest_id,status)
-                        VALUES(:p,:r,:a,:fp,:m,'prepared')""",
+                """INSERT INTO evaluation_writing_runs(project_id,run_id,actor_id,input_fingerprint,manifest_id,status,execution_storage)
+                        VALUES(:p,:r,:a,:fp,:m,'prepared','private/3')""",
                 p=self.project,
                 r=command.run_id,
                 a=self.repo.actor_id,
@@ -162,21 +169,12 @@ class EvaluationJournal:
             )
 
     def attempts(self, run_id, stage):
+        from podgen.persistence.private_journal.state import attempts
+
         self.run(run_id)
-        with self.repo.database.transaction() as tx:
-            self.authorize(tx)
-            rows = [
-                dict(row)
-                for row in query(
-                    tx,
-                    "SELECT * FROM evaluation_model_invocations WHERE project_id=:p AND run_id=:r AND stage=:s ORDER BY attempt_index",
-                    p=self.project,
-                    r=run_id,
-                    s=stage,
-                ).mappings()
-            ]
-            validate_lineage(rows, stage)
-            return rows
+        rows = attempts(self, run_id, stage)
+        validate_lineage(rows, stage)
+        return rows
 
     def invocation(self, run_id, stage, attempt_index=None):
         attempts = self.attempts(run_id, stage)
@@ -186,75 +184,10 @@ class EvaluationJournal:
             else (attempts[-1] if attempts else None)
         )
 
-    def prepare(
-        self,
-        run_id,
-        stage,
-        body,
-        context,
-        *,
-        attempt_index=0,
-        parent_invocation_id=None,
-        attempt_kind=None,
-        operation_kind=None,
-        authorization=None,
-    ):
-        rows = self.attempts(run_id, stage)
-        existing = next((row for row in rows if row["attempt_index"] == attempt_index), None)
-        if existing:
-            return existing
-        attempt_kind = attempt_kind or ("anchor_repair" if attempt_index else "role")
-        operation_kind = operation_kind or ("anchor_repair" if attempt_kind == "anchor_repair" else "role")
-        parent = validate_preparation(
-            rows, stage, attempt_index, attempt_kind, operation_kind, parent_invocation_id
-        )
-        invocation_id = attempt_identity(run_id, stage, attempt_index, attempt_kind, parent)
-        raw = json.dumps(body, ensure_ascii=False, allow_nan=False, separators=(",", ":")).encode()
-        blob = self.blob(raw)
-        self.execution.prepare_context(run_id, dict(context=context, authorization=authorization))
-        ref = RuntimeRef(record_kind="tool_execution", record_id=uuid5(invocation_id, "request"))
-        record = dict(
-            contract="model-request-v1",
-            journal_version="execution-journal/2",
-            invocation_id=str(invocation_id),
-            run_id=str(run_id),
-            stage=stage,
-            request_blob=blob.model_dump(mode="json"),
-            request_hash=blob.sha256,
-            context=context,
-            attempt_kind=attempt_kind,
-            operation_kind=operation_kind,
-            parent_request_ref=RuntimeRef(
-                record_kind="tool_execution", record_id=parent["request_record_id"]
-            ).model_dump(mode="json")
-            if parent
-            else None,
-            authorization=authorization,
-        )
+    def prepare(self, run_id, stage, body, context, **options):
+        from .journal_attempts import prepare
 
-        def write(tx):
-            self.authorize(tx)
-            from podgen.persistence.execution.objects import OwnedBlob
-
-            self.execution.append(tx, run_id, [(ref, record, True)], [OwnedBlob(blob, raw)])
-            query(
-                tx,
-                """INSERT INTO evaluation_model_invocations(project_id,run_id,invocation_id,stage,status,request_record_id,attempt_index,parent_invocation_id,parent_attempt_index,attempt_kind,operation_kind)
-                        VALUES(:p,:r,:i,:s,'prepared',:request,:attempt,:parent,:parent_attempt,:kind,:operation)""",
-                p=self.project,
-                r=run_id,
-                i=invocation_id,
-                s=stage,
-                request=ref.record_id,
-                attempt=attempt_index,
-                parent=parent_invocation_id,
-                parent_attempt=parent["attempt_index"] if parent else None,
-                kind=attempt_kind,
-                operation=operation_kind,
-            )
-
-        self.execution.publish(write)
-        return self.invocation(run_id, stage, attempt_index)
+        return prepare(self, run_id, stage, body, context, **options)
 
     def request(self, invocation):
         ref = RuntimeRef(record_kind="tool_execution", record_id=invocation["request_record_id"])
@@ -287,49 +220,29 @@ class EvaluationJournal:
         return None
 
     def transition(self, invocation, status, **fields):
+        if (
+            status == invocation["status"]
+            and all(
+                invocation.get({"provider_id": "provider_response_id"}.get(key, key)) == value
+                for key, value in fields.items()
+                if key != "output_ref"
+            )
+            and "output_ref" not in fields
+        ):
+            return dict(invocation)
+        if status == "completed" and fields.get("output_ref") is not None:
+            current = self.invocation(
+                invocation["run_id"], invocation["stage"], invocation.get("attempt_index", 0)
+            )
+            if (
+                current
+                and current["status"] == "completed"
+                and current["output_record_id"] == fields["output_ref"].record_id
+            ):
+                return current
         phase = self.publication(invocation)
         phase.transition(status, **fields)
         return phase.commit()
-
-    def write_transition(
-        self,
-        tx,
-        invocation,
-        status,
-        *,
-        provider_id=None,
-        input_tokens=None,
-        output_tokens=None,
-        output_ref=None,
-    ):
-        return dict(
-            one(
-                tx,
-                """UPDATE evaluation_model_invocations SET status=:s,
-                     provider_response_id=COALESCE(:provider,provider_response_id),
-                     input_tokens=COALESCE(:input,input_tokens),
-                     output_tokens=COALESCE(:output,output_tokens),
-                     output_record_id=COALESCE(:ref,output_record_id)
-                 WHERE project_id=:p AND invocation_id=:i RETURNING *""",
-                p=self.project,
-                i=invocation["invocation_id"],
-                s=status,
-                provider=provider_id,
-                input=input_tokens,
-                output=output_tokens,
-                ref=output_ref.record_id if output_ref else None,
-            )
-        )
-
-    def invocation_after(self, tx, invocation):
-        return dict(
-            one(
-                tx,
-                "SELECT * FROM evaluation_model_invocations WHERE project_id=:p AND invocation_id=:i",
-                p=self.project,
-                i=invocation["invocation_id"],
-            )
-        )
 
     def output(self, invocation):
         if not invocation["output_record_id"]:
@@ -337,33 +250,11 @@ class EvaluationJournal:
         return self.read(RuntimeRef(record_kind="tool_execution", record_id=invocation["output_record_id"]))
 
     def events(self, invocation):
-        with self.repo.database.transaction() as tx:
-            self.authorize(tx)
-            rows = query(
-                tx,
-                "SELECT * FROM evaluation_invocation_events WHERE project_id=:p AND invocation_id=:i ORDER BY sequence",
-                p=self.project,
-                i=invocation["invocation_id"],
-            ).mappings()
-            return [dict(row) for row in rows]
+        from podgen.persistence.private_journal.state import events
+
+        return events(self, invocation)
 
     def events_for_turn(self, invocation, turn_index):
-        """Select durable control metadata before authorizing/loading full bodies."""
-        from podgen.persistence.read_authorization import _read_connection
+        from podgen.persistence.private_journal.state import events
 
-        with _read_connection(self.repo) as tx:
-            self.authorize(tx)
-            return [
-                dict(row)
-                for row in query(
-                    tx,
-                    """
-                SELECT * FROM evaluation_invocation_events
-                WHERE project_id=:p AND invocation_id=:i AND source_turn_index=:turn
-                ORDER BY sequence
-            """,
-                    p=self.project,
-                    i=invocation["invocation_id"],
-                    turn=turn_index,
-                ).mappings()
-            ]
+        return events(self, invocation, turn_index=turn_index)

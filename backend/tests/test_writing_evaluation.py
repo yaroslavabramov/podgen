@@ -5,6 +5,7 @@ from dataclasses import replace
 from uuid import uuid4
 
 import pytest
+
 from podgen.domain.contracts.common import RuntimeRef
 from podgen.domain.errors import AccessDenied, Conflict
 from podgen.persistence.database import one, query
@@ -335,6 +336,9 @@ def test_same_invocation_after_submit_crash_never_sends_twice(repo, setup_writer
     with pytest.raises(RunFailure, match="submission_acknowledgement_unknown"):
         run(repo, command, loader, provider)
     assert len(provider.requests) == 1
+    journal = EvaluationJournal(repo, command.project_id)
+    assert len(provider.counts) == 1
+    assert len(journal.attempts(command.run_id, "draft")) == 1
 
 
 def test_acl_revocation_after_draft_prevents_review_send(repo, setup_writer):
@@ -364,7 +368,6 @@ def test_source_revoked_during_count_is_not_resubmitted_from_evaluator_request(
     repo, scope, producer, setup_writer
 ):
     from podgen.persistence.dependencies import DependencyLedger
-
     from tests.factories import Factory
 
     command, loader, text = setup_writer

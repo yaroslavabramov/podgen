@@ -47,12 +47,18 @@ SELECT (SELECT fresh FROM freshness) AS fresh,
       AND i.revision_id=c.artifact_found AND i.category='access')
  WHEN 'runtime' THEN c.runtime_found IS NULL OR c.runtime_kind IS DISTINCT FROM c.binding->>'record_kind'
    OR EXISTS(SELECT 1 FROM execution_record_withdrawals w WHERE w.project_id=c.owner_project_id AND w.record_id=c.runtime_found)
+   OR EXISTS(SELECT 1 FROM semantic_execution_links l JOIN execution_entries e USING(project_id,entry_id)
+      WHERE l.project_id=c.owner_project_id AND l.runtime_record_id=c.runtime_found
+        AND (EXISTS(SELECT 1 FROM execution_entry_denials d
+          WHERE d.project_id=e.project_id AND d.entry_id=e.entry_id)
+        OR EXISTS(SELECT 1 FROM blob_access_revocations v
+          WHERE v.project_id=e.project_id AND v.sha256=ANY(e.owned_hashes))))
  WHEN 'blob' THEN c.blob_found IS NULL OR c.sha256 IS DISTINCT FROM c.binding->>'sha256'
    OR c.byte_length IS DISTINCT FROM (c.binding->>'byte_length')::bigint
    OR c.media_type IS DISTINCT FROM c.binding->>'media_type'
    OR EXISTS(SELECT 1 FROM blob_access_revocations v WHERE v.project_id=c.owner_project_id
       AND v.sha256=c.binding->>'sha256')
-   OR (c.read_required AND EXISTS(SELECT 1 FROM evaluator_protected_hashes e
+   OR (c.read_required AND EXISTS(SELECT 1 FROM protected_byte_hashes e
       WHERE e.project_id=c.owner_project_id AND e.sha256=c.binding->>'sha256')
       AND (c.check_purpose<>'evaluation' OR c.role IS NULL OR c.role NOT IN ('owner','evaluator','operator')))
  WHEN 'catalog' THEN c.publication_found IS NULL

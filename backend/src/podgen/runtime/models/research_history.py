@@ -41,6 +41,7 @@ class ResearchHistory:
         self.segments = {}
         self.submitted = set()
         self.responses = {}
+        self.last_count_error = None
         roots = lineage(journal, root)
         loader = getattr(journal, "event_metadata", None)
         metadata = (
@@ -81,6 +82,8 @@ class ResearchHistory:
             self.counts.setdefault(data["request_hash"], entry)
             if data.get("count_identity"):
                 self.exact_counts.setdefault(data["count_identity"], entry)
+        elif kind == "source_context_count_error":
+            self.last_count_error = entry
         elif kind == "source_context_plan":
             self.plans.setdefault(data["turn_index"], entry)
         elif kind == "submit_intent" and "source_turn_index" in data:
@@ -99,6 +102,17 @@ class ResearchHistory:
 
     def exact_count(self, identity):
         return self.exact_counts.get(identity)
+
+    def retryable_count_error(self, identity, turn_index):
+        entry = self.last_count_error
+        if (
+            entry is not None
+            and entry.data.get("retryable") is True
+            and entry.data.get("count_identity") == identity
+            and entry.data.get("turn_index") == turn_index
+        ):
+            return entry.reference
+        return None
 
     def counted(self, request_hash):
         return self.counts.get(request_hash)

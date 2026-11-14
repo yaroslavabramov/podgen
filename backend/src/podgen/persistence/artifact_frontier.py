@@ -20,12 +20,15 @@ SELECT r.project_id,r.revision_id,r.artifact_id,r.kind,r.input_refs,r.audience,
             'binding_purpose',a.purpose,
             'access_revoked',EXISTS(SELECT 1 FROM blob_access_revocations v
                 WHERE v.project_id=b.project_id AND v.sha256=b.sha256),
-            'evaluator_only',EXISTS(SELECT 1 FROM evaluator_blob_classifications c
+            'evaluator_only',EXISTS(SELECT 1 FROM protected_byte_hashes c
                 WHERE c.project_id=b.project_id AND c.sha256=b.sha256)))
             FROM artifact_blobs a JOIN blobs b USING(project_id,storage_key)
             WHERE a.project_id=r.project_id AND a.revision_id=r.revision_id),'[]'::jsonb),
         'invalid',EXISTS(SELECT 1 FROM invalidations i WHERE i.project_id=r.project_id
-            AND i.revision_id=r.revision_id AND i.category='access'),
+            AND i.revision_id=r.revision_id AND i.category='access')
+            OR EXISTS(SELECT 1 FROM semantic_execution_links l JOIN execution_entry_denials d
+                USING(project_id,entry_id)
+                WHERE l.project_id=r.project_id AND l.artifact_revision_id=r.revision_id),
         'runtimes',COALESCE((SELECT jsonb_agg(jsonb_build_object(
             'record_id',l.record_id,'record_kind',l.record_kind)) FROM runtime_links l
             WHERE l.project_id=r.project_id AND l.revision_id=r.revision_id),'[]'::jsonb)

@@ -6,8 +6,9 @@ from copy import deepcopy
 
 
 class DescriptorCache:
-    def __init__(self, *, max_entries=512, max_bytes=2 * 1024 * 1024):
+    def __init__(self, *, max_entries=512, max_bytes=2 * 1024 * 1024, max_entry_bytes=32 * 1024):
         self.max_entries, self.max_bytes = max_entries, max_bytes
+        self.max_entry_bytes = max_entry_bytes
         self.entries, self.byte_length = OrderedDict(), 0
 
     def view(self):
@@ -21,7 +22,7 @@ class DescriptorCache:
 
     def remember(self, key, value):
         size = len(json.dumps((key, value), default=str, ensure_ascii=True).encode())
-        if size > min(32 * 1024, self.max_bytes):
+        if size > min(self.max_entry_bytes, self.max_bytes):
             return  # A cache miss preserves full persistence; no meaning is cut.
         previous = self.entries.pop(key, None)
         if previous is not None:
@@ -37,7 +38,9 @@ class DescriptorView:
     def __init__(self, owner):
         self.owner = owner
         self.touched = OrderedDict()
-        self.pending = DescriptorCache(max_entries=owner.max_entries, max_bytes=owner.max_bytes)
+        self.pending = DescriptorCache(
+            max_entries=owner.max_entries, max_bytes=owner.max_bytes, max_entry_bytes=owner.max_entry_bytes
+        )
 
     def get(self, key):
         value = self.pending.get(key)

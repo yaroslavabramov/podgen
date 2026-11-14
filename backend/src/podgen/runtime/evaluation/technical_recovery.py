@@ -237,6 +237,13 @@ def resume_current(journal, command, *, gateway, load_profile, guard):
         if current["status"] not in STATES:
             return None
         try:
+            # A durable intent alone says nothing about the remote outcome.
+            # Let the original invocation report its missing acknowledgement;
+            # ordinary resume cannot infer a replacement from a process crash.
+            if current["status"] in ("submitting", "waiting") and not current.get("provider_response_id"):
+                captured = evidence(journal, current)
+                if not captured["failure_event_refs"]:
+                    return None
             return authorize_technical_recovery(
                 journal,
                 command,

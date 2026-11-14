@@ -49,7 +49,11 @@ class ExportOracle:
         for index in range(43):
             old_turn, new_turn = (uuid5(value, f"source-turn:{index}") for value in (old_root, new_root))
             pair(str(old_turn), str(new_turn))
-            pair(str(uuid5(old_turn, "request")), str(uuid5(new_turn, "request")))
+            name = f"archive/fact-review/turns/{index:03d}/state.json"
+            old_state, new_state = (json.loads(files[name]) for files in (self.saved, current))
+            assert old_state["invocation_id"] == str(old_turn)
+            assert new_state["invocation_id"] == str(new_turn)
+            pair(old_state["request_record_id"], new_state["request_record_id"])
         for field in ("artifact_id", "revision_id"):
             pair(
                 old_manifest["prompt_refs"]["fact-review"][field],
@@ -66,7 +70,8 @@ class ExportOracle:
                 first["event_kind"] == "source_search_diagnostics"
                 and second["event_kind"] == "source_tool_call"
             ):
-                assert first.get("journal_version") == second.get("journal_version") == "execution-journal/2"
+                assert first.get("journal_version") == second.get("journal_version")
+                assert first.get("journal_version") in ("execution-journal/2", "execution-journal/3")
                 assert second["data"]["name"] == "search_sources"
                 assert first["data"]["call_index"] == second["data"]["call_index"]
                 result = logical_events[index + 2]
@@ -100,7 +105,8 @@ class ExportOracle:
                 return value
             if digest(value) in blob_substitutions:
                 value = blob_substitutions[digest(value)]
-            if value.get("journal_version") == "execution-journal/2":
+            if value.get("journal_version") in ("execution-journal/2", "execution-journal/3"):
+                version = value["journal_version"]
                 assert value.get("contract") in (
                     "model-request-v1",
                     "model-invocation-event-v1",
@@ -108,6 +114,16 @@ class ExportOracle:
                     "independent-reading-output/1",
                 )
                 value = {key: item for key, item in value.items() if key != "journal_version"}
+                if version == "execution-journal/3" and value.get("event_kind") == "submit_intent":
+                    data = value["data"]
+                    turn = data["source_turn_index"]
+                    request_name = f"archive/fact-review/turns/{turn:03d}/request.json"
+                    requested_limit = json.loads(current[request_name])["max_output_tokens"]
+                    assert type(data["output_reserved"]) is int
+                    assert data["output_reserved"] == requested_limit
+                    value = dict(
+                        value, data={key: item for key, item in data.items() if key != "output_reserved"}
+                    )
                 if value.get("event_kind") in ("source_tool_call", "source_tool_result"):
                     data = value["data"]
                     assert (
@@ -160,18 +176,21 @@ class ExportOracle:
                 left, right = (normalize(document, name=name) for document in (before, after))
                 # Files without an actual allowed value substitution must retain
                 # bytes too; incidental JSON formatting changes are not excused.
-                if left == right and (left != before or right != after):
+                if left == right and (left != before or right != after or name == "run.json"):
                     json_equal += 1
                     continue
             different.append(name)
         assert not different, ("export_changed", different[:20], len(different))
         return dict(
-            archive_contract="execution-journal/2",
+            archive_contract="execution-journal/3",
             adjacent_same_call_diagnostic_relocations=relocations,
             verified_technical_delta=[
                 "journal_version",
+                "content-bound physical request identity, paired by verified turn",
                 "exact tool provider_response_ref and arguments_hash",
                 "adjacent same-call search diagnostics before the recorded call fact",
+                "submit output reservation equals the verified physical request limit",
+                "run.json derived invocation field order; all values remain exact",
             ],
             files_verified=len(current),
             byte_exact_files=byte_exact,

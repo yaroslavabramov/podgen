@@ -1,21 +1,22 @@
 """Malformed optional call projections must never erase received provider bytes."""
 
 import json
+from types import SimpleNamespace
 
 import pytest
 
 from podgen.domain.contracts.common import BlobRef, RuntimeRef
 from podgen.persistence.database import query
 from podgen.runtime.models.contracts import WireReply
-from tests.test_model_step_publication import setup
+from podgen.runtime.models.gateway import ModelGateway
+from tests.test_model_step_publication import run, setup
 
 
 @pytest.mark.parametrize(
     "malformed", ["nul_id", "nul_name", "surrogate_id", "surrogate_name", "oversized_id", "duplicate"]
 )
 def test_full_raw_response_survives_unsupported_call_projection(repo, scope, malformed):
-    journal, root, tj, turn, phase, _, _, _, _, _ = setup(repo, scope)
-    phase.commit()
+    journal, root, tj, turn, phase, snapshot, manifest, profile, limits, _ = setup(repo, scope)
     call = dict(type="function_call", call_id="synthetic_call", name="read_source", arguments="{}")
     if malformed == "nul_id":
         call["call_id"] = "bad\0id"
@@ -28,10 +29,31 @@ def test_full_raw_response_survives_unsupported_call_projection(repo, scope, mal
     elif malformed == "oversized_id":
         call["call_id"] = "large-id-" * 2000
     output = [call, call] if malformed == "duplicate" else [call]
-    raw = json.dumps(dict(id="resp_synthetic", output=output), ensure_ascii=True).encode()
-    phase = tj.publication(turn)
-    ref = phase.event("provider_response", reply=WireReply(raw))
-    phase.commit()
+    raw = json.dumps(
+        dict(
+            id="resp_synthetic",
+            model=snapshot[0]["model"],
+            metadata=snapshot[0]["metadata"],
+            status="completed",
+            output=output,
+            usage=dict(input_tokens=100, output_tokens=10),
+        ),
+        ensure_ascii=True,
+    ).encode()
+    provider = SimpleNamespace(
+        count=lambda body: WireReply(b'{"input_tokens":100}'), submit=lambda *args, **kwargs: WireReply(raw)
+    )
+    run(
+        ModelGateway(tj, lambda _: provider),
+        turn,
+        profile,
+        limits,
+        prepared_phase=phase,
+        request_snapshot=snapshot,
+        manifest_snapshot=manifest,
+    )
+    event = next(row for row in journal.events(root) if row["event_kind"] == "provider_response")
+    ref = RuntimeRef(record_kind="tool_execution", record_id=event["record_id"])
     record = journal.read(ref)
     assert journal.read_blob(ref, BlobRef.model_validate(record["response_blob"])) == raw
     with repo.database.read_transaction() as tx:
@@ -47,13 +69,9 @@ def test_full_raw_response_survives_unsupported_call_projection(repo, scope, mal
 
 @pytest.mark.parametrize("malformed", ["duplicate_response", "invalid_wire", "duplicate_wire", "wrong_wire"])
 def test_pending_count_strict_validation_keeps_raw_receipt_and_failure(repo, scope, malformed):
-    from types import SimpleNamespace
-
     from podgen.domain.errors import Conflict
-    from podgen.runtime.models.gateway import ModelGateway
     from podgen.runtime.models.research_context import ResearchContext
     from podgen.runtime.models.research_history import ResearchHistory
-    from tests.test_model_step_publication import run
 
     journal, root, tj, turn, phase, snapshot, manifest, profile, limits, _ = setup(repo, scope)
     profile.provider = "openai"
@@ -77,6 +95,7 @@ def test_pending_count_strict_validation_keeps_raw_receipt_and_failure(repo, sco
     )
     context.measured(snapshot[0], 0, "normal")
     receipt = context.receipt(snapshot[0])
+    turn, phase, snapshot = tj.stage_prepare(snapshot[0], original_record=context.original_record)
     with pytest.raises(Conflict):
         run(
             ModelGateway(tj, lambda _: provider),
@@ -99,13 +118,10 @@ def test_pending_count_strict_validation_keeps_raw_receipt_and_failure(repo, sco
 
 
 def test_pending_count_bytes_release_only_after_successful_absorbed_commit(repo, scope):
-    from types import SimpleNamespace
-
-    from podgen.runtime.models.gateway import ModelGateway
     from podgen.runtime.models.research_context import ResearchContext
     from podgen.runtime.models.research_history import ResearchHistory
 
-    journal, root, _, _, phase, snapshot, _, profile, _, _ = setup(repo, scope)
+    journal, root, tj, _, _, snapshot, _, profile, _, _ = setup(repo, scope)
     profile.provider = "openai"
     context = ResearchContext(
         ModelGateway(
@@ -119,17 +135,33 @@ def test_pending_count_bytes_release_only_after_successful_absorbed_commit(repo,
     )
     context.measured(snapshot[0], 0, "normal")
     receipt = context.receipt(snapshot[0])
+    turn, phase, _ = tj.stage_prepare(snapshot[0], original_record=context.original_record)
+    phase = phase or tj.publication(turn)
     phase.absorb(context.pending_phase, prepend=True)
+    phase.transition("counted", input_tokens=receipt.input_tokens)
 
-    def rollback(tx):
-        raise RuntimeError("synthetic publication rollback")
+    from podgen.persistence.private_journal import writer
 
-    phase.writes.append(rollback)
-    with pytest.raises(RuntimeError, match="synthetic publication rollback"):
-        phase.commit()
+    original = writer.query
+
+    def rollback(tx, sql, **params):
+        if sql.startswith("UPDATE execution_heads SET"):
+            raise RuntimeError("synthetic publication rollback")
+        return original(tx, sql, **params)
+
+    with pytest.MonkeyPatch.context() as patch:
+        patch.setattr(writer, "query", rollback)
+        with pytest.raises(RuntimeError, match="synthetic publication rollback"):
+            phase.commit()
     assert receipt.identity in context.pending_counts
     assert not phase.finished
-    phase.writes.remove(rollback)
     phase.commit()
     assert not context.pending_counts
     assert context.history.exact_count(receipt.identity) is not None
+    from podgen.runtime.evaluation.journal import EvaluationJournal
+    from podgen.runtime.evaluation.model_turns import TurnJournal
+
+    fresh = EvaluationJournal(repo, scope[0])
+    cold_root = fresh.invocation(root["run_id"], root["stage"])
+    cold = TurnJournal(fresh, cold_root, 0)._row()
+    assert cold["status"] == "counted" and cold["input_tokens"] == 100

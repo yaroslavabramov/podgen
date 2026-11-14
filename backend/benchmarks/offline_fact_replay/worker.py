@@ -7,6 +7,8 @@ from uuid import UUID, uuid5
 
 from export_oracle import ExportOracle
 from metrics import Metrics
+from storage_audit import snapshot as storage_snapshot
+from storage_audit import verify as verify_storage
 from traffic import Traffic
 
 from podgen.domain.canonical import digest
@@ -14,6 +16,8 @@ from podgen.persistence import classification, privacy_graph, runtime_publicatio
 from podgen.persistence.database import Database, query
 from podgen.persistence.execution import inputs as execution_inputs
 from podgen.persistence.execution import session as execution_session
+from podgen.persistence.private_journal import transaction_scope
+from podgen.persistence.private_journal import writer as private_writer
 from podgen.persistence.repository import Repository
 from podgen.persistence.text_source import VerifiedText
 from podgen.retrieval.onnx_models import Models
@@ -93,7 +97,16 @@ for cls, method in [
 metrics.wrap(
     Publication,
     "commit",
-    lambda phase, **kw: "publication:" + ("+".join(event["event_kind"] for event in phase.events) or "state"),
+    lambda phase, **kw: (
+        "publication:"
+        + (
+            "+".join(
+                view["payload"].get("event_kind", view["payload"].get("contract", "record"))
+                for view in phase.views
+            )
+            or "state"
+        )
+    ),
     checkpoint=True,
 )
 
@@ -111,7 +124,11 @@ def instrument_function(module, name, tag):
 instrument_function(runtime_publication, "_validate_inputs", "legacy_input_union")
 instrument_function(execution_inputs, "replace_expansion", "prepare_input_expansion")
 instrument_function(execution_inputs, "compile_resources", "compile_input_resources")
-instrument_function(execution_session, "append", "execution_append")
+instrument_function(execution_session, "append", "legacy_execution_append")
+instrument_function(private_writer, "preflight", "private_upload_preflight")
+instrument_function(private_writer, "authorize_command", "private_checkpoint_authorization")
+instrument_function(private_writer, "register", "private_object_registration")
+instrument_function(transaction_scope, "load", "private_transaction_metadata")
 instrument_function(privacy_graph, "privacy_closure", "privacy_alias_closure")
 instrument_function(classification, "classify_evaluator_batch", "classification_union")
 metrics.wrap(Models, "embed", lambda self, texts, **kw: "embedding:" + kw.get("prefix", "passage: ").strip())
@@ -164,6 +181,7 @@ try:
         metrics.executions.clear()
         metrics.turn = None
         traffic = Traffic(archive, run_id)
+        storage_before = storage_snapshot(database, journal.project, run_id)
         try:
             result = run(
                 repo,
@@ -179,6 +197,9 @@ try:
             expected = 0 if label == "completed" else 43
             assert len(traffic.seen_counts) == len(traffic.seen_submits) == expected
             assert traffic.seen_tools == (0 if label == "completed" else 42)
+            storage_evidence = verify_storage(
+                storage_before, storage_snapshot(database, journal.project, run_id)
+            )
             (output / (label + ".json")).write_text(
                 json.dumps(
                     dict(
@@ -195,6 +216,7 @@ try:
                         submit_calls=expected,
                         tool_results_exact=traffic.seen_tools,
                         all_native_requests_exact=True,
+                        storage_evidence=storage_evidence,
                     ),
                     indent=2,
                 )

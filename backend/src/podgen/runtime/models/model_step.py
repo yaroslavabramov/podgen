@@ -2,7 +2,6 @@
 
 import json
 
-from podgen.runtime.evaluation.compiler import count_request
 from podgen.runtime.evaluation.contracts import RunFailure
 
 from .contracts import ProviderFault
@@ -50,7 +49,8 @@ class ModelStep:
 
         step = self
         pending_receipt = getattr(count_receipt, "phase", None)
-        if pending_receipt is not None and not pending_receipt.finished:
+        receipt_in_publication = pending_receipt is not None and not pending_receipt.finished
+        if receipt_in_publication:
             step.phase.absorb(pending_receipt, prepend=True)
         try:
             with j.read_operation():
@@ -64,10 +64,26 @@ class ModelStep:
                 manifest = (
                     manifest_snapshot if manifest_snapshot is not None else j.manifest(invocation["run_id"])
                 )
+                if invocation["status"] == "counted" and count_receipt is None:
+                    from .direct_count import restored
+
+                    count_receipt = restored(j, invocation, body, profile)
                 reused_count = count_receipt.validate(j, body, profile) if count_receipt is not None else None
+                if invocation["status"] == "counted":
+                    if reused_count != invocation["input_tokens"]:
+                        raise ContractError("count_receipt_binding_changed")
+                    step.phase.event(
+                        "count_receipt_reused",
+                        data=dict(
+                            count_ref=count_receipt.reference.model_dump(mode="json"),
+                            count_identity=count_receipt.identity,
+                            input_tokens=reused_count,
+                        ),
+                    )
             register = getattr(count_receipt, "register", None)
-            if register is not None:
+            if count_receipt is not None and not receipt_in_publication:
                 j.execution.prepare(invocation["run_id"], evaluation=[count_receipt.reference])
+            if register is not None:
                 register(j, step.phase)
             contract = record["context"].get("role_input_contract")
             from .provider_contracts import validate as validate_provider_contract
@@ -139,31 +155,21 @@ class ModelStep:
                     ),
                 )
             else:
-                count_body = count_request(body)
-                count_blob = step.phase.blob(
-                    json.dumps(
-                        count_body, ensure_ascii=False, allow_nan=False, separators=(",", ":")
-                    ).encode()
-                )
-                count_data = {"request_blob": count_blob.model_dump(mode="json")}
+                from .direct_count import capture, prepare
+
                 admission_refs = getattr(guard, "admission_refs", lambda: [])()
-                if admission_refs:
-                    count_data["runtime_admission_refs"] = [
-                        ref.model_dump(mode="json") for ref in admission_refs
-                    ]
-                step.phase.event("count_intent", data=count_data)
+                count_body, intent, native_blob, count_data = prepare(
+                    step.phase, body, profile, admission_refs
+                )
                 invocation = step.publish(guard=guard)
                 try:
                     reply = provider.count(count_body)
                 except ProviderFault as fault:
                     self.gateway._fault(invocation, fault, "count")
-                step.phase.event("count_response", reply=reply)
                 try:
-                    count = json.loads(reply.body)["input_tokens"]
-                    if type(count) is not int or not 0 <= count <= 2**63 - 1:
-                        raise ValueError()
-                except (ValueError, KeyError, TypeError):
-                    step.fail(invocation, "invalid_input_token_count")
+                    count = capture(step.phase, intent, native_blob, count_data, reply, body, profile)
+                except ContractError as error:
+                    step.fail(invocation, error.code)
             step.phase.transition("counted", input_tokens=count)
             invocation = dict(invocation, status="counted", input_tokens=count)
         if invocation["status"] == "counted":
@@ -191,7 +197,12 @@ class ModelStep:
                 or totals["output"] + profile.output_limit > limits.max_total_output_tokens
             ):
                 step.fail(invocation, "run_token_budget_exceeded", status="validation_failed")
-            step.phase.event("submit_intent", data=dict(client_request_id=str(invocation["invocation_id"])))
+            step.phase.event(
+                "submit_intent",
+                data=dict(
+                    client_request_id=str(invocation["invocation_id"]), output_reserved=profile.output_limit
+                ),
+            )
             step.phase.transition("submitting", input_tokens=invocation["input_tokens"])
             try:
                 invocation = step.publish(guard=guard)

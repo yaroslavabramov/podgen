@@ -29,6 +29,9 @@ class ResearchContext:
         self.pending_events = []
         self.pending_phase = None
         self.pending_counts = {}
+        self.original_record = self.journal.read(
+            RuntimeRef(record_kind="tool_execution", record_id=root["request_record_id"])
+        )
 
     def event(self, kind, data, *, reply=None):
         phase = self.publication()
@@ -55,6 +58,10 @@ class ResearchContext:
         if saved is not None:
             return saved.input_tokens
         phase = self.publication()
+        from .research_count_recovery import candidate, failure_data
+
+        admission_refs = getattr(self.guard, "admission_refs", lambda: [])()
+        count_operation, recovery = candidate(self, phase, body, index, count_identity, admission_refs)
         native_blob = phase.blob(
             json.dumps(
                 native_count(body, self.profile.provider),
@@ -70,8 +77,8 @@ class ResearchContext:
             provider_configuration=provider_configuration(self.profile),
             turn_index=index,
             label=label,
+            **recovery,
         )
-        admission_refs = getattr(self.guard, "admission_refs", lambda: [])()
         if admission_refs:
             intent_data["runtime_admission_refs"] = [ref.model_dump(mode="json") for ref in admission_refs]
         intent = phase.event("source_context_count_intent", data=intent_data, history=self.history)
@@ -80,7 +87,9 @@ class ResearchContext:
             reply = self.gateway.provider_factory(self.profile).count(count_request(body))
         except ProviderFault as error:
             self.event(
-                "source_context_count_error", dict(request_hash=key, code=error.code), reply=error.reply
+                "source_context_count_error",
+                failure_data(error, intent, count_operation, count_identity, key, index),
+                reply=error.reply,
             )
             raise RunFailure(
                 error.code, run_id=self.root["run_id"], invocation_id=self.root["invocation_id"]
@@ -101,6 +110,7 @@ class ResearchContext:
             )
             raise ContractError("invalid_context_input_count") from None
         receipt_phase = self.publication()
+        receipt_phase.reuse_blob(native_blob, intent)
         ref = receipt_phase.event(
             "source_context_count",
             data=dict(
@@ -113,6 +123,7 @@ class ResearchContext:
                 count_intent_ref=intent.model_dump(mode="json"),
                 native_request_blob=native_blob.model_dump(mode="json"),
                 provider_configuration=provider_configuration(self.profile),
+                **({"count_operation_id": str(count_operation)} if recovery else {}),
             ),
             reply=reply,
             history=self.history,

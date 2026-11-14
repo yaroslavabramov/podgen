@@ -124,6 +124,11 @@ class ScopeAccess:
             )
         ):
             raise AccessDenied()
+        from .private_journal.semantic_access import authorize_sources
+
+        authorize_sources(
+            self.repo, tx, project_id, facts.runtimes.semantic_sources[project_id, ref.record_id]
+        )
         if row.get("execution_input_set_id") is not None:
             from .execution.live import authorize
             from .execution.parents import authorize_parents

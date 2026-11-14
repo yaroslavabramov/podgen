@@ -76,13 +76,9 @@ def refusal_evidence(journal, invocation):
         reject()
     try:
         body = load_unique_json(journal.read_blob(ref, BlobRef.model_validate(error["response_blob"])))
-        if (
-            not isinstance(body, dict)
-            or body.get("id") is not None
-            or body.get("response_id") is not None
-            or body["error"]["code"] != "credit_balance_exhausted"
-            or body["error"].get("response_id") is not None
-        ):
+        from .provider_rejections import credit
+
+        if not credit(body):
             reject()
     except (ValueError, KeyError, TypeError):
         reject()

@@ -39,6 +39,9 @@ class ModelGateway:
             reply=fault.reply,
             data=dict(code=fault.code, ambiguous=fault.ambiguous, operation=operation),
         )
+        from podgen.runtime.evaluation.provider_rejections import incoming
+
+        phase.rejection = incoming(self.journal, invocation, fault, operation)
         phase.transition("outcome_unknown" if fault.ambiguous else "failed")
         phase.commit()
         raise RunFailure(
@@ -170,6 +173,13 @@ class ModelGateway:
                 usage.get(name) is None or type(usage[name]) is int and 0 <= usage[name] <= 2**63 - 1
                 for name in ("input_tokens", "output_tokens")
             ):
+                cached = (
+                    (usage.get("input_tokens_details") or {}).get("cached_tokens", 0)
+                    if isinstance(usage.get("input_tokens_details", {}), dict)
+                    else 0
+                )
+                if type(cached) is int and 0 <= cached <= (usage.get("input_tokens") or 0):
+                    phase.cached_input_tokens = cached
                 phase.transition(
                     "response_completed",
                     provider_id=provider_id,

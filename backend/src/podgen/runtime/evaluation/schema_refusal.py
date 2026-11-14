@@ -1,17 +1,13 @@
 """Prove an exact Anthropic grammar rejection; never infer safety from HTTP 400 alone."""
 
 from podgen.domain.contracts.common import BlobRef, RuntimeRef
-from podgen.runtime.models.messages_tool_policy import KEY, NAVIGATION, VERSION
-from podgen.runtime.models.messages_wire import messages_request
+from podgen.runtime.models.messages_tool_policy import VERSION
 
+from .provider_rejections import SCHEMA_MESSAGES as MESSAGES
+from .provider_rejections import schema
 from .validation import load_unique_json
 
-MESSAGES = frozenset(
-    {
-        "The compiled grammar is too large, which would cause performance issues. Simplify your tool schemas or reduce the number of strict tools.",
-        "Schema is too complex for compilation.",
-    }
-)
+__all__ = ["MESSAGES", "evidence"]
 
 
 def evidence(journal, row):
@@ -70,22 +66,7 @@ def evidence(journal, row):
         native = load_unique_json(
             journal.read_blob(ref, BlobRef.model_validate(failure["wire_request_blob"]))
         )
-        if (
-            response.get("type") != "error"
-            or response.get("id") is not None
-            or response.get("response_id") is not None
-            or response.get("usage") is not None
-            or response["error"].get("type") != "invalid_request_error"
-            or response["error"].get("message") not in MESSAGES
-            or any(response["error"].get(key) is not None for key in ("id", "response_id", "usage"))
-            or not request["model"].startswith("claude-")
-            or KEY in request.get("metadata", {})
-            or not any(
-                tool.get("strict") is True and tool.get("name") in NAVIGATION
-                for tool in native.get("tools", [])
-            )
-            or native != messages_request(request)
-        ):
+        if not schema(response, request, native):
             return None
     except (ValueError, KeyError, TypeError, AttributeError):
         return None

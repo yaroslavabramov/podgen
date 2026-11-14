@@ -16,6 +16,7 @@ class MemoryJournal:
         self.project = uuid4()
         self.records, self.blobs, self.receipts, self.turns = {}, {}, [], []
         self.read_count = 0
+        self.revision = 0
         self.root = dict(
             invocation_id=uuid4(),
             run_id=uuid4(),
@@ -33,7 +34,12 @@ class MemoryJournal:
         self.root["request_record_id"] = self.store_request(body)
         self.roots = {self.root["invocation_id"]: self.root}
         self.repo = SimpleNamespace(actor_id=uuid4())
-        self.execution = SimpleNamespace(invocation=lambda _: None, prepare=lambda *args, **kwargs: None)
+        self.execution = SimpleNamespace(
+            invocation=lambda _: None,
+            provider_receipt=lambda *args: None,
+            prepare=lambda *args, **kwargs: None,
+            current_head=lambda _: dict(revision=self.revision),
+        )
 
     def runtime_graph(self):
         return nullcontext()
@@ -163,17 +169,22 @@ class MemoryPublication(Publication):
         if guard is not None:
             guard()
         journal = self.journal
-        for ref, payload, _replay in self.records:
-            journal.records[ref.record_id] = deepcopy(payload)
-        for event in self.events:
-            journal.receipts.append(
-                dict(
-                    record_id=event["record_id"],
-                    event_kind=event["event_kind"],
-                    invocation_id=event["invocation_id"],
-                    source_turn_index=event["source_turn_index"],
+        for value in self.blobs.values():
+            journal.blobs[value.reference.sha256] = value.body
+        for view in self.views:
+            ref_id = UUID(view["record_id"])
+            payload = deepcopy(view["payload"])
+            journal.records[ref_id] = payload
+            if "event_kind" in payload:
+                journal.receipts.append(
+                    dict(
+                        record_id=ref_id,
+                        event_kind=payload["event_kind"],
+                        invocation_id=UUID(payload["invocation_id"]),
+                        source_turn_index=payload["data"].get("source_turn_index"),
+                    )
                 )
-            )
+        journal.revision += 1
         result = self.invocation
         if self.state is not None:
             result = self.owner.transition(self.invocation, self.state[0], **self.state[1])

@@ -7,6 +7,7 @@ from podgen.domain.errors import Conflict
 from podgen.persistence.read_authorization import authorized_read
 
 FIELDS = {
+    "source_context_count_error": ("count_identity", "turn_index", "retryable"),
     "source_context_count": ("request_hash", "input_tokens", "turn_index", "label", "count_identity"),
     "source_context_plan": ("turn_index", "conversation_hash", "checkpoint"),
     "source_context_segment": ("next_turn", "checkpoint_call_index"),
@@ -57,7 +58,7 @@ def stream(journal, roots):
         journal.authorize(tx)
         for root, event in events:
             reference = RuntimeRef(record_kind="tool_execution", record_id=event["record_id"])
-            record = repo.get_runtime(journal.project, reference)
+            record = journal.read(reference)
             if (
                 record["event_kind"] != event["event_kind"]
                 or record["invocation_id"] != str(root["invocation_id"])

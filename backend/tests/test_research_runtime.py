@@ -7,6 +7,7 @@ from types import SimpleNamespace
 import httpx2
 import pytest
 
+from podgen.domain.contracts.common import RuntimeRef
 from podgen.runtime.evaluation.contracts import RunFailure
 from podgen.runtime.evaluation.credit_recovery import authorize_credit_retry
 from podgen.runtime.evaluation.source_tool_contract import create
@@ -383,6 +384,16 @@ def test_real_database_operational_retry_keeps_parent_receipts_and_exact_request
         else:
             assert failed_count == {k: v for k, v in sent[-1].items() if k in failed_count}
             assert len(sent) == 3
+            for event in journal.events(root):
+                if event["event_kind"] not in {
+                    "source_context_count_intent",
+                    "source_context_count",
+                    "source_context_count_error",
+                }:
+                    continue
+                record = journal.read(RuntimeRef(record_kind="tool_execution", record_id=event["record_id"]))
+                assert record["invocation_id"] == str(root["invocation_id"])
+                assert record["request_ref"]["record_id"] == str(root["request_record_id"])
         completed = journal.invocation(command.run_id, "draft")
         before = len(sent)
         assert invoke(gateway, completed, profile, limits, totals=paid) == '{"answer":"done"}'
@@ -390,6 +401,18 @@ def test_real_database_operational_retry_keeps_parent_receipts_and_exact_request
     expected = ["E1", "E2"] if mode == "credit" else ["E1"]
     assert [options["read_id"] for _, _, options in corpus.calls] == expected
     assert [row["read_id"] for row in successful_read_passages(journal, child)] == expected
+    accounting = journal.execution.current_head(command.run_id)["accounting"]
+    assert accounting["count_calls"] == sum(counts.values())
+    assert accounting.get("uncertain_calls", 0) == 0
+    if mode == "count_after_rotation":
+        errors = [
+            event for event in journal.events(root) if event["event_kind"] == "source_context_count_error"
+        ]
+        assert len(errors) == 1
+        error_ref = RuntimeRef(record_kind="tool_execution", record_id=errors[0]["record_id"])
+        saved_error = journal.read(error_ref)
+        assert saved_error["provider_http_status"] == 503
+        assert saved_error["data"]["retryable"] is True
 
 
 def test_optional_planning_questions_are_retained_without_creating_a_mandatory_handoff():

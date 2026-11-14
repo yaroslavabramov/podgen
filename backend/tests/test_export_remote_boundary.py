@@ -37,6 +37,8 @@ def test_remote_A_revoke_B_without_B_blob_field_discards_event_export(repo, scop
     journal.create_run(command, dict(command=command_payload(command)))
     invocation = journal.prepare(command.run_id, "fact-review", {}, {})
     A = journal.event(invocation, "probe_A", reply=WireReply(b'{"safe":"A response"}'))
+    # B has a genuinely different frozen input generation from A.
+    journal.execution.prepare(command.run_id, evaluation=[private])
     B = journal.event(invocation, "probe_B", data=dict(private_dependency=private.model_dump(mode="json")))
     assert "response_blob" not in journal.read(B)
     events = [
@@ -47,5 +49,5 @@ def test_remote_A_revoke_B_without_B_blob_field_discards_event_export(repo, scop
     repo.objects = RemoteStore(repo, lambda: withdraw_blob(repo, project, private_blob))
     with pytest.raises(AccessDenied):
         export_archive._events(journal, invocation, tmp_path / "archive", tmp_path)
-    assert not (tmp_path / "archive/events.json").exists()
+    assert not list((tmp_path / "archive").iterdir())
     assert repo._read_authorization.get() is None

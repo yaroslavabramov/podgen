@@ -54,23 +54,13 @@ class LegacyExactCount(ExactCount):
 
     def register(self, journal, phase):
         """Validation ran on full historical native bytes; save only its private proof."""
-        from podgen.persistence.database import json_text, query
-
-        payload = dict(count_identity=self.identity, input_tokens=self.input_tokens)
-
-        def write(tx):
-            query(
-                tx,
-                """INSERT INTO operational_records
-                (project_id,record_kind,record_id,parent_record_id,payload)
-                VALUES(:p,'legacy_exact_count',:id,NULL,CAST(:body AS jsonb))
-                ON CONFLICT DO NOTHING""",
-                p=journal.project,
-                id=self.reference.record_id,
-                body=json_text(payload),
+        phase.legacy_counts.append(
+            dict(
+                reference=self.reference.model_dump(mode="json"),
+                count_identity=self.identity,
+                input_tokens=self.input_tokens,
             )
-
-        phase.proofs.append(write)
+        )
 
 
 def receipt(journal, entry, body, profile):

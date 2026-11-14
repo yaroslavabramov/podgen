@@ -73,11 +73,11 @@ class BlobDatabase:
         if sql.startswith("SELECT role FROM project_members"):
             return Rows([{"role": self.role}] if self.role else [])
         if sql == (
-            "SELECT EXISTS(SELECT 1 FROM evaluator_blob_classifications WHERE project_id=:p AND sha256=:sha) AS evaluator_only, "
+            "SELECT EXISTS(SELECT 1 FROM protected_byte_hashes WHERE project_id=:p AND sha256=:sha) AS evaluator_only, "
             "EXISTS(SELECT 1 FROM blob_access_revocations WHERE project_id=:p AND sha256=:sha) AS access_revoked"
         ):
             return Rows([{"evaluator_only": self.classified, "access_revoked": self.revoked}])
-        if sql.startswith("SELECT 1 FROM evaluator_blob_classifications"):
+        if sql.startswith("SELECT 1 FROM protected_byte_hashes"):
             return Rows([{"exists": 1}] if self.classified else [])
         if sql.startswith("SELECT 1 FROM blob_access_revocations"):
             return Rows([{"exists": 1}] if self.revoked else [])

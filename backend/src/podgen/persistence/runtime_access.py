@@ -9,6 +9,7 @@ class RuntimeFacts:
     def __init__(self, tx, blobs, artifacts, *, graph=None, cache_writes=False):
         self.tx, self.blobs, self.artifacts, self.graph = tx, blobs, artifacts, graph
         self.rows, self.references, self.missing = {}, {}, set()
+        self.semantic_sources = {}
         # Only the owned READ ONLY transaction can publish positive metadata.
         # A writable archive transaction may reuse committed metadata, but its
         # inserts must never escape a rollback through this invocation owner.
@@ -86,6 +87,31 @@ class RuntimeFacts:
             blob_keys.update(ref.storage_key for ref in references if isinstance(ref, BlobRef))
         self.artifacts.expand(artifact_ids)
         self.blobs.load(project, blob_keys)
+        self._semantic_sources(project)
+
+    def _semantic_sources(self, project):
+        pending = [
+            identity
+            for owner, identity in self.rows
+            if owner == project and (owner, identity) not in self.semantic_sources
+        ]
+        for offset in range(0, len(pending), 64):
+            batch = pending[offset : offset + 64]
+            for identity in batch:
+                self.semantic_sources[project, identity] = []
+            for row in query(
+                self.tx,
+                """SELECT l.runtime_record_id,e.entry_id,e.input_set_id,
+                EXISTS(SELECT 1 FROM execution_entry_denials d
+                    WHERE d.project_id=e.project_id AND d.entry_id=e.entry_id)
+                OR EXISTS(SELECT 1 FROM blob_access_revocations v
+                    WHERE v.project_id=e.project_id AND e.owned_hashes @> ARRAY[v.sha256]) AS denied
+                FROM semantic_execution_links l JOIN execution_entries e USING(project_id,entry_id)
+                WHERE l.project_id=:p AND l.runtime_record_id=ANY(CAST(:ids AS uuid[]))""",
+                p=project,
+                ids=batch,
+            ).mappings():
+                self.semantic_sources[project, row["runtime_record_id"]].append(dict(row))
 
     def payload(self, project, reference):
         # Caller authorizes the node first. A full body is fetched only for an

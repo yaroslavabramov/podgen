@@ -36,7 +36,7 @@ class BlobFacts:
                 self.tx,
                 """SELECT b.*,
                 EXISTS(SELECT 1 FROM blob_access_revocations v WHERE v.project_id=b.project_id AND v.sha256=b.sha256) AS access_revoked,
-                EXISTS(SELECT 1 FROM evaluator_blob_classifications c WHERE c.project_id=b.project_id AND c.sha256=b.sha256) AS evaluator_only
+                EXISTS(SELECT 1 FROM protected_byte_hashes c WHERE c.project_id=b.project_id AND c.sha256=b.sha256) AS evaluator_only
                 FROM blobs b WHERE project_id=:p AND storage_key=ANY(:keys)""",
                 p=project,
                 keys=pending[offset : offset + 64],

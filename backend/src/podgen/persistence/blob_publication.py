@@ -14,7 +14,7 @@ def check_identity(repo, tx, project_id, sha256, *, public_only=False):
     facts = one(
         tx,
         """SELECT
-        EXISTS(SELECT 1 FROM evaluator_blob_classifications WHERE project_id=:p AND sha256=:sha) AS evaluator_only,
+        EXISTS(SELECT 1 FROM protected_byte_hashes WHERE project_id=:p AND sha256=:sha) AS evaluator_only,
         EXISTS(SELECT 1 FROM blob_access_revocations WHERE project_id=:p AND sha256=:sha) AS access_revoked""",
         p=project_id,
         sha=sha256,
@@ -42,7 +42,7 @@ def _inspect_batch(repo, tx, project, staged):
         tx,
         """SELECT wanted.sha256,wanted.media_type AS requested_media_type,m.role,
         b.storage_key,b.byte_length,b.media_type,
-        EXISTS(SELECT 1 FROM evaluator_blob_classifications c WHERE c.project_id=:p AND c.sha256=wanted.sha256) AS evaluator_only,
+        EXISTS(SELECT 1 FROM protected_byte_hashes c WHERE c.project_id=:p AND c.sha256=wanted.sha256) AS evaluator_only,
         EXISTS(SELECT 1 FROM blob_access_revocations v WHERE v.project_id=:p AND v.sha256=wanted.sha256) AS access_revoked
         FROM jsonb_to_recordset(CAST(:identities AS jsonb)) AS wanted(sha256 text,media_type text)
         LEFT JOIN project_members m ON m.project_id=:p AND m.actor_id=:actor

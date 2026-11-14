@@ -18,7 +18,9 @@ def main():
     parser.add_argument("--out", required=True, type=Path)
     parser.add_argument("--pg-bin", required=True, type=Path)
     parser.add_argument(
-        "--operation", choices=("replay", "artifact-diagnosis", "finalization-diagnosis"), default="replay"
+        "--operation",
+        choices=("replay", "artifact-diagnosis", "finalization-diagnosis", "legacy-completed"),
+        default="replay",
     )
     args = parser.parse_args()
     source = json.loads(args.state.read_text())

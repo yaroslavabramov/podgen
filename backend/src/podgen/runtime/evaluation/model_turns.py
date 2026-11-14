@@ -1,21 +1,12 @@
 """Durable physical turns; the semantic stage and operational attempt lineage do not change."""
 
 from podgen.domain.contracts.common import BlobRef, RuntimeRef
-from podgen.persistence.database import one, query
 
 
 def rows(journal, root):
-    with journal.repo.database.transaction() as tx:
-        journal.authorize(tx)
-        return [
-            dict(row)
-            for row in query(
-                tx,
-                "SELECT * FROM evaluation_model_turns WHERE project_id=:p AND root_invocation_id=:i ORDER BY turn_index",
-                p=journal.project,
-                i=root["invocation_id"],
-            ).mappings()
-        ]
+    from podgen.persistence.private_journal.state import turns
+
+    return turns(journal, root)
 
 
 def events(journal, root, *, kinds=None):
@@ -84,19 +75,15 @@ class TurnJournal:
     def __getattr__(self, name):
         return getattr(self.journal, name)
 
-    def _row(self, tx):
-        value = one(
-            tx,
-            "SELECT * FROM evaluation_model_turns WHERE project_id=:p AND root_invocation_id=:i AND turn_index=:n",
-            p=self.journal.project,
-            i=self.root["invocation_id"],
-            n=self.index,
-        )
+    def _row(self, tx=None):
+        from podgen.persistence.private_journal.state import turn
+
+        value = turn(self.journal, self.root, self.index)
         if value is None:
             return None
-        row = dict(self.root)
-        row.update(dict(value), stage=self.root["stage"], attempt_index=0, output_record_id=None)
-        return row
+        from .physical_turn import invocation
+
+        return invocation(self.root, value)
 
     def prepare(self, body):
         turn, phase, _ = self.stage_prepare(body)
@@ -118,57 +105,6 @@ class TurnJournal:
         phase = self.publication(invocation)
         phase.transition(status, **fields)
         return phase.commit()
-
-    def write_transition(
-        self,
-        tx,
-        invocation,
-        status,
-        *,
-        provider_id=None,
-        input_tokens=None,
-        output_tokens=None,
-        output_ref=None,
-    ):
-        value = one(
-            tx,
-            """UPDATE evaluation_model_turns SET status=:s,
-                provider_response_id=COALESCE(:provider,provider_response_id),
-                input_tokens=COALESCE(:input,input_tokens),
-                output_tokens=COALESCE(:output,output_tokens)
-                WHERE project_id=:p AND root_invocation_id=:i AND turn_index=:n RETURNING *""",
-            s=status,
-            provider=provider_id,
-            input=input_tokens,
-            output=output_tokens,
-            p=self.journal.project,
-            i=self.root["invocation_id"],
-            n=self.index,
-        )
-        row = dict(self.root)
-        row.update(dict(value), stage=self.root["stage"], attempt_index=0, output_record_id=None)
-        if self.ledger is not None and (
-            self.ledger.history.is_submitted(self.index)
-            or status in ("submitting", "waiting", "response_completed", "outcome_unknown")
-        ):
-            usage = self.ledger.projected(row)
-            overflow = usage["input"] > 2**63 - 1 or usage["known_output"] > 2**63 - 1
-            query(
-                tx,
-                """UPDATE evaluation_model_invocations
-                SET status=:s,input_tokens=:input,output_tokens=:output
-                WHERE project_id=:p AND invocation_id=:i""",
-                p=self.journal.project,
-                i=self.root["invocation_id"],
-                s="validation_failed"
-                if overflow
-                else (
-                    status if status in ("failed", "validation_failed", "outcome_unknown") else "tool_running"
-                ),
-                input=None if overflow else usage["input"],
-                output=None if overflow or usage["unknown"] else usage["known_output"],
-            )
-        return row
 
     def event_binding(self, invocation, data):
         value = dict(data or {})
@@ -259,14 +195,5 @@ def usage(journal, root, output_limit, *, history=None):
 
 
 def aggregate(journal, root, value, status):
-    with journal.repo.database.transaction() as tx:
-        journal.authorize(tx)
-        query(
-            tx,
-            "UPDATE evaluation_model_invocations SET status=:s,input_tokens=:input,output_tokens=:output WHERE project_id=:p AND invocation_id=:i",
-            s=status,
-            input=value["input"],
-            output=None if value["unknown"] else value["known_output"],
-            p=journal.project,
-            i=root["invocation_id"],
-        )
+    # Aggregate accounting is a private head projection, never a legacy root UPDATE.
+    return value
