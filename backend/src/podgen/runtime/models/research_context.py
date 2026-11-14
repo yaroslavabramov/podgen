@@ -58,7 +58,16 @@ class ResearchContext:
         if saved is not None:
             return saved.input_tokens
         phase = self.publication()
+        from podgen.runtime.dispatch import DispatchStopped, before_external
+
         from .research_count_recovery import candidate, failure_data
+
+        try:
+            before_external("research_count", f"{self.root['invocation_id']}:{index}:{count_identity}")
+        except DispatchStopped:
+            if any(view["payload"].get("event_kind") == "source_context_count" for view in phase.views):
+                phase.commit()
+            raise
 
         admission_refs = getattr(self.guard, "admission_refs", lambda: [])()
         count_operation, recovery = candidate(self, phase, body, index, count_identity, admission_refs)

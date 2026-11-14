@@ -155,8 +155,11 @@ class ModelStep:
                     ),
                 )
             else:
+                from podgen.runtime.dispatch import before_external
+
                 from .direct_count import capture, prepare
 
+                before_external("model_count", str(invocation["invocation_id"]))
                 admission_refs = getattr(guard, "admission_refs", lambda: [])()
                 count_body, intent, native_blob, count_data = prepare(
                     step.phase, body, profile, admission_refs
@@ -197,6 +200,16 @@ class ModelStep:
                 or totals["output"] + profile.output_limit > limits.max_total_output_tokens
             ):
                 step.fail(invocation, "run_token_budget_exceeded", status="validation_failed")
+            from podgen.runtime.dispatch import DispatchStopped, before_external
+
+            try:
+                before_external("model_submit", str(invocation["invocation_id"]))
+            except DispatchStopped:
+                if step.phase.views or step.phase.state is not None:
+                    # Pause cannot erase a paid count. The normal path retains
+                    # its existing combined receipt/submit publication.
+                    step.publish()
+                raise
             step.phase.event(
                 "submit_intent",
                 data=dict(

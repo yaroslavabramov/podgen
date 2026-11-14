@@ -74,7 +74,8 @@ def test_source_coverage_and_identity_are_checked_before_assembly(monkeypatch, p
         parts[1]["source"]["source_script_hash"] = "other"
     refs = [journal.ref(f"part{i}") for i in range(len(parts))]
     monkeypatch.setattr(
-        "podgen.runtime.evaluation.audio.assembly.source.comparison_result", lambda j, r: parts[refs.index(r)]
+        "podgen.runtime.evaluation.audio.assembly.source.comparison_results",
+        lambda j, rs: [parts[refs.index(r)] for r in rs],
     )
     monkeypatch.setattr("podgen.runtime.evaluation.audio.assembly.source.import_fragment", lambda *a: full)
     c = AssemblyConfig(assembly_id=uuid4(), comparison_run_id=journal.run_id, part_result_refs=refs)

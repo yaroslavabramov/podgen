@@ -5,12 +5,12 @@ from podgen.domain.errors import ContractError
 
 from ..contracts import Fragment, UtteranceSelection
 from ..source import import_fragment
-from ..subjects import comparison_result, synthesis_part
+from ..subjects import comparison_results, synthesis_part
 
 
 def prepare_sources(journal, config):
     parts = (
-        [comparison_result(journal, ref) for ref in config.part_result_refs]
+        comparison_results(journal, config.part_result_refs)
         if config.contract == "audio-evaluation-assembly/1"
         else [synthesis_part(journal, b) for b in config.bindings]
     )
@@ -47,6 +47,9 @@ def prepare_sources(journal, config):
     )
     selectors = [s for p in parts for s in p["source"]["selectors"]]
     utterances = [u for p in parts for u in p["source"]["source"]["utterances"]]
+    from .coverage import coalesce
+
+    selectors, utterances = coalesce(selectors, utterances)
     if selectors != full["selectors"] or utterances != full["source"]["utterances"]:
         raise ContractError("assembly_requires_full_ordered_utterance_coverage")
     return full, parts

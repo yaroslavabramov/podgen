@@ -47,26 +47,50 @@ def history(journal, cell):
 
 
 def ledger(journal, manifest):
+    return OperationLedger(journal, manifest).totals(journal, manifest)
+
+
+def _cell_ledger(journal, cell):
     attempts, committed = 0, Decimal(0)
-    for cell in manifest["cells"]:
-        for row in history(journal, cell):
-            if not row["intent"]:
-                continue
-            attempts += 1
-            audio = journal.get(row["key"] + ":audio")
-            if audio:
-                cost = estimate(
-                    VoiceCandidate.model_validate(row["prepared"]["profile"]),
-                    audio["usage"],
-                    audio["usage_basis"],
-                )
-                committed += charge(cost)
-            else:
-                committed += Decimal(row["prepared"]["reservation_usd"])
+    for row in history(journal, cell):
+        if not row["intent"]:
+            continue
+        attempts += 1
+        audio = journal.get(row["key"] + ":audio")
+        if audio:
+            cost = estimate(
+                VoiceCandidate.model_validate(row["prepared"]["profile"]),
+                audio["usage"],
+                audio["usage_basis"],
+            )
+            committed += charge(cost)
+        else:
+            committed += Decimal(row["prepared"]["reservation_usd"])
     return attempts, committed
 
 
-def execute(journal, manifest, cell, config, transport, *, retake_reason=None):
+class OperationLedger:
+    """Accounting under one run lock; no authorization facts survive a provider wait."""
+
+    def __init__(self, journal, manifest):
+        self.journal, self.manifest = journal, manifest
+        self.cells = {cell["cell_id"]: _cell_ledger(journal, cell) for cell in manifest["cells"]}
+        self.attempts = sum(row[0] for row in self.cells.values())
+        self.committed = sum((row[1] for row in self.cells.values()), Decimal(0))
+
+    def refresh(self, cell):
+        before, after = self.cells[cell["cell_id"]], _cell_ledger(self.journal, cell)
+        self.attempts += after[0] - before[0]
+        self.committed += after[1] - before[1]
+        self.cells[cell["cell_id"]] = after
+
+    def totals(self, journal, manifest):
+        if journal is not self.journal or manifest is not self.manifest:
+            raise ValueError("audio_ledger_operation_mismatch")
+        return self.attempts, self.committed
+
+
+def execute(journal, manifest, cell, config, transport, *, retake_reason=None, operation_ledger=None):
     profile = next(p for p in config.profiles if p.profile_id == cell["profile_id"])
     previous = history(journal, cell)
     if retake_reason is None and previous:
@@ -115,7 +139,9 @@ def execute(journal, manifest, cell, config, transport, *, retake_reason=None):
     receipt = journal.get(key + ":receipt")
     request = PreparedRequest.model_validate(cell["request"])
     if receipt is None:
-        count, committed = ledger(journal, manifest)
+        count, committed = (
+            operation_ledger.totals(journal, manifest) if operation_ledger else ledger(journal, manifest)
+        )
         if count >= config.max_attempts or committed + Decimal(profile.reservation_usd) > Decimal(
             config.max_cost_usd
         ):
@@ -134,6 +160,9 @@ def execute(journal, manifest, cell, config, transport, *, retake_reason=None):
             return "budget_exhausted"
         if journal.get(key + ":submit"):
             return "outcome_unknown"
+        from podgen.runtime.dispatch import before_external
+
+        before_external("audio_submit", f"{journal.run_id}:{cell['cell_id']}:{take}")
         journal.put(
             key + ":submit",
             dict(

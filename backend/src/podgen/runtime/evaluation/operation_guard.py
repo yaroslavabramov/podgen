@@ -54,11 +54,14 @@ class OperationGuard:
             if isinstance(self.materials, ResearchMaterials)
             else [self.command.author_ref, *(doc.ref for doc in self.materials.documents)]
         )
-        if getattr(self.materials, "fixed_ref", None) is not None:
-            references.append(self.materials.fixed_ref)
         admissions = tuple(self.admission_refs())
+        evaluation = list(admissions)
+        fixed = getattr(self.materials, "fixed_ref", None)
+        if fixed is not None:
+            # Native accepted plan clearances retain their evaluator audience.
+            (evaluation if fixed.record_kind == "tool_execution" else references).append(fixed)
         if self.prepared_admissions != admissions:
-            self.journal.execution.prepare(self.command.run_id, generation=references, evaluation=admissions)
+            self.journal.execution.prepare(self.command.run_id, generation=references, evaluation=evaluation)
             self.prepared_admissions = admissions
             for document in (*self.materials.documents, *getattr(self.materials, "runtime_admissions", ())):
                 bind_text = getattr(getattr(document, "text", None), "bind_execution", None)

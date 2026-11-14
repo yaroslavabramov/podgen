@@ -54,7 +54,7 @@ def prepare(journal, config):
         for provider in config.providers
     ]
     manifest = dict(
-        contract="audio-comparison-manifest/1",
+        contract=getattr(config, "manifest_contract", "audio-comparison-manifest/1"),
         actor_id=str(journal.repo.actor_id),
         tool_versions=versions,
         purpose="evaluation",

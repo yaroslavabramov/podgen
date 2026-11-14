@@ -38,11 +38,30 @@ class WritingEvaluation:
         gateway_options=None,
         materials_loader=load_author_materials,
         legacy_offline_transport=None,
+        material_acquirer=None,
     ):
         self.repo, self.provider_factory = repo, provider_factory
         self.legacy_offline_transport = legacy_offline_transport
+        self.material_acquirer = material_acquirer
         self.materials_loader, self.gateway_options = materials_loader, gateway_options or {}
         self.generation = Repository(repo.database, repo.objects, repo.actor_id, purpose="generation")
+
+    def material_resolver(self, command, materials):
+        from podgen.research.materials.resolver import ResearchMaterialResolver
+
+        parents = tuple(
+            parent
+            for parent in (
+                command.planning_parent_run_id,
+                command.editorial_parent_run_id,
+                command.material_parent_run_id,
+            )
+            if parent is not None
+        )
+        options = dict(acquire=self.material_acquirer) if self.material_acquirer is not None else {}
+        return ResearchMaterialResolver(
+            EvaluationJournal(self.repo, command.project_id), materials, parent_run_ids=parents, **options
+        )
 
     def _materials(self, command):
         if command.input_contract == "editorial-role-packets/1":
@@ -63,18 +82,9 @@ class WritingEvaluation:
                 fixed_ref=command.fixed_plan_input_ref,
             )
             if getattr(materials.packet, "contract", None) == "research-editorial-input/1":
-                from podgen.research.materials.resolver import ResearchMaterialResolver
-
-                journal = EvaluationJournal(self.repo, command.project_id)
-                materials.runtime_admissions[:] = ResearchMaterialResolver(
-                    journal,
-                    materials,
-                    parent_run_ids=tuple(
-                        parent
-                        for parent in (command.planning_parent_run_id, command.editorial_parent_run_id)
-                        if parent is not None
-                    ),
-                ).restore(run_id=command.run_id, guard=lambda: None)
+                materials.runtime_admissions[:] = self.material_resolver(command, materials).restore(
+                    run_id=command.run_id, guard=lambda: None
+                )
             return materials
         loader = load_own_plan_materials if command.plan_mode == "own-plan" else self.materials_loader
         return loader(self.generation, command.project_id, command.author_ref, case_id=command.case_id)
@@ -334,9 +344,7 @@ class WritingEvaluation:
                         )
                     corpus = SourceCorpus(materials, retrieval=retrieval, index=index)
                     if source_contract(manifest)["version"] == "frozen-corpus-tools/7":
-                        from podgen.research.materials.resolver import ResearchMaterialResolver
-
-                        corpus.material_resolver = ResearchMaterialResolver(journal, materials)
+                        corpus.material_resolver = self.material_resolver(command, materials)
                 except ImportError:
                     journal.status(command.run_id, "needs_attention", "source_search_dependencies_missing")
                     raise RunFailure("source_search_dependencies_missing", run_id=command.run_id) from None

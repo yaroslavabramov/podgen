@@ -5,13 +5,20 @@ from .attempts import history
 
 
 def comparison_result(journal, result_ref):
+    return comparison_results(journal, [result_ref])[0]
+
+
+def comparison_results(journal, result_refs):
+    """Resolve a bounded assembly's parts in one walk of the native attempt archive."""
     manifest = journal.get("manifest")
     if manifest is None:
         raise ContractError("fidelity_comparison_not_prepared")
+    remaining, found = set(result_refs), {}
     for cell in manifest["cells"]:
         for row in history(journal, cell):
             for revision in row["processing"]:
-                if revision["result"] and journal.ref(revision["key"] + ":result") == result_ref:
+                result_ref = journal.ref(revision["key"] + ":result")
+                if revision["result"] and result_ref in remaining:
                     result = journal.base.read(result_ref)
                     decoded = journal.base.read(RuntimeRef.model_validate(result["decoded_ref"]))
                     source = journal.base.read(RuntimeRef.model_validate(cell["source_ref"]))
@@ -22,7 +29,7 @@ def comparison_result(journal, result_ref):
                         raise ContractError("fidelity_subject_decoded_binding_mismatch")
                     if len({u["speaker"] for u in source["source"]["utterances"]}) != 1:
                         raise ContractError("fidelity_requires_one_narrator")
-                    return dict(
+                    found[result_ref] = dict(
                         result=result,
                         source=source,
                         source_ref=cell["source_ref"],
@@ -42,6 +49,9 @@ def comparison_result(journal, result_ref):
                         repair_depth=0,
                         origin_part_ref=result_ref.model_dump(mode="json"),
                     )
+                    remaining.remove(result_ref)
+        if not remaining:
+            return [found[ref] for ref in result_refs]
     raise ContractError("fidelity_result_outside_comparison")
 
 

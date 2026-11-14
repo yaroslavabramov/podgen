@@ -57,6 +57,7 @@ class WritingRunCommand(Contract):
     planning_parent_run_id: UUID | None = None
     planning_continuation_limit: PositiveInt | None = None
     editorial_parent_run_id: UUID | None = None
+    material_parent_run_id: UUID | None = None
     editorial_additional_input_tokens: int | None = Field(default=None, ge=0)
     editorial_additional_output_tokens: int | None = Field(default=None, ge=0)
     repeat_index: int = Field(default=0, ge=0)
@@ -96,6 +97,15 @@ class WritingRunCommand(Contract):
 
     @model_validator(mode="after")
     def planning_profiles(self):
+        if self.material_parent_run_id is not None and (
+            self.material_parent_run_id == self.run_id
+            or self.plan_mode != "fixed-plan"
+            or self.fixed_plan_input_ref is None
+            or self.editorial_parent_run_id is not None
+            or self.planning_parent_run_id is not None
+            or self.input_contract != "editorial-role-packets/1"
+        ):
+            raise ValueError("material_continuation_requires_saved_fixed_plan")
         if self.editorial_parent_run_id is None:
             if (
                 self.editorial_additional_input_tokens is not None
@@ -162,6 +172,8 @@ class RunFailure(Exception):
 def command_payload(command):
     """Keep fingerprints of pre-policy strict commands stable."""
     payload = command.model_dump(mode="json")
+    if command.material_parent_run_id is None:
+        payload.pop("material_parent_run_id")
     if command.behavior_profile is None:
         payload.pop("behavior_profile")
     if command.editorial_pass == 1:

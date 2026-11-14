@@ -76,7 +76,15 @@ def load_materials(repo, project, ref, *, case_id, fixed_ref=None):
         materials = _load_materials(repo, project, ref, case_id=case_id, fixed_ref=fixed_ref)
         # A remote report/plan read may have closed the first metadata snapshot.
         # Reauthorize the complete frozen input before publishing this view.
-        repo.authorize_runtime_many(project, [ref] + ([fixed_ref] if fixed_ref is not None else []))
+        repo.authorize_runtime(project, ref)
+        if fixed_ref is not None:
+            # A journal clearance is evaluator-owned. The primary corpus still
+            # passes ordinary generation authorization; reuse never publishes it.
+            from podgen.persistence.repository import Repository
+
+            Repository(repo.database, repo.objects, repo.actor_id, purpose="evaluation").authorize_runtime(
+                project, fixed_ref
+            )
         return materials
 
 

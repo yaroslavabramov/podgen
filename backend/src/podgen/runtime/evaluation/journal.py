@@ -8,8 +8,8 @@ from uuid import uuid4, uuid5
 from podgen.domain.canonical import digest
 from podgen.domain.contracts.common import BlobRef, RuntimeRef
 from podgen.domain.errors import AccessDenied, Conflict
-from podgen.persistence.archive_authorization import archive_write
 from podgen.persistence.database import one, query
+from podgen.persistence.execution.inputs import _publish
 from podgen.persistence.runtime_records import append_runtime
 
 from .attempts import validate_lineage
@@ -86,7 +86,7 @@ class EvaluationJournal:
                 self.authorize(tx)
                 append_runtime(self.repo, tx, self.project, ref, payload, "evaluator", replay=True)
 
-            archive_write(self.repo, self.project, write)
+            _publish(self.repo, self.project, write)
         return ref
 
     def read(self, ref):
@@ -153,7 +153,10 @@ class EvaluationJournal:
                 m=ref.record_id,
             )
 
-        archive_write(self.repo, self.project, write)
+        # A new manifest can reuse private accepted plan/script outputs whose
+        # disposable input expansion predates the new blob. Refresh outside
+        # the failed snapshot using the existing input owner's bounded retry.
+        _publish(self.repo, self.project, write)
         return manifest
 
     def status(self, run_id, status, failure=None):

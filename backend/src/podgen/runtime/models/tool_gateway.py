@@ -175,6 +175,11 @@ def _execute(journal, root, corpus, contract, call, index, turn, guard, history)
         and result.get("status") == "pending"
         and call["name"] in ("request_source", "request_research")
     ):
+        from podgen.domain.references import walk_values
+
+        # A prepared handoff introduces immutable child refs. Bind them before
+        # its private checkpoint; capture never depends on dispatch permission.
+        journal.execution.prepare(root["run_id"], evaluation=[ref for _, _, ref in walk_values(result)])
         journal.event(root, "source_material_pending", data=dict(data, result=result))
         raise RunFailure(
             "source_material_handoff_pending", run_id=root["run_id"], invocation_id=root["invocation_id"]

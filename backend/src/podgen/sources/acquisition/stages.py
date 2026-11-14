@@ -19,6 +19,9 @@ async def acquire_document(store, request, profile, role, url, fetcher, extracto
         return AcquiredSource.model_validate(saved["source"]) if saved["source"] else None
     document = load_original(store, role)
     if document is None:
+        from podgen.runtime.dispatch import before_external
+
+        before_external("source_fetch", f"{request.operation_id}:{role}")
         try:
             document = await fetcher.fetch(url, profile, headers=headers)
         except (ValueError, RuntimeError, OSError, TimeoutError, ImportError, httpx.HTTPError) as error:
@@ -48,6 +51,9 @@ async def extract_document(
     try:
         extracted_record = store.get(role + ":extracted")
         if extracted_record is None:
+            from podgen.runtime.dispatch import before_external
+
+            before_external("source_extract", f"{request.operation_id}:{role}")
             extracted = await extractors.extract(document, profile, role=role)
             blob = store.blob(extracted.text.encode("utf-8"), "text/plain; charset=utf-8")
             extracted_record = dict(
