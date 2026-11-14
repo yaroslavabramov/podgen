@@ -141,9 +141,16 @@ class PendingExactCount(ExactCount):
         if not 200 <= self.reply.status_code < 300:
             raise Conflict("count_receipt_binding_changed")
         wire = getattr(self.reply, "request_body", None)
-        if wire is not None and not self.reply.redacted and load_unique_json(wire) != self.native_request:
+        try:
+            parsed_wire = load_unique_json(wire) if wire is not None and not self.reply.redacted else None
+        except ValueError as error:
+            raise Conflict("count_receipt_wire_invalid") from error
+        if wire is not None and not self.reply.redacted and parsed_wire != self.native_request:
             raise Conflict("count_receipt_wire_changed")
-        response = load_unique_json(self.reply.body)
+        try:
+            response = load_unique_json(self.reply.body)
+        except ValueError as error:
+            raise Conflict("count_receipt_response_invalid") from error
         if type(response.get("input_tokens")) is not int or response["input_tokens"] != self.input_tokens:
             raise Conflict("count_receipt_response_changed")
         return self.input_tokens

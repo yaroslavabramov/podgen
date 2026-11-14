@@ -38,7 +38,11 @@ def _locator(value, materials, snapshot_index, corpus):
 def finalize(journal, invocation, parsed, audit, materials, script):
     documents = (*materials.documents, *getattr(materials, "runtime_admissions", ()))
     with journal.read_operation(), read_sources(documents):
-        return _finalize(journal, invocation, parsed, audit, materials, script)
+        output, report = _finalize(journal, invocation, parsed, audit, materials, script)
+    # Retained evidence is now an actual semantic input of the saved report.
+    # Bind only the receipts/selectors authenticated above, once at finalization.
+    journal.execution.prepare_context(invocation["run_id"], report["resolved_evidence"])
+    return output, report
 
 
 def _finalize(journal, invocation, parsed, audit, materials, script):

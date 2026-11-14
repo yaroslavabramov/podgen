@@ -123,17 +123,21 @@ class SavedExchange:
                 hash=hashlib.sha256(saved_call["arguments"].encode()).hexdigest(),
                 name=saved_call["name"],
             )
-        return response, owned.reference, dict(
-            turn_index=0,
-            call_index=0,
-            read_id="E1",
-            call_id=saved_call["call_id"],
-            name=saved_call["name"],
-            raw_arguments=saved_call["arguments"],
-            arguments=json.loads(saved_call["arguments"]),
-            arguments_hash=hashlib.sha256(saved_call["arguments"].encode()).hexdigest(),
-            provider_response_ref=response.model_dump(mode="json"),
-            result=dict(text="SYNTHETIC complete saved tool result"),
+        return (
+            response,
+            owned.reference,
+            dict(
+                turn_index=0,
+                call_index=0,
+                read_id="E1",
+                call_id=saved_call["call_id"],
+                name=saved_call["name"],
+                raw_arguments=saved_call["arguments"],
+                arguments=json.loads(saved_call["arguments"]),
+                arguments_hash=hashlib.sha256(saved_call["arguments"].encode()).hexdigest(),
+                provider_response_ref=response.model_dump(mode="json"),
+                result=dict(text="SYNTHETIC complete saved tool result"),
+            ),
         )
 
     def refresh_valid_inputs(self):
@@ -141,15 +145,18 @@ class SavedExchange:
         with self.repo.database.read_transaction() as tx, authorized_read(self.repo, tx):
             assert authorize(self.repo, tx, self.project, self.bound["set_id"], action=True)
             # The independent request-body alias is intentionally outside the input set.
-            assert one(
-                tx,
-                """SELECT 1 FROM execution_input_resources
+            assert (
+                one(
+                    tx,
+                    """SELECT 1 FROM execution_input_resources
                 WHERE project_id=:p AND set_id=:s AND resource_kind='blob'
                   AND binding->>'sha256'=:sha""",
-                p=self.project,
-                s=self.bound["set_id"],
-                sha=self.request_blob.sha256,
-            ) is None
+                    p=self.project,
+                    s=self.bound["set_id"],
+                    sha=self.request_blob.sha256,
+                )
+                is None
+            )
 
     def withdraw_request_alias(self):
         event = DependencyLedger(self.repo).invalidate(
@@ -191,10 +198,9 @@ def exchange(repo, scope, producer):
             hash=digest(dict(test="execution-parent-privacy")),
             manifest=manifest.record_id,
         )
-    bound = bind(
-        repo, project, run_id, [dict(purpose="generation", ref=source.ref.model_dump(mode="json"))]
-    )
+    bound = bind(repo, project, run_id, [dict(purpose="generation", ref=source.ref.model_dump(mode="json"))])
     saved = SavedExchange(repo, project, run_id, bound)
+    saved.source = source.ref
     saved.invocation_id = invocation
     saved.physical_id = uuid5(invocation, "source-turn:0")
     saved.alias = alias.ref
@@ -259,24 +265,30 @@ def test_request_alias_withdrawal_before_receipt_rejects_append_with_current_val
     with pytest.raises(AccessDenied):
         exchange.provider_response(record_id=receipt_id)
     with exchange.repo.database.transaction() as tx:
-        assert one(
-            tx,
-            "SELECT 1 FROM runtime_records WHERE project_id=:p AND record_id=:id",
-            p=exchange.project,
-            id=receipt_id,
-        ) is None
+        assert (
+            one(
+                tx,
+                "SELECT 1 FROM runtime_records WHERE project_id=:p AND record_id=:id",
+                p=exchange.project,
+                id=receipt_id,
+            )
+            is None
+        )
 
 
 def test_later_alias_withdrawal_closes_receipt_without_own_blobs_and_warm_reads(exchange):
     response, _, data = exchange.provider_response()
     receipt = exchange.event("source_tool_result", data)
     with exchange.repo.database.transaction() as tx:
-        assert one(
-            tx,
-            "SELECT 1 FROM runtime_blob_refs WHERE project_id=:p AND record_id=:id",
-            p=exchange.project,
-            id=receipt.record_id,
-        ) is None
+        assert (
+            one(
+                tx,
+                "SELECT 1 FROM runtime_blob_refs WHERE project_id=:p AND record_id=:id",
+                p=exchange.project,
+                id=receipt.record_id,
+            )
+            is None
+        )
     with exchange.journal.runtime_graph():
         assert exchange.journal.read(receipt)["data"]["result"] == data["result"]
         exchange.withdraw_request_alias()
@@ -300,6 +312,72 @@ def test_privacy_parent_does_not_grant_its_blob_through_child(exchange):
     for blob in (exchange.request_blob, response_blob):
         with pytest.raises(AccessDenied):
             exchange.journal.read_blob(receipt, blob)
+
+
+@pytest.mark.parametrize("warm", [False, True], ids=["cold", "warm"])
+def test_generation_only_source_withdrawal_closes_receipt_bytes_and_independent_alias(exchange, warm):
+    assert exchange.bound["roots"] == [
+        dict(purpose="generation", ref=exchange.source.model_dump(mode="json"))
+    ]
+    receipt, receipt_blob, _ = exchange.provider_response()
+    raw = exchange.journal.read_blob(receipt, receipt_blob)
+    alias_blob = exchange.repo.save_blob(exchange.project, io.BytesIO(raw), "text/plain")
+    assert alias_blob.sha256 == receipt_blob.sha256
+    assert alias_blob.storage_key != receipt_blob.storage_key
+    alias = RuntimeRef(record_kind="tool_execution", record_id=uuid4())
+    exchange.repo.append_runtime(
+        exchange.project, alias, dict(blob=alias_blob.model_dump(mode="json")), audience="evaluator"
+    )
+    with exchange.repo.database.transaction() as tx:
+        projected_source = one(
+            tx,
+            """SELECT binding FROM execution_input_resources
+            WHERE project_id=:p AND set_id=:s AND purpose='evaluation'
+              AND resource_kind='artifact' AND owner_project_id=:p AND identity=:source
+              AND read_required AND privacy_required""",
+            p=exchange.project,
+            s=exchange.bound["set_id"],
+            source=str(exchange.source.revision_id),
+        )
+        assert projected_source is not None
+        assert projected_source["binding"] == exchange.source.model_dump(mode="json")
+
+    with exchange.journal.runtime_graph():
+        if warm:
+            assert exchange.journal.read(receipt)["event_kind"] == "provider_response"
+            assert exchange.journal.read_blob(receipt, receipt_blob) == raw
+            assert exchange.repo.read_runtime_blob(exchange.project, alias, alias_blob) == raw
+        DependencyLedger(exchange.repo).invalidate(
+            exchange.project,
+            exchange.source,
+            reason="SYNTHETIC generation source withdrawal",
+            category="access",
+        )
+        with exchange.repo.database.transaction() as tx:
+            assert (
+                one(
+                    tx,
+                    "SELECT role FROM project_members WHERE project_id=:p AND actor_id=:actor",
+                    p=exchange.project,
+                    actor=exchange.repo.actor_id,
+                )["role"]
+                == "owner"
+            )
+            # Verify real propagation, independently of stale-expansion rejection.
+            assert one(
+                tx,
+                "SELECT 1 FROM blob_access_revocations WHERE project_id=:p AND sha256=:sha",
+                p=exchange.project,
+                sha=receipt_blob.sha256,
+            )
+        for read, arguments in (
+            (exchange.journal.read, (receipt,)),
+            (exchange.journal.read_blob, (receipt, receipt_blob)),
+            (exchange.repo.get_runtime, (exchange.project, alias)),
+            (exchange.repo.read_runtime_blob, (exchange.project, alias, alias_blob)),
+        ):
+            with pytest.raises(AccessDenied):
+                read(*arguments)
 
 
 def test_same_run_reference_outside_control_path_requires_material_binding(exchange):

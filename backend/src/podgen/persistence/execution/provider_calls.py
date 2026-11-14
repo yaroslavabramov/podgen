@@ -55,5 +55,8 @@ def project_calls(project, run_id, ref, payload, body):
                 tool_name=item["name"],
             )
         )
-    # Malformed duplicate calls must still leave the full received bytes durable.
-    return list({row["call_id"]: row for row in rows}.values())
+    # Duplicate call IDs have no unambiguous binding. Preserve the raw response,
+    # but register no proof from a malformed call list.
+    if len({row["call_id"] for row in rows}) != len(rows):
+        return []
+    return rows

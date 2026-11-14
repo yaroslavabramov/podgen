@@ -85,7 +85,7 @@ def append(repo, tx, project, run_id, set_id, records, owned_blobs):
                 if not valid:
                     valid = controls.blob_owner(consumer.record_id, path, ref)
             if not valid:
-                raise ContractError("execution_dependency_not_bound")
+                raise ContractError("execution_dependency_not_bound", path)
     external_parents = [ref.record_id for _, ref in controls.edges if ref.record_id not in identities]
     authorize_parents(repo, tx, project, external_parents, include_parents=False)
     facts = access_facts(repo, tx)
