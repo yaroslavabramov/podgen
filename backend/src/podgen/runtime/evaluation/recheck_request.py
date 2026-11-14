@@ -74,9 +74,17 @@ def semantic_request(journal, run_id, stage, invocation, context, script, output
         raise Conflict("revision_verification_request_lineage_mismatch")
     for (child, saved, body), (parent, previous, parent_body) in zip(chain[:-1], chain[1:], strict=True):
         if child["operation_kind"] == parent["operation_kind"]:
-            if saved["context"] != previous["context"] or {
-                k: v for k, v in body.items() if k != "metadata"
-            } != {k: v for k, v in parent_body.items() if k != "metadata"}:
+            if saved["context"] != previous["context"]:
+                raise Conflict("revision_verification_request_lineage_mismatch")
+            if child["operation_kind"] == "role" and "source_tool_resume" in saved.get("authorization", {}):
+                # A source retry starts at its exact refused/unsent physical turn,
+                # retaining paid tool history rather than repeating the first request.
+                from .source_tool_recovery import continuation
+
+                continuation(journal, child)
+            elif {k: v for k, v in body.items() if k != "metadata"} != {
+                k: v for k, v in parent_body.items() if k != "metadata"
+            }:
                 raise Conflict("revision_verification_request_lineage_mismatch")
         elif (
             child["attempt_kind"] != "anchor_repair"
