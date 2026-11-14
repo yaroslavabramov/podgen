@@ -193,6 +193,8 @@ class MemoryPublication(Publication):
 
 
 def install_memory_turns(monkeypatch):
+    monkeypatch.setattr("podgen.runtime.evaluation.provider_evidence.register_structured", lambda *args: None)
+
     class MemoryTurnJournal(model_turns.TurnJournal):
         def publication(self, invocation):
             return MemoryPublication(self, invocation)

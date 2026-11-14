@@ -44,6 +44,19 @@ def structured_requests(response, turn, history):
     ]
 
 
+def structured_call(request, turn, position):
+    arguments = dict(
+        question=request["question"],
+        reason=request.get("why_needed") or request.get("reason") or json.dumps(request, ensure_ascii=False),
+    )
+    return dict(
+        type="function_call",
+        call_id=f"structured_research_{turn}_{position}",
+        name="request_research",
+        arguments=json.dumps(arguments, ensure_ascii=False, separators=(",", ":")),
+    )
+
+
 def resolve_structured(
     requests,
     gateway,
@@ -58,19 +71,13 @@ def resolve_structured(
     turn,
     guard,
 ):
+    calls = [structured_call(request, turn, position) for position, request in enumerate(requests)]
+    event = history.provider_response(turn)
+    from podgen.runtime.evaluation.provider_evidence import register_structured
+
+    register_structured(gateway.journal, root, event, requests, calls, turn, history)
     results = []
-    for position, request in enumerate(requests):
-        arguments = dict(
-            question=request["question"],
-            reason=request.get("why_needed")
-            or request.get("reason")
-            or json.dumps(request, ensure_ascii=False),
-        )
-        call = dict(
-            call_id=f"structured_research_{turn}_{position}",
-            name="request_research",
-            arguments=json.dumps(arguments, ensure_ascii=False, separators=(",", ":")),
-        )
+    for request, call in zip(requests, calls, strict=True):
         result = _execute(gateway.journal, root, proxy, contract, call, call_index, turn, guard, history)
         results.append(dict(request=request, result=result))
         if not any(

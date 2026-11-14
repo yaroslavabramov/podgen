@@ -65,3 +65,22 @@ Native model requests/responses, tool results and final meaning remain exact. A 
 journal/archive contract explicitly describes technical deltas; old preview/resume
 remains exact. Verification counts driver and nested server statements, projection
 work, rows/resources visited, bytes and RSS, including rare alias/withdrawal work.
+
+
+## Archive version 2
+
+New execution records carry `journal_version=execution-journal/2`. Native model
+requests/responses, full tool arguments/results and final outputs are unchanged.
+Tool call/result data adds an exact `provider_response_ref` and SHA-256 of the
+unmodified raw arguments. Search diagnostics can immediately precede the same
+call's recorded fact inside the atomic result checkpoint. There is no durable
+pre-execution intent for a pure read. The verifier accepts only that adjacent
+same-call relocation, and compares all event contents and raw files exactly after
+explicit technical identity substitutions; it never sorts the full event stream.
+
+Retained reading-audit evidence is an explicit semantic input extension, prepared
+once after receipt/source validation and before saving the final report. Technical
+parents confer no read grants. Withdrawal markers and flat live conditions are
+checked independently of cached runtime headers. Old provider call proofs are
+reconstructed from authorized full archived response bytes when continuation needs
+them; original legacy records remain unchanged.

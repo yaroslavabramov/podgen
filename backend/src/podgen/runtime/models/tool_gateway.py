@@ -104,7 +104,7 @@ def _execute(journal, root, corpus, contract, call, index, turn, guard, history)
     )
     if provider_event is None:
         raise ContractError("source_tool_provider_response_missing")
-    from podgen.runtime.evaluation.legacy_execution import adopt_response
+    from podgen.runtime.evaluation.provider_evidence import adopt_response
 
     adopt_response(journal, root, provider_event)
     data.update(

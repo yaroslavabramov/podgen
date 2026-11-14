@@ -58,7 +58,27 @@ class ExportOracle:
         events_name = "archive/fact-review/events.json"
         old_events, new_events = (json.loads(files[events_name]) for files in (self.saved, current))
         assert len(old_events) == len(new_events) == 399
-        for old, new in zip(old_events, new_events, strict=True):
+        logical_events = list(new_events)
+        relocations = []
+        for index in range(len(logical_events) - 1):
+            first, second = logical_events[index : index + 2]
+            if (
+                first["event_kind"] == "source_search_diagnostics"
+                and second["event_kind"] == "source_tool_call"
+            ):
+                assert first.get("journal_version") == second.get("journal_version") == "execution-journal/2"
+                assert second["data"]["name"] == "search_sources"
+                assert first["data"]["call_index"] == second["data"]["call_index"]
+                result = logical_events[index + 2]
+                assert (
+                    result["event_kind"] == "source_tool_result"
+                    and result["data"]["call_index"] == first["data"]["call_index"]
+                )
+                assert old_events[index]["event_kind"] == "source_tool_call"
+                assert old_events[index + 1]["event_kind"] == "source_search_diagnostics"
+                logical_events[index : index + 2] = [second, first]
+                relocations.append(index)
+        for old, new in zip(old_events, logical_events, strict=True):
             assert old["event_kind"] == new["event_kind"]
             pair(old["record_ref"]["record_id"], new["record_ref"]["record_id"])
         # Conversation hashes are derived from already verified physical requests.
@@ -73,6 +93,8 @@ class ExportOracle:
             if isinstance(value, str):
                 return substitutions.get(value, value)
             if isinstance(value, list):
+                if name == events_name and not path and value == new_events:
+                    value = logical_events
                 return [normalize(item, name=name, path=(*path, index)) for index, item in enumerate(value)]
             if not isinstance(value, dict):
                 return value
@@ -116,7 +138,7 @@ class ExportOracle:
                     result[key] = normalize(item, name=name, path=(*path, key))
             return result
 
-        for index, (old, new) in enumerate(zip(old_events, new_events, strict=True)):
+        for index, (old, new) in enumerate(zip(old_events, logical_events, strict=True)):
             for field in ("response_blob", "wire_request_blob", "wire_response_blob"):
                 if field not in old:
                     assert field not in new
@@ -145,9 +167,11 @@ class ExportOracle:
         assert not different, ("export_changed", different[:20], len(different))
         return dict(
             archive_contract="execution-journal/2",
+            adjacent_same_call_diagnostic_relocations=relocations,
             verified_technical_delta=[
                 "journal_version",
                 "exact tool provider_response_ref and arguments_hash",
+                "adjacent same-call search diagnostics before the recorded call fact",
             ],
             files_verified=len(current),
             byte_exact_files=byte_exact,

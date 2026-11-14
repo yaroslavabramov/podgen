@@ -22,6 +22,11 @@ def project_calls(project, run_id, ref, payload, body):
     output = response.get("output") if isinstance(response, dict) else None
     if not isinstance(output, list):
         return []
+    return project_call_rows(project, run_id, ref, payload, output)
+
+
+def project_call_rows(project, run_id, ref, payload, output):
+    """Build bounded metadata from authenticated native or structured decisions."""
     data = payload["data"]
     physical = UUID(data.get("source_turn_id", payload["invocation_id"]))
     request = data.get("turn_request_ref", payload["request_ref"])

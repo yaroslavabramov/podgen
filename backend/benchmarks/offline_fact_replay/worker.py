@@ -10,11 +10,10 @@ from metrics import Metrics
 from traffic import Traffic
 
 from podgen.domain.canonical import digest
-from podgen.persistence import classification, runtime_publication
+from podgen.persistence import classification, privacy_graph, runtime_publication
 from podgen.persistence.database import Database, query
 from podgen.persistence.execution import inputs as execution_inputs
-from podgen.persistence.execution import resources as execution_resources
-from podgen.persistence.execution import store as execution_store
+from podgen.persistence.execution import session as execution_session
 from podgen.persistence.repository import Repository
 from podgen.persistence.text_source import VerifiedText
 from podgen.retrieval.onnx_models import Models
@@ -110,8 +109,9 @@ def instrument_function(module, name, tag):
 
 instrument_function(runtime_publication, "_validate_inputs", "legacy_input_union")
 instrument_function(execution_inputs, "replace_expansion", "prepare_input_expansion")
-instrument_function(execution_resources, "compile_resources", "compile_input_resources")
-instrument_function(execution_store, "append", "execution_append")
+instrument_function(execution_inputs, "compile_resources", "compile_input_resources")
+instrument_function(execution_session, "append", "execution_append")
+instrument_function(privacy_graph, "privacy_closure", "privacy_alias_closure")
 instrument_function(classification, "classify_evaluator_batch", "classification_union")
 metrics.wrap(Models, "embed", lambda self, texts, **kw: "embedding:" + kw.get("prefix", "passage: ").strip())
 metrics.wrap(EvaluationJournal, "event", lambda self, invocation, kind, **kw: "event:" + kind)
