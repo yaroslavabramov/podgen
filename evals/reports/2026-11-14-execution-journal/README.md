@@ -4,9 +4,10 @@ Measured production code: `a6b82c5af4a7423e2edac99adc5378bf203e7e06`.
 Comparison: `45d0ee0c79d22c0b720d2188156b8d170807e300`, with its unchanged
 [previous measurements](../2026-11-14-step-publication/README.md).
 
-This qualifies the saved **initial fact-review**: 43 actual SDK calls through
-MockTransport, real SQL persistence, actual source tools and local ONNX retrieval,
-then final validation and export. The input is the prepared 51-document / 1227-chunk
+This qualifies the saved **initial fact-review**: 43 model turns replayed through
+the SDK and MockTransport, each with an exact-count call and a submit call, real
+SQL persistence, actual source tools and local ONNX retrieval, then final validation
+and export. The input is the prepared 51-document / 1227-chunk
 legacy corpus. No live provider or source service was called. This is not a
 whole-product performance qualification.
 
