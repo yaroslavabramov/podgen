@@ -91,26 +91,38 @@ class DocumentProjection:
         if not previous < cursor <= row["source_length"]:
             raise Conflict("source_search_build_cursor_invalid")
         config = {"en": "english", "ru": "russian"}.get(language, "simple")
+        chunks = []
         for (start, end), vector, text in zip(ranges, vectors, texts, strict=True):
             if not 0 <= start < end <= cursor:
                 raise Conflict("source_search_chunk_range_invalid")
             if len(text) != end - start:
                 raise Conflict("source_search_chunk_text_length_mismatch")
             tokens = words(text)
+            chunks.append(
+                dict(
+                    start=start,
+                    stop=end,
+                    text=text.casefold(),
+                    terms=sorted(set(tokens)),
+                    phrase=" ".join(tokens),
+                    vector=json.dumps(vector.tolist()),
+                    passage=sha256(text.encode()).hexdigest(),
+                )
+            )
+        if chunks:
             query(
                 tx,
-                "INSERT INTO source_search_document_chunks VALUES(:p,:document,:start,:end,:language,"
-                "to_tsvector(CAST(:config AS regconfig),:text),:terms,:phrase,CAST(:vector AS vector),:passage)",
+                """INSERT INTO source_search_document_chunks
+                   SELECT :p,:document,c.start,c.stop,:language,
+                          to_tsvector(CAST(:config AS regconfig),c.text),
+                          c.terms,c.phrase,CAST(c.vector AS vector),c.passage
+                   FROM jsonb_to_recordset(CAST(:chunks AS jsonb)) AS c(
+                       start integer,stop integer,text text,terms text[],
+                       phrase text,vector text,passage text)""",
                 **params,
-                start=start,
-                end=end,
                 language=language,
                 config=config,
-                text=text.casefold(),
-                terms=sorted(set(tokens)),
-                phrase=" ".join(tokens),
-                vector=json.dumps(vector.tolist()),
-                passage=sha256(text.encode()).hexdigest(),
+                chunks=json.dumps(chunks),
             )
         query(
             tx,

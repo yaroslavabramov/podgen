@@ -21,9 +21,25 @@ def test_real_topic_to_native_reviews_audio_assembly_and_idempotent_export(
     repo, scope, producer, monkeypatch, tmp_path
 ):
     config, runner, hosted, models, speech, fetcher = setup_episode(repo, scope, producer, monkeypatch)
+    from podgen.writing.source_tools import SourceCorpus
+
+    original = SourceCorpus.__init__
+    prepared_searches = []
+
+    def initialize(corpus, materials, **kwargs):
+        index = kwargs.get("index")
+        if index is not None:
+            # The constructor starts retrieval preparation, so binding after
+            # this call is too late for the first document's index writes.
+            assert index.access.run_id in index.journal.execution.sets
+            prepared_searches.append(index.access.run_id)
+        return original(corpus, materials, **kwargs)
+
+    monkeypatch.setattr(SourceCorpus, "__init__", initialize)
     prepared = prepare(repo, scope[0], config)
     assert prepared["revision"] == 0 and not hosted.calls and not models.requests and not speech.calls
     result = runner.run()
+    assert prepared_searches
     assert result["status"] == result["phase"] == "assembled"
     assert result["progress"]["revisions_used"] == 1
     assert [name for name, _ in hosted.calls] == ["submit"]

@@ -17,9 +17,9 @@ from tests.test_research_navigation_contract import _plan, _profile
 from tests.test_research_navigation_contract import research_materials as research_materials
 
 
-@pytest.mark.parametrize("selector_stage", ["plan", "plan-review"])
+@pytest.mark.parametrize("selector_stage", ["plan", "plan-review", None])
 def test_full_selected_supplemental_report_is_bound_to_exact_plan_and_writer(
-    research_materials, selector_stage
+    research_materials, selector_stage, monkeypatch
 ):
     text = "Full supplemental account ёжик 🚀.\n" * 1000
     report = SourceAdmission(
@@ -54,6 +54,14 @@ def test_full_selected_supplemental_report_is_bound_to_exact_plan_and_writer(
     )
 
     class Journal:
+        records = {}
+        event_reads = 0
+
+        def read_operation(self):
+            from contextlib import nullcontext
+
+            return nullcontext()
+
         def run(self, _):
             return True
 
@@ -65,8 +73,9 @@ def test_full_selected_supplemental_report_is_bound_to_exact_plan_and_writer(
 
         def output(self, current):
             if current["invocation_id"] == invocation:
-                return dict(output=plan)
+                return dict(run_id=str(run), output=plan)
             return dict(
+                run_id=str(run),
                 output=dict(decision="accept"),
                 candidate_plan_hash=digest(plan),
                 candidate_plan_ref=RuntimeRef(
@@ -75,15 +84,41 @@ def test_full_selected_supplemental_report_is_bound_to_exact_plan_and_writer(
             )
 
         def events(self, current):
+            self.event_reads += 1
             chosen = invocation if selector_stage == "plan" else review_row["invocation_id"]
             return (
                 [dict(record_id=ref.record_id, event_kind="source_tool_result")]
-                if current["invocation_id"] == chosen
+                if selector_stage is not None and current["invocation_id"] == chosen
                 else []
             )
 
-        def read(self, _):
-            return event
+        def read(self, target):
+            if target.record_id == row["output_record_id"]:
+                return self.output(row)
+            if target.record_id == review_row["output_record_id"]:
+                return self.output(review_row)
+            return self.records[target.record_id]
+
+        def record(self, payload, *, record_id):
+            self.records[record_id] = payload
+
+    from podgen.runtime.evaluation import research_selection
+    from podgen.runtime.evaluation.planning import clearance_ref
+
+    journal = Journal()
+    journal.records[ref.record_id] = event
+    journal.records[clearance_ref(run).record_id] = dict(
+        run_id=str(run),
+        decision="accept",
+        candidate_plan_ref=RuntimeRef(
+            record_kind="tool_execution", record_id=row["output_record_id"]
+        ).model_dump(mode="json"),
+        candidate_plan_hash=digest(plan),
+        plan_review_ref=RuntimeRef(
+            record_kind="tool_execution", record_id=review_row["output_record_id"]
+        ).model_dump(mode="json"),
+    )
+    monkeypatch.setattr(research_selection, "_read_optional", lambda j, r: j.records.get(r.record_id))
 
     tools = ResearchTools(
         None,
@@ -92,15 +127,30 @@ def test_full_selected_supplemental_report_is_bound_to_exact_plan_and_writer(
         None,
         lambda: None,
     )
-    assert tools.execute(
-        "select_research_result",
-        dict(result_id="X1", reason="The chosen account requires this report."),
-        read_id="E1",
-    )["selected"]
-    restore(Journal(), run, research_materials)
+    if selector_stage is not None:
+        assert tools.execute(
+            "select_research_result",
+            dict(result_id="X1", reason="The chosen account requires this report."),
+            read_id="E1",
+        )["selected"]
+    restore(journal, run, research_materials)
+    event_reads = journal.event_reads
+    assert event_reads > 0
+    restore(journal, run, research_materials)
+    assert journal.event_reads == event_reads
     payload = request_payload(
         preview_request(run, "draft", _profile("draft"), research_materials, approved_plan=plan)
     )
+    if selector_stage is None:
+        assert "supplemental_research" not in payload
+        assert research_materials.runtime_annex[digest(plan)] == []
+        # A saved empty selection must still bind the actual clearance.
+        from podgen.domain.errors import ContractError
+
+        journal.records[clearance_ref(run).record_id]["candidate_plan_hash"] = "b" * 64
+        with pytest.raises(ContractError, match="research_annex_plan_binding_changed"):
+            restore(journal, run, research_materials)
+        return
     assert payload["supplemental_research"] == [
         dict(
             result_id="X1",

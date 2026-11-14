@@ -3,7 +3,7 @@
 from podgen.domain.canonical import digest
 from podgen.domain.errors import ContractError
 
-from .source_tool_recovery import lineage
+from .research_selection import load
 
 
 def restore(journal, run_id, materials):
@@ -25,41 +25,8 @@ def restore(journal, run_id, materials):
                 from uuid import UUID
 
                 pending.append(UUID(manifest[key]["parent_run_id"]))
-        rows = []
-        for stage in ("plan", "plan-revise", "plan-review", "plan-review-revised"):
-            row = journal.invocation(current, stage)
-            if row is not None and row["status"] == "completed":
-                rows.append((stage, row, journal.output(row)))
-        accepted = {
-            record["candidate_plan_ref"]["record_id"]: record["candidate_plan_hash"]
-            for stage, _, record in rows
-            if stage.startswith("plan-review") and record["output"].get("decision") == "accept"
-        }
-        for stage, row, record in rows:
-            if stage.startswith("plan-review"):
-                if record["output"].get("decision") != "accept":
-                    continue
-                plan_hash = record["candidate_plan_hash"]
-            else:
-                if str(row["output_record_id"]) not in accepted:
-                    continue
-                plan_hash = digest(record["output"])
-                if accepted[str(row["output_record_id"])] != plan_hash:
-                    raise ContractError("research_annex_plan_binding_changed")
-            selected = materials.runtime_annex.setdefault(plan_hash, [])
-            for ancestor in lineage(journal, row):
-                for event in journal.events(ancestor):
-                    if event["event_kind"] != "source_tool_result":
-                        continue
-                    from podgen.domain.contracts.common import RuntimeRef
-
-                    data = journal.read(
-                        RuntimeRef(record_kind="tool_execution", record_id=event["record_id"])
-                    )["data"]
-                    if data["name"] == "select_research_result" and data["result"].get("selected"):
-                        selected.append(
-                            dict(result_id=data["arguments"]["result_id"], reason=data["arguments"]["reason"])
-                        )
+        for plan_hash, selections in load(journal, current).items():
+            materials.runtime_annex.setdefault(plan_hash, []).extend(selections)
 
 
 def attach(payload, materials, plan):

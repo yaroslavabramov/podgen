@@ -91,6 +91,9 @@ def execute_planning(
             for row in target_repairs
         ]
     journal.record(proof, record_id=clearance_ref(command.run_id).record_id)
+    from .research_selection import capture
+
+    capture(journal, command.run_id, proof)
     return dict(
         plan_mode="own-plan",
         accepted_plan=candidate,

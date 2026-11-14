@@ -38,6 +38,70 @@ def table_count(repo, project, table):
         return one(tx, f"SELECT count(*) AS n FROM {table} WHERE project_id=:p", p=project)["n"]
 
 
+def test_document_batch_is_one_insert_and_failed_batch_does_not_advance_cursor(repo, scope):
+    from sqlalchemy import event
+
+    journal, ref = admitted(repo, scope[0])
+    doc = document("Bacteria. " * 8)
+    index = StreamingSearchIndex(journal, ref, streaming_profile(), run_id=uuid4())
+    index.begin_document("S1", doc, "en")
+    key = index.document_keys["S1"]
+    vector = np.eye(1, 384, dtype=np.float32)[0]
+    # A duplicate range makes the SQL statement fail. Its sibling rows and
+    # completion cursor must roll back, so the same batch can be retried safely.
+    with pytest.raises(RetrievalUnavailable):
+        index.append_batch(
+            "S1",
+            doc,
+            [(0, 10), (0, 10)],
+            "en",
+            [vector, vector],
+            previous=0,
+            cursor=20,
+            texts=[doc.text[:10]] * 2,
+        )
+    with repo.database.transaction() as tx:
+        row = one(
+            tx,
+            "SELECT cursor_position,chunk_count FROM source_search_documents WHERE project_id=:p AND document_key=:k",
+            p=scope[0],
+            k=key,
+        )
+        assert dict(row) == dict(cursor_position=0, chunk_count=0)
+    assert table_count(repo, scope[0], "source_search_document_chunks") == 0
+
+    inserts = []
+
+    def observe(connection, cursor, statement, params, context, many):
+        if statement.startswith("INSERT INTO source_search_document_chunks"):
+            inserts.append(statement)
+
+    event.listen(repo.database.engine, "before_cursor_execute", observe)
+    try:
+        index.append_batch(
+            "S1",
+            doc,
+            [(i, i + 10) for i in range(0, 80, 10)],
+            "en",
+            [vector] * 8,
+            previous=0,
+            cursor=80,
+            texts=[doc.text[i : i + 10] for i in range(0, 80, 10)],
+        )
+    finally:
+        event.remove(repo.database.engine, "before_cursor_execute", observe)
+    assert len(inserts) == 1
+    assert table_count(repo, scope[0], "source_search_document_chunks") == 8
+    with repo.database.transaction() as tx:
+        row = one(
+            tx,
+            "SELECT cursor_position,chunk_count,completed FROM source_search_documents WHERE project_id=:p AND document_key=:k",
+            p=scope[0],
+            k=key,
+        )
+        assert dict(row) == dict(cursor_position=80, chunk_count=8, completed=True)
+
+
 def test_second_run_reuses_document_vectors_but_not_local_source_labels(repo, scope):
     journal, ref = admitted(repo, scope[0])
     network = TinyModels()
@@ -138,7 +202,9 @@ def test_competing_builder_is_explicitly_busy_without_duplicate_inference(repo, 
 
 def test_persisted_pages_survive_corpus_growth_and_document_reuse(repo, scope):
     journal, ref = admitted(repo, scope[0])
-    doc = document("Exact bacteria source. " * 1000)
+    # Distinct passages exercise pagination; repeated identical text correctly
+    # collapses into one passage group under the published diversity policy.
+    doc = document(" ".join(f"bacteria specimen{i} measurement{i} location{i}." for i in range(500)))
     network = CharacterModels()
     run = uuid4()
     first = build(journal, ref, {"S1": doc}, network, run_id=run)

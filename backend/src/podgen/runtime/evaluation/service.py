@@ -316,6 +316,22 @@ class WritingEvaluation:
             )
             from .source_tool_contract import from_manifest as source_contract
 
+            def checkpoint_guard():
+                now = datetime.now(timezone.utc)
+                elapsed_budget.check(checkpoint, now)
+
+            from .operation_guard import OperationGuard
+
+            guard = OperationGuard(
+                generation=self.generation,
+                journal=journal,
+                command=command,
+                manifest=manifest,
+                materials=materials,
+                loader=self._materials,
+                checkpoint=checkpoint_guard,
+            )
+
             corpus = None
             if source_contract(manifest) is not None:
                 from podgen.retrieval import RetrievalUnavailable
@@ -342,6 +358,10 @@ class WritingEvaluation:
                                 else {}
                             ),
                         )
+                    # Input provenance and lazy source text are bound before the
+                    # search constructor can start document/index preparation.
+                    if index is not None and guard.supports_publication_snapshot:
+                        index.access.run_id = command.run_id
                     corpus = SourceCorpus(materials, retrieval=retrieval, index=index)
                     if source_contract(manifest)["version"] == "frozen-corpus-tools/7":
                         corpus.material_resolver = self.material_resolver(command, materials)
@@ -359,25 +379,8 @@ class WritingEvaluation:
                 manifest.get("editorial_continuation", {}).get("inherited_usage", {"input": 0, "output": 0})
             )
 
-            def checkpoint_guard():
-                now = datetime.now(timezone.utc)
-                elapsed_budget.check(checkpoint, now)
-
-            from .operation_guard import OperationGuard
-
-            guard = OperationGuard(
-                generation=self.generation,
-                journal=journal,
-                command=command,
-                manifest=manifest,
-                materials=materials,
-                loader=self._materials,
-                checkpoint=checkpoint_guard,
-            )
             if corpus is not None and guard.supports_publication_snapshot:
                 corpus.bind_execution(journal.execution, command.run_id)
-                if corpus.retrieval is not None:
-                    corpus.retrieval.index.access.run_id = command.run_id
             authorize_recovery(
                 journal,
                 command,
