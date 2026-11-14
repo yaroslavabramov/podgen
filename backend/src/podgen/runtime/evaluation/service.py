@@ -16,6 +16,7 @@ from . import author_material
 from .compiler import COMPILER_VERSION, materials_hash
 from .completion import completed_result
 from .contracts import STAGES, RunFailure, WritingRunCommand, command_payload
+from .elapsed_budget import ElapsedBudget
 from .journal import EvaluationJournal
 from .manifest import create_manifest
 from .planning import execute_planning
@@ -90,6 +91,7 @@ class WritingEvaluation:
         max_input_tokens=None,
         retry_total_input_budget=None,
         max_total_input_tokens=None,
+        max_elapsed_seconds=None,
         stop_after_plan=False,
     ):
         if command.actor_id != self.repo.actor_id:
@@ -101,6 +103,8 @@ class WritingEvaluation:
         journal = EvaluationJournal(self.repo, command.project_id)
         with journal.lock(command.run_id):
             existing = journal.run(command.run_id)
+            if max_elapsed_seconds is not None and not existing:
+                raise ContractError("elapsed_extension_requires_existing_run")
             if existing and journal.manifest(command.run_id).get("fact_review_experiment") is not None:
                 raise ContractError("standalone_fact_experiment_requires_its_runner")
             from .run_configuration import production_command
@@ -128,6 +132,7 @@ class WritingEvaluation:
                         checkpoint.resumed or journal.invocation(command.run_id, "draft")
                     ):
                         raise Conflict("planning_checkpoint_already_passed")
+                elapsed_budget = ElapsedBudget.load(journal, manifest, requested=max_elapsed_seconds)
                 terminal = None
                 if author_material.offered("draft", manifest.get("role_projection_version")):
                     from podgen.writing.author_reply import verify_pin
@@ -221,6 +226,7 @@ class WritingEvaluation:
                     raise ContractError("legacy_outbound_disabled_start_compact_run")
                 materials = self._materials(command)
                 manifest = create_manifest(self.repo, self.generation, command, journal, materials)
+                elapsed_budget = ElapsedBudget.load(journal, manifest)
             if command.input_contract == "editorial-role-packets/1":
                 from .wire_budget import validate_manifest_budget
 
@@ -347,11 +353,7 @@ class WritingEvaluation:
 
             def checkpoint_guard():
                 now = datetime.now(timezone.utc)
-                elapsed = (
-                    now - datetime.fromisoformat(manifest["created_at"]) - checkpoint.wait_time(now)
-                ).total_seconds()
-                if elapsed > command.limits.max_elapsed_seconds:
-                    raise RunFailure("run_elapsed_budget_exceeded", run_id=command.run_id)
+                elapsed_budget.check(checkpoint, now)
 
             from .operation_guard import OperationGuard
 

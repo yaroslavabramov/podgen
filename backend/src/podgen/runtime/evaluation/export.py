@@ -66,6 +66,12 @@ def export_run(repo, project, run_id, directory):
         _write(directory / path, (json.dumps(value, ensure_ascii=False, indent=2) + "\n").encode())
 
     write_json(Path("manifest.json"), manifest)
+    from .elapsed_budget import ElapsedBudget
+
+    elapsed = ElapsedBudget.load(journal, manifest)
+    if elapsed.authorizations:
+        result["authorized_max_elapsed_seconds"] = elapsed.ceiling
+        write_json(Path("elapsed-authorizations.json"), elapsed.authorizations)
     if manifest.get("planning_continuation"):
         from .planning_continuation.export import export as export_continuation
 

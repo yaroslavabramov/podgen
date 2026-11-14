@@ -130,6 +130,11 @@ def parser(*, research=False):
         command_parser.add_argument("--run-id", type=UUID, required=True)
         command_parser.add_argument("--export-dir", type=Path, required=True)
         if command == "resume":
+            command_parser.add_argument(
+                "--max-elapsed-seconds",
+                type=int,
+                help="Explicit absolute elapsed ceiling for this saved run; token and revision limits remain unchanged",
+            )
             command_parser.add_argument("--repair-review-anchors", action="store_true")
             action = command_parser.add_mutually_exclusive_group()
             action.add_argument("--retry-credit-refusal", type=UUID, metavar="INVOCATION_UUID")
@@ -338,6 +343,9 @@ def main(argv=None, *, research=False):
                 max_input_tokens=getattr(args, "max_input_tokens", None),
                 retry_total_input_budget=getattr(args, "retry_total_input_budget", None),
                 max_total_input_tokens=getattr(args, "max_total_input_tokens", None)
+                if args.command == "resume"
+                else None,
+                max_elapsed_seconds=getattr(args, "max_elapsed_seconds", None)
                 if args.command == "resume"
                 else None,
             )

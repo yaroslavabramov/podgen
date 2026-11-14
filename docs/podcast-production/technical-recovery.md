@@ -12,4 +12,14 @@ For a tool-enabled stage, the replacement starts at the exact interrupted model 
 
 Existing manifests, prompts, schemas and outputs are not upgraded. The recovery policy is pinned in the appended authorization record. Export includes every attempt, its events and replacement authorization, with unknown usage still reported. Apply migration `0021_technical_recovery` before using this recovery path.
 
+After an extended operator stop, `resume --max-elapsed-seconds N` explicitly
+authorizes an absolute elapsed ceiling above the frozen original limit. Each
+increase is an immutable, actor/run/manifest-bound `resume-elapsed-authorization/1`
+record; repeating the same ceiling is idempotent. The original manifest and
+`created_at`, model configuration, token budgets and revision limits remain exact.
+Without a new flag, resume uses the last authorized ceiling, or the original
+ceiling if none exists. Export includes `elapsed-authorizations.json` and the
+effective ceiling. Migration `0029_elapsed_authorizations` indexes these records
+by project and run; guard checks do not reload them at every provider/tool call.
+
 Lightweight checks: `backend/tests/test_technical_recovery.py`, `backend/tests/test_source_tool_runtime.py`, `backend/tests/test_source_tool_recovery.py`. PostgreSQL integration checks: `backend/tests/test_technical_recovery_runtime.py`; run serially with the other Podgen database tests.
