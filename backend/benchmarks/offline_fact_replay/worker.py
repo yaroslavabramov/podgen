@@ -94,6 +94,7 @@ metrics.wrap(
     Publication,
     "commit",
     lambda phase, **kw: "publication:" + ("+".join(event["event_kind"] for event in phase.events) or "state"),
+    checkpoint=True,
 )
 
 
@@ -152,6 +153,7 @@ try:
         if label not in os.environ.get("PODGEN_REPLAY_PASSES", "first,repeat,completed").split(","):
             continue
         metrics.server_phases = {}
+        metrics.checkpoints = []
         metrics.search_calls = 0
         metrics.search_seconds = 0
         metrics.phases = {}

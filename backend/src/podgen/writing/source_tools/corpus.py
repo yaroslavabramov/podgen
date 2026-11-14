@@ -36,6 +36,7 @@ class SourceCorpus:
     def __init__(self, materials, *, retrieval=None, index=None, fact_input_mode=None):
         from podgen.writing.research_materials.fact_source_mode import validate
 
+        self._execution = None
         self.fact_input_mode = validate(fact_input_mode)
         if (
             self.fact_input_mode is not None
@@ -145,6 +146,16 @@ class SourceCorpus:
         if self.retrieval is not None:
             self.retrieval.refresh()
 
+    def bind_execution(self, store, run_id):
+        self._execution = (store, run_id)
+
+    def _authorize_materials(self):
+        if self._execution is not None:
+            store, run_id = self._execution
+            return store.authorize_inputs(run_id, action=True)
+        if self.research_materials is not None and self.research_materials.authorize is not None:
+            return self.research_materials.authorize()
+
     def execute(self, name, arguments, *, read_id, max_read_chars=PAGE_CHARS, default_read_chars=PAGE_CHARS):
         from itertools import chain
 
@@ -161,15 +172,13 @@ class SourceCorpus:
                 max_read_chars=max_read_chars,
                 default_read_chars=default_read_chars,
             )
-            if self.research_materials is not None and self.research_materials.authorize is not None:
-                self.research_materials.authorize()
+            self._authorize_materials()
             return result
 
     def _execute(self, name, arguments, *, read_id, max_read_chars, default_read_chars):
         if self.fact_input_mode is not None and name not in {"search_sources", "read_source"}:
             return dict(error="unknown_source_tool")
-        if self.research_materials is not None and self.research_materials.authorize is not None:
-            self.research_materials.authorize()
+        self._authorize_materials()
         if self.retrieval is not None and name in ("read_source", "read_material"):
             self.retrieval.index.check_access()
         self.last_search_diagnostics = None

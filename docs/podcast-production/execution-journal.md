@@ -84,3 +84,29 @@ parents confer no read grants. Withdrawal markers and flat live conditions are
 checked independently of cached runtime headers. Old provider call proofs are
 reconstructed from authorized full archived response bytes when continuation needs
 them; original legacy records remain unchanged.
+
+
+## Bounded operation costs
+
+Source text bindings are loaded in groups of at most 64 into the existing
+ReadAuthorization snapshot, comparing the complete typed parent/blob pair.
+Mass runtime reads similarly check parent/privacy conditions for at most 64
+records per query and memoize each successful record within that snapshot.
+Object I/O still ends remote metadata snapshots and requires fresh checks.
+Prepared SourceCorpus operations use that same run input scope before and after
+execution; unbound/legacy corpus reads retain their original authorization.
+
+ExecutionStore owns a 512-entry / 2 MiB cache of narrow immutable control
+metadata. Run/set ownership, parent headers, physical turn identity and exact
+call/blob bindings are descriptors, never permission grants. Transaction-local
+bounded overlays merge only after commit; rollback neither publishes new entries
+nor changes their recency. Eviction causes exact indexed reads, not weaker checks.
+ACL, live input conditions, parent withdrawals and SHA flags remain uncached
+between snapshots. Full native payloads are never stored in this descriptor cache.
+
+The shared blob publisher batches current role, SHA flags and existing identity
+checks in one SQL view before upload and one after upload. Registration remains
+atomic, deduplication still loads the winning binding and verifies changed winners
+outside SQL before another fresh access check. No network operation enters a SQL
+transaction. New groups require five SQL statements; fully reused groups require
+three, preserving the same pre-stage and pre/post-upload authorization boundaries.

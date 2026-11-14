@@ -11,24 +11,32 @@ from podgen.persistence.database import json_text, one, query
 from podgen.persistence.read_authorization import invalidate_publication_facts
 
 from .control import Controls
+from .control_bundle import narrow
+from .descriptors import DescriptorCache
 from .live import authorize
 from .objects import OwnedBlob
 from .parents import authorize_parents
 
 
-def append(repo, tx, project, run_id, set_id, records, owned_blobs):
+def append(repo, tx, project, run_id, set_id, records, owned_blobs, *, metadata=None):
     """No semantic graph loading, payload projection trigger or broad classification."""
     if not records or len(records) > 64:
         raise ContractError("invalid_execution_publication_size")
-    owner = one(
-        tx,
-        """SELECT s.generation,r.actor_id FROM execution_input_sets s
-        JOIN evaluation_writing_runs r USING(project_id,run_id)
-        WHERE s.project_id=:p AND s.run_id=:r AND s.set_id=:s""",
-        p=project,
-        r=run_id,
-        s=set_id,
-    )
+    metadata = metadata or DescriptorCache().view()
+    owner_key = ("owner", project, run_id, set_id)
+    owner = metadata.get(owner_key)
+    if owner is None:
+        owner = one(
+            tx,
+            """SELECT s.generation,r.actor_id FROM execution_input_sets s
+            JOIN evaluation_writing_runs r USING(project_id,run_id)
+            WHERE s.project_id=:p AND s.run_id=:r AND s.set_id=:s""",
+            p=project,
+            r=run_id,
+            s=set_id,
+        )
+        if owner is not None:
+            metadata.put(owner_key, dict(owner))
     if owner is None or owner["actor_id"] != repo.actor_id or repo.purpose != "evaluation":
         raise AccessDenied()
     if repo._acl(tx, project, write=True) not in ("owner", "evaluator", "operator"):
@@ -46,44 +54,63 @@ def append(repo, tx, project, run_id, set_id, records, owned_blobs):
             ids=list(identities),
         ).mappings()
     }
-    refs = tuple(dict.fromkeys(linked for _, payload, _ in records for _, _, linked in walk_values(payload)))
-    external = [ref for ref in refs if not (isinstance(ref, RuntimeRef) and ref.record_id in identities)]
-    artifacts = [str(ref.revision_id) for ref in external if isinstance(ref, ArtifactRef)]
-    runtimes = [ref.record_id for ref in external if isinstance(ref, RuntimeRef)]
-    blobs = [ref for ref in refs if isinstance(ref, BlobRef)]
-    resources = list(
-        query(
-            tx,
-            """SELECT resource_kind,identity,binding FROM execution_input_resources
+    if any(not isinstance(blob, OwnedBlob) for blob in owned_blobs):
+        raise ContractError("execution_unverified_owned_bytes")
+    own = {blob.reference for blob in owned_blobs}
+    controls = Controls(tx, project, run_id, set_id, owner["generation"], records, metadata).collect(records)
+    bound, requested = {}, []
+    for consumer, payload, _ in records:
+        for _, path, ref in walk_values(payload):
+            valid = controls.is_bound_control(consumer, path, ref) if isinstance(ref, RuntimeRef) else False
+            if isinstance(ref, BlobRef):
+                valid = ref in own or controls.blob_owner(consumer.record_id, path, ref)
+            bound[consumer.record_id, path] = valid
+            if not valid:
+                requested.append(ref)
+    artifacts = [str(ref.revision_id) for ref in requested if isinstance(ref, ArtifactRef)]
+    runtimes = [ref.record_id for ref in requested if isinstance(ref, RuntimeRef)]
+    blobs = tuple(
+        dict.fromkeys(
+            linked
+            for _, payload, _ in records
+            for _, _, linked in walk_values(payload)
+            if isinstance(linked, BlobRef)
+        )
+    )
+    requested_blobs = [ref.storage_key for ref in requested if isinstance(ref, BlobRef)]
+    resources = (
+        list(
+            query(
+                tx,
+                """SELECT resource_kind,identity,binding FROM execution_input_resources
         WHERE project_id=:p AND run_id=:r AND set_id=:s AND purpose='evaluation' AND read_required
           AND ((resource_kind='artifact' AND identity=ANY(CAST(:artifacts AS text[])))
             OR (resource_kind='runtime' AND identity=ANY(CAST(CAST(:runtimes AS uuid[]) AS text[])))
             OR (resource_kind='blob' AND owner_project_id=:p AND identity=ANY(CAST(:keys AS text[]))))""",
-            p=project,
-            r=run_id,
-            s=set_id,
-            artifacts=artifacts,
-            runtimes=runtimes,
-            keys=[ref.storage_key for ref in blobs],
-        ).mappings()
+                p=project,
+                r=run_id,
+                s=set_id,
+                artifacts=artifacts,
+                runtimes=runtimes,
+                keys=requested_blobs,
+            ).mappings()
+        )
+        if requested
+        else []
     )
     covered = {(row["resource_kind"], row["identity"]): row["binding"] for row in resources}
-    controls = Controls(tx, project, run_id, set_id, owner["generation"], records).collect(records)
-    if any(not isinstance(blob, OwnedBlob) for blob in owned_blobs):
-        raise ContractError("execution_unverified_owned_bytes")
-    own = {blob.reference for blob in owned_blobs}
     for consumer, payload, _ in records:
         for _, path, ref in walk_values(payload):
             if isinstance(ref, ArtifactRef):
                 valid = covered.get(("artifact", str(ref.revision_id))) == ref.model_dump(mode="json")
             elif isinstance(ref, RuntimeRef):
-                valid = controls.allowed.get((consumer.record_id, path)) == ref or covered.get(
+                valid = bound[consumer.record_id, path] or covered.get(
                     ("runtime", str(ref.record_id))
                 ) == ref.model_dump(mode="json")
             else:
-                valid = ref in own or covered.get(("blob", ref.storage_key)) == ref.model_dump(mode="json")
-                if not valid:
-                    valid = controls.blob_owner(consumer.record_id, path, ref)
+                valid = bound[consumer.record_id, path] or covered.get(
+                    ("blob", ref.storage_key)
+                ) == ref.model_dump(mode="json")
             if not valid:
                 raise ContractError("execution_dependency_not_bound", path)
     external_parents = [ref.record_id for _, ref in controls.edges if ref.record_id not in identities]
@@ -181,3 +208,19 @@ def append(repo, tx, project, run_id, set_id, records, owned_blobs):
     invalidate_publication_facts(repo, tx)
     protect_owned(tx, project, hashes)
     invalidate_publication_facts(repo, tx)
+
+    for ref, payload, _ in records:
+        metadata.put(
+            ("parent", project, run_id, ref.record_id),
+            dict(
+                record_id=ref.record_id,
+                record_kind=ref.record_kind,
+                execution_input_set_id=set_id,
+                generation=owner["generation"],
+                owned=True,
+                payload=narrow(payload),
+            ),
+        )
+        for _, _, linked in walk_values(payload):
+            if isinstance(linked, BlobRef):
+                metadata.put(("blob_binding", project, run_id, ref.record_id, linked), True)

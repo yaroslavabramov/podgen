@@ -6,6 +6,8 @@ from podgen.domain.contracts.common import RuntimeRef
 from podgen.domain.errors import ContractError
 from podgen.persistence.database import json_text, query
 
+from .descriptors import DescriptorCache
+
 OUTPUTS = {"writing-evaluation-output-v1", "independent-reading-output/1"}
 
 
@@ -13,9 +15,10 @@ def _error():
     raise ContractError("execution_control_binding_mismatch")
 
 
-def load(tx, project, run_id, set_id, generation, records, pending):
+def load(tx, project, run_id, set_id, generation, records, pending, metadata=None):
+    metadata = metadata or DescriptorCache().view()
     parents, root_rows, turn_rows, calls = {}, {}, {}, {}
-    wanted, invocations, pairs, call_pairs = {}, set(), set(), set()
+    wanted, invocations, pairs, call_pairs, pending_pairs = {}, set(), set(), set(), set()
     for _, payload, _ in records:
         contract = payload.get("contract")
         paths = []
@@ -47,7 +50,10 @@ def load(tx, project, run_id, set_id, generation, records, pending):
                     index = data.get("source_turn_index")
                     if type(index) is not int or index < 0:
                         _error()
-                    pairs.add((invocation, index))
+                    pair = (invocation, index)
+                    pairs.add(pair)
+                    if UUID(data["turn_request_ref"]["record_id"]) in pending:
+                        pending_pairs.add(pair)
         elif contract == "model-request-v1" and payload.get("parent_request_ref"):
             paths.append(payload["parent_request_ref"])
         for value in paths:
@@ -59,7 +65,13 @@ def load(tx, project, run_id, set_id, generation, records, pending):
                 _error()
             if ref.record_id not in pending:
                 wanted[ref.record_id] = ref
-    if wanted:
+    parents = {
+        identity: cached
+        for identity in wanted
+        if (cached := metadata.get(("parent", project, run_id, identity))) is not None
+    }
+    missing = set(wanted) - parents.keys()
+    if missing:
         rows = query(
             tx,
             """SELECT rr.record_id,rr.record_kind,rr.execution_input_set_id,s.generation,
@@ -89,9 +101,15 @@ def load(tx, project, run_id, set_id, generation, records, pending):
             p=project,
             r=run_id,
             s=set_id,
-            ids=list(wanted),
+            ids=list(missing),
         ).mappings()
-        parents = {row["record_id"]: row for row in rows}
+        for row in rows:
+            parents[row["record_id"]] = dict(row)
+            metadata.put(
+                ("parent", project, run_id, row["record_id"]),
+                {key: value for key, value in row.items() if key != "covered"},
+            )
+    if wanted:
         for identity, ref in wanted.items():
             row = parents.get(identity)
             if (
@@ -99,11 +117,16 @@ def load(tx, project, run_id, set_id, generation, records, pending):
                 or not row["owned"]
                 or row["record_kind"] != ref.record_kind
                 or (row["execution_input_set_id"] is not None and row["generation"] > generation)
-                or (row["execution_input_set_id"] is None and not row["covered"])
             ):
                 _error()
-    if invocations:
-        root_rows = {
+    root_rows = {
+        identity: cached
+        for identity in invocations
+        if (cached := metadata.get(("invocation", project, run_id, identity))) is not None
+    }
+    missing = invocations - root_rows.keys()
+    if missing:
+        loaded_roots = {
             row["invocation_id"]: row
             for row in query(
                 tx,
@@ -112,11 +135,20 @@ def load(tx, project, run_id, set_id, generation, records, pending):
              AND invocation_id=ANY(CAST(:ids AS uuid[]))""",
                 p=project,
                 r=run_id,
-                ids=list(invocations),
+                ids=list(missing),
             ).mappings()
         }
-    if pairs:
-        turn_rows = {
+        root_rows.update(loaded_roots)
+        for identity, row in loaded_roots.items():
+            metadata.put(("invocation", project, run_id, identity), dict(row))
+    turn_rows = {
+        pair: cached
+        for pair in pairs
+        if (cached := metadata.get(("turn", project, run_id, *pair))) is not None
+    }
+    missing = pairs - turn_rows.keys() - pending_pairs
+    if missing:
+        loaded_turns = {
             (row["root_invocation_id"], row["turn_index"]): row
             for row in query(
                 tx,
@@ -126,12 +158,22 @@ def load(tx, project, run_id, set_id, generation, records, pending):
               ON t.root_invocation_id=wanted.root::uuid AND t.turn_index=wanted.n
             WHERE t.project_id=:p""",
                 p=project,
-                pairs=json_text([dict(root=str(root), n=n) for root, n in pairs]),
+                pairs=json_text([dict(root=str(root), n=n) for root, n in missing]),
             ).mappings()
         }
 
-    if call_pairs:
-        calls = {
+        turn_rows.update(loaded_turns)
+        for pair, row in loaded_turns.items():
+            metadata.put(("turn", project, run_id, *pair), dict(row))
+    call_pairs = {(UUID(response), call) for response, call in call_pairs}
+    calls = {
+        pair: cached
+        for pair in call_pairs
+        if (cached := metadata.get(("call", project, run_id, *pair))) is not None
+    }
+    missing = call_pairs - calls.keys()
+    if missing:
+        loaded_calls = {
             (row["response_record_id"], row["call_id"]): row
             for row in query(
                 tx,
@@ -141,7 +183,34 @@ def load(tx, project, run_id, set_id, generation, records, pending):
                 WHERE c.project_id=:p AND c.run_id=:r""",
                 p=project,
                 r=run_id,
-                pairs=json_text([dict(response=response, call=call) for response, call in call_pairs]),
+                pairs=json_text([dict(response=str(response), call=call) for response, call in missing]),
             ).mappings()
         }
+        calls.update(loaded_calls)
+        for pair, row in loaded_calls.items():
+            metadata.put(("call", project, run_id, *pair), dict(row))
     return parents, root_rows, turn_rows, calls
+
+
+def narrow(payload):
+    data = payload.get("data", {})
+    return dict(
+        contract=payload.get("contract"),
+        invocation_id=payload.get("invocation_id"),
+        request_ref=payload.get("request_ref"),
+        event_kind=payload.get("event_kind"),
+        context=dict(source_tool_turn=payload.get("context", {}).get("source_tool_turn")),
+        data={
+            key: data.get(key)
+            for key in (
+                "native_request_blob",
+                "count_identity",
+                "input_tokens",
+                "source_turn_index",
+                "source_turn_id",
+                "name",
+                "call_index",
+                "turn_request_ref",
+            )
+        },
+    )

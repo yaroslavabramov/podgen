@@ -78,4 +78,9 @@ def stage_prepare(owner, body, *, pending_events=(), admission_refs=(), original
         )
 
     phase.writes.append(insert)
+    phase.committed.append(
+        lambda: owner.journal.execution.remember_turn(
+            owner.root["run_id"], owner.root["invocation_id"], owner.index, identity, ref.record_id
+        )
+    )
     return turn, phase, (body, record)

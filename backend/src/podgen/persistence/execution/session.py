@@ -1,10 +1,13 @@
 """Run-owned execution storage. Cached descriptors never replace live authorization."""
 
+from contextvars import ContextVar
+
 from podgen.domain.canonical import digest
 from podgen.domain.contracts.common import RuntimeRef
 from podgen.domain.references import walk_values
 from podgen.persistence.database import one
 
+from .descriptors import DescriptorCache
 from .inputs import _publish, bind
 from .objects import OwnedBlob
 from .store import append
@@ -13,7 +16,9 @@ from .store import append
 class ExecutionStore:
     def __init__(self, repo, project):
         self.repo, self.project = repo, project
-        self.sets, self.roots, self.requests = {}, {}, set()
+        self.sets, self.roots = {}, {}
+        self.descriptors = DescriptorCache()
+        self._metadata = ContextVar("execution_transaction_descriptors", default=None)
 
     def prepare(self, run_id, *, evaluation=(), generation=()):
         roots = [
@@ -65,19 +70,26 @@ class ExecutionStore:
                     ],
                 )
         request_id = invocation["request_record_id"]
-        if request_id not in self.requests:
-            with self.repo.database.read_transaction() as tx:
-                request = one(
-                    tx,
-                    "SELECT execution_input_set_id FROM runtime_records WHERE project_id=:p AND record_id=:id",
-                    p=self.project,
-                    id=request_id,
-                )
+        parent = self.descriptors.get(("parent", self.project, run_id, request_id))
+        if parent is None:
+            family_key = ("request_family", self.project, run_id, request_id)
+            request = self.descriptors.get(family_key)
+            if request is None:
+                with self.repo.database.read_transaction() as tx:
+                    request = one(
+                        tx,
+                        "SELECT execution_input_set_id FROM runtime_records WHERE project_id=:p AND record_id=:id",
+                        p=self.project,
+                        id=request_id,
+                    )
+                if request is not None:
+                    self.descriptors.remember(family_key, dict(request))
             if request is not None and request["execution_input_set_id"] is None:
                 self.prepare(
                     run_id, evaluation=[RuntimeRef(record_kind="tool_execution", record_id=request_id)]
                 )
-            self.requests.add(request_id)
+        elif parent["execution_input_set_id"] is None:
+            self.prepare(run_id, evaluation=[RuntimeRef(record_kind="tool_execution", record_id=request_id)])
         return self.sets[run_id]
 
     def prepare_context(self, run_id, context):
@@ -85,10 +97,46 @@ class ExecutionStore:
 
     def append(self, tx, run_id, records, blobs):
         row = self.sets[run_id]
-        append(self.repo, tx, self.project, run_id, row["set_id"], records, blobs)
+        active = self._metadata.get()
+        if active is None or active[0] is not tx:
+            raise RuntimeError("execution_publish_owner_required")
+        append(self.repo, tx, self.project, run_id, row["set_id"], records, blobs, metadata=active[1])
 
     def publish(self, operation):
-        return _publish(self.repo, self.project, operation)
+        def write(tx):
+            descriptors = self.descriptors.view()
+            token = self._metadata.set((tx, descriptors))
+            try:
+                result = operation(tx)
+            finally:
+                self._metadata.reset(token)
+            return result, descriptors
+
+        result, descriptors = _publish(self.repo, self.project, write)
+        descriptors.commit()
+        return result
+
+    def remember_turn(self, run_id, root_id, index, physical_id, request_id):
+        self.descriptors.remember(
+            ("turn", self.project, run_id, root_id, index),
+            dict(
+                root_invocation_id=root_id,
+                turn_index=index,
+                invocation_id=physical_id,
+                request_record_id=request_id,
+            ),
+        )
+
+    def remember_calls(self, rows):
+        for row in rows:
+            self.descriptors.remember(
+                ("call", self.project, row["run_id"], row["response_record_id"], row["call_id"]), row
+            )
+
+    def authorize_inputs(self, run_id, *, action=False):
+        from .reads import authorize_inputs
+
+        return authorize_inputs(self.repo, self, run_id, action=action)
 
     @staticmethod
     def owned(values):

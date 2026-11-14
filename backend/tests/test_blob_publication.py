@@ -59,7 +59,7 @@ def test_whole_save_and_duplicate_do_not_download_or_reupload(storage, length):
     assert s3.counts["head"] == 2
     assert s3.counts["put"] == first_calls.get("put", 0)
     assert s3.counts["upload_part"] == first_calls.get("upload_part", 0)
-    assert (first_sql, sum(db.queries.values()) - first_sql) == (8, 7)
+    assert (first_sql, sum(db.queries.values()) - first_sql) == (5, 3)
     assert not s3.uploads and len(db.rows) == 1
 
 

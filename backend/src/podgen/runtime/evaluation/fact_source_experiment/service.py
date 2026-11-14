@@ -72,6 +72,7 @@ def run(
                 index = StreamingSearchIndex(journal, materials.shared_ref, profile, run_id=run_id)
                 index.access.run_id = run_id
                 corpus = SourceCorpus(materials, retrieval=profile, index=index, fact_input_mode=VERSION)
+                corpus.bind_execution(journal.execution, run_id)
                 corpus.material_resolver = ResearchMaterialResolver(journal, materials)
                 metrics.instrument_search(corpus)
                 gateway = ApprovalBoundGateway(

@@ -5,7 +5,7 @@ from podgen.domain.errors import ContractError
 
 from .batch_insert import insert_rows
 from .blob_access import validate_identity
-from .database import one, query
+from .database import json_text, one, query
 
 
 def check_identity(repo, tx, project_id, sha256, *, public_only=False):
@@ -34,25 +34,35 @@ def save_blob(repo, project_id, stream, media_type, **kwargs):
         return publish_staged(repo, project_id, [staged])[0]
 
 
-def _check_batch(repo, tx, project, staged):
-    role = repo._acl(tx, project, write=True)
+def _inspect_batch(repo, tx, project, staged):
+    """One exact pre/post-I/O view: current ACL, SHA flags and existing bindings."""
+    identities = list({(item.sha256, item.media_type) for item in staged})
+    found = {}
     for row in query(
         tx,
-        """SELECT sha AS sha256,
-        EXISTS(SELECT 1 FROM evaluator_blob_classifications c
-               WHERE c.project_id=:p AND c.sha256=sha) AS evaluator_only,
-        EXISTS(SELECT 1 FROM blob_access_revocations v
-               WHERE v.project_id=:p AND v.sha256=sha) AS access_revoked
-        FROM unnest(CAST(:hashes AS text[])) AS inputs(sha)""",
+        """SELECT wanted.sha256,wanted.media_type AS requested_media_type,m.role,
+        b.storage_key,b.byte_length,b.media_type,
+        EXISTS(SELECT 1 FROM evaluator_blob_classifications c WHERE c.project_id=:p AND c.sha256=wanted.sha256) AS evaluator_only,
+        EXISTS(SELECT 1 FROM blob_access_revocations v WHERE v.project_id=:p AND v.sha256=wanted.sha256) AS access_revoked
+        FROM jsonb_to_recordset(CAST(:identities AS jsonb)) AS wanted(sha256 text,media_type text)
+        LEFT JOIN project_members m ON m.project_id=:p AND m.actor_id=:actor
+        LEFT JOIN blobs b ON b.project_id=:p AND b.sha256=wanted.sha256 AND b.media_type=wanted.media_type""",
         p=project,
-        hashes=list({item.sha256 for item in staged}),
+        actor=repo.actor_id,
+        identities=json_text([dict(sha256=sha, media_type=media) for sha, media in identities]),
     ).mappings():
+        role = repo._require_role(row["role"], write=True)
         validate_identity(
             evaluator_only=row["evaluator_only"],
             access_revoked=row["access_revoked"],
             purpose=repo.purpose,
             role=role,
         )
+        if row["storage_key"] is not None:
+            found[row["sha256"], row["requested_media_type"]] = BlobRef(
+                **{key: row[key] for key in ("storage_key", "sha256", "byte_length", "media_type")}
+            )
+    return found
 
 
 def _lookup_batch(tx, project, staged):
@@ -76,8 +86,7 @@ def publish_staged(repo, project, staged):
     if not staged or len(staged) > 64:
         raise ContractError("invalid_blob_publication_size")
     with repo.database.transaction() as tx:
-        _check_batch(repo, tx, project, staged)
-        existing = _lookup_batch(tx, project, staged)
+        existing = _inspect_batch(repo, tx, project, staged)
     published = {}
     for item in staged:
         key = (item.sha256, item.media_type)
@@ -90,7 +99,8 @@ def publish_staged(repo, project, staged):
     with repo.database.transaction() as tx:
         # Same fresh post-upload check as scalar publication, including missing
         # identities: a revoked SHA can never be resurrected under a new key.
-        _check_batch(repo, tx, project, staged)
+        current = _inspect_batch(repo, tx, project, staged)
+        new = {key: ref for key, ref in published.items() if key not in current}
         insert_rows(
             tx,
             "blobs",
@@ -102,12 +112,11 @@ def publish_staged(repo, project, staged):
                     byte_length=ref.byte_length,
                     media_type=ref.media_type,
                 )
-                for key, ref in published.items()
-                if key not in existing
+                for ref in new.values()
             ],
             on_conflict=True,
         )
-        winners = _lookup_batch(tx, project, staged)
+        winners = _lookup_batch(tx, project, staged) if new else current
         for item in staged:
             winner = winners.get((item.sha256, item.media_type))
             if winner is None:
@@ -122,5 +131,5 @@ def publish_staged(repo, project, staged):
         for item in changed:
             repo.objects.verify_existing(project, winners[item.sha256, item.media_type], item)
         with repo.database.transaction() as tx:
-            _check_batch(repo, tx, project, staged)
+            _inspect_batch(repo, tx, project, staged)
     return [winners[item.sha256, item.media_type] for item in staged]

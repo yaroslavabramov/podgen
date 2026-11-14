@@ -172,6 +172,7 @@ class Publication:
 
         result = self.journal.execution.publish(write)
         self.finished = True
+        self.journal.execution.remember_calls(self.provider_calls)
         for operation in (*self.committed, *self.event_callbacks.values()):
             operation()
         ledger = getattr(self.owner, "ledger", None)

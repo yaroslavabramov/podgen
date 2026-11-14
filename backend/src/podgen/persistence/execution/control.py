@@ -11,16 +11,17 @@ from .control_bundle import OUTPUTS, load
 
 
 class Controls:
-    def __init__(self, tx, project, run_id, set_id, generation, records):
+    def __init__(self, tx, project, run_id, set_id, generation, records, metadata=None):
         self.tx, self.project, self.run_id = tx, project, run_id
         self.set_id, self.generation = set_id, generation
+        self.metadata = metadata
         self.pending = {ref.record_id: (ref, payload) for ref, payload, _ in records}
         self.allowed = {}
         self.edges = []
         self.borrowed = {}
         self.parents, self.invocations, self.turns = {}, {}, {}
         self.parents, self.invocations, self.turns, self.calls = load(
-            tx, project, run_id, set_id, generation, records, self.pending
+            tx, project, run_id, set_id, generation, records, self.pending, metadata
         )
 
     def error(self):
@@ -188,10 +189,20 @@ class Controls:
                 self.add(ref, "/parent_request_ref", parent)
         return self
 
+    def is_bound_control(self, consumer, path, ref):
+        if self.allowed.get((consumer.record_id, path)) != ref:
+            return False
+        return (
+            ref.record_id in self.pending or self.parents[ref.record_id]["execution_input_set_id"] is not None
+        )
+
     def blob_owner(self, record_id, path, ref):
         parent = self.borrowed.get((record_id, path))
         if parent is None:
             return False
+        key = ("blob_binding", self.project, self.run_id, parent.record_id, ref)
+        if self.metadata is not None and self.metadata.get(key) is not None:
+            return True
         row = one(
             self.tx,
             """SELECT 1 FROM runtime_blob_refs
@@ -204,4 +215,6 @@ class Controls:
             length=ref.byte_length,
             media=ref.media_type,
         )
+        if row is not None and self.metadata is not None:
+            self.metadata.put(key, True)
         return row is not None

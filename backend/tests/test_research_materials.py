@@ -143,6 +143,16 @@ def test_report_tool_receipt_replays_without_reading_again(repo, scope, producer
         name="read_material",
         arguments=json.dumps(dict(material_id="M1", start=0, end=4000, context=True)),
     )
+    from podgen.runtime.models.contracts import WireReply
+
+    phase = journal.publication(journal.root)
+    phase.event(
+        "provider_response",
+        reply=WireReply(json.dumps(dict(output=[dict(type="function_call", **call)])).encode()),
+        data=dict(source_turn_index=0),
+        history=history,
+    )
+    phase.commit()
     result = _execute(journal, journal.root, corpus, contract, call, 0, 0, lambda: None, history)
     assert result["material_passage"]["read_id"] == "R1"
     monkeypatch.setattr(corpus, "execute", lambda *a, **k: pytest.fail("A frozen read was executed twice"))

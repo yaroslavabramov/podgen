@@ -25,3 +25,13 @@ def current_inputs(method):
         raise AssertionError("unreachable")
 
     return read
+
+
+@current_inputs
+def authorize_inputs(repo, store, run_id, *, action=False):
+    from podgen.persistence.read_authorization import _read_connection
+
+    from .live import authorize
+
+    with _read_connection(repo) as tx:
+        return authorize(repo, tx, store.project, store.sets[run_id]["set_id"], action=action)

@@ -17,6 +17,7 @@ class Metrics(Measurements):
             tx.execute(text("CREATE EXTENSION IF NOT EXISTS pg_stat_statements"))
         self.database = database
         self.server_phases = {}
+        self.checkpoints, self.active_checkpoint = [], None
         self.stack, self.operations, self.templates = [], defaultdict(Counter), Counter()
         self.phase_name = "outside"
         self.turn = None
@@ -27,6 +28,10 @@ class Metrics(Measurements):
     def sql(self, connection, cursor, statement, parameters, context, many):
         name = "/".join(self.stack) or "other"
         executions = len(parameters) if many else 1
+        if self.active_checkpoint is not None:
+            self.active_checkpoint["sql_executions"] += executions
+            self.active_checkpoint["sql_driver_calls"] += 1
+            self.active_checkpoint["statements"][" ".join(statement.split())] += executions
         self.driver_calls[self.phase_name] += 1
         self.executions[self.phase_name] += executions
         self.operations[self.phase_name + ":" + name]["sql"] += executions
@@ -83,14 +88,36 @@ class Metrics(Measurements):
             self.operations[key]["seconds"] += time.monotonic() - started
             self.stack.pop()
 
-    def wrap(self, cls, name, label=None):
+    def wrap(self, cls, name, label=None, *, checkpoint=False):
         original = getattr(cls, name)
 
         @functools.wraps(original)
         def wrapped(instance, *args, **kwargs):
             tag = label(instance, *args, **kwargs) if label else cls.__name__ + "." + name
-            with self.operation(tag):
-                return original(instance, *args, **kwargs)
+            previous = self.active_checkpoint
+            point = None
+            if checkpoint:
+                point = dict(
+                    phase=self.phase_name,
+                    turn=self.turn,
+                    checkpoint=tag,
+                    sql_executions=0,
+                    sql_driver_calls=0,
+                    statements=Counter(),
+                )
+                self.active_checkpoint = point
+            started = time.monotonic()
+            try:
+                with self.operation(tag):
+                    return original(instance, *args, **kwargs)
+            finally:
+                if point is not None:
+                    point["seconds"] = time.monotonic() - started
+                    point["statements"] = [
+                        dict(sql=sql, count=count) for sql, count in point["statements"].items()
+                    ]
+                    self.checkpoints.append(point)
+                    self.active_checkpoint = previous
 
         setattr(cls, name, wrapped)
 
@@ -98,6 +125,7 @@ class Metrics(Measurements):
         return dict(
             super().snapshot(),
             server_sql=self.server_phases,
+            checkpoints=self.checkpoints,
             sql_including_coordination=sum(self.templates.values()),
             sql_executions=dict(self.executions),
             sql_driver_calls=dict(self.driver_calls),

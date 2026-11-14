@@ -364,8 +364,10 @@ class WritingEvaluation:
                 loader=self._materials,
                 checkpoint=checkpoint_guard,
             )
-            if corpus is not None and corpus.retrieval is not None:
-                corpus.retrieval.index.access.run_id = command.run_id
+            if corpus is not None and guard.supports_publication_snapshot:
+                corpus.bind_execution(journal.execution, command.run_id)
+                if corpus.retrieval is not None:
+                    corpus.retrieval.index.access.run_id = command.run_id
             authorize_recovery(
                 journal,
                 command,

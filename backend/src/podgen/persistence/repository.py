@@ -76,13 +76,13 @@ class Repository:
                 p=project_id,
                 a=self.actor_id,
             )
-        if (
-            member is None
-            or (write and member["role"] not in WRITE_ROLES)
-            or (operator and member["role"] != "operator")
-        ):
+        return self._require_role(member["role"] if member else None, write=write, operator=operator)
+
+    @staticmethod
+    def _require_role(role, *, write=False, operator=False):
+        if role is None or (write and role not in WRITE_ROLES) or (operator and role != "operator"):
             raise AccessDenied()
-        return member["role"]
+        return role
 
     def _lock(self, tx, project_id):
         state = self._read_authorization.get()
@@ -300,7 +300,21 @@ class Repository:
         from .access_facts import access_facts
 
         with _read_connection(self) as tx:
-            access_facts(self, tx).runtimes.prefetch(project_id, references)
+            facts = access_facts(self, tx)
+            facts.runtimes.prefetch(project_id, references)
+            from .execution.parents import authorize_parents
+
+            authorize_parents(
+                self,
+                tx,
+                project_id,
+                [
+                    ref.record_id
+                    for ref in references
+                    if facts.runtimes.rows.get((project_id, ref.record_id), {}).get("execution_input_set_id")
+                    is not None
+                ],
+            )
             for reference in references:
                 self._runtime(tx, project_id, reference)
 
@@ -331,6 +345,19 @@ class Repository:
         with _read_connection(self) as tx:
             facts = access_facts(self, tx)
             facts.runtimes.prefetch(project_id, references)
+            from .execution.parents import authorize_parents
+
+            authorize_parents(
+                self,
+                tx,
+                project_id,
+                [
+                    ref.record_id
+                    for ref in references
+                    if facts.runtimes.rows.get((project_id, ref.record_id), {}).get("execution_input_set_id")
+                    is not None
+                ],
+            )
             for reference in references:
                 self._runtime(tx, project_id, reference)
             payloads = {

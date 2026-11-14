@@ -3,6 +3,7 @@
 import base64
 import hashlib
 import io
+import json
 import shutil
 from collections import Counter
 from contextlib import contextmanager
@@ -80,6 +81,32 @@ class BlobDatabase:
             return Rows([{"exists": 1}] if self.classified else [])
         if sql.startswith("SELECT 1 FROM blob_access_revocations"):
             return Rows([{"exists": 1}] if self.revoked else [])
+        if sql.startswith("SELECT wanted.sha256"):
+            results = []
+            for wanted in json.loads(params["identities"]):
+                found = next(
+                    (
+                        row
+                        for (project, _), row in self.rows.items()
+                        if project == params["p"]
+                        and row["sha256"] == wanted["sha256"]
+                        and row["media_type"] == wanted["media_type"]
+                    ),
+                    None,
+                )
+                results.append(
+                    dict(
+                        sha256=wanted["sha256"],
+                        requested_media_type=wanted["media_type"],
+                        role=self.role,
+                        storage_key=found["storage_key"] if found else None,
+                        byte_length=found["byte_length"] if found else None,
+                        media_type=found["media_type"] if found else None,
+                        evaluator_only=self.classified,
+                        access_revoked=self.revoked,
+                    )
+                )
+            return Rows(results)
         if sql.startswith("SELECT sha AS sha256"):
             return Rows(
                 [

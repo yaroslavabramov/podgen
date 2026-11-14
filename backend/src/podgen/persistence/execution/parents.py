@@ -7,10 +7,20 @@ from podgen.persistence.read_authorization import checked_node
 
 def authorize_parents(repo, tx, project, records, *, include_parents=True):
     records = tuple(sorted(set(records), key=str))
-    if not records:
-        return
+    state = repo._read_authorization.get()
+    active = (
+        state is not None
+        and state.transaction is tx
+        and state.actor == repo.actor_id
+        and state.purpose == repo.purpose
+    )
 
-    def check():
+    def key(identity):
+        return ("execution_parent_privacy", project, identity, include_parents)
+
+    pending = [identity for identity in records if not active or key(identity) not in state.completed]
+    for offset in range(0, len(pending), 64):
+        batch = pending[offset : offset + 64]
         denied = one(
             tx,
             """WITH nodes(record_id) AS (
@@ -23,11 +33,10 @@ def authorize_parents(repo, tx, project, records, *, include_parents=True):
                ON b.project_id=:p AND b.record_id=n.record_id
              JOIN blob_access_revocations v ON v.project_id=b.project_id AND v.sha256=b.sha256) AS denied""",
             p=project,
-            records=list(records),
+            records=batch,
             include=include_parents,
         )
         if denied["denied"]:
             raise AccessDenied()
-        return True
-
-    return checked_node(repo, tx, ("execution_parent_privacy", project, records, include_parents), check)
+        for identity in batch:
+            checked_node(repo, tx, key(identity), lambda: True)
