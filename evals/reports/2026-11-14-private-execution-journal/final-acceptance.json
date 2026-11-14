@@ -1,0 +1,590 @@
+{
+  "commit": "6e7d1508",
+  "paid_provider_calls": 0,
+  "passes": {
+    "first": {
+      "phases": {
+        "startup": {
+          "seconds": 1.7696428750059567,
+          "sql_calls": 1103,
+          "sql_select": 740,
+          "sql_set": 67,
+          "sql_with": 67,
+          "sql_update": 55,
+          "sql_insert": 173,
+          "sql_delete": 1,
+          "objects": {
+            "read_calls": 1,
+            "read_bytes": 1035145,
+            "stream_calls": 50,
+            "unicode_projection_created_bytes": 3728072,
+            "unicode_projection_read_calls": 52,
+            "unicode_projection_returned_bytes": 1941232
+          }
+        },
+        "fact_review": {
+          "seconds": 165.63243379199412,
+          "sql_calls": 4137,
+          "sql_select": 2385,
+          "sql_set": 449,
+          "sql_with": 704,
+          "sql_update": 392,
+          "sql_insert": 206,
+          "sql_delete": 1,
+          "objects": {
+            "read_calls": 3,
+            "read_bytes": 36212422,
+            "stream_calls": 260,
+            "unicode_projection_read_calls": 2608,
+            "unicode_projection_returned_bytes": 11138344,
+            "stage_calls": 260,
+            "staged_bytes": 36016771,
+            "publish_calls": 260,
+            "published_bytes": 36016771
+          }
+        },
+        "export": {
+          "seconds": 1.2894272910198197,
+          "sql_calls": 480,
+          "sql_select": 397,
+          "sql_set": 45,
+          "sql_with": 38,
+          "objects": {
+            "read_calls": 220,
+            "read_bytes": 28802188,
+            "unicode_projection_read_calls": 52,
+            "unicode_projection_returned_bytes": 3728120
+          }
+        },
+        "whole_review": {
+          "seconds": 168.70118029101286,
+          "sql_calls": 5730,
+          "sql_select": 3530,
+          "sql_set": 561,
+          "sql_with": 809,
+          "sql_update": 449,
+          "sql_insert": 379,
+          "sql_delete": 2,
+          "objects": {
+            "read_calls": 224,
+            "read_bytes": 66049755,
+            "stream_calls": 310,
+            "unicode_projection_created_bytes": 3728072,
+            "unicode_projection_read_calls": 2712,
+            "unicode_projection_returned_bytes": 16807696,
+            "stage_calls": 260,
+            "staged_bytes": 36016771,
+            "publish_calls": 260,
+            "published_bytes": 36016771
+          }
+        }
+      },
+      "search_calls": 13,
+      "search_seconds": 153.61099400010426,
+      "process_peak_rss_bytes": 1279148032,
+      "passage_embedding_calls": 0,
+      "count_calls": 43,
+      "submit_calls": 43,
+      "tool_results_exact": 42,
+      "all_native_requests_exact": true,
+      "input_legacy_corpus": {
+        "documents": 51,
+        "chunks": 1227
+      },
+      "turn_sql": {
+        "None": 312,
+        "0": 67,
+        "1": 67,
+        "2": 67,
+        "3": 67,
+        "4": 67,
+        "5": 67,
+        "6": 67,
+        "7": 67,
+        "8": 67,
+        "9": 67,
+        "10": 67,
+        "11": 75,
+        "12": 75,
+        "13": 75,
+        "14": 75,
+        "15": 93,
+        "16": 75,
+        "17": 93,
+        "18": 75,
+        "19": 75,
+        "20": 75,
+        "21": 93,
+        "22": 75,
+        "23": 75,
+        "24": 93,
+        "25": 93,
+        "26": 93,
+        "27": 75,
+        "28": 93,
+        "29": 75,
+        "30": 93,
+        "31": 75,
+        "32": 75,
+        "33": 93,
+        "34": 75,
+        "35": 93,
+        "36": 75,
+        "37": 93,
+        "38": 93,
+        "39": 75,
+        "40": 93,
+        "41": 75,
+        "42": 531
+      },
+      "rss_scope": "cumulative process high-water, not an independent per-pass peak",
+      "server_sql": {
+        "startup": {
+          "track": "all: includes nested SQL executed by functions and triggers",
+          "calls": 12795,
+          "nested_calls": 11556,
+          "returned_or_modified_rows": 22648
+        },
+        "fact_review": {
+          "track": "all: includes nested SQL executed by functions and triggers",
+          "calls": 10652,
+          "nested_calls": 5597,
+          "returned_or_modified_rows": 31368
+        },
+        "export": {
+          "track": "all: includes nested SQL executed by functions and triggers",
+          "calls": 557,
+          "nested_calls": 0,
+          "returned_or_modified_rows": 7344
+        }
+      },
+      "export_verification": {
+        "archive_contract": "execution-journal/3",
+        "adjacent_same_call_diagnostic_relocations": [
+          142,
+          161,
+          198,
+          226,
+          236,
+          246,
+          265,
+          284,
+          312,
+          331,
+          350,
+          360,
+          379
+        ],
+        "verified_technical_delta": [
+          "journal_version",
+          "content-bound physical request identity, paired by verified turn",
+          "exact tool provider_response_ref and arguments_hash",
+          "adjacent same-call search diagnostics before the recorded call fact",
+          "submit output reservation equals the verified physical request limit",
+          "run.json derived invocation field order; all values remain exact"
+        ],
+        "files_verified": 370,
+        "byte_exact_files": 278,
+        "json_equal_after_technical_substitutions": 92,
+        "verified_blob_ref_substitutions": 173,
+        "creation_time_substitution": "manifest.json:created_at",
+        "transport_substitution": "provider_request_id:offline HTTP transport",
+        "all_other_json_values_exact": true
+      },
+      "storage_evidence": {
+        "scope": "project rows; audit SQL excluded from product timings and query counters",
+        "legacy_execution_unchanged": true,
+        "row_growth": {
+          "evaluation_model_invocations": 0,
+          "evaluation_model_turns": 0,
+          "evaluation_invocation_events": 0,
+          "execution_provider_calls": 0,
+          "execution_tool_results": 0,
+          "runtime_records": 4,
+          "runtime_runtime_refs": 6,
+          "runtime_blob_refs": 1,
+          "evaluator_blob_classifications": 0,
+          "blobs": 0,
+          "execution_entries": 174,
+          "execution_heads": 1,
+          "execution_objects": 260,
+          "semantic_execution_links": 37
+        }
+      },
+      "index_document_mutations": [
+        {
+          "count": 49,
+          "sql": "INSERT INTO source_search_documents(project_id,document_key,source_sha256,source_length,profile_sha256,profile,language) VALUES(%(p)s,%(document)s,%(sha)s,%(length)s,%(h)s,CAST(%(profile)s AS jsonb),%(language)s)"
+        },
+        {
+          "count": 49,
+          "sql": "INSERT INTO source_search_document_chunks SELECT project_id,%(document)s,start_offset,end_offset,language,lexical,exact_terms,phrase_text,embedding FROM source_search_chunks WHERE project_id=%(p)s AND shared_input_record_id=%(legacy_scope)s AND profile_sha256=%(h)s AND source_id=%(legacy_source)s"
+        },
+        {
+          "count": 49,
+          "sql": "UPDATE source_search_documents SET cursor_position=%(cursor)s,completed=%(done)s,chunk_count=%(count)s WHERE project_id=%(p)s AND document_key=%(document)s"
+        }
+      ]
+    },
+    "repeat": {
+      "phases": {
+        "startup": {
+          "seconds": 1.0363771250122227,
+          "sql_calls": 516,
+          "sql_select": 398,
+          "sql_set": 18,
+          "sql_with": 18,
+          "sql_update": 6,
+          "sql_insert": 75,
+          "sql_delete": 1,
+          "objects": {
+            "read_calls": 1,
+            "read_bytes": 75282,
+            "unicode_projection_read_calls": 52,
+            "unicode_projection_returned_bytes": 1941232
+          }
+        },
+        "fact_review": {
+          "seconds": 161.00212062499486,
+          "sql_calls": 4094,
+          "sql_select": 2342,
+          "sql_set": 449,
+          "sql_with": 704,
+          "sql_update": 392,
+          "sql_insert": 206,
+          "sql_delete": 1,
+          "objects": {
+            "read_calls": 3,
+            "read_bytes": 35332299,
+            "stream_calls": 260,
+            "unicode_projection_read_calls": 2608,
+            "unicode_projection_returned_bytes": 11138344,
+            "stage_calls": 260,
+            "staged_bytes": 35136648,
+            "publish_calls": 260,
+            "published_bytes": 35136648
+          }
+        },
+        "export": {
+          "seconds": 1.3310717499698512,
+          "sql_calls": 480,
+          "sql_select": 397,
+          "sql_set": 45,
+          "sql_with": 38,
+          "objects": {
+            "read_calls": 220,
+            "read_bytes": 27922065,
+            "unicode_projection_read_calls": 52,
+            "unicode_projection_returned_bytes": 3728120
+          }
+        },
+        "whole_review": {
+          "seconds": 163.37615012499737,
+          "sql_calls": 5100,
+          "sql_select": 3145,
+          "sql_set": 512,
+          "sql_with": 760,
+          "sql_update": 400,
+          "sql_insert": 281,
+          "sql_delete": 2,
+          "objects": {
+            "read_calls": 224,
+            "read_bytes": 63329646,
+            "stream_calls": 260,
+            "unicode_projection_read_calls": 2712,
+            "unicode_projection_returned_bytes": 16807696,
+            "stage_calls": 260,
+            "staged_bytes": 35136648,
+            "publish_calls": 260,
+            "published_bytes": 35136648
+          }
+        }
+      },
+      "search_calls": 13,
+      "search_seconds": 148.0380865840125,
+      "process_peak_rss_bytes": 1279148032,
+      "passage_embedding_calls": 0,
+      "count_calls": 43,
+      "submit_calls": 43,
+      "tool_results_exact": 42,
+      "all_native_requests_exact": true,
+      "input_legacy_corpus": {
+        "documents": 51,
+        "chunks": 1227
+      },
+      "turn_sql": {
+        "None": 312,
+        "0": 66,
+        "1": 66,
+        "2": 66,
+        "3": 66,
+        "4": 66,
+        "5": 66,
+        "6": 66,
+        "7": 66,
+        "8": 66,
+        "9": 66,
+        "10": 66,
+        "11": 74,
+        "12": 74,
+        "13": 74,
+        "14": 74,
+        "15": 92,
+        "16": 74,
+        "17": 92,
+        "18": 74,
+        "19": 74,
+        "20": 74,
+        "21": 92,
+        "22": 74,
+        "23": 74,
+        "24": 92,
+        "25": 92,
+        "26": 92,
+        "27": 74,
+        "28": 92,
+        "29": 74,
+        "30": 92,
+        "31": 74,
+        "32": 74,
+        "33": 92,
+        "34": 74,
+        "35": 92,
+        "36": 74,
+        "37": 92,
+        "38": 92,
+        "39": 74,
+        "40": 92,
+        "41": 74,
+        "42": 530
+      },
+      "rss_scope": "cumulative process high-water, not an independent per-pass peak",
+      "server_sql": {
+        "startup": {
+          "track": "all: includes nested SQL executed by functions and triggers",
+          "calls": 10653,
+          "nested_calls": 10037,
+          "returned_or_modified_rows": 20029
+        },
+        "fact_review": {
+          "track": "all: includes nested SQL executed by functions and triggers",
+          "calls": 10472,
+          "nested_calls": 5597,
+          "returned_or_modified_rows": 31239
+        },
+        "export": {
+          "track": "all: includes nested SQL executed by functions and triggers",
+          "calls": 557,
+          "nested_calls": 0,
+          "returned_or_modified_rows": 7344
+        }
+      },
+      "export_verification": {
+        "archive_contract": "execution-journal/3",
+        "adjacent_same_call_diagnostic_relocations": [
+          142,
+          161,
+          198,
+          226,
+          236,
+          246,
+          265,
+          284,
+          312,
+          331,
+          350,
+          360,
+          379
+        ],
+        "verified_technical_delta": [
+          "journal_version",
+          "content-bound physical request identity, paired by verified turn",
+          "exact tool provider_response_ref and arguments_hash",
+          "adjacent same-call search diagnostics before the recorded call fact",
+          "submit output reservation equals the verified physical request limit",
+          "run.json derived invocation field order; all values remain exact"
+        ],
+        "files_verified": 370,
+        "byte_exact_files": 146,
+        "json_equal_after_technical_substitutions": 224,
+        "verified_blob_ref_substitutions": 173,
+        "creation_time_substitution": "manifest.json:created_at",
+        "transport_substitution": "provider_request_id:offline HTTP transport",
+        "all_other_json_values_exact": true
+      },
+      "storage_evidence": {
+        "scope": "project rows; audit SQL excluded from product timings and query counters",
+        "legacy_execution_unchanged": true,
+        "row_growth": {
+          "evaluation_model_invocations": 0,
+          "evaluation_model_turns": 0,
+          "evaluation_invocation_events": 0,
+          "execution_provider_calls": 0,
+          "execution_tool_results": 0,
+          "runtime_records": 4,
+          "runtime_runtime_refs": 6,
+          "runtime_blob_refs": 1,
+          "evaluator_blob_classifications": 0,
+          "blobs": 0,
+          "execution_entries": 174,
+          "execution_heads": 1,
+          "execution_objects": 131,
+          "semantic_execution_links": 37
+        }
+      },
+      "index_document_mutations": []
+    },
+    "completed": {
+      "phases": {
+        "startup": {
+          "seconds": 0.9437245830195025,
+          "sql_calls": 496,
+          "sql_select": 387,
+          "sql_set": 19,
+          "sql_with": 19,
+          "sql_update": 4,
+          "sql_delete": 1,
+          "sql_insert": 66,
+          "objects": {
+            "read_calls": 1,
+            "read_bytes": 75282,
+            "unicode_projection_read_calls": 52,
+            "unicode_projection_returned_bytes": 1941232
+          }
+        },
+        "fact_review": {
+          "seconds": 1.3457058329950087,
+          "sql_calls": 488,
+          "sql_select": 404,
+          "sql_set": 45,
+          "sql_with": 39,
+          "objects": {
+            "read_calls": 2,
+            "read_bytes": 130434,
+            "unicode_projection_read_calls": 93,
+            "unicode_projection_returned_bytes": 2214980
+          }
+        },
+        "export": {
+          "seconds": 1.3487725830054842,
+          "sql_calls": 480,
+          "sql_select": 397,
+          "sql_set": 45,
+          "sql_with": 38,
+          "objects": {
+            "read_calls": 220,
+            "read_bytes": 28802188,
+            "unicode_projection_read_calls": 52,
+            "unicode_projection_returned_bytes": 3728120
+          }
+        },
+        "whole_review": {
+          "seconds": 3.642692916037049,
+          "sql_calls": 1474,
+          "sql_select": 1196,
+          "sql_set": 109,
+          "sql_with": 96,
+          "sql_update": 6,
+          "sql_delete": 1,
+          "sql_insert": 66,
+          "objects": {
+            "read_calls": 223,
+            "read_bytes": 29007904,
+            "unicode_projection_read_calls": 197,
+            "unicode_projection_returned_bytes": 7884332
+          }
+        }
+      },
+      "search_calls": 0,
+      "search_seconds": 0,
+      "process_peak_rss_bytes": 1279148032,
+      "passage_embedding_calls": 0,
+      "count_calls": 0,
+      "submit_calls": 0,
+      "tool_results_exact": 0,
+      "all_native_requests_exact": true,
+      "input_legacy_corpus": {
+        "documents": 51,
+        "chunks": 1227
+      },
+      "turn_sql": {
+        "None": 490
+      },
+      "rss_scope": "cumulative process high-water, not an independent per-pass peak",
+      "server_sql": {
+        "startup": {
+          "track": "all: includes nested SQL executed by functions and triggers",
+          "calls": 2235,
+          "nested_calls": 1689,
+          "returned_or_modified_rows": 10234
+        },
+        "fact_review": {
+          "track": "all: includes nested SQL executed by functions and triggers",
+          "calls": 565,
+          "nested_calls": 0,
+          "returned_or_modified_rows": 12817
+        },
+        "export": {
+          "track": "all: includes nested SQL executed by functions and triggers",
+          "calls": 557,
+          "nested_calls": 0,
+          "returned_or_modified_rows": 7344
+        }
+      },
+      "export_verification": {
+        "archive_contract": "execution-journal/3",
+        "adjacent_same_call_diagnostic_relocations": [
+          142,
+          161,
+          198,
+          226,
+          236,
+          246,
+          265,
+          284,
+          312,
+          331,
+          350,
+          360,
+          379
+        ],
+        "verified_technical_delta": [
+          "journal_version",
+          "content-bound physical request identity, paired by verified turn",
+          "exact tool provider_response_ref and arguments_hash",
+          "adjacent same-call search diagnostics before the recorded call fact",
+          "submit output reservation equals the verified physical request limit",
+          "run.json derived invocation field order; all values remain exact"
+        ],
+        "files_verified": 370,
+        "byte_exact_files": 278,
+        "json_equal_after_technical_substitutions": 92,
+        "verified_blob_ref_substitutions": 173,
+        "creation_time_substitution": "manifest.json:created_at",
+        "transport_substitution": "provider_request_id:offline HTTP transport",
+        "all_other_json_values_exact": true
+      },
+      "storage_evidence": {
+        "scope": "project rows; audit SQL excluded from product timings and query counters",
+        "legacy_execution_unchanged": true,
+        "row_growth": {
+          "evaluation_model_invocations": 0,
+          "evaluation_model_turns": 0,
+          "evaluation_invocation_events": 0,
+          "execution_provider_calls": 0,
+          "execution_tool_results": 0,
+          "runtime_records": 0,
+          "runtime_runtime_refs": 0,
+          "runtime_blob_refs": 0,
+          "evaluator_blob_classifications": 0,
+          "blobs": 0,
+          "execution_entries": 0,
+          "execution_heads": 0,
+          "execution_objects": 0,
+          "semantic_execution_links": 0
+        }
+      },
+      "index_document_mutations": []
+    }
+  }
+}

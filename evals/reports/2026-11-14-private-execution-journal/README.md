@@ -1,6 +1,6 @@
 # Private execution journal: implementation and remaining costs
 
-Implementation reviewed through `0f0b6d8f`. Final consolidated test result is recorded below. No paid provider calls were made. Work stops here at the user's request; a new full replay on the final commit was not run.
+Implementation reviewed through `0f0b6d8f` and integrated as `6e7d1508`. The requested final offline acceptance on that exact production commit completed successfully. No paid provider calls were made.
 
 ## Implemented
 
@@ -10,26 +10,37 @@ Implementation reviewed through `0f0b6d8f`. Final consolidated test result is re
 - Bounded operation-local archive caches retain fresh access checks around external I/O. Full bytes and historical archives are preserved.
 - Production prompts, models and stage order are unchanged.
 
-## Measured results, not an efficiency acceptance
+## Final acceptance on `6e7d1508`
 
-The last full replay used `81a4af8c`, before final archive-cache and recovery fixes. It used 51 documents, 1,227 chunks, 43 recorded model turns and 42 actual tool executions. Provider responses were replayed offline.
+One existing offline replay covered first execution, a second independent execution, and reopening the first completed execution. It used 51 documents, 1,227 chunks, 43 recorded model turns and 42 actual tool executions per independent run. All native model requests and tool results matched the saved trace. This is execution/storage qualification, not a fresh assessment of model output quality.
 
-| Measurement | Previous implementation | Measured v3 |
+| Measurement | Previous implementation | Final v3 |
 |---|---:|---:|
-| First complete pass, client SQL | 6,508 | 5,816 |
-| Repeat pass, client SQL | 5,712 | 5,186 |
-| Completed-run read/export, client SQL | 1,165 | 1,562 |
-| Ordinary step, client SQL | 96 | 67 |
-| First pass, seconds | 161.37 | 174.10 |
-| Repeat pass, seconds | 159.34 | 182.08 |
+| First complete pass, client SQL | 6,508 | 5,730 |
+| Second independent pass, client SQL | 5,712 | 5,100 |
+| Completed-run read/export, client SQL | 1,165 | 1,474 |
+| Ordinary step without search, client SQL | 96 | 67 |
+| Export, client SQL | 313 | 480 |
+| First pass, seconds | 161.37 | 168.70 |
+| Second independent pass, seconds | 159.34 | 163.38 |
+| Completed-run read/export, seconds | 3.37 | 3.64 |
 
-The 67 ordinary-step statements comprise 17 for count intent/request, 19 for count receipt/submit intent, 17 for provider receipt, 10 for tool result, and 4 external-action checks. These include ownership/access metadata, object registration, checkpoint insertion and head updates. This is **not** a claim that 67 is a justified minimum.
+The completed pass made **zero count, generation or tool calls**, and added no rows to the audited tables. Each independent execution replayed exactly 43 counts and 43 generation responses; those are distinct runs, not accidental retries.
 
-Server-side nested SQL is also counted: the measured v3 first pass executed 24,090 statements including triggers/functions, with 12,795 during startup, 10,654 during review, and 641 during export. Client counts alone understate database work. Detailed counters are in `measurements.json`.
+All three passes made **zero passage-embedding calls**. The first pass imported 49 unique legacy document indexes without recomputing them. The second and completed passes performed no document-index writes. Query embeddings still occur for the 13 searches in each independent execution.
 
-A later completed-only check with the final archive cache reduced export from 564 to 480 client statements. The old export was 313; that regression remains. Its cold-process whole-operation count is not directly comparable with the earlier warm completed pass.
+The 67 ordinary-step statements comprise 17 for count intent/request, 19 for count receipt/submit intent, 17 for provider receipt, 10 for tool result, and 4 external-action checks. These include ownership/access metadata, object registration, checkpoint insertion and head updates. This is **not** a claim that 67 is a justified minimum. Other turns cost 75 or 93 client statements; finalization is more expensive.
 
-No speed or memory improvement is established. Search took 157 seconds of the measured 174-second first pass; process peak RSS was approximately 1.34 GB. Startup/source provenance and semantic finalization remain expensive. The broader efficiency complaint is **not resolved** by this patch.
+Server-side nested SQL is also counted: the first pass executed **24,004 statements** including triggers/functions: 12,795 during startup, 10,652 during review, and 557 during export. Client counts alone understate database work. Final measurements and verification evidence are in `final-acceptance.json`; `measurements.json` retains the previous baseline/intermediate evidence.
+
+### Remaining defects and limits
+
+- Export regressed from 313 to 480 client statements; completed-run access also remains more expensive than the baseline.
+- Startup/source provenance and semantic finalization still perform substantial metadata work. Private execution storage did not remove that cost.
+- No speed improvement is established. Search took 153.61 seconds of the 168.70-second first pass. Peak RSS was approximately 1.28 GB; this is cumulative process high-water, not a controlled independent memory comparison.
+- This replay does not simulate every interruption. Recovery coverage comes from the consolidated tests and genuine legacy fixtures below.
+
+Technical acceptance of preserved behavior is complete. The broader efficiency complaint is **not resolved**. No SDK migration or further refactoring was started.
 
 ## Storage and correctness evidence
 
@@ -41,4 +52,4 @@ Final consolidated suite on `0f0b6d8f`: **221 passed** in 70.84 seconds. One Ale
 
 ## Follow-up, not performed in this patch
 
-Review startup/source graph publication and semantic finalization as whole operations, and resolve the export regression. Final-code full performance replay remains outstanding. Work is stopped; no further test loop was launched.
+The remaining performance issues above are recorded, not silently accepted. The requested final-code replay is complete; no further test loop was launched. Return to the ordinary episode workflow before selecting another infrastructure project.
