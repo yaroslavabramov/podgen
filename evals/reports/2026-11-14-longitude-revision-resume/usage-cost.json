@@ -1,0 +1,205 @@
+{
+  "status": "Actual saved provider token receipts; USD estimates at published standard prices checked on 2026-11-14, not an invoice.",
+  "run_id": "f7e9dbac-c64c-5698-807a-fa8b25e69a2f",
+  "pricing_source": "pricing.json",
+  "pricing_sha256": "bc996ee710a077d669e9373ad6085d8d17baeee35dd264dcf893222dfd7f4e68",
+  "new_work": {
+    "generation_receipts": 3,
+    "input_tokens": 112449,
+    "output_tokens": 19561,
+    "cached_input_tokens": 0,
+    "cache_write_tokens": 102355,
+    "uncached_input_tokens": 10094,
+    "estimated_usd": "0.4703160"
+  },
+  "new_calls": [
+    {
+      "stage": "fact-review-1",
+      "model": "gpt-6.1-terra",
+      "response_id": "resp_0edaffcd4c9c13a3016af838d2557487d28ffe2cc52cd35a03",
+      "receipt": "export/archive/fact-review-1/006-provider_response-response_blob.json",
+      "native_receipt": "export/archive/fact-review-1/006-provider_response-response_blob.json",
+      "usage": {
+        "input_tokens": 43369,
+        "input_tokens_details": {
+          "cache_write_tokens": 43366,
+          "cache_write_tokens_details": {
+            "ttl_12h_tokens": 0,
+            "ttl_30m_tokens": 43366
+          },
+          "cached_tokens": 0
+        },
+        "output_tokens": 10209,
+        "output_tokens_details": {
+          "reasoning_tokens": 149
+        },
+        "total_tokens": 53578
+      },
+      "estimated_usd": "0.1052555"
+    },
+    {
+      "stage": "reader-review-1",
+      "model": "gpt-6.1-terra",
+      "response_id": "resp_0d6b5322e07146fc016af8387bf1e887d296e826239f3cfdb1",
+      "receipt": "export/archive/reader-review-1/004-provider_response-response_blob.json",
+      "native_receipt": "export/archive/reader-review-1/004-provider_response-response_blob.json",
+      "usage": {
+        "input_tokens": 15821,
+        "input_tokens_details": {
+          "cache_write_tokens": 5734,
+          "cache_write_tokens_details": {
+            "ttl_12h_tokens": 0,
+            "ttl_30m_tokens": 5734
+          },
+          "cached_tokens": 0
+        },
+        "output_tokens": 7035,
+        "output_tokens_details": {
+          "reasoning_tokens": 253
+        },
+        "total_tokens": 22856
+      },
+      "estimated_usd": "0.0524295"
+    },
+    {
+      "stage": "revise-1",
+      "model": "claude-opus-5-5",
+      "response_id": "resp_msg_011Ch2faN5gQ8QXsE2wWMtWc",
+      "receipt": "export/archive/revise-1/attempt-1/004-provider_response-response_blob.json",
+      "native_receipt": "export/archive/revise-1/attempt-1/004-provider_response-wire_response_blob.json",
+      "usage": {
+        "input_tokens": 53259,
+        "output_tokens": 2317,
+        "input_tokens_details": {
+          "cached_tokens": 0,
+          "cache_write_tokens": 53255
+        }
+      },
+      "estimated_usd": "0.312631"
+    }
+  ],
+  "new_event_counts": {
+    "revise-1": {
+      "role_input_measurement": 1,
+      "count_intent": 1,
+      "count_response": 1,
+      "submit_intent": 1,
+      "provider_response": 1,
+      "source_tools_final_response": 1
+    },
+    "reader-review-1": {
+      "role_input_measurement": 1,
+      "count_intent": 1,
+      "count_response": 1,
+      "submit_intent": 1,
+      "provider_response": 1
+    },
+    "fact-review-1": {
+      "source_context_count_intent": 1,
+      "source_context_count": 1,
+      "source_context_plan": 1,
+      "role_input_measurement": 1,
+      "count_receipt_reused": 1,
+      "submit_intent": 1,
+      "provider_response": 1,
+      "source_tools_final_response": 1
+    }
+  },
+  "whole_run_at_same_rates": {
+    "generation_receipts": 94,
+    "input_tokens": 2965654,
+    "output_tokens": 56818,
+    "cached_input_tokens": 2660245,
+    "cache_write_tokens": 291158,
+    "uncached_input_tokens": 14251,
+    "estimated_usd": "1.42067470"
+  },
+  "by_stage": {
+    "draft": {
+      "model": "claude-opus-5-5",
+      "generation_receipts": 4,
+      "input_tokens": 149169,
+      "output_tokens": 6533,
+      "cached_input_tokens": 109044,
+      "cache_write_tokens": 40115,
+      "uncached_input_tokens": 10,
+      "estimated_usd": "0.3530838"
+    },
+    "fact-review": {
+      "model": "gpt-6.1-terra",
+      "generation_receipts": 34,
+      "input_tokens": 1261078,
+      "output_tokens": 13779,
+      "cached_input_tokens": 1203759,
+      "cache_write_tokens": 57217,
+      "uncached_input_tokens": 102,
+      "estimated_usd": "0.20070620"
+    },
+    "fact-review-1": {
+      "model": "gpt-6.1-terra",
+      "generation_receipts": 1,
+      "input_tokens": 43369,
+      "output_tokens": 10209,
+      "cached_input_tokens": 0,
+      "cache_write_tokens": 43366,
+      "uncached_input_tokens": 3,
+      "estimated_usd": "0.1052555"
+    },
+    "plan": {
+      "model": "gpt-6.1-sol",
+      "generation_receipts": 26,
+      "input_tokens": 674319,
+      "output_tokens": 7523,
+      "cached_input_tokens": 628672,
+      "cache_write_tokens": 45569,
+      "uncached_input_tokens": 78,
+      "estimated_usd": "0.2521757"
+    },
+    "plan-review": {
+      "model": "gpt-6.1-terra",
+      "generation_receipts": 26,
+      "input_tokens": 759722,
+      "output_tokens": 2037,
+      "cached_input_tokens": 718770,
+      "cache_write_tokens": 40874,
+      "uncached_input_tokens": 78,
+      "estimated_usd": "0.09729400"
+    },
+    "reader-review": {
+      "model": "gpt-6.1-terra",
+      "generation_receipts": 1,
+      "input_tokens": 8917,
+      "output_tokens": 7385,
+      "cached_input_tokens": 0,
+      "cache_write_tokens": 5028,
+      "uncached_input_tokens": 3889,
+      "estimated_usd": "0.047099"
+    },
+    "reader-review-1": {
+      "model": "gpt-6.1-terra",
+      "generation_receipts": 1,
+      "input_tokens": 15821,
+      "output_tokens": 7035,
+      "cached_input_tokens": 0,
+      "cache_write_tokens": 5734,
+      "uncached_input_tokens": 10087,
+      "estimated_usd": "0.0524295"
+    },
+    "revise-1": {
+      "model": "claude-opus-5-5",
+      "generation_receipts": 1,
+      "input_tokens": 53259,
+      "output_tokens": 2317,
+      "cached_input_tokens": 0,
+      "cache_write_tokens": 53255,
+      "uncached_input_tokens": 4,
+      "estimated_usd": "0.312631"
+    }
+  },
+  "unknown_usage_invocations": [],
+  "notes": [
+    "Count endpoint receipts and reservations are not billed as generated tokens.",
+    "Original completed stages were reused; the old definitive grammar rejection has no generated token receipt.",
+    "Anthropic uses native cache TTL counters; OpenAI input totals are split into uncached, cached and cache-write tokens."
+  ]
+}

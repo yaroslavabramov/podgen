@@ -1,0 +1,27 @@
+{
+  "plan": {
+    "invocation_id": "b657262c-0a22-57b3-823d-d4b1013c6ba6",
+    "output_record_id": "21642b99-0fdb-5cdf-882c-8bb2b5d86a9b",
+    "sha256": "0796cde6d52487646cf59724d2e565cbc872c1bd124b52a493bbddefeb8dfaad"
+  },
+  "plan-review": {
+    "invocation_id": "be055bfe-a8e5-51ca-87e0-f42df448d196",
+    "output_record_id": "72e8a5bf-eba0-5b66-8dba-9716012f924c",
+    "sha256": "31e081b06033141a9011ab2112a471c9ad7f6648a8c74a71d7ee674d8e3af27c"
+  },
+  "draft": {
+    "invocation_id": "a3101442-7205-5fb1-a61c-ec3e6087d938",
+    "output_record_id": "4b45be28-2a0e-5530-931b-d9d557246eda",
+    "sha256": "f483d2826c8fcf61921ee1e088125160f3e573df7498be1fc7ddd8b38506e348"
+  },
+  "reader-review": {
+    "invocation_id": "e4a71575-d0d7-58bd-9b49-4087d123c40d",
+    "output_record_id": "587b0aa2-77e2-58cb-a002-037fc200f9e9",
+    "sha256": "9e88f3fbe1023fa9344af1ec6608519f6f11590b2de174b710f1f22999ff7e2e"
+  },
+  "fact-review": {
+    "invocation_id": "65a6cc67-d013-51d7-a1eb-f3a75438cdb8",
+    "output_record_id": "ba094251-cae0-52b6-8421-7ab83ca2e51c",
+    "sha256": "d92f4b394500b16b6da977b7c53bed5bc3605d6a0b40c7487ead504d8a6c49e2"
+  }
+}

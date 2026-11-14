@@ -1,0 +1,7 @@
+{
+  "archive_path": "/Users/yaroslavabramov/side/podgen/tmp/longitude-corpus-2026-11-13/revision-resume-2026-11-14-trace.tar.gz",
+  "sha256": "3a6e941ccb7f97bedfb6d014201e1595f4c402f3fb262b25ef2a26f1878eccf4",
+  "byte_length": 30293683,
+  "export_files": 1059,
+  "scope": "Complete ordinary evaluator export, actual request/response bodies, immutable elapsed authorization, before-author request, and resume logs. No state.json or environment secrets included."
+}
