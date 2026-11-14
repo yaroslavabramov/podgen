@@ -1,0 +1,46 @@
+{"event": "run_started", "run_id": "1cd0ac76-3326-58bb-83f0-6ee76847cefe", "case_id": "9af453a9-9dc2-426c-9f79-01f4d93ec08b"}
+Traceback (most recent call last):
+  File "/Users/yaroslavabramov/side/podgen/backend/src/podgen/runtime/evaluation/reading_stage.py", line 223, in execute_reading_stage
+    parsed.validate_against(WriteOutput.model_validate(script))
+    ~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/yaroslavabramov/side/podgen/backend/src/podgen/writing/roles.py", line 114, in validate_against
+    raise ValueError("feedback_quote_mismatch")
+ValueError: feedback_quote_mismatch
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/Users/yaroslavabramov/side/podgen/tmp/hieroglyphs-30m-script-2026-11-15/resume_after_funding.py", line 13, in <module>
+    raise SystemExit(main(args))
+                     ~~~~^^^^^^
+  File "/Users/yaroslavabramov/side/podgen/backend/src/podgen/writing_cli.py", line 335, in main
+    result = WritingEvaluation(repo, provider).run(
+        command,
+    ...<13 lines>...
+        else None,
+    )
+  File "/Users/yaroslavabramov/side/podgen/backend/src/podgen/runtime/evaluation/service.py", line 454, in run
+    outcome = execute_reading_cycle(
+        journal=journal,
+    ...<11 lines>...
+        or command.review_anchor_policy == "bounded-selection-v1",
+    )
+  File "/Users/yaroslavabramov/side/podgen/backend/src/podgen/runtime/evaluation/reading_cycle.py", line 108, in execute_reading_cycle
+    result = execute_reading_stage(
+        stage,
+    ...<4 lines>...
+        repair_review_anchors=repair_review_anchors,
+    )
+  File "/Users/yaroslavabramov/side/podgen/backend/src/podgen/runtime/evaluation/reading_stage.py", line 260, in execute_reading_stage
+    invocation = prepare_anchor_repair(
+        journal, invocation, draft=script, draft_ref=script_ref, guard=guard
+    )
+  File "/Users/yaroslavabramov/side/podgen/backend/src/podgen/runtime/evaluation/review_repair.py", line 88, in prepare_anchor_repair
+    plan, request = _plan(journal, original, draft)
+                    ~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/yaroslavabramov/side/podgen/backend/src/podgen/runtime/evaluation/review_repair.py", line 66, in _plan
+    payload = request_payload(request)
+  File "/Users/yaroslavabramov/side/podgen/backend/src/podgen/runtime/evaluation/request_payload.py", line 15, in request_payload
+    users = [message for message in body["input"] if message["role"] == "user"]
+                                                     ~~~~~~~^^^^^^^^
+KeyError: 'role'

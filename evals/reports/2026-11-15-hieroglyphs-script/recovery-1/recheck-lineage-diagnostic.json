@@ -1,0 +1,27 @@
+{
+  "contract": "saved-recheck-source-recovery-lineage-diagnostic/1",
+  "run_id": "1cd0ac76-3326-58bb-83f0-6ee76847cefe",
+  "code": "revision_verification_request_lineage_mismatch",
+  "repaired_stage": "fact-review",
+  "attempt_kinds": [
+    "role",
+    "credit_retry",
+    "anchor_repair"
+  ],
+  "operation_kinds": [
+    "role",
+    "role",
+    "anchor_repair"
+  ],
+  "failed_rule": "recheck_request.semantic_request requires identical bodies except metadata for consecutive same-operation attempts; source credit recovery legitimately adds the completed tool conversation.",
+  "body_keys_changed": [
+    "input"
+  ],
+  "contexts_equal": true,
+  "semantic_user_payload_equal": true,
+  "existing_source_tool_continuation_validator_passed": true,
+  "resume_turn_index": 9,
+  "retained_tool_results": 9,
+  "no_provider_calls": true,
+  "production_code_changed": false
+}

@@ -1,0 +1,642 @@
+[
+  {
+    "record_id": "f752acaa-a149-54ef-98b3-13afd807abfe",
+    "role": "original",
+    "requested_url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQESEXNT3C_YSc5bBZIoDSNdVw7KY2xGQKXmKMiBa2Yyom9Q30qEe4WI_EigpUnbPGYvvhZPiqGwOFpF246yisLsXGlRVm3CZKdWQ8GkaB5ZnZZr7OF5D0EU9RNd4e6M4ILuTQ==",
+    "resolved_url": "https://en.wikipedia.org/wiki/Philae_obelisk",
+    "http_status": "200",
+    "acquisition_kind": "http",
+    "acquired_at": "2026-11-14T22:55:05.750550Z",
+    "original_blob": {
+      "storage_key": "30619987-72ed-4e7e-bd53-3db4b55b64ed/content-v1/97b329ac0db700944f45e15d3eda3577584a2937fb20b28704c27bd771c9a4e9/e47f2cf7047cfdba8d6e50a8c83d3d49bd967ec099a48462d347833531bf4f84",
+      "sha256": "97b329ac0db700944f45e15d3eda3577584a2937fb20b28704c27bd771c9a4e9",
+      "byte_length": 151402,
+      "media_type": "text/html; charset=UTF-8"
+    },
+    "redirect_hops": 1
+  },
+  {
+    "record_id": "d555be92-05ff-572f-99b1-47589d8854ae",
+    "role": "original",
+    "requested_url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQFy-_npkorwr0dE5zBf7hUUfRIBF3eGnHqmYqonCZ80JnM2kb74CGhEenx5B4rA42RJeci3_dOvv1SAnDbU7QZIzNClvepQVlhvKfFeiO1NE2TyotOLyT1xt057L3jZj5l3RrX-VDJSbmoJGDGBl63nuLSihRK_XNYmeb032VCm4iKCVo4Bli3S",
+    "resolved_url": "https://dokumen.pub/the-epigraphy-of-ptolemaic-egypt-9780198858225-0198858221.html",
+    "http_status": "200",
+    "acquisition_kind": "http",
+    "acquired_at": "2026-11-14T22:55:10.798199Z",
+    "original_blob": {
+      "storage_key": "30619987-72ed-4e7e-bd53-3db4b55b64ed/content-v1/db7d914f83fb2758770b2f9feea7d3592fb1dda024020b9c707cb41dd4b6e01e/e47f2cf7047cfdba8d6e50a8c83d3d49bd967ec099a48462d347833531bf4f84",
+      "sha256": "db7d914f83fb2758770b2f9feea7d3592fb1dda024020b9c707cb41dd4b6e01e",
+      "byte_length": 976106,
+      "media_type": "text/html; charset=UTF-8"
+    },
+    "redirect_hops": 1
+  },
+  {
+    "record_id": "e6042757-c8ce-5bf8-ae1c-e799bb83c79a",
+    "role": "original",
+    "requested_url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQEtzDbrdfVnjCsf_hOB7BhQkZWYzemJsZnsBFpjxwE0ozEQS0iL-cQ4Z2xdEzDKALJt7vmIKGSJP0RwTIbDInd7y-5SYqgFRlV5d5bA3Vofcod-JyDomh9_UcFRcM4ShSZKwY1e72T29cQg4i30AzpuhKmwFJqI7uDbhC8OBB2Zw05uER6HaqMPcnf_pHgLEuvWUvVwxznyVqh8OBahu5QyPk61Zd-OK6NOCpWMbRw7_szXQUN1",
+    "resolved_url": "https://www.ancient-origins.net/artifacts-ancient-writings/philae-obelisk-hieroglyphs-and-understanding-vanished-culture-008502",
+    "http_status": "200",
+    "acquisition_kind": "http",
+    "acquired_at": "2026-11-14T22:55:08.216905Z",
+    "original_blob": {
+      "storage_key": "30619987-72ed-4e7e-bd53-3db4b55b64ed/content-v1/9523cf9ddb2941ef283972736b25d592e77d6daf9042696985d810ef5b61f6db/e47f2cf7047cfdba8d6e50a8c83d3d49bd967ec099a48462d347833531bf4f84",
+      "sha256": "9523cf9ddb2941ef283972736b25d592e77d6daf9042696985d810ef5b61f6db",
+      "byte_length": 106717,
+      "media_type": "text/html; charset=UTF-8"
+    },
+    "redirect_hops": 1
+  },
+  {
+    "record_id": "0aa4a4b0-fd2f-5485-9042-e935f6ea2a4e",
+    "role": "original",
+    "requested_url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQH6VbUeBnqVzQ_ObrT2Jp8XyJyanpESUYcvwVCJvgdO4NCrgL4gBuoHb5a4gOkpYxTuJKj6lWc5PcR4OWpc0FpXAfekAIw6PPxjl0_Lfk1wrdo1oIXfGMIejn4-2BzgpOYySXpo_G2VMGgIf83RwBQ=",
+    "resolved_url": "https://hierolens.com/place/philae-obelisk-kingston-lacy/",
+    "http_status": "200",
+    "acquisition_kind": "http",
+    "acquired_at": "2026-11-14T22:55:15.028703Z",
+    "original_blob": {
+      "storage_key": "30619987-72ed-4e7e-bd53-3db4b55b64ed/content-v1/67ffb055f176775003117cef4cd4b2f8f1519016ab6eccd34b6331616f602077/e47f2cf7047cfdba8d6e50a8c83d3d49bd967ec099a48462d347833531bf4f84",
+      "sha256": "67ffb055f176775003117cef4cd4b2f8f1519016ab6eccd34b6331616f602077",
+      "byte_length": 21739,
+      "media_type": "text/html; charset=UTF-8"
+    },
+    "redirect_hops": 1
+  },
+  {
+    "record_id": "c2d03967-bfe7-5a64-81d4-41e652185d58",
+    "role": "original",
+    "requested_url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQFh1d1zjHkWxzV7o7RvnnhkzdazJ-thabHU_CtUXSBziiHOITTH8FDBXC7c0ZXiTSI_xms_giiAgVmhU-W-Dh3_4rWibwoej7jZ4xIHVywXqs4p4oJCS9-qz7RaUkNKZckess3Gd6uEy-4H7CO9qpskOBw=",
+    "resolved_url": "https://www.nationaltrustcollections.org.uk/object/1257614.1",
+    "http_status": "200",
+    "acquisition_kind": "http",
+    "acquired_at": "2026-11-14T22:55:16.923558Z",
+    "original_blob": {
+      "storage_key": "30619987-72ed-4e7e-bd53-3db4b55b64ed/content-v1/1cbc2a39528053b64adbebebe72b7b5f533080a7418b7f37b2ecedf60a061c4b/5e30ae15588f8f014141a57300f8f4b77a0491527336d05b413fc899e803db1a",
+      "sha256": "1cbc2a39528053b64adbebebe72b7b5f533080a7418b7f37b2ecedf60a061c4b",
+      "byte_length": 15649,
+      "media_type": "text/html; charset=utf-8"
+    },
+    "redirect_hops": 1
+  },
+  {
+    "record_id": "9785c644-96a2-5f90-bfd7-559f6fe51d58",
+    "role": "original",
+    "requested_url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQEtEq2opKOssAidIeg4ltqXWNexammc3Yo8WhMNPGr9jOVOohNekq4YzQ9pD5Q56YVGh9eCV6lET0ZyKQvy6ooLZT9iezOh6Eq6WJO4UBAF6_dJoRpsyqIlRAtxb-GBhoGitmWUmkaZuUGVxhjKlKtJFgf8DGafwpaLrBF9dRdHKi-NIv19Cb2zvNa1Hv-fxvZcucOPvM1J9jQT4CF2hQ3xVRx-DTjjX-GwkP-053N81kT6BIEh5Oz5R8TfNndJPWOtMe4lOg_ii90=",
+    "resolved_url": "https://www.quora.com/Would-we-realistically-be-able-to-decipher-ancient-Egypt-hieroglyphics-without-the-Rosetta-stone-even-with-todays-technology",
+    "http_status": "403",
+    "acquisition_kind": "http",
+    "acquired_at": "2026-11-14T22:55:17.958088Z",
+    "original_blob": {
+      "storage_key": "30619987-72ed-4e7e-bd53-3db4b55b64ed/content-v1/049071bdcfae33e63b0d0a99a6229f8dddc40eccd48375034887d332cf62e62c/e47f2cf7047cfdba8d6e50a8c83d3d49bd967ec099a48462d347833531bf4f84",
+      "sha256": "049071bdcfae33e63b0d0a99a6229f8dddc40eccd48375034887d332cf62e62c",
+      "byte_length": 5978,
+      "media_type": "text/html; charset=UTF-8"
+    },
+    "redirect_hops": 1
+  },
+  {
+    "record_id": "7f3747f1-3a48-53e5-a55d-bc4d64a5d500",
+    "role": "original",
+    "requested_url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQH4qJfoZNmcrPDiV0OGGQ2PEWrWV9fl9mnvvJ6_cYQ_teD6UYrXGsSMpIzGhU9UFnFp1oHzifoSTk83HG1sEBw_xrWSk3HDWenySweXqFp1dpFHahWQDZtimOGOVejvL7v-7LX2Vg3WnOuy2g==",
+    "resolved_url": "https://hierolens.com/learn/cleopatra-in-hieroglyphs/",
+    "http_status": "200",
+    "acquisition_kind": "http",
+    "acquired_at": "2026-11-14T22:55:21.130114Z",
+    "original_blob": {
+      "storage_key": "30619987-72ed-4e7e-bd53-3db4b55b64ed/content-v1/99c1f6d523a06bd5da49a8fc1301f074128d3c09e1e56ce727b5eaa75f40aa9c/e47f2cf7047cfdba8d6e50a8c83d3d49bd967ec099a48462d347833531bf4f84",
+      "sha256": "99c1f6d523a06bd5da49a8fc1301f074128d3c09e1e56ce727b5eaa75f40aa9c",
+      "byte_length": 158975,
+      "media_type": "text/html; charset=UTF-8"
+    },
+    "redirect_hops": 1
+  },
+  {
+    "record_id": "df5b6423-e47c-5e71-9d10-bca6deaf4b3c",
+    "role": "original",
+    "requested_url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQFTCuOBITwlwbkH8kqCLiNnDADMLIER87Nek8dXPGlTcgNk8QpeS4FOD9cWCXNWN33tdBdaBhTivAVjhZQGkANkyrKfuIx4snqcXUi0sqwU1Xp8uN4Ii8I5DUgtMNOvChD7g32GhpgQOaxOrt15NX7G5TMEFaYDFPmH4iicth_LOsEq6nv-mJol1fGvqZm1E4ldMccwRlc=",
+    "resolved_url": "https://sacred-texts.com/book/the-rosetta-stone/how-champollion-deciphered-the-egyptian-alphabet",
+    "http_status": "200",
+    "acquisition_kind": "http",
+    "acquired_at": "2026-11-14T22:55:19.601089Z",
+    "original_blob": {
+      "storage_key": "30619987-72ed-4e7e-bd53-3db4b55b64ed/content-v1/25a8cd37e22f1b81a735b7c62963d0b96e40fd43ef18f96463c68d91ae6d94d4/bb4770ff4ac5b7d2be41a088cb27d8bcaad53b574b6f27941e8e48e9e10fc25a",
+      "sha256": "25a8cd37e22f1b81a735b7c62963d0b96e40fd43ef18f96463c68d91ae6d94d4",
+      "byte_length": 293506,
+      "media_type": "text/html"
+    },
+    "redirect_hops": 1
+  },
+  {
+    "record_id": "c094860f-9539-5ab5-a7fc-fafdb9d4f103",
+    "role": "original",
+    "requested_url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQFxm_nhrXHzrAtER0QLN-fdjJIyQ0UKnG22WSsXUqkBcv_dXFUF453LOv_rlbGtBa4SMApIdygYF5yT_S-nAR29FE1u1bWLNNtlUS3PD57020wk0qZSeIn0HrIl1aOx",
+    "resolved_url": "https://www.ancientegyptblog.com/?p=2545",
+    "http_status": "200",
+    "acquisition_kind": "http",
+    "acquired_at": "2026-11-14T22:55:26.292509Z",
+    "original_blob": {
+      "storage_key": "30619987-72ed-4e7e-bd53-3db4b55b64ed/content-v1/d5aa3d6ebd2fb9a772af7e28c9e6d8995190048c771f70ffdd2a609e48bfcddf/e47f2cf7047cfdba8d6e50a8c83d3d49bd967ec099a48462d347833531bf4f84",
+      "sha256": "d5aa3d6ebd2fb9a772af7e28c9e6d8995190048c771f70ffdd2a609e48bfcddf",
+      "byte_length": 168814,
+      "media_type": "text/html; charset=UTF-8"
+    },
+    "redirect_hops": 1
+  },
+  {
+    "record_id": "b1647e7b-3c62-5546-830a-9bf0c47f7937",
+    "role": "original",
+    "requested_url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQHm-z1E7fkVzxL51x6J1Gv_bYVhJyUATeJFHde5RWuR_rZHaL7KxB_6PwY5xGaG7HDysUdLRQVIQF9HaO2GRMk6CUHNxW84ikD4bA3gQ2RbwYdXyANB281Xw-kQ8lH3w-gd14MKBGRD",
+    "resolved_url": "https://www.learnhieroglyphics.com/daily/decipher",
+    "http_status": "200",
+    "acquisition_kind": "http",
+    "acquired_at": "2026-11-14T22:55:22.805617Z",
+    "original_blob": {
+      "storage_key": "30619987-72ed-4e7e-bd53-3db4b55b64ed/content-v1/b324f78a17896d8d4c032dd218ce432204ab3b989e9956f5c367a99679551f49/5e30ae15588f8f014141a57300f8f4b77a0491527336d05b413fc899e803db1a",
+      "sha256": "b324f78a17896d8d4c032dd218ce432204ab3b989e9956f5c367a99679551f49",
+      "byte_length": 115166,
+      "media_type": "text/html; charset=utf-8"
+    },
+    "redirect_hops": 1
+  },
+  {
+    "record_id": "d62450c9-415f-5170-ad36-cc0a90416300",
+    "role": "original",
+    "requested_url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQEyAAAJ-a4TM1WU0meLO4ISebfSsiY3uHslpiwMbORN7nrVRkDvtTI8P_t5CVcHM_f6GkThr3JS6uaYEJkAfUewj4eJMPNJkDN58oAFDqDxWKWzvGqysvCYfEfDv9SuVGL7KEPMXCoYEs9HxW1Mx9_U7ol968LO2E8FgzuG29TQvShs1ZXJhXc-OfmeAaka_oXsvRVd-Q==",
+    "resolved_url": "https://www.quora.com/Was-Ancient-Egyptian-hieroglyphs-written-from-left-to-right?no_redirect=1",
+    "http_status": "403",
+    "acquisition_kind": "http",
+    "acquired_at": "2026-11-14T22:55:28.428957Z",
+    "original_blob": {
+      "storage_key": "30619987-72ed-4e7e-bd53-3db4b55b64ed/content-v1/eacd747932e4eb79c89391303518fb66b861cfda9dbd95e20f63308e6cee8c98/e47f2cf7047cfdba8d6e50a8c83d3d49bd967ec099a48462d347833531bf4f84",
+      "sha256": "eacd747932e4eb79c89391303518fb66b861cfda9dbd95e20f63308e6cee8c98",
+      "byte_length": 5776,
+      "media_type": "text/html; charset=UTF-8"
+    },
+    "redirect_hops": 1
+  },
+  {
+    "record_id": "c8224746-e5e4-51ad-a401-c9adc9ea17b1",
+    "role": "original",
+    "requested_url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQH0ySnBC6YDGgfoaJJ76LA7oBHTYf_tSCErprbSyzT1PGsKAXRXNl9K0Cr2Uz3EaMbWVqQj-8tuVW2Iv1xNxi6k6fbDPt6C2ZaWqV2Ulxrvhfnd6bscwTsZfHI4XYq0AfuHYaJ4soRWIfPl6x0PizjGx5l445P4GMcJxw==",
+    "resolved_url": "https://www.learnhieroglyphics.com/blog/reading-your-first-cartouche",
+    "http_status": "200",
+    "acquisition_kind": "http",
+    "acquired_at": "2026-11-14T22:55:27.417590Z",
+    "original_blob": {
+      "storage_key": "30619987-72ed-4e7e-bd53-3db4b55b64ed/content-v1/69b41cbabc53a9d7297c346aa47d74c5697a67e1d818404a5a912341c1669fa7/5e30ae15588f8f014141a57300f8f4b77a0491527336d05b413fc899e803db1a",
+      "sha256": "69b41cbabc53a9d7297c346aa47d74c5697a67e1d818404a5a912341c1669fa7",
+      "byte_length": 197085,
+      "media_type": "text/html; charset=utf-8"
+    },
+    "redirect_hops": 1
+  },
+  {
+    "record_id": "6b1dface-4a47-5271-96c4-2b1c576f53f9",
+    "role": "original",
+    "requested_url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQFFyezZFn7bGZxNku9pMO2Vd5lrUbziQ1C4EZvA9SxO5C0gOc1Qe6uDLQ8WPmb5fUXploVqqMrt9PuRx-_Nf74LbqBIU1ustFUchyXSz4m5FH4FslEunZ9Q2A==",
+    "resolved_url": "https://anyflip.com/nmmt/rwpq/basic",
+    "http_status": "403",
+    "acquisition_kind": "http",
+    "acquired_at": "2026-11-14T22:55:29.445320Z",
+    "original_blob": {
+      "storage_key": "30619987-72ed-4e7e-bd53-3db4b55b64ed/content-v1/ffbe5729be5c388e70d5a107177e0239c23991b630a9fe22d0ea72f0aed100ca/e47f2cf7047cfdba8d6e50a8c83d3d49bd967ec099a48462d347833531bf4f84",
+      "sha256": "ffbe5729be5c388e70d5a107177e0239c23991b630a9fe22d0ea72f0aed100ca",
+      "byte_length": 5478,
+      "media_type": "text/html; charset=UTF-8"
+    },
+    "redirect_hops": 1
+  },
+  {
+    "record_id": "0d4f5ed2-d425-573a-9e02-463e1c58f09c",
+    "role": "original",
+    "requested_url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQGSkHX7EIHwRudKmoufvh85xGLncD89lgtco1hgnSnncSe_2Gv_jFR6qQfNZz6yJDXnX9FSTiCoudFrXxa94zO5kgaQjAg9Np5YR56f1ZPNYHJuSk4etct6cpDtGC_5wlGlbbzgGXBB1BpWRB-rh71v_x-jwvCiJJie9g==",
+    "resolved_url": "https://www.scribd.com/document/382941808/DG3541-EgyptianHieroglyphs",
+    "http_status": "200",
+    "acquisition_kind": "http",
+    "acquired_at": "2026-11-14T22:55:32.191532Z",
+    "original_blob": {
+      "storage_key": "30619987-72ed-4e7e-bd53-3db4b55b64ed/content-v1/44f1bd08f922e7a015e7ad8dd212a02c1ed375047ca371b49e159dc57a20cba1/5e30ae15588f8f014141a57300f8f4b77a0491527336d05b413fc899e803db1a",
+      "sha256": "44f1bd08f922e7a015e7ad8dd212a02c1ed375047ca371b49e159dc57a20cba1",
+      "byte_length": 1405965,
+      "media_type": "text/html; charset=utf-8"
+    },
+    "redirect_hops": 1
+  },
+  {
+    "record_id": "b6b346e7-4f70-580f-ac04-9ced21ab36a9",
+    "role": "original",
+    "requested_url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQGQf7jEWiddX-ZUVhBc4ucUzBssAzIhzMLbhC2FqmoKwiRhFr47rNVYB66cNuAb2WEp-nLkXV_hDupq4kxy521UO4Hh6JvO69AE4pPUeF2vob2PqGhntPvoa2WsKMtccAlOYtMjhJ4gUMq7VM-yAE1cAdufskZURA==",
+    "resolved_url": "https://ancient-greek.net/media/books/intricacies/intricacies.pdf",
+    "http_status": "200",
+    "acquisition_kind": "http",
+    "acquired_at": "2026-11-14T22:55:35.441093Z",
+    "original_blob": {
+      "storage_key": "30619987-72ed-4e7e-bd53-3db4b55b64ed/content-v1/497abe4d0b23632943598f2283b565cc5aa4ab966e379342b194b2f3da8b1d47/91ed0f7cdaa1385ebdcc5d2d83ea64a3216fc45395e1613ec9e3968fe45799d2",
+      "sha256": "497abe4d0b23632943598f2283b565cc5aa4ab966e379342b194b2f3da8b1d47",
+      "byte_length": 6154817,
+      "media_type": "application/pdf"
+    },
+    "redirect_hops": 1
+  },
+  {
+    "record_id": "2023edee-94ab-50c0-9917-40adf5778c8a",
+    "role": "original",
+    "requested_url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQGZg8c6xLnbzlQuDqFArn82h7piZ2xfyKuf0gxBwE8mOp3Ep53k7sK6km3DUccZ_zGtk8Igsuye9ioT-hmjfirhxI8mOztYe9E5Z4ORJODdMqpMyo0f88saR-t7TYLtrSQgRLnvJhBfx0uHgMNq9FEuVGbb7kH8k9Vxf1_aK8s7ug==",
+    "resolved_url": "https://www.funtrivia.com/quizzes/history/ancient_egypt/hieroglyphics.html",
+    "http_status": "200",
+    "acquisition_kind": "http",
+    "acquired_at": "2026-11-14T22:55:38.640737Z",
+    "original_blob": {
+      "storage_key": "30619987-72ed-4e7e-bd53-3db4b55b64ed/content-v1/ae4ade7945ed7b381e0fe23190fb6cbd2f2c9a5b93e668e0b0291c3cf5c97e25/e47f2cf7047cfdba8d6e50a8c83d3d49bd967ec099a48462d347833531bf4f84",
+      "sha256": "ae4ade7945ed7b381e0fe23190fb6cbd2f2c9a5b93e668e0b0291c3cf5c97e25",
+      "byte_length": 51990,
+      "media_type": "text/html; charset=UTF-8"
+    },
+    "redirect_hops": 1
+  },
+  {
+    "record_id": "ee43c0f0-2d71-5e3b-b802-9a3c9263e88f",
+    "role": "original",
+    "requested_url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQFcx1CbG-Xx-h7gjXILItYN7MVpvVbBTQUAU9ILTWX3lp0swDOQDrLlA-5ENJkocmak6lr5tWh8M5p63l4yg73gHja1vMssjZavsSOl34BYRIjO0ulo71TIGg4S6C1cgCGeF6uDX69_Uw==",
+    "resolved_url": "https://en.wikipedia.org/wiki/Egyptian_hieroglyphs",
+    "http_status": "200",
+    "acquisition_kind": "http",
+    "acquired_at": "2026-11-14T22:55:40.943657Z",
+    "original_blob": {
+      "storage_key": "30619987-72ed-4e7e-bd53-3db4b55b64ed/content-v1/29fe3432c048969ecb7ab7cb4ae2f64a5a3d52cecc51e44fab5bc82de4d5a7a0/e47f2cf7047cfdba8d6e50a8c83d3d49bd967ec099a48462d347833531bf4f84",
+      "sha256": "29fe3432c048969ecb7ab7cb4ae2f64a5a3d52cecc51e44fab5bc82de4d5a7a0",
+      "byte_length": 1236481,
+      "media_type": "text/html; charset=UTF-8"
+    },
+    "redirect_hops": 1
+  },
+  {
+    "record_id": "d7e3023b-819c-5b0b-bfd3-0a58b8c86206",
+    "role": "original",
+    "requested_url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQFypqkkKoj4ezQkWoVvSLefXimUrH2JIRBq3ZaReaWjnWJwDgoguYfnv_ksQ1r7d__ymFoS8SFKOW010V25db5vRbWVfimbq5c6HOljRt9GqJYux0MtPrK0-MgGiF6MN6SRa5eBTfCuevtMPykBdiThde0mQJ6m0S9GBwvv1_AwlFIsqKj9LNY5AyvyoVHb4g==",
+    "resolved_url": "https://commons.wikimedia.org/wiki/File:Cartouche_de_Cl%C3%A9op%C3%A2tre_III_Kom_Ombo.jpg",
+    "http_status": "200",
+    "acquisition_kind": "http",
+    "acquired_at": "2026-11-14T22:55:44.811348Z",
+    "original_blob": {
+      "storage_key": "30619987-72ed-4e7e-bd53-3db4b55b64ed/content-v1/1177235ad8fb39e6db3655d62102677dbde421533ed3125e4c40ece53d39342b/e47f2cf7047cfdba8d6e50a8c83d3d49bd967ec099a48462d347833531bf4f84",
+      "sha256": "1177235ad8fb39e6db3655d62102677dbde421533ed3125e4c40ece53d39342b",
+      "byte_length": 100475,
+      "media_type": "text/html; charset=UTF-8"
+    },
+    "redirect_hops": 1
+  },
+  {
+    "record_id": "e9b6bba4-f534-54d8-9a8d-fcd1be19c9a4",
+    "role": "original",
+    "requested_url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQGIM40U7gpzPKA_ZfA3imIOBW9Y9m3GkfL3xb0OweOF8sjmanWvifFIVhGpJMfYaFu0HZkyfEaN7kU8vv8FcFdmNOLLWm3NscIkDjHVmZUR8UrkGkKPYgwfWLIQicUkt6wz-I2Us1Gt6WuMKfyeScqtCwY1ZB8=",
+    "resolved_url": "https://ultimatepopculture.fandom.com/wiki/Egyptian_hieroglyphs",
+    "http_status": "403",
+    "acquisition_kind": "http",
+    "acquired_at": "2026-11-14T22:55:42.657737Z",
+    "original_blob": {
+      "storage_key": "30619987-72ed-4e7e-bd53-3db4b55b64ed/content-v1/1897c9c19e5afc5f17b866bdefa027cb607c5280408963550357c08b0a3f7000/e47f2cf7047cfdba8d6e50a8c83d3d49bd967ec099a48462d347833531bf4f84",
+      "sha256": "1897c9c19e5afc5f17b866bdefa027cb607c5280408963550357c08b0a3f7000",
+      "byte_length": 5612,
+      "media_type": "text/html; charset=UTF-8"
+    },
+    "redirect_hops": 1
+  },
+  {
+    "record_id": "26d69343-3db5-5d93-aa8e-15ffd0e7fc16",
+    "role": "original",
+    "requested_url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQGeixy-fduu6SQF-MtLl5XtYhvgMLMerOwCs1p6DDg7jIHQkLwxuUZqQT3QEq7d_XkQD14jqmL6kRz6jl3QCtUV8ciOVOa7Yz8CGX9ykqkTebuCtCOq1AgXzljfLWhSOptzNAE_bQ==",
+    "resolved_url": "https://en.wikipedia.org/wiki/Egyptian_language",
+    "http_status": "200",
+    "acquisition_kind": "http",
+    "acquired_at": "2026-11-14T22:55:46.906340Z",
+    "original_blob": {
+      "storage_key": "30619987-72ed-4e7e-bd53-3db4b55b64ed/content-v1/ceda34cf1e4a967f2ee76a37a4cf34d8b5d2bcee2bd803b8ec6812fd7df3074c/e47f2cf7047cfdba8d6e50a8c83d3d49bd967ec099a48462d347833531bf4f84",
+      "sha256": "ceda34cf1e4a967f2ee76a37a4cf34d8b5d2bcee2bd803b8ec6812fd7df3074c",
+      "byte_length": 890965,
+      "media_type": "text/html; charset=UTF-8"
+    },
+    "redirect_hops": 1
+  },
+  {
+    "record_id": "f9d5fd7c-c5d8-55e5-aa96-32380222be23",
+    "role": "original",
+    "requested_url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQFHCVfuyRZXLSvFLPwXuVJ0JdKst_ehQo4IIXZ9Too6xP4ViFRTPzvZKg_XxiwsC99FK0xdm_4ts9agyooXUq-1M5AH9DeWXNI03hyfqik5UHMeOYMCD1ApvGVD0JViV0YQnqP9B8hVpGsY7yhYU-pD",
+    "resolved_url": "https://faculty.georgetown.edu/rtk8/Egyptian%20Chapter.pdf",
+    "http_status": "200",
+    "acquisition_kind": "http",
+    "acquired_at": "2026-11-14T22:55:49.389070Z",
+    "original_blob": {
+      "storage_key": "30619987-72ed-4e7e-bd53-3db4b55b64ed/content-v1/20de6e28a531d666027e380f48658cdaa59103101eda4030eeacde5591b188ef/91ed0f7cdaa1385ebdcc5d2d83ea64a3216fc45395e1613ec9e3968fe45799d2",
+      "sha256": "20de6e28a531d666027e380f48658cdaa59103101eda4030eeacde5591b188ef",
+      "byte_length": 498849,
+      "media_type": "application/pdf"
+    },
+    "redirect_hops": 1
+  },
+  {
+    "record_id": "0b7a1ca4-67cd-5230-9230-26ad2cf90ac6",
+    "role": "original",
+    "requested_url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQG6HNo6lgglhw9JGmS846ytLCOmwBrYGWzuQl9KIY5Zq4QOhXQvFvNLjhZhPuWU3u62aLObtxAjIWBUwWb5HcqMEKR8Ch2HODDlv9Vn2Hb0CgXAEh4L8XXGD8eBhWmlEPnC4RdsMFz1lPFgsGdCxn1qm9nhVg==",
+    "resolved_url": "https://en.wiktionary.org/wiki/Appendix:Egyptian_pronunciation",
+    "http_status": "200",
+    "acquisition_kind": "http",
+    "acquired_at": "2026-11-14T22:55:52.044447Z",
+    "original_blob": {
+      "storage_key": "30619987-72ed-4e7e-bd53-3db4b55b64ed/content-v1/3e996e4e25a90aa51dad33455f2654eccca2feca4223d7d5da09619f0dba644a/e47f2cf7047cfdba8d6e50a8c83d3d49bd967ec099a48462d347833531bf4f84",
+      "sha256": "3e996e4e25a90aa51dad33455f2654eccca2feca4223d7d5da09619f0dba644a",
+      "byte_length": 362499,
+      "media_type": "text/html; charset=UTF-8"
+    },
+    "redirect_hops": 1
+  },
+  {
+    "record_id": "bf27e655-c3a7-5e3b-be30-ac7ed1e11252",
+    "role": "original",
+    "requested_url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQEt1HqnPVEqdL98Wvj3SSzmfCYB-HcMcLa_w2rcQkrERmzrUKaMjigrAALxIIC5Jivp9qvTeZ4pltnmLxFbINwF4PwYo9mJaAPzA9sCzeDU0mV1a8dn8pepOvzA3BauS2TQP_SuGuxkXghqV3k_lkg9oAw9L_UeW49E1m8qifydQuH8AFiC3Lc=",
+    "resolved_url": "https://www.quora.com/Did-the-Egyptians-use-a-consonant-system-to-represent-words",
+    "http_status": "403",
+    "acquisition_kind": "http",
+    "acquired_at": "2026-11-14T22:55:54.034890Z",
+    "original_blob": {
+      "storage_key": "30619987-72ed-4e7e-bd53-3db4b55b64ed/content-v1/2b98b9683fcb9800cc9e941ac5e72dcbcc6cbfd370fb5e5948de880c4a2b7410/e47f2cf7047cfdba8d6e50a8c83d3d49bd967ec099a48462d347833531bf4f84",
+      "sha256": "2b98b9683fcb9800cc9e941ac5e72dcbcc6cbfd370fb5e5948de880c4a2b7410",
+      "byte_length": 5697,
+      "media_type": "text/html; charset=UTF-8"
+    },
+    "redirect_hops": 1
+  },
+  {
+    "record_id": "5dc905ff-7e41-5c9e-aa77-b3b82d914c17",
+    "role": "original",
+    "requested_url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQE2c2KIKhIqE6QLZf-n8YdHlhLAIzbh_mti9FiRxfB6CpMESfOy7IIy4KzmuHGRWXP_68tJ_ECdD7f_AL_bEDob5zro3oT-vBSD75obz_FOolpt0j44ddfRE2dQ-tASytrp-tWLmAIf",
+    "resolved_url": "https://seshkemet.weebly.com/78595-etymology.html",
+    "http_status": "200",
+    "acquisition_kind": "http",
+    "acquired_at": "2026-11-14T22:58:41.812707Z",
+    "original_blob": {
+      "storage_key": "30619987-72ed-4e7e-bd53-3db4b55b64ed/content-v1/c89f3fe0d38a081ea8a97991576fc3980c1460f765a148cf41ee89616f27868c/e47f2cf7047cfdba8d6e50a8c83d3d49bd967ec099a48462d347833531bf4f84",
+      "sha256": "c89f3fe0d38a081ea8a97991576fc3980c1460f765a148cf41ee89616f27868c",
+      "byte_length": 2249920,
+      "media_type": "text/html; charset=UTF-8"
+    },
+    "redirect_hops": 1
+  },
+  {
+    "record_id": "13cbf2f5-e5fb-53f2-adf4-265e943002dc",
+    "role": "original",
+    "requested_url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQEduNfMwKk9_tr7VBKquA4MWk97pG_sQXcWld5FLYQE9WcGX5KGw-VO_xfrrbrNc2_iylcnZ24mnqI-Xy_YDn7oeQfPdNdjfEApCVLDPVWxi8ZLk3VXLXwZxnv1Pdt0NuScWkwxsZOnGgr9YjrEOHcpVpHNWFtAe8fCmgVJnq3w7ufE",
+    "resolved_url": "https://dokumen.pub/ancient-egyptian-phonology-9781108485555-1108485553.html",
+    "http_status": "200",
+    "acquisition_kind": "http",
+    "acquired_at": "2026-11-14T22:58:47.961398Z",
+    "original_blob": {
+      "storage_key": "30619987-72ed-4e7e-bd53-3db4b55b64ed/content-v1/000a564ffec012a6e33cd0fa39d93c6c87b4fa8cd2a4a04b1d99bcab9c9e48a2/e47f2cf7047cfdba8d6e50a8c83d3d49bd967ec099a48462d347833531bf4f84",
+      "sha256": "000a564ffec012a6e33cd0fa39d93c6c87b4fa8cd2a4a04b1d99bcab9c9e48a2",
+      "byte_length": 354990,
+      "media_type": "text/html; charset=UTF-8"
+    },
+    "redirect_hops": 1
+  },
+  {
+    "record_id": "5639e475-4ffa-5bf3-9439-2c0285ee1d3e",
+    "role": "original",
+    "requested_url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQHBQlH0uelyx3xM1teu6otIEo6_ozEeGiDl75HNlmH-7ishzY6ynJtLqh7-wHXRNT-AVD2ifUs0v2rzh8fiPCW0mTINj4-GU2a85cs8n3KSURQcd0ZG_uws8cUz7hmoKEF55rgBmlJf9_tNv6GodtUboAVP4g==",
+    "resolved_url": "https://homepage.univie.ac.at/helmut.satzinger/Texte/Ashes.pdf",
+    "http_status": "200",
+    "acquisition_kind": "http",
+    "acquired_at": "2026-11-14T22:58:53.373557Z",
+    "original_blob": {
+      "storage_key": "30619987-72ed-4e7e-bd53-3db4b55b64ed/content-v1/4fae8f1aaeff52dfcd86ee1572f77cacb5b84840835f3475e8b5ab30668564dd/91ed0f7cdaa1385ebdcc5d2d83ea64a3216fc45395e1613ec9e3968fe45799d2",
+      "sha256": "4fae8f1aaeff52dfcd86ee1572f77cacb5b84840835f3475e8b5ab30668564dd",
+      "byte_length": 814975,
+      "media_type": "application/pdf"
+    },
+    "redirect_hops": 1
+  },
+  {
+    "record_id": "2a9cd91c-c322-5a21-a62c-c9ccb3e2c852",
+    "role": "original",
+    "requested_url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQG42STEERM6yrGO2Xnx-t_jXhpxkA9dDa7qIgpgsZwaR8U7Pjhliur26pqF4Wv4WCuekMxspSQzo42eT3FuNIUhYcRxGwAGRzdyevd0l3iQKzTSqWwkDhWKvaeWQOOSZJJfWJ1d0iEx6TDTE_blKcwBL-cyB3P1vCda1vGjMwKTGaW7zxztFgn2neaAncSVAF-jmrgzNsE5fHR5PjvTuD5pUromkfwtvW-PjEip18mVChN7rIjNtF0=",
+    "resolved_url": "https://www.quora.com/Why-did-the-presence-of-letters-like-l-o-p-and-t-in-cartouches-matter-for-deciphering-names-like-Cleopatra",
+    "http_status": "403",
+    "acquisition_kind": "http",
+    "acquired_at": "2026-11-14T22:58:54.585823Z",
+    "original_blob": {
+      "storage_key": "30619987-72ed-4e7e-bd53-3db4b55b64ed/content-v1/30b56f41b271ef93b68d4cfdade6885cc1392b6d045dd2e7fb853c0aaac998db/e47f2cf7047cfdba8d6e50a8c83d3d49bd967ec099a48462d347833531bf4f84",
+      "sha256": "30b56f41b271ef93b68d4cfdade6885cc1392b6d045dd2e7fb853c0aaac998db",
+      "byte_length": 5902,
+      "media_type": "text/html; charset=UTF-8"
+    },
+    "redirect_hops": 1
+  },
+  {
+    "record_id": "27d29951-43c7-5308-8498-e6fde31b751f",
+    "role": "original",
+    "requested_url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQGAN5nB3oxP0QDjdrp5Xz2Mj7baPlhdp_pcx5XKWk2sE15UkCvz7-fnkxEOu2Ljs4auvuhScJ6eCuk4WzPOPpbxnogFjhY1zh2W-EQ2a1XkJsyZrGPUTxTtyR9paRxyeMvlHROhXobEe0A2DB_4f8cVrl-3LtLXkywaoLxnAEYbzU67cEWEZg4IsI4-bHRhNnQ5-SFyFOKlwJ5oEUM9TKuKcMauc3lRmLMjZfRvJYFNcYg_Px9IvQhdUA4eQSXWRG8FyJq1-IUwNo0gPg3ykpvxvzzmvRj-Q8gibpD1oDiuX3oU3cI=",
+    "resolved_url": "https://www.quora.com/If-the-Ancient-Egyptians-did-not-write-their-vowels-then-why-in-the-alphabet-discovered-today-have-the-vulture-as-A-and-feather-as-I-E-and-chick-as-O-U",
+    "http_status": "403",
+    "acquisition_kind": "http",
+    "acquired_at": "2026-11-14T22:58:56.665880Z",
+    "original_blob": {
+      "storage_key": "30619987-72ed-4e7e-bd53-3db4b55b64ed/content-v1/bb03e10e3cccde076038247e061ed91c8c882f36ccaafce62d12602674caafa5/e47f2cf7047cfdba8d6e50a8c83d3d49bd967ec099a48462d347833531bf4f84",
+      "sha256": "bb03e10e3cccde076038247e061ed91c8c882f36ccaafce62d12602674caafa5",
+      "byte_length": 6101,
+      "media_type": "text/html; charset=UTF-8"
+    },
+    "redirect_hops": 1
+  },
+  {
+    "record_id": "a26592f8-a344-5369-8c68-7061ec41d7be",
+    "role": "original",
+    "requested_url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQEg-YIjMWiYAtvzcmjm1Gq7JulGOzPGFiFcECle4MN3hzf-IqVKGcVQZbuWi-pIEdFJKDf5bHRbKVKJ5IETZWr6EB3Bo_ZsuE_K-EkP30fihFkCKpa9uHRRCf-G-4oQFEIng8XjyDexm_4g_gGfcIdT09jXBal74eEvaZP1TI83g-6SVL44LRP0AAiSlW8h_D0Ang4cIKPWcShrcXY5NgWrHRDyQWt-H53A2zxqSXAiTgLxqI0Zewsa25ojZoymqEZ1gLCxgH4IP3Oz8vRrxRmwrTjWurA92VztOZRBnTQqUNsh3JcM-t20_mGWLvOR0g==",
+    "resolved_url": "https://www.quora.com/How-is-the-Egyptian-god-Ras-name-pronounced-I-have-always-heard-it-with-a-short-o-sound-like-ma-and-pa-but-I-see-it-described-on-web-sites-with-a-long-a-as-in-Ray",
+    "http_status": "403",
+    "acquisition_kind": "http",
+    "acquired_at": "2026-11-14T22:58:55.675815Z",
+    "original_blob": {
+      "storage_key": "30619987-72ed-4e7e-bd53-3db4b55b64ed/content-v1/df2f09de8a255091c7334f954b4e875aacd492f709363afa10ce674e8edabf23/e47f2cf7047cfdba8d6e50a8c83d3d49bd967ec099a48462d347833531bf4f84",
+      "sha256": "df2f09de8a255091c7334f954b4e875aacd492f709363afa10ce674e8edabf23",
+      "byte_length": 6134,
+      "media_type": "text/html; charset=UTF-8"
+    },
+    "redirect_hops": 1
+  },
+  {
+    "record_id": "82ed3a96-ead8-5423-baa5-5681e2068f0e",
+    "role": "original",
+    "requested_url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQGvGzDQSMPGNdLHGnn2bJ16r3xxlw40UP1aiH8L3OjXfeFtjtnwjbvYkFFanUOU8jTUQo_3ZCM6-lL1wBiXdGjnhqQE3UYxR6klO1K_J1RfhfxhyuCjjSkGWi_VrZP9OYm-WkT5RmfGqUGIEESlrQ73UwbVU_OS7dc=",
+    "resolved_url": "https://maximumeffort.substack.com/p/the-evolution-of-the-alphabet",
+    "http_status": "200",
+    "acquisition_kind": "http",
+    "acquired_at": "2026-11-14T22:58:58.251192Z",
+    "original_blob": {
+      "storage_key": "30619987-72ed-4e7e-bd53-3db4b55b64ed/content-v1/c047d159aa74c972523f039b9b2a1239f4f2835d7230afa46a17aff56e717b32/5e30ae15588f8f014141a57300f8f4b77a0491527336d05b413fc899e803db1a",
+      "sha256": "c047d159aa74c972523f039b9b2a1239f4f2835d7230afa46a17aff56e717b32",
+      "byte_length": 389999,
+      "media_type": "text/html; charset=utf-8"
+    },
+    "redirect_hops": 1
+  },
+  {
+    "record_id": "47c0fc2c-3bfa-5863-8e83-1f80b74e44c0",
+    "role": "original",
+    "requested_url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQEwaPqWFut88DK0vUIaEjCmMOZvGrt2CgIRusXrMe2-1WbAb6ILxI7t-Xdd2Yx0syWAj6egpc7UUnZWPUDJ3eWZdoByEUYzfGvlohAu8V2X8CWqL7C6ngBTrHRPXO24IYb3yhl2FMdk",
+    "resolved_url": "https://www.scribd.com/document/488869323/Writing",
+    "http_status": "200",
+    "acquisition_kind": "http",
+    "acquired_at": "2026-11-14T22:59:00.997131Z",
+    "original_blob": {
+      "storage_key": "30619987-72ed-4e7e-bd53-3db4b55b64ed/content-v1/d10aa62279f98dca8bb94d3e6ba7d37f017fd9e367b2e3d7d37a4de18e230bfc/5e30ae15588f8f014141a57300f8f4b77a0491527336d05b413fc899e803db1a",
+      "sha256": "d10aa62279f98dca8bb94d3e6ba7d37f017fd9e367b2e3d7d37a4de18e230bfc",
+      "byte_length": 1154197,
+      "media_type": "text/html; charset=utf-8"
+    },
+    "redirect_hops": 1
+  },
+  {
+    "record_id": "5852396c-d8be-5b86-a5e5-f4830071ddd7",
+    "role": "original",
+    "requested_url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQEcwHiqJQ4gu489XQf5VqTv8aZTELRtmSzI2pysjbuddY4TBL2cHG0WF_e5FiI2fZ1P45lSp3xZg9pSUU22SSwXFEn51itu3VV-03yW40rJW1nF4UzY5GA50xAHOLbCGf8weCGc7-o756x37-kcCb4mBaw0s48C5YPfsYw5ANekIMG_JbuCkWqLNjmyuvd34yT6HG8u3qK08I8olczjyr7DDpfVV64cNA-n1vI-QBbOyUIlnaFTPUJbCDk29vA8",
+    "resolved_url": "https://theswissbay.ch/pdf/Books/Linguistics/Mega%20linguistics%20pack/Afro-Asiatic/Egyptian/Egyptian%2C%20Ancient%20%28Loprieno%29.pdf",
+    "http_status": "200",
+    "acquisition_kind": "http",
+    "acquired_at": "2026-11-14T22:59:14.323228Z",
+    "original_blob": {
+      "storage_key": "30619987-72ed-4e7e-bd53-3db4b55b64ed/content-v1/8043a0a0ffca664ff50a05e0de3416e104f1f13a9e76f32e505c77a0868b2e7e/91ed0f7cdaa1385ebdcc5d2d83ea64a3216fc45395e1613ec9e3968fe45799d2",
+      "sha256": "8043a0a0ffca664ff50a05e0de3416e104f1f13a9e76f32e505c77a0868b2e7e",
+      "byte_length": 7754949,
+      "media_type": "application/pdf"
+    },
+    "redirect_hops": 1
+  },
+  {
+    "record_id": "ec10bd75-f28e-5588-a117-5967c146606f",
+    "role": "original",
+    "requested_url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQFwah5YHeBTciH4mC7WpGXSxl8AeAaGBVXO7cAuzZwzaxO1dQlP0Mdw0le6w967Odqz4UNe0VY-KBOIC_b3WH-nrIHIoG_hjw0hhsKSND1lswpQJa_oUOaaLGU0zi0g6YVpewtzQ1f1cKSB1DpL116vUIDQmAlyPBIpbpLITqLO6-2Cnpl1vlex7ny53FhoYxhifIssi8VFfQ1J5Sl35rZzXo-7FTlecW85NBjBT3CNlIJBmlT_",
+    "resolved_url": "https://www.quora.com/What-is-the-correct-pronunciation-of-Ra-Rah-or-Ray-Do-we-know-enough-about-ancient-Egyptian-pronunciation",
+    "http_status": "403",
+    "acquisition_kind": "http",
+    "acquired_at": "2026-11-14T22:59:02.174937Z",
+    "original_blob": {
+      "storage_key": "30619987-72ed-4e7e-bd53-3db4b55b64ed/content-v1/3f1a81d79b734f2914a770b5155f1a49e6e67bbdf8d5efb988bee2d87dd43e67/e47f2cf7047cfdba8d6e50a8c83d3d49bd967ec099a48462d347833531bf4f84",
+      "sha256": "3f1a81d79b734f2914a770b5155f1a49e6e67bbdf8d5efb988bee2d87dd43e67",
+      "byte_length": 5921,
+      "media_type": "text/html; charset=UTF-8"
+    },
+    "redirect_hops": 1
+  },
+  {
+    "record_id": "dafe3cda-0c25-5b2b-9e3f-73467a0297c4",
+    "role": "original",
+    "requested_url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQFhul3uJmqXJ5fLI6H4QgqYfm8vPAIacYnEkUtPhCM5i14FrGor-eaZBZ71ZQl-bu8sV_bu87-A3Wfo1j9PZx7Whm2BIBcZUiev7LU4va0FGavIWqmCXbLeIMqGpuPIoxOI8Idlub6SKUMjVHkRqW5cnEbo9NuefPsq3Ccyy2xW6FQFa5mlViKf3IwypcWVBZyKzd4iwHYrxqHgPjQc2g==",
+    "resolved_url": "https://www.reddit.com/r/ancientegypt/comments/1oubdaa/is_the_sun_god_named_ray_or_rah_heard_it_both_in/",
+    "http_status": "200",
+    "acquisition_kind": "http",
+    "acquired_at": "2026-11-14T22:59:15.398690Z",
+    "original_blob": {
+      "storage_key": "30619987-72ed-4e7e-bd53-3db4b55b64ed/content-v1/9256f63d698cddd367cece6983cf036bb69af7cdaf9b59b860bdd057ab736513/bb4770ff4ac5b7d2be41a088cb27d8bcaad53b574b6f27941e8e48e9e10fc25a",
+      "sha256": "9256f63d698cddd367cece6983cf036bb69af7cdaf9b59b860bdd057ab736513",
+      "byte_length": 8478,
+      "media_type": "text/html"
+    },
+    "redirect_hops": 1
+  },
+  {
+    "record_id": "903642c8-5f12-586b-b176-78d74f497cfe",
+    "role": "original",
+    "requested_url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQG75hX82ed9pWiC6oK9rj47gG1h-0CqZ70PDrsBCZQoIJBgBSzaNzo6wCRsst7DhdexeaC2HDpsguOLhTHmYgLXonYc85sh6-RHgwZm8Guwzz3H81etgRxGxAYjJ8J13SkN7SqreqSwtr-8gQ==",
+    "resolved_url": "https://sonofthepharaoh.com/pages/egyptian-library-ra",
+    "http_status": "200",
+    "acquisition_kind": "http",
+    "acquired_at": "2026-11-14T22:59:04.519662Z",
+    "original_blob": {
+      "storage_key": "30619987-72ed-4e7e-bd53-3db4b55b64ed/content-v1/7d932f74860649f75b36191874b06d5ca76285913511cffcf07881be65654642/5e30ae15588f8f014141a57300f8f4b77a0491527336d05b413fc899e803db1a",
+      "sha256": "7d932f74860649f75b36191874b06d5ca76285913511cffcf07881be65654642",
+      "byte_length": 815559,
+      "media_type": "text/html; charset=utf-8"
+    },
+    "redirect_hops": 1
+  },
+  {
+    "record_id": "4c7d1a06-f83d-5f68-968a-0e7725394176",
+    "role": "original",
+    "requested_url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQEG9z91YrPQcwMmMptW3TcGxnxOiwIcfJrb68bX14RQgWFDaBSz9nljqSG6jqD6AtO__qPtO0KtewXgo8OfpEkt_OhuvzZPcPuKl_gMacVE6AiJ_pwdMWdBplq-dH9o-o9HmOyafnTpT_rRhyQjdZy8PJ23yxAz1TnpEFqhBxIPGA==",
+    "resolved_url": "https://www.scribd.com/doc/26532778/An-Introductory-Coptic-Grammar-Plumley",
+    "http_status": "200",
+    "acquisition_kind": "http",
+    "acquired_at": "2026-11-14T22:59:18.072214Z",
+    "original_blob": {
+      "storage_key": "30619987-72ed-4e7e-bd53-3db4b55b64ed/content-v1/98f1f1f75a5569c1fe3f15dfe6c3e646a42ffd10116fb783ce3e4ce7fc92295e/5e30ae15588f8f014141a57300f8f4b77a0491527336d05b413fc899e803db1a",
+      "sha256": "98f1f1f75a5569c1fe3f15dfe6c3e646a42ffd10116fb783ce3e4ce7fc92295e",
+      "byte_length": 1212432,
+      "media_type": "text/html; charset=utf-8"
+    },
+    "redirect_hops": 1
+  },
+  {
+    "record_id": "d0fd19bd-f014-54a2-9982-2f9801c58546",
+    "role": "original",
+    "requested_url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQHT4CbamrlFQP94ge_DO4xESJ5R1BiO4d8Gl9Zp6o_R_jea0yXburySFkRFPxA7x-vOkKsnVk93seTLCuxLS6qm8Lw-QLaKwMeFtfsBduuVe7z9u86itw==",
+    "resolved_url": "https://en.wikipedia.org/wiki/Ra",
+    "http_status": "200",
+    "acquisition_kind": "http",
+    "acquired_at": "2026-11-14T22:59:06.639681Z",
+    "original_blob": {
+      "storage_key": "30619987-72ed-4e7e-bd53-3db4b55b64ed/content-v1/ef2c6e30a7adf426ab78f44e8ff28df9d3d30a56ca419f0874b88381a603366d/e47f2cf7047cfdba8d6e50a8c83d3d49bd967ec099a48462d347833531bf4f84",
+      "sha256": "ef2c6e30a7adf426ab78f44e8ff28df9d3d30a56ca419f0874b88381a603366d",
+      "byte_length": 417671,
+      "media_type": "text/html; charset=UTF-8"
+    },
+    "redirect_hops": 1
+  },
+  {
+    "record_id": "e8aaa732-fe69-5229-a127-3fa70a367ce9",
+    "role": "original",
+    "requested_url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQFVcn5pZxt4FDmsNGslVUSmCHptaQ9WXffTqtfZMg6E-BI48vmDv7h6F72EH96aez2wLfHE_px5aviXitwqvdzKvEfW2-4bd4GJgFiEbTyJNMy0dfh48ODQX_FpBJfy6s1OZMCbeWT0I-DKw5_tcZQ6xBI=",
+    "resolved_url": "https://liturgical.space/an-etymological-history-of-pharaoh/",
+    "http_status": "200",
+    "acquisition_kind": "http",
+    "acquired_at": "2026-11-14T22:59:21.300271Z",
+    "original_blob": {
+      "storage_key": "30619987-72ed-4e7e-bd53-3db4b55b64ed/content-v1/825d671301e3aebb764b33d9e2b611bca9cc0af06d0624612c71331b9fa86242/e47f2cf7047cfdba8d6e50a8c83d3d49bd967ec099a48462d347833531bf4f84",
+      "sha256": "825d671301e3aebb764b33d9e2b611bca9cc0af06d0624612c71331b9fa86242",
+      "byte_length": 254873,
+      "media_type": "text/html; charset=UTF-8"
+    },
+    "redirect_hops": 1
+  },
+  {
+    "record_id": "4585a431-1acb-5ed6-892d-9561424b46f4",
+    "role": "original",
+    "requested_url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQHfGA0TPHnAge3siMBiKo9eWWaAILLFZhkwtw3B6-Ou93Tz5nkpqkN0-PHkK5WGR-Ogc6dR5vgg1sXainy56prZ-N6o2bqG7C65ukRHqQuSUnI4FkvtJ8xu_moCgavgGUjYww==",
+    "resolved_url": "https://en-academic.com/dic.nsf/enwiki/32535",
+    "http_status": "200",
+    "acquisition_kind": "http",
+    "acquired_at": "2026-11-14T22:59:08.709012Z",
+    "original_blob": {
+      "storage_key": "30619987-72ed-4e7e-bd53-3db4b55b64ed/content-v1/80dece2381dc02576672d72ca8fcced9a5302843fcda6c3a09069673690859cd/e47f2cf7047cfdba8d6e50a8c83d3d49bd967ec099a48462d347833531bf4f84",
+      "sha256": "80dece2381dc02576672d72ca8fcced9a5302843fcda6c3a09069673690859cd",
+      "byte_length": 104440,
+      "media_type": "text/html; charset=UTF-8"
+    },
+    "redirect_hops": 1
+  },
+  {
+    "record_id": "22e1b7c9-a9a6-5f2c-8dbb-f60c6a0d8700",
+    "role": "original",
+    "requested_url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQFguodo72IuJiWfogiDXIA_iHuC81txO8YsbkMaBxnfuLIjPLpUiKSw-oHRJaVB2CVK33n5oOVV8YidXEXZBdvUmWyHORrtOhy6f_ckX9Wu_ai-B8NJzGumTY1Fsov2hy3UxE4=",
+    "resolved_url": "https://en.wikipedia.org/wiki/Coptic_language",
+    "http_status": "200",
+    "acquisition_kind": "http",
+    "acquired_at": "2026-11-14T22:59:10.940481Z",
+    "original_blob": {
+      "storage_key": "30619987-72ed-4e7e-bd53-3db4b55b64ed/content-v1/fade21dd02eff1f9c21652130fe4c949a6b2b35e557c32a680354a49381ffb6d/e47f2cf7047cfdba8d6e50a8c83d3d49bd967ec099a48462d347833531bf4f84",
+      "sha256": "fade21dd02eff1f9c21652130fe4c949a6b2b35e557c32a680354a49381ffb6d",
+      "byte_length": 946413,
+      "media_type": "text/html; charset=UTF-8"
+    },
+    "redirect_hops": 1
+  }
+]

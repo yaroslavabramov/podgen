@@ -1,0 +1,94 @@
+{
+  "run_id": "1cd0ac76-3326-58bb-83f0-6ee76847cefe",
+  "status": "needs_attention",
+  "failure_code": "run_token_budget_exceeded",
+  "execution_revision": 446,
+  "stages": {
+    "draft": [
+      {
+        "attempt_index": 0,
+        "status": "completed",
+        "input_tokens": 192611,
+        "output_tokens": 14017
+      }
+    ],
+    "reader-review": [
+      {
+        "attempt_index": 0,
+        "status": "completed",
+        "input_tokens": 14205,
+        "output_tokens": 11279
+      }
+    ],
+    "fact-review": [
+      {
+        "attempt_index": 0,
+        "status": "failed",
+        "input_tokens": null,
+        "output_tokens": null
+      },
+      {
+        "attempt_index": 1,
+        "status": "validation_failed",
+        "input_tokens": 1383206,
+        "output_tokens": 12974
+      },
+      {
+        "attempt_index": 2,
+        "status": "completed",
+        "input_tokens": 1695,
+        "output_tokens": 179
+      }
+    ],
+    "revise-1": [
+      {
+        "attempt_index": 0,
+        "status": "completed",
+        "input_tokens": 105097,
+        "output_tokens": 4694
+      }
+    ],
+    "reader-review-1": [
+      {
+        "attempt_index": 0,
+        "status": "completed",
+        "input_tokens": 23323,
+        "output_tokens": 11145
+      }
+    ],
+    "fact-review-1": [
+      {
+        "attempt_index": 0,
+        "status": "completed",
+        "input_tokens": 393879,
+        "output_tokens": 11114
+      }
+    ],
+    "revise-2": [
+      {
+        "attempt_index": 0,
+        "status": "completed",
+        "input_tokens": 36937,
+        "output_tokens": 496
+      }
+    ],
+    "reader-review-2": [
+      {
+        "attempt_index": 0,
+        "status": "completed",
+        "input_tokens": 19929,
+        "output_tokens": 9396
+      }
+    ],
+    "fact-review-2": [
+      {
+        "attempt_index": 0,
+        "status": "validation_failed",
+        "input_tokens": null,
+        "output_tokens": null
+      }
+    ]
+  },
+  "completed_draft_reader_and_nine_fact_responses_preserved": true,
+  "frozen_manifest_unchanged": true
+}

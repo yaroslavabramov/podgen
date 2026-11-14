@@ -1,0 +1,11 @@
+{
+  "contract": "rolled-back-source-publication-resume/1",
+  "sqlstate": "40001",
+  "failed_operation": "archive_write document publication at project validity lock",
+  "existing_internal_attempt_limit": 3,
+  "additional_ordinary_resume_attempts": 1,
+  "code_changed": false,
+  "model_responses_since_handoff": 0,
+  "reuse_saved_research_and_model_responses": true,
+  "failed_execution_revision": 414
+}

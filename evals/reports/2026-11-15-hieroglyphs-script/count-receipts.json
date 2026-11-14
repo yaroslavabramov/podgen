@@ -4,191 +4,1091 @@
       "record_kind": "tool_execution",
       "record_id": "8ede0bc9-4aa8-5c57-b684-84b63e4c1f0b"
     },
+    "stage": "draft",
+    "attempt": "attempt-0",
+    "source_turn_index": 0,
     "count_identity": "ae8163366c0ee49978ee412b16a0f8bbe679ba1167ab27437633d7771c9e25ee",
     "input_tokens": 34581,
-    "native_input_tokens": 34581,
-    "request_sha256": "79fad9694d934d4cc8f4dfffc7f6eeffefb320a1fbc727df69a75a5b64d28a67",
+    "model": "claude-opus-5-5",
     "receipt_path": "tmp/hieroglyphs-30m-script-2026-11-15/export/archive/draft/001-source_context_count-response_blob.json",
-    "model": "claude-opus-5-5"
+    "after_funding": false
   },
   {
     "event_ref": {
       "record_kind": "tool_execution",
       "record_id": "a270c149-ba50-5e73-871e-95cd3f9a4423"
     },
+    "stage": "draft",
+    "attempt": "attempt-0",
+    "source_turn_index": 1,
     "count_identity": "9a23a1cfeccabbfae4aaa17f96ab04d67d3bb1bf9612a567f9a59a9a8feaa7bf",
     "input_tokens": 36258,
-    "native_input_tokens": 36258,
-    "request_sha256": "8206e6c1827f3f5aa4d0dbd4d732d3a43b4a13c4692a44e209135610d81f4417",
+    "model": "claude-opus-5-5",
     "receipt_path": "tmp/hieroglyphs-30m-script-2026-11-15/export/archive/draft/011-source_context_count-response_blob.json",
-    "model": "claude-opus-5-5"
+    "after_funding": false
   },
   {
     "event_ref": {
       "record_kind": "tool_execution",
       "record_id": "5ae2e1e3-b46f-5503-860b-6388cd468f8d"
     },
+    "stage": "draft",
+    "attempt": "attempt-0",
+    "source_turn_index": 2,
     "count_identity": "3acf579b40bb6ddf26233f94ec0a4af39c78ebd006631d59726c78de96a6d962",
     "input_tokens": 38191,
-    "native_input_tokens": 38191,
-    "request_sha256": "0c2ac27023107187519cea20afe6a487653b1f16c135fc2fa758895af4e56a3c",
+    "model": "claude-opus-5-5",
     "receipt_path": "tmp/hieroglyphs-30m-script-2026-11-15/export/archive/draft/020-source_context_count-response_blob.json",
-    "model": "claude-opus-5-5"
+    "after_funding": false
   },
   {
     "event_ref": {
       "record_kind": "tool_execution",
       "record_id": "2c1e63fa-3fff-5333-a825-c443ee4778f5"
     },
+    "stage": "draft",
+    "attempt": "attempt-0",
+    "source_turn_index": 3,
     "count_identity": "3b71006c1a5f409544c621f2b9660c35d2d54e2935b9c050ac069511ed4835c1",
     "input_tokens": 39791,
-    "native_input_tokens": 39791,
-    "request_sha256": "4b2783678b94e843c5c9a3f09dd07c70ae93c98685f041aa39881dd3b499107a",
+    "model": "claude-opus-5-5",
     "receipt_path": "tmp/hieroglyphs-30m-script-2026-11-15/export/archive/draft/029-source_context_count-response_blob.json",
-    "model": "claude-opus-5-5"
+    "after_funding": false
   },
   {
     "event_ref": {
       "record_kind": "tool_execution",
       "record_id": "e7e0185d-bc73-598f-b565-11e951203f53"
     },
+    "stage": "draft",
+    "attempt": "attempt-0",
+    "source_turn_index": 4,
     "count_identity": "2a458016185979185e525d873b8e87f973f5d9c48b02b713cfce0598838a1f22",
     "input_tokens": 43790,
-    "native_input_tokens": 43790,
-    "request_sha256": "94aea88384f82e1d350bc2db6fc050f00a713e1db98e6930fef41a503740114d",
+    "model": "claude-opus-5-5",
     "receipt_path": "tmp/hieroglyphs-30m-script-2026-11-15/export/archive/draft/038-source_context_count-response_blob.json",
-    "model": "claude-opus-5-5"
+    "after_funding": false
+  },
+  {
+    "event_ref": {
+      "record_kind": "tool_execution",
+      "record_id": "fefccb92-1d2d-573b-bd23-08130d16bcd7"
+    },
+    "stage": "fact-review",
+    "attempt": "attempt-1",
+    "source_turn_index": 10,
+    "count_identity": "30ad237231b9ced603c4124edd8c308fff68bdb59ab77b0dec0808f7a0b5d9dc",
+    "input_tokens": 35071,
+    "model": "gpt-6.1-terra",
+    "receipt_path": "tmp/hieroglyphs-30m-script-2026-11-15/export/archive/fact-review/attempt-1/008-source_context_count-response_blob.json",
+    "after_funding": true
+  },
+  {
+    "event_ref": {
+      "record_kind": "tool_execution",
+      "record_id": "350810b9-ca19-525d-89c2-2bdf5795c5f8"
+    },
+    "stage": "fact-review",
+    "attempt": "attempt-1",
+    "source_turn_index": 11,
+    "count_identity": "ca94a1b830ea231708ef99a3aa281e2133a196411511a8d7c218870bc6ac68fe",
+    "input_tokens": 36199,
+    "model": "gpt-6.1-terra",
+    "receipt_path": "tmp/hieroglyphs-30m-script-2026-11-15/export/archive/fact-review/attempt-1/017-source_context_count-response_blob.json",
+    "after_funding": true
+  },
+  {
+    "event_ref": {
+      "record_kind": "tool_execution",
+      "record_id": "d7193eb3-38e5-5839-9898-1584306dddac"
+    },
+    "stage": "fact-review",
+    "attempt": "attempt-1",
+    "source_turn_index": 12,
+    "count_identity": "f1b3ca69a8d1dc8747efd18b19ec9b7c4730e21d67c617672a0c9e054755d916",
+    "input_tokens": 37353,
+    "model": "gpt-6.1-terra",
+    "receipt_path": "tmp/hieroglyphs-30m-script-2026-11-15/export/archive/fact-review/attempt-1/027-source_context_count-response_blob.json",
+    "after_funding": true
+  },
+  {
+    "event_ref": {
+      "record_kind": "tool_execution",
+      "record_id": "5d0f63d3-0958-5e7c-b844-364b28d1ba31"
+    },
+    "stage": "fact-review",
+    "attempt": "attempt-1",
+    "source_turn_index": 13,
+    "count_identity": "1d02a2a6ff8274178dd98561de7931e16e5446b3eaffabc1bfb5ef8d83a72a69",
+    "input_tokens": 37814,
+    "model": "gpt-6.1-terra",
+    "receipt_path": "tmp/hieroglyphs-30m-script-2026-11-15/export/archive/fact-review/attempt-1/036-source_context_count-response_blob.json",
+    "after_funding": true
+  },
+  {
+    "event_ref": {
+      "record_kind": "tool_execution",
+      "record_id": "fa5eb957-4e59-535d-835a-967256de1d84"
+    },
+    "stage": "fact-review",
+    "attempt": "attempt-1",
+    "source_turn_index": 14,
+    "count_identity": "6f22e879852d71ac4f7e7f795856d06b619d3ea21319a2cd148901308d7fcb0e",
+    "input_tokens": 38873,
+    "model": "gpt-6.1-terra",
+    "receipt_path": "tmp/hieroglyphs-30m-script-2026-11-15/export/archive/fact-review/attempt-1/046-source_context_count-response_blob.json",
+    "after_funding": true
+  },
+  {
+    "event_ref": {
+      "record_kind": "tool_execution",
+      "record_id": "5f84befb-8063-57e8-b606-be4fd0eda7b1"
+    },
+    "stage": "fact-review",
+    "attempt": "attempt-1",
+    "source_turn_index": 15,
+    "count_identity": "2a6fcd81a3a285003e8f225bb93c1308c6ab3239bbf36fdd875bf3af9358d437",
+    "input_tokens": 39923,
+    "model": "gpt-6.1-terra",
+    "receipt_path": "tmp/hieroglyphs-30m-script-2026-11-15/export/archive/fact-review/attempt-1/056-source_context_count-response_blob.json",
+    "after_funding": true
+  },
+  {
+    "event_ref": {
+      "record_kind": "tool_execution",
+      "record_id": "85b0a795-7196-5621-bfdd-718be4525a18"
+    },
+    "stage": "fact-review",
+    "attempt": "attempt-1",
+    "source_turn_index": 16,
+    "count_identity": "edacab606a3bb9cf3eaeea9ca696d73eaa287644e8d72f871edace4874c628d5",
+    "input_tokens": 40913,
+    "model": "gpt-6.1-terra",
+    "receipt_path": "tmp/hieroglyphs-30m-script-2026-11-15/export/archive/fact-review/attempt-1/066-source_context_count-response_blob.json",
+    "after_funding": true
+  },
+  {
+    "event_ref": {
+      "record_kind": "tool_execution",
+      "record_id": "e9a1edce-90d8-5ce0-9c9a-004a326201cb"
+    },
+    "stage": "fact-review",
+    "attempt": "attempt-1",
+    "source_turn_index": 17,
+    "count_identity": "6f161f497df8323fc9d082e956a527e4506c8d507c07ba5e8b5233206b74b3bb",
+    "input_tokens": 42076,
+    "model": "gpt-6.1-terra",
+    "receipt_path": "tmp/hieroglyphs-30m-script-2026-11-15/export/archive/fact-review/attempt-1/076-source_context_count-response_blob.json",
+    "after_funding": true
+  },
+  {
+    "event_ref": {
+      "record_kind": "tool_execution",
+      "record_id": "86bf9f86-db7f-5544-a8a3-31ec7ab0c126"
+    },
+    "stage": "fact-review",
+    "attempt": "attempt-1",
+    "source_turn_index": 18,
+    "count_identity": "d635bf716a9a6b68a3eef15c01e7431c5044cc379eb275434e4ff276cb672262",
+    "input_tokens": 42863,
+    "model": "gpt-6.1-terra",
+    "receipt_path": "tmp/hieroglyphs-30m-script-2026-11-15/export/archive/fact-review/attempt-1/085-source_context_count-response_blob.json",
+    "after_funding": true
+  },
+  {
+    "event_ref": {
+      "record_kind": "tool_execution",
+      "record_id": "d9ba06ac-b323-5e50-841d-7273eb025e90"
+    },
+    "stage": "fact-review",
+    "attempt": "attempt-1",
+    "source_turn_index": 19,
+    "count_identity": "fad7ca99251186323e1f5a2afca6373a1f161babde5cd8d2b4ab2a93ab5eb0e9",
+    "input_tokens": 44067,
+    "model": "gpt-6.1-terra",
+    "receipt_path": "tmp/hieroglyphs-30m-script-2026-11-15/export/archive/fact-review/attempt-1/095-source_context_count-response_blob.json",
+    "after_funding": true
+  },
+  {
+    "event_ref": {
+      "record_kind": "tool_execution",
+      "record_id": "d7e4160b-f6c7-55f3-b2bc-6f2d1587f5f9"
+    },
+    "stage": "fact-review",
+    "attempt": "attempt-1",
+    "source_turn_index": 20,
+    "count_identity": "a44729392dd1857a533756d6a7c33fd8f368ae7264e79fd95125fbcc9ae34e93",
+    "input_tokens": 45208,
+    "model": "gpt-6.1-terra",
+    "receipt_path": "tmp/hieroglyphs-30m-script-2026-11-15/export/archive/fact-review/attempt-1/105-source_context_count-response_blob.json",
+    "after_funding": true
+  },
+  {
+    "event_ref": {
+      "record_kind": "tool_execution",
+      "record_id": "1e22f39f-437a-5f8b-b6d8-de858c953b7f"
+    },
+    "stage": "fact-review",
+    "attempt": "attempt-1",
+    "source_turn_index": 21,
+    "count_identity": "de1e3ac5ffbe090965660a3b5024916ccc21763324ca2c3b6f53fe7961b348a9",
+    "input_tokens": 46210,
+    "model": "gpt-6.1-terra",
+    "receipt_path": "tmp/hieroglyphs-30m-script-2026-11-15/export/archive/fact-review/attempt-1/115-source_context_count-response_blob.json",
+    "after_funding": true
+  },
+  {
+    "event_ref": {
+      "record_kind": "tool_execution",
+      "record_id": "4f0e263d-3da6-5afd-bd28-4b2d10f8c35b"
+    },
+    "stage": "fact-review",
+    "attempt": "attempt-1",
+    "source_turn_index": 22,
+    "count_identity": "5795e26b5cf9901d346d95dd83e7dc2405134861a2b9f63fb4519acfcf475aa1",
+    "input_tokens": 48114,
+    "model": "gpt-6.1-terra",
+    "receipt_path": "tmp/hieroglyphs-30m-script-2026-11-15/export/archive/fact-review/attempt-1/124-source_context_count-response_blob.json",
+    "after_funding": true
+  },
+  {
+    "event_ref": {
+      "record_kind": "tool_execution",
+      "record_id": "7aefe313-56cd-5d59-a18b-94db53c41d70"
+    },
+    "stage": "fact-review",
+    "attempt": "attempt-1",
+    "source_turn_index": 23,
+    "count_identity": "a751b16810f8cf0fb7f1ade5467a4b5681e5fb647bd7f63559d6085d1c8f3e49",
+    "input_tokens": 48166,
+    "model": "gpt-6.1-terra",
+    "receipt_path": "tmp/hieroglyphs-30m-script-2026-11-15/export/archive/fact-review/attempt-1/133-source_context_count-response_blob.json",
+    "after_funding": true
+  },
+  {
+    "event_ref": {
+      "record_kind": "tool_execution",
+      "record_id": "2fc65dd2-f418-54e0-bbc3-f2945a03209d"
+    },
+    "stage": "fact-review",
+    "attempt": "attempt-1",
+    "source_turn_index": 24,
+    "count_identity": "f8e7740ed45c0bc5402449c5483d3cbeb1201bc16a25e175d9afef9d83ae0587",
+    "input_tokens": 48219,
+    "model": "gpt-6.1-terra",
+    "receipt_path": "tmp/hieroglyphs-30m-script-2026-11-15/export/archive/fact-review/attempt-1/142-source_context_count-response_blob.json",
+    "after_funding": true
+  },
+  {
+    "event_ref": {
+      "record_kind": "tool_execution",
+      "record_id": "85ede3a4-edaf-5127-afbe-9717deea5aec"
+    },
+    "stage": "fact-review",
+    "attempt": "attempt-1",
+    "source_turn_index": 25,
+    "count_identity": "2f44c39c7d55e2eeb67368e5d891b093e184b259fe45ff84b0a3143ff782b6a4",
+    "input_tokens": 50088,
+    "model": "gpt-6.1-terra",
+    "receipt_path": "tmp/hieroglyphs-30m-script-2026-11-15/export/archive/fact-review/attempt-1/151-source_context_count-response_blob.json",
+    "after_funding": true
+  },
+  {
+    "event_ref": {
+      "record_kind": "tool_execution",
+      "record_id": "e0808959-c597-5027-91a3-c5d4448d15d9"
+    },
+    "stage": "fact-review",
+    "attempt": "attempt-1",
+    "source_turn_index": 26,
+    "count_identity": "181da9571222041fc48e4c89ad93b87627228bca0aee7fbed7ac458decafc3ab",
+    "input_tokens": 51419,
+    "model": "gpt-6.1-terra",
+    "receipt_path": "tmp/hieroglyphs-30m-script-2026-11-15/export/archive/fact-review/attempt-1/160-source_context_count-response_blob.json",
+    "after_funding": true
+  },
+  {
+    "event_ref": {
+      "record_kind": "tool_execution",
+      "record_id": "41b64fd6-c501-5cfc-ae36-88bdd9f37f76"
+    },
+    "stage": "fact-review",
+    "attempt": "attempt-1",
+    "source_turn_index": 27,
+    "count_identity": "e716825160118a2402ab237d1f07d053356354af0d1a4ab98138da9a782d3221",
+    "input_tokens": 51536,
+    "model": "gpt-6.1-terra",
+    "receipt_path": "tmp/hieroglyphs-30m-script-2026-11-15/export/archive/fact-review/attempt-1/169-source_context_count-response_blob.json",
+    "after_funding": true
+  },
+  {
+    "event_ref": {
+      "record_kind": "tool_execution",
+      "record_id": "10622640-0071-5621-b92c-7db9c48bf3b3"
+    },
+    "stage": "fact-review",
+    "attempt": "attempt-1",
+    "source_turn_index": 28,
+    "count_identity": "705947d880e44ae5e3f0259f5bf3b8cc4fa7eb7375309f7bd5ba807d559aa101",
+    "input_tokens": 51867,
+    "model": "gpt-6.1-terra",
+    "receipt_path": "tmp/hieroglyphs-30m-script-2026-11-15/export/archive/fact-review/attempt-1/178-source_context_count-response_blob.json",
+    "after_funding": true
+  },
+  {
+    "event_ref": {
+      "record_kind": "tool_execution",
+      "record_id": "5a006a1a-836a-5c15-867a-6962cd6cd1fd"
+    },
+    "stage": "fact-review",
+    "attempt": "attempt-1",
+    "source_turn_index": 29,
+    "count_identity": "fdce2999ba2340ae2d7c6c941bf858d14ae2c5c8de409764de49458dec2ea364",
+    "input_tokens": 53054,
+    "model": "gpt-6.1-terra",
+    "receipt_path": "tmp/hieroglyphs-30m-script-2026-11-15/export/archive/fact-review/attempt-1/188-source_context_count-response_blob.json",
+    "after_funding": true
+  },
+  {
+    "event_ref": {
+      "record_kind": "tool_execution",
+      "record_id": "61750e05-ef2e-561b-89b6-51f6b2400d9b"
+    },
+    "stage": "fact-review",
+    "attempt": "attempt-1",
+    "source_turn_index": 30,
+    "count_identity": "cd8657abf2030b91570dc333888f9c231640959cab53a45af9d915949e5b0b4c",
+    "input_tokens": 54351,
+    "model": "gpt-6.1-terra",
+    "receipt_path": "tmp/hieroglyphs-30m-script-2026-11-15/export/archive/fact-review/attempt-1/197-source_context_count-response_blob.json",
+    "after_funding": true
+  },
+  {
+    "event_ref": {
+      "record_kind": "tool_execution",
+      "record_id": "5c002d1b-1867-5c68-8a43-de4dc54aab8e"
+    },
+    "stage": "fact-review",
+    "attempt": "attempt-1",
+    "source_turn_index": 31,
+    "count_identity": "e96cbdf79719848fb78352888d25ce0969ca8502cc6b8e3a48660ba9d4ada886",
+    "input_tokens": 55403,
+    "model": "gpt-6.1-terra",
+    "receipt_path": "tmp/hieroglyphs-30m-script-2026-11-15/export/archive/fact-review/attempt-1/207-source_context_count-response_blob.json",
+    "after_funding": true
+  },
+  {
+    "event_ref": {
+      "record_kind": "tool_execution",
+      "record_id": "348b7e32-ef6b-51bb-a4af-d7b92efa34ac"
+    },
+    "stage": "fact-review",
+    "attempt": "attempt-1",
+    "source_turn_index": 32,
+    "count_identity": "064fe0ed5d746989a8dec2ea2b32c2b920ec1e44dfca1bf7550231daff46913b",
+    "input_tokens": 55897,
+    "model": "gpt-6.1-terra",
+    "receipt_path": "tmp/hieroglyphs-30m-script-2026-11-15/export/archive/fact-review/attempt-1/216-source_context_count-response_blob.json",
+    "after_funding": true
+  },
+  {
+    "event_ref": {
+      "record_kind": "tool_execution",
+      "record_id": "c9c46d12-086c-5672-aacf-212b3fe8574a"
+    },
+    "stage": "fact-review",
+    "attempt": "attempt-1",
+    "source_turn_index": 33,
+    "count_identity": "50880823590bb2513e3b7a224fd2e7841924c385be0c944e97c0e6e5ae8fa949",
+    "input_tokens": 56984,
+    "model": "gpt-6.1-terra",
+    "receipt_path": "tmp/hieroglyphs-30m-script-2026-11-15/export/archive/fact-review/attempt-1/226-source_context_count-response_blob.json",
+    "after_funding": true
+  },
+  {
+    "event_ref": {
+      "record_kind": "tool_execution",
+      "record_id": "3947bb1d-504d-5218-9a0e-c654c4e55501"
+    },
+    "stage": "fact-review",
+    "attempt": "attempt-1",
+    "source_turn_index": 34,
+    "count_identity": "60262a4bfa1c6b0ef59b86f7c4d5f3b92aead65bb07753a89c41122ff1acc501",
+    "input_tokens": 58024,
+    "model": "gpt-6.1-terra",
+    "receipt_path": "tmp/hieroglyphs-30m-script-2026-11-15/export/archive/fact-review/attempt-1/235-source_context_count-response_blob.json",
+    "after_funding": true
+  },
+  {
+    "event_ref": {
+      "record_kind": "tool_execution",
+      "record_id": "70a45d0c-c67d-588d-9171-4424084661fc"
+    },
+    "stage": "fact-review",
+    "attempt": "attempt-1",
+    "source_turn_index": 35,
+    "count_identity": "41d16a01105343efacf09e9078299d1143f76f98b08062429f4a15459cea997a",
+    "input_tokens": 59158,
+    "model": "gpt-6.1-terra",
+    "receipt_path": "tmp/hieroglyphs-30m-script-2026-11-15/export/archive/fact-review/attempt-1/245-source_context_count-response_blob.json",
+    "after_funding": true
+  },
+  {
+    "event_ref": {
+      "record_kind": "tool_execution",
+      "record_id": "e520bc06-618a-5f0f-b67a-9f186f6b9e90"
+    },
+    "stage": "fact-review",
+    "attempt": "attempt-1",
+    "source_turn_index": 36,
+    "count_identity": "7c26c8023985324dcd9c00cfe1ee3ee4c869e2cb9a16de2597634a09ac8503fb",
+    "input_tokens": 60192,
+    "model": "gpt-6.1-terra",
+    "receipt_path": "tmp/hieroglyphs-30m-script-2026-11-15/export/archive/fact-review/attempt-1/255-source_context_count-response_blob.json",
+    "after_funding": true
+  },
+  {
+    "event_ref": {
+      "record_kind": "tool_execution",
+      "record_id": "8d189711-b78f-5410-91c5-24c15d5b8a9c"
+    },
+    "stage": "fact-review",
+    "attempt": "attempt-1",
+    "source_turn_index": 37,
+    "count_identity": "4e6afa5f1886f38eaddf6665816a152f1d3b2d152e1d75882701f0838f2f91a9",
+    "input_tokens": 60363,
+    "model": "gpt-6.1-terra",
+    "receipt_path": "tmp/hieroglyphs-30m-script-2026-11-15/export/archive/fact-review/attempt-1/264-source_context_count-response_blob.json",
+    "after_funding": true
+  },
+  {
+    "event_ref": {
+      "record_kind": "tool_execution",
+      "record_id": "b9a93160-1a13-56da-8e6e-3adf5a4bccff"
+    },
+    "stage": "fact-review",
+    "attempt": "attempt-2",
+    "source_turn_index": null,
+    "count_identity": "2b8aedabacfe814c09f4e6764d441a1bd372460e62a8da5feadf637f75be7eb7",
+    "input_tokens": 1695,
+    "model": "gpt-6.1-terra",
+    "receipt_path": "tmp/hieroglyphs-30m-script-2026-11-15/export/archive/fact-review/attempt-2/003-count_response-response_blob.json",
+    "after_funding": true
   },
   {
     "event_ref": {
       "record_kind": "tool_execution",
       "record_id": "07d590b8-52c9-5cc2-8bdb-da2b5a3408d7"
     },
+    "stage": "fact-review",
+    "attempt": "attempt-0",
+    "source_turn_index": 0,
     "count_identity": "1ba8acac4d51c97890a52f044f312f78b9baf07bb21852e2a9180a6f45fa5222",
     "input_tokens": 18178,
-    "native_input_tokens": 18178,
-    "request_sha256": "6a00183ef0ffbf16c0a1c80f911796c64e0ca8af90bd2586ce63d19d01c557fa",
+    "model": "gpt-6.1-terra",
     "receipt_path": "tmp/hieroglyphs-30m-script-2026-11-15/export/archive/fact-review/001-source_context_count-response_blob.json",
-    "model": "gpt-6.1-terra"
+    "after_funding": false
   },
   {
     "event_ref": {
       "record_kind": "tool_execution",
       "record_id": "e863192d-026f-5e6f-803f-a5fe7d83a494"
     },
+    "stage": "fact-review",
+    "attempt": "attempt-0",
+    "source_turn_index": 1,
     "count_identity": "3fb7df04116307d28506eff635d059cbe031b7df2802cc9f1d5f00d4e41add57",
     "input_tokens": 20155,
-    "native_input_tokens": 20155,
-    "request_sha256": "892fc0193f16754c3b626ffc9335a18ca374156f340b36860abbd74cd4d8832e",
+    "model": "gpt-6.1-terra",
     "receipt_path": "tmp/hieroglyphs-30m-script-2026-11-15/export/archive/fact-review/010-source_context_count-response_blob.json",
-    "model": "gpt-6.1-terra"
+    "after_funding": false
   },
   {
     "event_ref": {
       "record_kind": "tool_execution",
       "record_id": "d780e870-7259-5060-9d01-1acceee91837"
     },
+    "stage": "fact-review",
+    "attempt": "attempt-0",
+    "source_turn_index": 2,
     "count_identity": "a9cb85f4aea1f3cd62116c465edadbe719065817e8279e4547b26f29d9649809",
     "input_tokens": 21356,
-    "native_input_tokens": 21356,
-    "request_sha256": "e8f872d9e7d76e3c5eea34f1a01a97f11245e815f470239d976b2fef7667ac76",
+    "model": "gpt-6.1-terra",
     "receipt_path": "tmp/hieroglyphs-30m-script-2026-11-15/export/archive/fact-review/019-source_context_count-response_blob.json",
-    "model": "gpt-6.1-terra"
+    "after_funding": false
   },
   {
     "event_ref": {
       "record_kind": "tool_execution",
       "record_id": "4281c822-5a66-535f-b1bf-47ce792ecec6"
     },
+    "stage": "fact-review",
+    "attempt": "attempt-0",
+    "source_turn_index": 3,
     "count_identity": "3fe5f78f3496127aa8a762115e5cee23534446cabcf17bf34e8f63c76aa13572",
     "input_tokens": 22486,
-    "native_input_tokens": 22486,
-    "request_sha256": "3c1d6391b047e1e8b62ba754bb1a3df5c407304ac1c0ea736c73cdfab58a9341",
+    "model": "gpt-6.1-terra",
     "receipt_path": "tmp/hieroglyphs-30m-script-2026-11-15/export/archive/fact-review/028-source_context_count-response_blob.json",
-    "model": "gpt-6.1-terra"
+    "after_funding": false
   },
   {
     "event_ref": {
       "record_kind": "tool_execution",
       "record_id": "0f954869-a32e-51f7-bfc3-d97dda3d33fc"
     },
+    "stage": "fact-review",
+    "attempt": "attempt-0",
+    "source_turn_index": 4,
     "count_identity": "bbfd5cb8deecffe827f0eca0fbe2eea042381094fce3ecf63d12a63d107fb8d8",
     "input_tokens": 23580,
-    "native_input_tokens": 23580,
-    "request_sha256": "ea7dd3d10748fd985a757613d9ac146febe82bfb7e29c5a1d1921a0be5bb8a13",
+    "model": "gpt-6.1-terra",
     "receipt_path": "tmp/hieroglyphs-30m-script-2026-11-15/export/archive/fact-review/038-source_context_count-response_blob.json",
-    "model": "gpt-6.1-terra"
+    "after_funding": false
   },
   {
     "event_ref": {
       "record_kind": "tool_execution",
       "record_id": "75ca7ae1-e2d8-5eaf-8804-ce1d4dd4e2e6"
     },
+    "stage": "fact-review",
+    "attempt": "attempt-0",
+    "source_turn_index": 5,
     "count_identity": "fd7113de56c410cdcc59f92a04758b475ca92d0d41e9e29a861efdf9a2043784",
     "input_tokens": 26171,
-    "native_input_tokens": 26171,
-    "request_sha256": "5a847af1b6ef1b8634a08f236ab74a50e0f1df76a206724d29152b49b60dcb6e",
+    "model": "gpt-6.1-terra",
     "receipt_path": "tmp/hieroglyphs-30m-script-2026-11-15/export/archive/fact-review/047-source_context_count-response_blob.json",
-    "model": "gpt-6.1-terra"
+    "after_funding": false
   },
   {
     "event_ref": {
       "record_kind": "tool_execution",
       "record_id": "072c5e0c-8d5f-5e4b-a135-5ac29ea89012"
     },
+    "stage": "fact-review",
+    "attempt": "attempt-0",
+    "source_turn_index": 6,
     "count_identity": "a4512fafb12b5a37caa4dcd61204ed7f0ac36372c01d4c776e97d494563cf7c2",
     "input_tokens": 27477,
-    "native_input_tokens": 27477,
-    "request_sha256": "a84bdf8c31eb243658dcdb84a7987fa04f4aba0dc5cd3ae3ed0001647b98bd74",
+    "model": "gpt-6.1-terra",
     "receipt_path": "tmp/hieroglyphs-30m-script-2026-11-15/export/archive/fact-review/056-source_context_count-response_blob.json",
-    "model": "gpt-6.1-terra"
+    "after_funding": false
   },
   {
     "event_ref": {
       "record_kind": "tool_execution",
       "record_id": "0e3c43e4-ab31-549b-82c8-fdf99384f4f7"
     },
+    "stage": "fact-review",
+    "attempt": "attempt-0",
+    "source_turn_index": 7,
     "count_identity": "4e26f20b401fc8f3478dd88487a52d5c00e348121f1b8257710a768e10a1cf10",
     "input_tokens": 29797,
-    "native_input_tokens": 29797,
-    "request_sha256": "da75d893997d991b6cf75b4c8aaac84118a337c6df893ee8bce440b3eb8124b9",
+    "model": "gpt-6.1-terra",
     "receipt_path": "tmp/hieroglyphs-30m-script-2026-11-15/export/archive/fact-review/065-source_context_count-response_blob.json",
-    "model": "gpt-6.1-terra"
+    "after_funding": false
   },
   {
     "event_ref": {
       "record_kind": "tool_execution",
       "record_id": "9d7d41d6-9bf7-5d6b-9274-73997b2f5938"
     },
+    "stage": "fact-review",
+    "attempt": "attempt-0",
+    "source_turn_index": 8,
     "count_identity": "3ad720172fc9872044c95d1b2bfeebcb497cde4243df38a9944d028baae75958",
     "input_tokens": 31627,
-    "native_input_tokens": 31627,
-    "request_sha256": "d5313d7e8b56dc8bd6be785b28dac42c1ad5b4379d77641d6444e66e51d89e80",
+    "model": "gpt-6.1-terra",
     "receipt_path": "tmp/hieroglyphs-30m-script-2026-11-15/export/archive/fact-review/074-source_context_count-response_blob.json",
-    "model": "gpt-6.1-terra"
+    "after_funding": false
   },
   {
     "event_ref": {
       "record_kind": "tool_execution",
       "record_id": "53571455-dae7-5e76-a37d-b86399d45858"
     },
+    "stage": "fact-review",
+    "attempt": "attempt-0",
+    "source_turn_index": 9,
     "count_identity": "0d6e77ddae301f2ff07350ed3c0a56e064be1b1d6ea8dd0010710e31fbea78eb",
     "input_tokens": 33801,
-    "native_input_tokens": 33801,
-    "request_sha256": "b11214752b768d3cd0241ca260524e5635b83aa0d4f502c916e26481dde8c74d",
+    "model": "gpt-6.1-terra",
     "receipt_path": "tmp/hieroglyphs-30m-script-2026-11-15/export/archive/fact-review/083-source_context_count-response_blob.json",
-    "model": "gpt-6.1-terra"
+    "after_funding": false
+  },
+  {
+    "event_ref": {
+      "record_kind": "tool_execution",
+      "record_id": "a96c4240-a82d-5ca6-b528-fcfe60afb623"
+    },
+    "stage": "fact-review-1",
+    "attempt": "attempt-0",
+    "source_turn_index": 0,
+    "count_identity": "75c811a66b943f971d2cd808a75f3526c52a55b6f7a7ff54fade1cf63c85fb18",
+    "input_tokens": 45389,
+    "model": "gpt-6.1-terra",
+    "receipt_path": "tmp/hieroglyphs-30m-script-2026-11-15/export/archive/fact-review-1/001-source_context_count-response_blob.json",
+    "after_funding": true
+  },
+  {
+    "event_ref": {
+      "record_kind": "tool_execution",
+      "record_id": "ee8209fd-77f7-55ee-8665-c4e598c215be"
+    },
+    "stage": "fact-review-1",
+    "attempt": "attempt-0",
+    "source_turn_index": 1,
+    "count_identity": "f521688cd97be7cc75d543a769b8d8099762fa7d5afc5a0860ff40061f97b41d",
+    "input_tokens": 46487,
+    "model": "gpt-6.1-terra",
+    "receipt_path": "tmp/hieroglyphs-30m-script-2026-11-15/export/archive/fact-review-1/011-source_context_count-response_blob.json",
+    "after_funding": true
+  },
+  {
+    "event_ref": {
+      "record_kind": "tool_execution",
+      "record_id": "15602fda-add2-5b93-8ce5-5e001b7a2ccd"
+    },
+    "stage": "fact-review-1",
+    "attempt": "attempt-0",
+    "source_turn_index": 2,
+    "count_identity": "d55c3230472089e9fe879313a31eb6cacd66d85c1e23af024042048fb882ff82",
+    "input_tokens": 47498,
+    "model": "gpt-6.1-terra",
+    "receipt_path": "tmp/hieroglyphs-30m-script-2026-11-15/export/archive/fact-review-1/021-source_context_count-response_blob.json",
+    "after_funding": true
+  },
+  {
+    "event_ref": {
+      "record_kind": "tool_execution",
+      "record_id": "a8b6738c-b057-539d-81b6-9c91673eda27"
+    },
+    "stage": "fact-review-1",
+    "attempt": "attempt-0",
+    "source_turn_index": 3,
+    "count_identity": "82c4d5f2258944cf4141cd1ae98b5402da3936472c37eef13060cf406623f6f1",
+    "input_tokens": 48769,
+    "model": "gpt-6.1-terra",
+    "receipt_path": "tmp/hieroglyphs-30m-script-2026-11-15/export/archive/fact-review-1/031-source_context_count-response_blob.json",
+    "after_funding": true
+  },
+  {
+    "event_ref": {
+      "record_kind": "tool_execution",
+      "record_id": "a2b15ec9-1d71-5f5b-af52-3abd50ad74f4"
+    },
+    "stage": "fact-review-1",
+    "attempt": "attempt-0",
+    "source_turn_index": 4,
+    "count_identity": "9169e3c764674ee667d482a91cd2b358e2a401993a5e8b0d978de48449923c1d",
+    "input_tokens": 49398,
+    "model": "gpt-6.1-terra",
+    "receipt_path": "tmp/hieroglyphs-30m-script-2026-11-15/export/archive/fact-review-1/040-source_context_count-response_blob.json",
+    "after_funding": true
+  },
+  {
+    "event_ref": {
+      "record_kind": "tool_execution",
+      "record_id": "af977b8e-a8f9-5caa-b4d1-6250829b769f"
+    },
+    "stage": "fact-review-1",
+    "attempt": "attempt-0",
+    "source_turn_index": 5,
+    "count_identity": "e78897a7228e31d5146ceeb569b47cb27742d8d2c85c184948c01ded351348d6",
+    "input_tokens": 50398,
+    "model": "gpt-6.1-terra",
+    "receipt_path": "tmp/hieroglyphs-30m-script-2026-11-15/export/archive/fact-review-1/050-source_context_count-response_blob.json",
+    "after_funding": true
+  },
+  {
+    "event_ref": {
+      "record_kind": "tool_execution",
+      "record_id": "8e7abb33-aad2-5455-9d64-5dbb927ec8ba"
+    },
+    "stage": "fact-review-1",
+    "attempt": "attempt-0",
+    "source_turn_index": 6,
+    "count_identity": "16994a890ff9a4619caf025ba608bcede1bd2e6bd57093829daa5adf643fa2aa",
+    "input_tokens": 52455,
+    "model": "gpt-6.1-terra",
+    "receipt_path": "tmp/hieroglyphs-30m-script-2026-11-15/export/archive/fact-review-1/059-source_context_count-response_blob.json",
+    "after_funding": true
+  },
+  {
+    "event_ref": {
+      "record_kind": "tool_execution",
+      "record_id": "0bbcee32-e6a9-5e62-b74b-9a6be2cc6607"
+    },
+    "stage": "fact-review-1",
+    "attempt": "attempt-0",
+    "source_turn_index": 7,
+    "count_identity": "20f48862320c663f09e7f7b2f570b2db9ab6ac3d3865e08eefdaadc9920a86a8",
+    "input_tokens": 53485,
+    "model": "gpt-6.1-terra",
+    "receipt_path": "tmp/hieroglyphs-30m-script-2026-11-15/export/archive/fact-review-1/069-source_context_count-response_blob.json",
+    "after_funding": true
+  },
+  {
+    "event_ref": {
+      "record_kind": "tool_execution",
+      "record_id": "7c8421a7-5dab-528c-9435-c0da6ffaf3fd"
+    },
+    "stage": "fact-review-2",
+    "attempt": "attempt-0",
+    "source_turn_index": 0,
+    "count_identity": "34d7c1458d2b4b5fc3f78003344f1e218f482233d3a43f96d3b4044e18a43909",
+    "input_tokens": 45355,
+    "model": "gpt-6.1-terra",
+    "receipt_path": "tmp/hieroglyphs-30m-script-2026-11-15/export/archive/fact-review-2/001-source_context_count-response_blob.json",
+    "after_funding": true
+  },
+  {
+    "event_ref": {
+      "record_kind": "tool_execution",
+      "record_id": "0d212294-4d62-501b-ba20-a1e4545cf070"
+    },
+    "stage": "fact-review-2",
+    "attempt": "attempt-0",
+    "source_turn_index": 1,
+    "count_identity": "757e1eca23034d96dc4f4ebff58949438c79eac04ab60758a0f55dc6afcde7c8",
+    "input_tokens": 46418,
+    "model": "gpt-6.1-terra",
+    "receipt_path": "tmp/hieroglyphs-30m-script-2026-11-15/export/archive/fact-review-2/011-source_context_count-response_blob.json",
+    "after_funding": true
+  },
+  {
+    "event_ref": {
+      "record_kind": "tool_execution",
+      "record_id": "8c5a6edf-490b-5bfd-8a70-205ab866af99"
+    },
+    "stage": "fact-review-2",
+    "attempt": "attempt-0",
+    "source_turn_index": 2,
+    "count_identity": "5c7dc918cab1a78abc23180bd066d934a3cb539e2d34724cc342bf8eeb296690",
+    "input_tokens": 47580,
+    "model": "gpt-6.1-terra",
+    "receipt_path": "tmp/hieroglyphs-30m-script-2026-11-15/export/archive/fact-review-2/021-source_context_count-response_blob.json",
+    "after_funding": true
+  },
+  {
+    "event_ref": {
+      "record_kind": "tool_execution",
+      "record_id": "f02fe21e-e0f1-5473-b3c9-9b5ecdaa194b"
+    },
+    "stage": "fact-review-2",
+    "attempt": "attempt-0",
+    "source_turn_index": 3,
+    "count_identity": "74d9e0fd80276ccafe8b96ee0b693daabe964cca651fc592d1ceb0eb7cc5ac9e",
+    "input_tokens": 48604,
+    "model": "gpt-6.1-terra",
+    "receipt_path": "tmp/hieroglyphs-30m-script-2026-11-15/export/archive/fact-review-2/031-source_context_count-response_blob.json",
+    "after_funding": true
+  },
+  {
+    "event_ref": {
+      "record_kind": "tool_execution",
+      "record_id": "a7eaea79-b8c0-5385-aaa2-1a8a9846a839"
+    },
+    "stage": "fact-review-2",
+    "attempt": "attempt-0",
+    "source_turn_index": 4,
+    "count_identity": "53832662cb21e295e42607ac2e8e9ece1747391281325c14e7efee0f07bfb8cd",
+    "input_tokens": 49604,
+    "model": "gpt-6.1-terra",
+    "receipt_path": "tmp/hieroglyphs-30m-script-2026-11-15/export/archive/fact-review-2/041-source_context_count-response_blob.json",
+    "after_funding": true
+  },
+  {
+    "event_ref": {
+      "record_kind": "tool_execution",
+      "record_id": "76fa6e50-dcad-5332-8dc8-23340813637a"
+    },
+    "stage": "fact-review-2",
+    "attempt": "attempt-0",
+    "source_turn_index": 5,
+    "count_identity": "7144428ae435238c0883f407095e910f8c28b8a04b6aa511b283d4a51d415772",
+    "input_tokens": 50745,
+    "model": "gpt-6.1-terra",
+    "receipt_path": "tmp/hieroglyphs-30m-script-2026-11-15/export/archive/fact-review-2/051-source_context_count-response_blob.json",
+    "after_funding": true
+  },
+  {
+    "event_ref": {
+      "record_kind": "tool_execution",
+      "record_id": "826ad013-7eea-5c16-883b-fb59d2e1df3e"
+    },
+    "stage": "fact-review-2",
+    "attempt": "attempt-0",
+    "source_turn_index": 6,
+    "count_identity": "fdab2e41b3d078c5818ee3b2c2a3cb4a571bd2aa3259418d33e4dee8d69ccfb3",
+    "input_tokens": 51963,
+    "model": "gpt-6.1-terra",
+    "receipt_path": "tmp/hieroglyphs-30m-script-2026-11-15/export/archive/fact-review-2/061-source_context_count-response_blob.json",
+    "after_funding": true
+  },
+  {
+    "event_ref": {
+      "record_kind": "tool_execution",
+      "record_id": "27720302-cc4d-51e4-84f6-0e831d1244a3"
+    },
+    "stage": "fact-review-2",
+    "attempt": "attempt-0",
+    "source_turn_index": 7,
+    "count_identity": "e8340895b7d6903ed614e8d97ab47788ddbd7e75bf35331e39629ef362fd8bb6",
+    "input_tokens": 53051,
+    "model": "gpt-6.1-terra",
+    "receipt_path": "tmp/hieroglyphs-30m-script-2026-11-15/export/archive/fact-review-2/071-source_context_count-response_blob.json",
+    "after_funding": true
+  },
+  {
+    "event_ref": {
+      "record_kind": "tool_execution",
+      "record_id": "ffe27ea0-13d4-5175-9eac-c26821299c25"
+    },
+    "stage": "fact-review-2",
+    "attempt": "attempt-0",
+    "source_turn_index": 8,
+    "count_identity": "99be9a3a98c6c0c8155acfbf29f070b91f9fe5b6b79db8b49a82b35f7750b0ad",
+    "input_tokens": 53729,
+    "model": "gpt-6.1-terra",
+    "receipt_path": "tmp/hieroglyphs-30m-script-2026-11-15/export/archive/fact-review-2/080-source_context_count-response_blob.json",
+    "after_funding": true
+  },
+  {
+    "event_ref": {
+      "record_kind": "tool_execution",
+      "record_id": "e6f151c1-e942-5568-82eb-11f045f487a4"
+    },
+    "stage": "fact-review-2",
+    "attempt": "attempt-0",
+    "source_turn_index": 9,
+    "count_identity": "5c0b592e4d7318c68102d36cfb22c50b00e8fc1712959a249bd62fd0c3c220f2",
+    "input_tokens": 55727,
+    "model": "gpt-6.1-terra",
+    "receipt_path": "tmp/hieroglyphs-30m-script-2026-11-15/export/archive/fact-review-2/089-source_context_count-response_blob.json",
+    "after_funding": true
+  },
+  {
+    "event_ref": {
+      "record_kind": "tool_execution",
+      "record_id": "cdda5b34-30b2-53b8-adf9-f996f11211c7"
+    },
+    "stage": "fact-review-2",
+    "attempt": "attempt-0",
+    "source_turn_index": 10,
+    "count_identity": "d109786fe3d815c96be5a6f1d668796b89c57b4f29a5ef15642a14751a1a58ae",
+    "input_tokens": 56879,
+    "model": "gpt-6.1-terra",
+    "receipt_path": "tmp/hieroglyphs-30m-script-2026-11-15/export/archive/fact-review-2/099-source_context_count-response_blob.json",
+    "after_funding": true
+  },
+  {
+    "event_ref": {
+      "record_kind": "tool_execution",
+      "record_id": "873f4433-7d8d-5453-956c-f91d43ad1bb8"
+    },
+    "stage": "fact-review-2",
+    "attempt": "attempt-0",
+    "source_turn_index": 11,
+    "count_identity": "7bbb9fcbfd6e26a4413f180a2f070ae4cbf96d737fad76aef7cf3fd6b5678c43",
+    "input_tokens": 57867,
+    "model": "gpt-6.1-terra",
+    "receipt_path": "tmp/hieroglyphs-30m-script-2026-11-15/export/archive/fact-review-2/109-source_context_count-response_blob.json",
+    "after_funding": true
+  },
+  {
+    "event_ref": {
+      "record_kind": "tool_execution",
+      "record_id": "7c878e36-d158-5f0c-b802-3aa33b8752f2"
+    },
+    "stage": "fact-review-2",
+    "attempt": "attempt-0",
+    "source_turn_index": 12,
+    "count_identity": "e0b402e2e9c6835e179625dc2ad30d394c6f8c6ad1f95caffec0aa97d4edcf99",
+    "input_tokens": 64645,
+    "model": "gpt-6.1-terra",
+    "receipt_path": "tmp/hieroglyphs-30m-script-2026-11-15/export/archive/fact-review-2/119-source_context_count-response_blob.json",
+    "after_funding": true
+  },
+  {
+    "event_ref": {
+      "record_kind": "tool_execution",
+      "record_id": "c34732c6-1571-5f05-885a-c594541c3429"
+    },
+    "stage": "fact-review-2",
+    "attempt": "attempt-0",
+    "source_turn_index": 13,
+    "count_identity": "219130265a53f371e36881c7d071a09da132b76ebf7196518629beac6a358ebd",
+    "input_tokens": 68083,
+    "model": "gpt-6.1-terra",
+    "receipt_path": "tmp/hieroglyphs-30m-script-2026-11-15/export/archive/fact-review-2/128-source_context_count-response_blob.json",
+    "after_funding": true
+  },
+  {
+    "event_ref": {
+      "record_kind": "tool_execution",
+      "record_id": "57ad1fbb-dc2a-5062-a91d-626dec41e658"
+    },
+    "stage": "fact-review-2",
+    "attempt": "attempt-0",
+    "source_turn_index": 14,
+    "count_identity": "a28762e236d525ddf612604425cc0f853c7d3d2786132ccc93099f6e63d8ba00",
+    "input_tokens": 69071,
+    "model": "gpt-6.1-terra",
+    "receipt_path": "tmp/hieroglyphs-30m-script-2026-11-15/export/archive/fact-review-2/138-source_context_count-response_blob.json",
+    "after_funding": true
+  },
+  {
+    "event_ref": {
+      "record_kind": "tool_execution",
+      "record_id": "5668e210-0fae-5094-8cf0-8d160f8f313a"
+    },
+    "stage": "fact-review-2",
+    "attempt": "attempt-0",
+    "source_turn_index": 15,
+    "count_identity": "4c855c75a2e5e56eeef8e23ff9709309fc8786c6f86e0ed3fac4e0cfa76b11a0",
+    "input_tokens": 69888,
+    "model": "gpt-6.1-terra",
+    "receipt_path": "tmp/hieroglyphs-30m-script-2026-11-15/export/archive/fact-review-2/147-source_context_count-response_blob.json",
+    "after_funding": true
+  },
+  {
+    "event_ref": {
+      "record_kind": "tool_execution",
+      "record_id": "ce0533d9-aec4-5b18-aee3-54b92294e4bd"
+    },
+    "stage": "fact-review-2",
+    "attempt": "attempt-0",
+    "source_turn_index": 16,
+    "count_identity": "8e41fa331a5a145363d41691c988bcd0794881f6bb88bab0c3d2ff4f4756e8b6",
+    "input_tokens": 72631,
+    "model": "gpt-6.1-terra",
+    "receipt_path": "tmp/hieroglyphs-30m-script-2026-11-15/export/archive/fact-review-2/156-source_context_count-response_blob.json",
+    "after_funding": true
+  },
+  {
+    "event_ref": {
+      "record_kind": "tool_execution",
+      "record_id": "6fc8f5bb-acb3-5e72-94f2-cf9acb0b9493"
+    },
+    "stage": "fact-review-2",
+    "attempt": "attempt-0",
+    "source_turn_index": 17,
+    "count_identity": "a041d8acbe6578beb7cda51e987dc6ea86ace59743068dfe0242baa90cee2407",
+    "input_tokens": 74254,
+    "model": "gpt-6.1-terra",
+    "receipt_path": "tmp/hieroglyphs-30m-script-2026-11-15/export/archive/fact-review-2/166-source_context_count-response_blob.json",
+    "after_funding": true
+  },
+  {
+    "event_ref": {
+      "record_kind": "tool_execution",
+      "record_id": "40cdd1ba-4f4a-51a0-b989-257be3f75e51"
+    },
+    "stage": "fact-review-2",
+    "attempt": "attempt-0",
+    "source_turn_index": 18,
+    "count_identity": "b4cc0b15a4681789f369ef981891fdf67d0576dc431c2f5861bf7258485df253",
+    "input_tokens": 75429,
+    "model": "gpt-6.1-terra",
+    "receipt_path": "tmp/hieroglyphs-30m-script-2026-11-15/export/archive/fact-review-2/176-source_context_count-response_blob.json",
+    "after_funding": true
+  },
+  {
+    "event_ref": {
+      "record_kind": "tool_execution",
+      "record_id": "46d13459-3ae4-5dce-9b3e-3cd2b8219429"
+    },
+    "stage": "fact-review-2",
+    "attempt": "attempt-0",
+    "source_turn_index": 19,
+    "count_identity": "b85d93808500777dfd287808a6655f6a513c73744a5436da00026cd160cf5916",
+    "input_tokens": 76239,
+    "model": "gpt-6.1-terra",
+    "receipt_path": "tmp/hieroglyphs-30m-script-2026-11-15/export/archive/fact-review-2/185-source_context_count-response_blob.json",
+    "after_funding": true
   },
   {
     "event_ref": {
       "record_kind": "tool_execution",
       "record_id": "651f1bb5-d121-59fa-8511-20ee71780735"
     },
+    "stage": "reader-review",
+    "attempt": "attempt-0",
+    "source_turn_index": null,
     "count_identity": "aaecd0708b0d3bec2849051b0bc66cb0de2cbdb514c7bcc4ed7f29e1d5920fe2",
     "input_tokens": 14205,
-    "native_input_tokens": 14205,
-    "request_sha256": "f17f0d3bdd2dea5621662813e25dad592ec6227a055b9c1851334b54f304a957",
+    "model": "gpt-6.1-terra",
     "receipt_path": "tmp/hieroglyphs-30m-script-2026-11-15/export/archive/reader-review/002-count_response-response_blob.json",
-    "model": "gpt-6.1-terra"
+    "after_funding": false
+  },
+  {
+    "event_ref": {
+      "record_kind": "tool_execution",
+      "record_id": "52346ada-8d85-585c-b2d1-e3372561e23a"
+    },
+    "stage": "reader-review-1",
+    "attempt": "attempt-0",
+    "source_turn_index": null,
+    "count_identity": "27ad253e846220818ee374a2cd1df1665a520f38633a9d9a69f314dee473f1ad",
+    "input_tokens": 23323,
+    "model": "gpt-6.1-terra",
+    "receipt_path": "tmp/hieroglyphs-30m-script-2026-11-15/export/archive/reader-review-1/002-count_response-response_blob.json",
+    "after_funding": true
+  },
+  {
+    "event_ref": {
+      "record_kind": "tool_execution",
+      "record_id": "67f21f2b-041f-576f-8f4f-082e89efac8f"
+    },
+    "stage": "reader-review-2",
+    "attempt": "attempt-0",
+    "source_turn_index": null,
+    "count_identity": "90384f5228f210dd31099ff154d6556243e718e5d73ed3abc391e59547ae7a0d",
+    "input_tokens": 19929,
+    "model": "gpt-6.1-terra",
+    "receipt_path": "tmp/hieroglyphs-30m-script-2026-11-15/export/archive/reader-review-2/002-count_response-response_blob.json",
+    "after_funding": true
+  },
+  {
+    "event_ref": {
+      "record_kind": "tool_execution",
+      "record_id": "c3d2425f-e8f9-5749-a144-a59b61e1e27d"
+    },
+    "stage": "revise-1",
+    "attempt": "attempt-0",
+    "source_turn_index": 0,
+    "count_identity": "014b4dd4114d95e0931714e891ac72cc4dcb3cec72f139377cd8cb032740caf4",
+    "input_tokens": 50961,
+    "model": "claude-opus-5-5",
+    "receipt_path": "tmp/hieroglyphs-30m-script-2026-11-15/export/archive/revise-1/001-source_context_count-response_blob.json",
+    "after_funding": true
+  },
+  {
+    "event_ref": {
+      "record_kind": "tool_execution",
+      "record_id": "ca6de4eb-d6a2-551b-807f-26192ed29a48"
+    },
+    "stage": "revise-1",
+    "attempt": "attempt-0",
+    "source_turn_index": 1,
+    "count_identity": "fac9c816f79248e6eda14c643c016155f9474aacdf9b0a9eaf4dfa6fe51c2010",
+    "input_tokens": 54136,
+    "model": "claude-opus-5-5",
+    "receipt_path": "tmp/hieroglyphs-30m-script-2026-11-15/export/archive/revise-1/010-source_context_count-response_blob.json",
+    "after_funding": true
+  },
+  {
+    "event_ref": {
+      "record_kind": "tool_execution",
+      "record_id": "c57f228e-1944-5665-af53-fb3303027735"
+    },
+    "stage": "revise-2",
+    "attempt": "attempt-0",
+    "source_turn_index": 0,
+    "count_identity": "2d02295f5374cb7a72ab54af9d2b33375747625a69913bfc017118bb732acf31",
+    "input_tokens": 36937,
+    "model": "claude-opus-5-5",
+    "receipt_path": "tmp/hieroglyphs-30m-script-2026-11-15/export/archive/revise-2/001-source_context_count-response_blob.json",
+    "after_funding": true
   }
 ]

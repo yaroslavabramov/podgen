@@ -1,0 +1,15 @@
+{
+  "contract": "offline-anchor-repair-preparation/1",
+  "run_id": "1cd0ac76-3326-58bb-83f0-6ee76847cefe",
+  "source_invocation_id": "94bae70c-50c6-5235-80ca-a09f89af1fd9",
+  "repair_invocation_id": "898ff344-185a-56b0-90fa-c8e3256abdd8",
+  "repair_attempt_index": 2,
+  "operation_kind": "anchor_repair",
+  "status": "prepared",
+  "endpoint_called": false,
+  "original_request_unchanged": true,
+  "evidence": "Existing prepare_anchor_repair completed binding, pinned instructions, schema, selectors and journal preparation without constructing a provider.",
+  "test_log": "/tmp/podgen-request-payload-recovery.log",
+  "test_xml": "/tmp/podgen-request-payload-recovery.xml",
+  "tests_passed": 35
+}

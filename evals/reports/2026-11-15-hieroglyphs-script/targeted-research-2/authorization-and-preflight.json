@@ -1,0 +1,27 @@
+{
+  "contract": "bounded-existing-targeted-research-authorization/1",
+  "recorded_at": "2026-11-14T22:37:39.126448+00:00",
+  "user_authorization": [
+    "делайте прогон сценария",
+    "Баланс пополнен"
+  ],
+  "root_scope_clarification": "One prepared targeted question necessary for the same script uses the remaining second research slot; do not repeat general research/planning or create a third job.",
+  "source_thread_id": "01a07e3b-bf31-7f52-8e9e-0ba159507b5a",
+  "writing_run_id": "1cd0ac76-3326-58bb-83f0-6ee76847cefe",
+  "episode_run_id": "9af453a9-9dc2-426c-9f79-01f4d93ec08b",
+  "research_run_id": "03fd4f04-068a-5bf6-93e3-0129930c6e11",
+  "request_hash": "7ff8bcdc500f5d05e33486ac81cabf4675de0b368c2e2acc66f7eb911ec9434b",
+  "research_job_limit": 2,
+  "submitted_jobs_before": 1,
+  "lineage_prepared_job_ids": [
+    "9165b204-80f8-5f0f-bcbf-ef8ee76450b0",
+    "03fd4f04-068a-5bf6-93e3-0129930c6e11"
+  ],
+  "accepts_variable_research_cost": true,
+  "question": "Проверьте на египтологических источниках конкретное окончание картуша Клеопатры на обелиске Филе, сравнивавшегося Шампольоном: каковы последние два знака (хлебец t и яйцо?), является ли t фонетическим показателем женского рода, какова функция яйца, и произносилось ли t в соответствующую эпоху? Укажите надёжные доступные источники с текстом. Дополнительно: транслитерация египетских слов «солнце» и имени Ра, связь с коптским re и число согласных в древнем написании.",
+  "reason": "Прежний аудит не завершил проверку классификации обоих знаков как непроизносимых определителей; новая формулировка сравнивает Ра и коптское ре и утверждает, что на письме один согласный. Нужны точные источники для решения, есть ли существенные ошибки и как их исправить.",
+  "same_profile_and_instructions": true,
+  "third_job_authorized": false,
+  "script_revision_limit": 2,
+  "tts_authorized": false
+}

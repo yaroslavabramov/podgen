@@ -1,0 +1,67 @@
+{
+  "contract": "explicit-funded-credit-recovery/1",
+  "recorded_at": "2026-11-14T22:08:28.564769+00:00",
+  "user_instruction": "Баланс пополнен",
+  "source_thread_id": "01a07e3b-bf31-7f52-8e9e-0ba159507b5a",
+  "run_id": "1cd0ac76-3326-58bb-83f0-6ee76847cefe",
+  "retry_target_invocation_id": "e70688b0-e79a-5ffe-82ec-d436de3f4b86",
+  "recovery_kind": "credit-refusal-retry-v1",
+  "maximum_new_refusal_retry_attempts": 1,
+  "manifest_hash": "067b7df3f18f66882588d9178375e54c7c7772c28b08fa494028ad9bdc0862e9",
+  "preserved_output_records": {
+    "draft": "c2326791-8010-5be0-a9c3-79b9957d273a",
+    "reader-review": "a49221d2-eaa5-52d9-8063-f7529f600f5b"
+  },
+  "preserved_fact_response_ids": [
+    "resp_084608c5e403c2b1016af8d63ea8fc87d2aea89bb688ded913",
+    "resp_084608c5e403c2b1016af8d6423dbc87d28a2a3e1d842bc06b",
+    "resp_084608c5e403c2b1016af8d6452be887d28bc4eca0068640aa",
+    "resp_084608c5e403c2b1016af8d648183487d2926bd2ba3c9ecce2",
+    "resp_084608c5e403c2b1016af8d655a09c87d29966eae6b4b4cdd8",
+    "resp_084608c5e403c2b1016af8d6585c8487d28594d301c965fcc9",
+    "resp_084608c5e403c2b1016af8d65b00a887d2b177a55f306f9fcc",
+    "resp_084608c5e403c2b1016af8d66054d887d281467b2bd477537b",
+    "resp_084608c5e403c2b1016af8d6634d6487d2af1da5a653164197"
+  ],
+  "preserved_fact_event_refs": [
+    {
+      "record_kind": "tool_execution",
+      "record_id": "bd6503fa-361a-5cf0-8584-e5377dd8e761"
+    },
+    {
+      "record_kind": "tool_execution",
+      "record_id": "cd2e2cc4-6092-5dc6-8d45-f5991181193a"
+    },
+    {
+      "record_kind": "tool_execution",
+      "record_id": "b6a77daf-36dd-5f41-a354-30d1f706e32f"
+    },
+    {
+      "record_kind": "tool_execution",
+      "record_id": "376a8fd9-c61c-5484-9a7d-64edecf10cff"
+    },
+    {
+      "record_kind": "tool_execution",
+      "record_id": "c7156f74-63b6-5a19-a1fe-1ab81d424009"
+    },
+    {
+      "record_kind": "tool_execution",
+      "record_id": "81b672f3-302e-5a20-b690-ecffc3105d89"
+    },
+    {
+      "record_kind": "tool_execution",
+      "record_id": "f4bb2776-320d-536b-9a71-e01d8a770b4f"
+    },
+    {
+      "record_kind": "tool_execution",
+      "record_id": "23588579-2004-5934-8e89-0d3a41efe4a8"
+    },
+    {
+      "record_kind": "tool_execution",
+      "record_id": "c6d6921a-d82d-5dd6-a5dd-5758f4cbe082"
+    }
+  ],
+  "max_script_revisions": 2,
+  "tts_authorized": false,
+  "models_prompts_materials_limits_unchanged": true
+}

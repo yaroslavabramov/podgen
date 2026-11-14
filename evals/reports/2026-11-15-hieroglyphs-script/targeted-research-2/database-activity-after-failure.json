@@ -1,0 +1,57 @@
+[
+  {
+    "pid": 49130,
+    "application_name": "",
+    "state": "idle",
+    "wait_event_type": "Client",
+    "wait_event": "ClientRead",
+    "xact_start": null,
+    "backend_start": "2026-11-15 01:58:30.527476+03",
+    "blockers": [],
+    "query": "SELECT pg_try_advisory_lock(hashtextextended($1,0)) AS held"
+  },
+  {
+    "pid": 49131,
+    "application_name": "",
+    "state": "idle",
+    "wait_event_type": "Client",
+    "wait_event": "ClientRead",
+    "xact_start": null,
+    "backend_start": "2026-11-15 01:58:30.599324+03",
+    "blockers": [],
+    "query": "SELECT pg_try_advisory_lock(hashtextextended($1,0)) AS held"
+  },
+  {
+    "pid": 49145,
+    "application_name": "",
+    "state": "active",
+    "wait_event_type": null,
+    "wait_event": null,
+    "xact_start": "2026-11-15 01:59:21.801926+03",
+    "backend_start": "2026-11-15 01:58:34.277272+03",
+    "blockers": [],
+    "query": "\nWITH expansion AS (\n SELECT owner_versions FROM execution_input_expansions WHERE project_id=$1 AND set_id=$2\n), freshness AS (\n SELECT count(*)>0 AND bool_and(COALESCE(p.validity_version=owner.value::bigint,false)) AS f"
+  },
+  {
+    "pid": 49146,
+    "application_name": "",
+    "state": "idle",
+    "wait_event_type": "Client",
+    "wait_event": "ClientRead",
+    "xact_start": null,
+    "backend_start": "2026-11-15 01:58:40.260621+03",
+    "blockers": [],
+    "query": "COMMIT"
+  },
+  {
+    "pid": 49147,
+    "application_name": "",
+    "state": "idle",
+    "wait_event_type": "Client",
+    "wait_event": "ClientRead",
+    "xact_start": null,
+    "backend_start": "2026-11-15 01:58:40.390767+03",
+    "blockers": [],
+    "query": "ROLLBACK"
+  }
+]

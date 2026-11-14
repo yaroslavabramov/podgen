@@ -1,0 +1,115 @@
+{
+  "contract": "unsent-cumulative-input-budget-refusal/1",
+  "run_id": "1cd0ac76-3326-58bb-83f0-6ee76847cefe",
+  "stage": "fact-review-2",
+  "source_turn_index": 19,
+  "input_limit": 4194304,
+  "paid_completed_input_in_this_run": 4175299,
+  "remaining_input": 19005,
+  "next_request_exact_input": 76239,
+  "total_if_submitted": 4251538,
+  "over_limit_by": 57234,
+  "next_request_submitted": false,
+  "next_request_generation_usage": 0,
+  "exact_count_receipt": {
+    "record_ref": {
+      "record_kind": "tool_execution",
+      "record_id": "46d13459-3ae4-5dce-9b3e-3cd2b8219429"
+    },
+    "contract": "model-invocation-event-v1",
+    "invocation_id": "38490e0b-a5d5-576b-8756-ed69f13df3f8",
+    "event_kind": "source_context_count",
+    "request_ref": {
+      "record_kind": "tool_execution",
+      "record_id": "75d99404-7f8c-50af-bc7b-03c592b9287a"
+    },
+    "data": {
+      "request_hash": "269a6137d482983b9c27313069f97b2d60786c66708fb3f27c3f7f2246a77bca",
+      "input_tokens": 76239,
+      "turn_index": 19,
+      "label": "normal",
+      "count_identity": "b85d93808500777dfd287808a6655f6a513c73744a5436da00026cd160cf5916",
+      "count_contract": "exact-native-count/1",
+      "count_intent_ref": {
+        "record_kind": "tool_execution",
+        "record_id": "75130e25-69d3-5533-8c07-be77c66d842b"
+      },
+      "native_request_blob": {
+        "storage_key": "30619987-72ed-4e7e-bd53-3db4b55b64ed/content-v1/324d96c1cdfe69fa46d6a23b8c659a53c4733c9da26b604c3a715e52a48276cc/bacb769b46f6d169fb227ea026550f411d46cbe66a9c2a6ba36449c8cf8e4dea",
+        "sha256": "324d96c1cdfe69fa46d6a23b8c659a53c4733c9da26b604c3a715e52a48276cc",
+        "byte_length": 373437,
+        "media_type": "application/json"
+      },
+      "provider_configuration": {
+        "provider": "openai",
+        "api_family": "responses",
+        "adapter_version": "openai-responses-v1",
+        "model_revision_or_alias": "gpt-6.1-terra",
+        "generation_parameters": {
+          "reasoning": {
+            "effort": "medium"
+          },
+          "text": {
+            "verbosity": "high"
+          },
+          "store": false,
+          "background": false
+        },
+        "context_limit": 200000,
+        "output_limit": 24576,
+        "timeout_policy": {
+          "rpc_timeout_seconds": 1800,
+          "poll_deadline_seconds": 1800
+        }
+      }
+    },
+    "response_blob": {
+      "storage_key": "30619987-72ed-4e7e-bd53-3db4b55b64ed/content-v1/41f71394210954c07b001c20b295382f3d1464b3532928c6ae0dd4298a0d89ac/bacb769b46f6d169fb227ea026550f411d46cbe66a9c2a6ba36449c8cf8e4dea",
+      "sha256": "41f71394210954c07b001c20b295382f3d1464b3532928c6ae0dd4298a0d89ac",
+      "byte_length": 64,
+      "media_type": "application/json"
+    },
+    "wire_request_blob": {
+      "storage_key": "30619987-72ed-4e7e-bd53-3db4b55b64ed/content-v1/0a8d006633b8282dfbac6e289c5dd0784ed4be00491db1b30abe219cf9d0b4d1/bacb769b46f6d169fb227ea026550f411d46cbe66a9c2a6ba36449c8cf8e4dea",
+      "sha256": "0a8d006633b8282dfbac6e289c5dd0784ed4be00491db1b30abe219cf9d0b4d1",
+      "byte_length": 373437,
+      "media_type": "application/json"
+    },
+    "provider_http_status": 200,
+    "provider_request_id": "req_1e3d4653e8d94a5eb0326d443d968723",
+    "secret_redacted": false,
+    "journal_version": "execution-journal/3"
+  },
+  "script_only_physical_input": 3503232,
+  "prior_planning_input": 672067,
+  "exporter_input_total": 2842949,
+  "exporter_missing_partial_input": 1332350,
+  "after_research_physical_calls": {
+    "count_calls": 8,
+    "generation_calls": 7,
+    "distinct_count_identities": 8,
+    "measured_count_input_tokens": 570240,
+    "usage": {
+      "input_tokens": 494001,
+      "output_tokens": 428,
+      "cached_input_tokens": 418554,
+      "cache_write_tokens": 75426,
+      "uncached_input_tokens": 75447
+    },
+    "by_model": {
+      "gpt-6.1-terra": {
+        "generation_calls": 7,
+        "input_tokens": 494001,
+        "output_tokens": 428,
+        "cached_input_tokens": 418554,
+        "cache_write_tokens": 75426
+      }
+    },
+    "generation_cost_usd": null,
+    "count_cost_usd": null,
+    "cache_cost_usd": null
+  },
+  "reading_outcome": null,
+  "final_fact_verdict": null,
+  "third_revision_or_job_authorized": false
+}

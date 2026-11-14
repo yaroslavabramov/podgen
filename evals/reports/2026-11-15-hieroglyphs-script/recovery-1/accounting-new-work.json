@@ -1,0 +1,32 @@
+{
+  "count_calls": 62,
+  "generation_calls": 62,
+  "distinct_count_identities": 62,
+  "measured_count_input_tokens": 3118027,
+  "usage": {
+    "input_tokens": 3075589,
+    "output_tokens": 51444,
+    "cached_input_tokens": 2723889,
+    "cache_write_tokens": 318025,
+    "uncached_input_tokens": 351700
+  },
+  "by_model": {
+    "gpt-6.1-terra": {
+      "generation_calls": 59,
+      "input_tokens": 2933555,
+      "output_tokens": 46254,
+      "cached_input_tokens": 2672932,
+      "cache_write_tokens": 226958
+    },
+    "claude-opus-5-5": {
+      "generation_calls": 3,
+      "input_tokens": 142034,
+      "output_tokens": 5190,
+      "cached_input_tokens": 50957,
+      "cache_write_tokens": 91067
+    }
+  },
+  "generation_cost_usd": null,
+  "count_cost_usd": null,
+  "cache_cost_usd": null
+}
