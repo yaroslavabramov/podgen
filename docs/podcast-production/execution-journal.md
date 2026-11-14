@@ -96,11 +96,10 @@ Object I/O still ends remote metadata snapshots and requires fresh checks.
 Prepared SourceCorpus operations use that same run input scope before and after
 execution; unbound/legacy corpus reads retain their original authorization.
 
-ExecutionStore owns a 512-entry / 2 MiB cache of narrow immutable control
+ExecutionStore owns a 512-entry / 2 MiB serialized-metadata cache of narrow immutable control
 metadata. Run/set ownership, parent headers, physical turn identity and exact
 call/blob bindings are descriptors, never permission grants. Transaction-local
-bounded overlays merge only after commit; rollback neither publishes new entries
-nor changes their recency. Eviction causes exact indexed reads, not weaker checks.
+bounded overlays merge only after commit; rollback does not publish new entries. Eviction causes exact indexed reads, not weaker checks.
 ACL, live input conditions, parent withdrawals and SHA flags remain uncached
 between snapshots. Full native payloads are never stored in this descriptor cache.
 

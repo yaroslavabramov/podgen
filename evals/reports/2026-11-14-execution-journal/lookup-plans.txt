@@ -1,0 +1,11 @@
+{"history_size": 0, "parent_rows": 2, "queries": 2, "actual_rows_visited": 5, "plans": [{"table": "runtime_records", "alias": "rr", "method": "Seq Scan", "rows": 2, "loops": 1, "removed": 2}, {"table": "evaluation_invocation_events", "alias": "e", "method": "Seq Scan", "rows": 1, "loops": 1, "removed": 0}]}
+.{"history_size": 128, "parent_rows": 2, "queries": 2, "actual_rows_visited": 266, "plans": [{"table": "runtime_records", "alias": "rr", "method": "Seq Scan", "rows": 2, "loops": 1, "removed": 134}, {"table": "evaluation_invocation_events", "alias": "e", "method": "Seq Scan", "rows": 130, "loops": 1, "removed": 0}]}
+.{"history_size": 4096, "parent_rows": 2, "queries": 2, "actual_rows_visited": 3, "plans": [{"table": "runtime_records", "alias": "rr", "method": "Index Scan", "rows": 2, "loops": 1, "removed": 0}, {"table": "evaluation_invocation_events", "alias": "e", "method": "Index Scan", "rows": 1, "loops": 1, "removed": 0}]}
+.
+=============================== warnings summary ===============================
+tests/test_execution_control_growth.py::test_parent_bundle_uses_bounded_queries_and_indexes_for_large_history[0]
+  /Users/yaroslavabramov/side/podgen/backend/.venv/lib/python3.14/site-packages/alembic/config.py:604: DeprecationWarning: No path_separator found in configuration; falling back to legacy splitting on spaces, commas, and colons for prepend_sys_path.  Consider adding path_separator=os to Alembic config.
+    util.warn_deprecated(
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+3 passed, 1 warning in 1.30s
