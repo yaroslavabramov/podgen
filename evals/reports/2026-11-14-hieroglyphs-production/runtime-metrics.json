@@ -1,0 +1,175 @@
+{
+  "attempts": [
+    {
+      "elapsed_seconds": 1420.4123384580002,
+      "phase": "startup",
+      "sql_executions": {
+        "startup": 149,
+        "research": 2666,
+        "materials": 21253,
+        "writing": 17183
+      },
+      "http_requests": {
+        "research: POST generativelanguage.googleapis.com": 1,
+        "research: GET generativelanguage.googleapis.com": 27,
+        "materials: GET vertexaisearch.cloud.google.com": 54,
+        "materials: GET egyptophile.blogspot.com": 1,
+        "materials: GET ponjatija.ru": 1,
+        "materials: GET egyptra.pro": 1,
+        "materials: GET history.rcp.ac.uk": 1,
+        "materials: GET ru.wikipedia.org": 6,
+        "materials: GET arheologija.ru": 1,
+        "materials: GET www.guinnessworldrecords.com": 1,
+        "materials: GET echoesofegypt.peabody.yale.edu": 1,
+        "materials: GET archive.schillerinstitute.com": 1,
+        "materials: GET 21sci-tech.com": 1,
+        "materials: GET www.youtube.com": 1,
+        "materials: GET en.wikipedia.org": 6,
+        "materials: GET resolve.cambridge.org": 1,
+        "materials: GET www.cambridge.org": 4,
+        "materials: GET www.bibalex.org": 1,
+        "materials: GET www.voicesofancientegypt.com": 1,
+        "materials: GET www.mentalfloss.com": 1,
+        "materials: GET www.thevintagenews.com": 1,
+        "materials: GET www.natureasia.com": 1,
+        "materials: GET pubs.aip.org": 1,
+        "materials: GET anbeal.co.uk": 1,
+        "materials: GET www.britannica.com": 1,
+        "materials: GET www.divulgatum.com": 1,
+        "materials: GET artjourneyparis.com": 1,
+        "materials: GET the-past.com": 2,
+        "materials: GET izogradinka.livejournal.com": 1,
+        "materials: GET www.interglossa.com": 1,
+        "materials: GET paleocentrum.ru": 1,
+        "materials: GET www.litres.ru": 2,
+        "materials: GET www.learnhieroglyphics.com": 1,
+        "materials: GET www.scribd.com": 1,
+        "materials: GET fr.wikisource.org": 1,
+        "materials: GET www.andrewmarcus.ru": 1,
+        "materials: GET mapy.com": 2,
+        "materials: GET www.smithsonianmag.com": 1,
+        "materials: GET ancientegyptalive.com": 1,
+        "materials: GET fan-project.livejournal.com": 1,
+        "materials: GET modernlib.net": 1,
+        "materials: GET www.historyofinformation.com": 1,
+        "materials: GET www.egyptos.net": 1,
+        "materials: GET egittolizzando.altervista.org": 1,
+        "materials: GET vk.ru": 1,
+        "materials: GET m.vk.ru": 1,
+        "materials: GET ru.wikiversity.org": 1,
+        "materials: GET alchetron.com": 1,
+        "materials: GET www.westminster-abbey.org": 1,
+        "writing: POST api.anthropic.com": 16
+      },
+      "completed_phase_seconds": {
+        "research": 34.251249331000054,
+        "materials": 174.19684120800002,
+        "writing": 806.5492286660001
+      },
+      "objects": {
+        "stage_calls": 545,
+        "staged_bytes": 69890518,
+        "stream_calls": 598,
+        "read_bytes": 176288934,
+        "publish_calls": 464,
+        "published_bytes": 66255791,
+        "read_calls": 358
+      },
+      "peak_rss_bytes": 1312735232,
+      "limitations": [
+        "Client SQL executions, excluding internal trigger queries.",
+        "Object bytes cover repository reads and logical writes, excluding text-projection mmap and OS caches.",
+        "HTTP attempts count httpx sends; paid usage is reported from saved provider receipts separately."
+      ]
+    },
+    {
+      "elapsed_seconds": 854.9550921249993,
+      "phase": "startup",
+      "sql_executions": {
+        "startup": 38,
+        "writing": 12716,
+        "audio": 2669
+      },
+      "http_requests": {
+        "writing: POST api.anthropic.com": 4,
+        "audio: POST generativelanguage.googleapis.com": 1
+      },
+      "completed_phase_seconds": {
+        "writing": 795.3938281670007,
+        "audio": 59.45995158400001
+      },
+      "objects": {
+        "stream_calls": 240,
+        "read_bytes": 134340166,
+        "read_calls": 78,
+        "stage_calls": 187,
+        "staged_bytes": 98747996,
+        "publish_calls": 187,
+        "published_bytes": 98747996
+      },
+      "peak_rss_bytes": 1309835264,
+      "limitations": [
+        "Client SQL executions, excluding internal trigger queries.",
+        "Object bytes cover repository reads and logical writes, excluding text-projection mmap and OS caches.",
+        "HTTP attempts count httpx sends; paid usage is reported from saved provider receipts separately."
+      ]
+    },
+    {
+      "elapsed_seconds": 128.2524950830002,
+      "phase": "startup",
+      "sql_executions": {
+        "startup": 36,
+        "audio": 5017,
+        "export": 4888
+      },
+      "http_requests": {
+        "audio: POST generativelanguage.googleapis.com": 1
+      },
+      "completed_phase_seconds": {
+        "audio": 119.57653912499973,
+        "export": 8.561610124999788
+      },
+      "objects": {
+        "stream_calls": 63,
+        "read_bytes": 652469230,
+        "read_calls": 563,
+        "stage_calls": 10,
+        "staged_bytes": 305115041,
+        "publish_calls": 8,
+        "published_bytes": 250715551
+      },
+      "peak_rss_bytes": 1049378816,
+      "limitations": [
+        "Client SQL executions, excluding internal trigger queries.",
+        "Object bytes cover repository reads and logical writes, excluding text-projection mmap and OS caches.",
+        "HTTP attempts count httpx sends; paid usage is reported from saved provider receipts separately."
+      ]
+    }
+  ],
+  "total_sql_executions": 66615,
+  "sql_by_phase": {
+    "startup": 223,
+    "research": 2666,
+    "materials": 21253,
+    "writing": 29899,
+    "audio": 7686,
+    "export": 4888
+  },
+  "active_process_elapsed_seconds": 2403.6199256659997,
+  "object_totals": {
+    "stage_calls": 742,
+    "staged_bytes": 473753555,
+    "stream_calls": 901,
+    "read_bytes": 963098330,
+    "publish_calls": 659,
+    "published_bytes": 415719338,
+    "read_calls": 999
+  },
+  "peak_rss_bytes": 1312735232,
+  "limitations": [
+    "Elapsed time sums three CLI attempts, including research polling waits; excludes debugging, tests, database restoration and other gaps.",
+    "Client SQL executions exclude trigger-internal queries. The export phase is included separately.",
+    "HTTP observer misses OpenAI httpx2 sends. Use native receipt counts for generations.",
+    "Object bytes exclude projection mmap and OS caches."
+  ]
+}
