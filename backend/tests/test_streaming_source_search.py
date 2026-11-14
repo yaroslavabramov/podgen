@@ -190,10 +190,18 @@ def test_real_sql_search_retrieves_and_pages_a_needle_beyond_every_old_corpus_li
     assert (
         first["result_scope"] == "ranked_candidates" and first["returned_candidates"] == first["total_hits"]
     )
-    assert first["next_offset"] is not None
-    second = search.search(
-        SimpleNamespace(
-            **(vars(args) | dict(offset=first["next_offset"], result_version=first["result_version"]))
+    if first["next_offset"] is not None:
+        second = search.search(
+            SimpleNamespace(
+                **(vars(args) | dict(offset=first["next_offset"], result_version=first["result_version"]))
+            )
         )
-    )
-    assert second["result_version"] == first["result_version"] and second["hits"] != first["hits"]
+        assert second["hits"] != first["hits"]
+    else:
+        grouped = next(hit for hit in first["hits"] if "next_alias_page" in hit)
+        second = search.search(SimpleNamespace(**grouped["next_alias_page"]["arguments"]))
+        assert second["aliases"] and second["aliases"] != grouped["aliases"]
+        assert second["alias_count"] == grouped["alias_count"] > 12000
+        for alias in second["aliases"]:
+            assert 0 <= alias["start"] < alias["end"] <= len(documents[alias["source_id"]].text)
+    assert second["result_version"] == first["result_version"]

@@ -44,7 +44,7 @@ METHODS = {
 }
 
 
-def definitions(*, retrieval=False):
+def definitions(*, retrieval=False, retrieval_policy=None):
     tools = [
         dict(
             type="function",
@@ -71,4 +71,8 @@ def definitions(*, retrieval=False):
             "A search question, words, name or identifier in any supported language, including "
             "output_language. At most 1000 characters and 128 model tokens. Empty lists locations."
         )
+    if retrieval_policy is not None:
+        from .retrieval_policy import bind
+
+        bind(tools, retrieval_policy)
     return tools

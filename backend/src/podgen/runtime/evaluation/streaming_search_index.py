@@ -16,6 +16,8 @@ from .source_search_membership import bind, register_dependencies
 
 
 class StreamingSearchIndex(PostgresSearchIndex):
+    passage_table = "source_search_document_chunks"
+
     def __init__(self, journal, shared_input_ref, profile, *, run_id):
         from uuid import uuid5
 
@@ -116,7 +118,7 @@ class StreamingSearchIndex(PostgresSearchIndex):
         # Exhaustive branches operate over this run's labels and completed data.
         # Shared vectors never imply that another run may search a document.
         return (
-            "WITH permitted AS (SELECT m.source_id,c.start_offset,c.end_offset,c.language,c.lexical,c.exact_terms,c.phrase_text,c.embedding "
+            "WITH permitted AS (SELECT m.source_id,c.start_offset,c.end_offset,c.language,c.lexical,c.exact_terms,c.phrase_text,c.embedding,c.passage_sha256 "
             "FROM source_search_memberships m JOIN source_search_documents d ON d.project_id=m.project_id AND d.document_key=m.document_key "
             "JOIN source_search_document_chunks c ON c.project_id=d.project_id AND c.document_key=d.document_key WHERE "
             + " AND ".join("m." + part for part in WHERE.split(" AND "))
@@ -152,6 +154,11 @@ class StreamingSearchIndex(PostgresSearchIndex):
                 **self.params,
                 key=key,
             )
-            if row is None or row["request"]["query"] != text or row["request"]["within"] != within:
+            if (
+                row is None
+                or row["request"]["query"] != text
+                or row["request"]["within"] != within
+                or row["request"].get("retrieval_policy") != self.profile.get("retrieval_policy")
+            ):
                 raise Conflict("source_search_result_version_mismatch")
             return row["results"]

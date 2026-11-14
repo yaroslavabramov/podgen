@@ -23,7 +23,7 @@ def adopt(index, tx, source_id, key, doc, language):
         s=source_id,
         sha=doc.digest,
         length=len(doc.text),
-        profile=json.dumps(index.profile),
+        profile=json.dumps(index.storage_profile),
         language=language,
     )
     # Any completed exact-content candidate is equivalent. Avoid sorting every
@@ -64,7 +64,7 @@ def adopt(index, tx, source_id, key, doc, language):
     copied = query(
         tx,
         "INSERT INTO source_search_document_chunks "
-        "SELECT project_id,:document,start_offset,end_offset,language,lexical,exact_terms,phrase_text,embedding "
+        "SELECT project_id,:document,start_offset,end_offset,language,lexical,exact_terms,phrase_text,embedding,passage_sha256 "
         "FROM source_search_chunks WHERE " + LEGACY,
         **params,
         document=key,

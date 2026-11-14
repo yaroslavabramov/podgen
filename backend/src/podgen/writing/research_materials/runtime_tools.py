@@ -5,6 +5,8 @@ from typing import Literal
 from pydantic import Field
 
 from podgen.writing.source_tools.contracts import Arguments, Search
+from podgen.writing.source_tools.retrieval_policy import DiverseSearch
+from podgen.writing.source_tools.retrieval_policy import schema as policy_schema
 
 
 class CatalogPage(Arguments):
@@ -21,6 +23,10 @@ class PersistentSearch(Search):
     result_version: str | None = Field(
         description="Null for a new search; reuse returned result_version with next_offset for exact persistent result pages, including after corpus expansion."
     )
+
+
+class DiversePersistentSearch(PersistentSearch, DiverseSearch):
+    pass
 
 
 class ResearchCitationPage(SourceCatalogPage):
@@ -155,12 +161,16 @@ def definitions(*, history_view=None):
     ]
 
 
-def source_definitions(original):
+def source_definitions(original, *, retrieval_policy=None):
     from copy import deepcopy
 
     result = deepcopy(original)
     search = next(tool for tool in result if tool["name"] == "search_sources")
-    schema = PersistentSearch.model_json_schema()
+    schema = (
+        PersistentSearch.model_json_schema()
+        if retrieval_policy is None
+        else policy_schema(DiversePersistentSearch)
+    )
     for name in ("query", "within", "offset"):
         schema["properties"][name]["description"] = search["parameters"]["properties"][name]["description"]
     search["parameters"] = schema

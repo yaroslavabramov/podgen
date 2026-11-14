@@ -2,11 +2,13 @@
 
 import json
 from contextlib import contextmanager
+from hashlib import sha256
 
 from podgen.domain.canonical import digest
 from podgen.domain.errors import Conflict
 from podgen.persistence.database import one, query
 from podgen.retrieval import RetrievalUnavailable
+from podgen.retrieval.config import storage_profile
 from podgen.retrieval.lexical import words
 
 DOCUMENT = "project_id=:p AND document_key=:document"
@@ -14,14 +16,13 @@ VERSION = "source-document-projection/1"
 
 
 def identity(doc, profile, language):
-    # The whole pinned profile includes weights, tokenizer, chunking, prefixes,
-    # pooling and lexical rules. Query-only changes conservatively invalidate too.
+    # The explicit result policy changes ranking, never document computation.
     return digest(
         dict(
             version=VERSION,
             source_sha256=doc.digest,
             source_length=len(doc.text),
-            profile=profile,
+            profile=storage_profile(profile),
             language=language,
             coordinates="python-unicode-codepoints/1",
         )
@@ -64,7 +65,7 @@ class DocumentProjection:
             if (row["source_sha256"], row["source_length"], row["profile"], row["language"]) != (
                 doc.digest,
                 len(doc.text),
-                self.index.profile,
+                self.index.storage_profile,
                 language,
             ):
                 raise Conflict("source_search_document_binding_changed")
@@ -77,7 +78,7 @@ class DocumentProjection:
             sha=doc.digest,
             length=len(doc.text),
             h=self.index.params["h"],
-            profile=json.dumps(self.index.profile),
+            profile=json.dumps(self.index.storage_profile),
             language=language,
         )
         return dict(cursor_position=0, completed=False, chunk_count=0)
@@ -99,7 +100,7 @@ class DocumentProjection:
             query(
                 tx,
                 "INSERT INTO source_search_document_chunks VALUES(:p,:document,:start,:end,:language,"
-                "to_tsvector(CAST(:config AS regconfig),:text),:terms,:phrase,CAST(:vector AS vector))",
+                "to_tsvector(CAST(:config AS regconfig),:text),:terms,:phrase,CAST(:vector AS vector),:passage)",
                 **params,
                 start=start,
                 end=end,
@@ -109,6 +110,7 @@ class DocumentProjection:
                 terms=sorted(set(tokens)),
                 phrase=" ".join(tokens),
                 vector=json.dumps(vector.tolist()),
+                passage=sha256(text.encode()).hexdigest(),
             )
         query(
             tx,

@@ -9,7 +9,7 @@ from podgen.persistence.source_reading import read_sources
 from . import QueryRejected, RetrievalUnavailable
 from .assets import cache_root
 from .chunks import Chunk, spans
-from .config import validate
+from .config import diverse, validate
 from .lexical import language, words
 from .onnx_models import models
 from .preview import page
@@ -43,6 +43,8 @@ class HybridSearch:
                 ):
                     raise RetrievalUnavailable("source_search_embedding_shape_mismatch")
                 index.add_document(source_id, doc, ranges, code, vectors)
+        if diverse(profile) and hasattr(index, "prepare_passages"):
+            index.prepare_passages(documents)
 
     def _scope(self, within):
         if within is None:
@@ -91,7 +93,15 @@ class HybridSearch:
             self.results[key] = self._rank(args.query, allowed)
             while len(self.results) > 32:
                 self.results.popitem(last=False)
-        return page(self.results[key], self.documents, args.query, args.offset, self.profile)
+        return page(
+            self.results[key],
+            self.documents,
+            args.query,
+            args.offset,
+            self.profile,
+            aliases_of=getattr(args, "aliases_of", None),
+            within=args.within,
+        )
 
     def diagnostics(self, args):
         return dict(
@@ -105,14 +115,25 @@ class HybridSearch:
         return chunk.source_id in allowed and chunk in self.chunks
 
     def _rank(self, query, allowed):
+        grouping = diverse(self.profile)
         branches = self.index.candidates(
-            query, self.models.query(query), allowed, self.profile["candidate_pool"]
+            query,
+            self.models.query(query),
+            allowed,
+            self.profile["candidate_pool"],
+            **({"group_exact": True} if grouping else {}),
         )
         reciprocal = defaultdict(float)
         diagnostics = defaultdict(dict)
         branch_ranks = defaultdict(dict)
+        aliases = {}
         for name, branch in branches.items():
-            for position, (chunk, score) in enumerate(branch, 1):
+            for position, candidate in enumerate(branch, 1):
+                chunk, score = candidate[:2]
+                members = candidate[2] if grouping else (chunk,)
+                if any(not self._valid_chunk(member, allowed) for member in members):
+                    raise RetrievalUnavailable("source_search_index_selector_mismatch")
+                aliases[chunk] = members
                 if not self._valid_chunk(chunk, allowed):
                     raise RetrievalUnavailable("source_search_index_selector_mismatch")
                 reciprocal[chunk] += 1 / (60 + position)
@@ -145,4 +166,14 @@ class HybridSearch:
                     fusion_rank=fusion_ranks[chunk],
                 )
             )
+            if grouping:
+                from .diversity import selector
+
+                rows[-1]["aliases"] = [
+                    selector(dict(source_id=a.source_id, start=a.start, end=a.end)) for a in aliases[chunk]
+                ]
+        if grouping:
+            from .diversity import group
+
+            return group(rows, self.documents)
         return rows

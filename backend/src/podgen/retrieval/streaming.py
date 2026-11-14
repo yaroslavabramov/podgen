@@ -7,7 +7,7 @@ from podgen.domain.canonical import digest
 
 from . import QueryRejected
 from .assets import cache_root
-from .config import validate
+from .config import diverse, validate
 from .hybrid import HybridSearch
 from .lexical import words
 from .onnx_models import models
@@ -38,6 +38,8 @@ class StreamingSearch(HybridSearch):
             self.index.refresh_dependencies()
             return
         refresh(self)
+        if diverse(self.profile) and hasattr(self.index, "prepare_passages"):
+            self.index.prepare_passages(self.documents)
         self.revision = revision
         self.results.clear()
 
@@ -77,6 +79,8 @@ class StreamingSearch(HybridSearch):
         if len(args.query) > 1000 or not words(args.query):
             raise QueryRejected("supply_a_search_question_up_to_1000_characters")
         request = dict(query=args.query, within=args.within, revision=self.revision)
+        if diverse(self.profile):
+            request["retrieval_policy"] = self.profile["retrieval_policy"]
         key = getattr(args, "result_version", None) or digest(request)
         if getattr(args, "result_version", None):
             rows = self.index.result_version(key, args.query, args.within)
@@ -87,9 +91,31 @@ class StreamingSearch(HybridSearch):
         self.results[(args.query, args.within)] = rows
         while len(self.results) > 32:
             self.results.popitem(last=False)
-        return dict(
-            page(rows, self.documents, args.query, args.offset, self.profile),
+        if diverse(self.profile):
+            return page(
+                rows,
+                self.documents,
+                args.query,
+                args.offset,
+                self.profile,
+                aliases_of=getattr(args, "aliases_of", None),
+                within=args.within,
+                metadata=dict(
+                    result_version=key, result_scope="ranked_candidates", returned_candidates=len(rows)
+                ),
+            )
+        result = dict(
+            page(
+                rows,
+                self.documents,
+                args.query,
+                args.offset,
+                self.profile,
+                aliases_of=getattr(args, "aliases_of", None),
+                within=args.within,
+            ),
             result_version=key,
             result_scope="ranked_candidates",
             returned_candidates=len(rows),
         )
+        return result

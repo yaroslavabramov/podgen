@@ -79,13 +79,26 @@ STREAMING_PROFILE = {
     "index_batch_size": 32,
 }
 
+PASSAGE_POLICY = "passage-diversity/1"
+DIVERSE_PROFILE = {**PROFILE, "retrieval_policy": PASSAGE_POLICY}
+DIVERSE_STREAMING_PROFILE = {**STREAMING_PROFILE, "retrieval_policy": PASSAGE_POLICY}
+
+
+def diverse(value):
+    return value.get("retrieval_policy") == PASSAGE_POLICY
+
+
+def storage_profile(value):
+    """Only the published query policy is excluded from immutable document work."""
+    return deepcopy({key: item for key, item in value.items() if key != "retrieval_policy"})
+
 
 def streaming_profile():
-    return deepcopy(STREAMING_PROFILE)
+    return deepcopy(DIVERSE_STREAMING_PROFILE)
 
 
 def profile():
-    return deepcopy(PROFILE)
+    return deepcopy(DIVERSE_PROFILE)
 
 
 def validate(value):
@@ -93,7 +106,13 @@ def validate(value):
         identity = json.dumps(value, sort_keys=True, separators=(",", ":"), allow_nan=False)
         published = [
             json.dumps(item, sort_keys=True, separators=(",", ":"), allow_nan=False)
-            for item in (PROFILE, COMPACT_PROFILE_V1, STREAMING_PROFILE)
+            for item in (
+                PROFILE,
+                COMPACT_PROFILE_V1,
+                STREAMING_PROFILE,
+                DIVERSE_PROFILE,
+                DIVERSE_STREAMING_PROFILE,
+            )
         ]
     except (ValueError, TypeError):
         raise ContractError("unsupported_source_retrieval_profile") from None

@@ -38,7 +38,8 @@ def create(behavior, materials=None):
     from podgen.retrieval.config import profile
     from podgen.writing.source_tools import definitions
 
-    declarations = definitions(retrieval=True)
+    retrieval = profile()
+    declarations = definitions(retrieval=True, retrieval_policy=retrieval.get("retrieval_policy"))
     if research:
         from podgen.writing.research_materials.tools import definitions as research_definitions
 
@@ -50,7 +51,8 @@ def create(behavior, materials=None):
 
         return dict(
             version=DURABLE_RESEARCH_VERSION,
-            definitions=source_definitions(declarations) + runtime_definitions(history_view=history_view),
+            definitions=source_definitions(declarations, retrieval_policy=retrieval.get("retrieval_policy"))
+            + runtime_definitions(history_view=history_view),
             retrieval=streaming_profile(),
             max_read_chars=9600,
             default_read_chars=9600,
@@ -61,7 +63,7 @@ def create(behavior, materials=None):
         **({"default_read_chars": 9600} if research else {}),
         version=PAGED_RESEARCH_VERSION if research else VERSION,
         definitions=declarations,
-        retrieval=profile(),
+        retrieval=retrieval,
         max_model_turns=12,
         max_tool_calls=24,
         final_turn="structured_without_tools",
@@ -149,7 +151,7 @@ def bind(body, stage, profile, contract):
 
 
 def validate_durable(manifest, value):
-    from podgen.retrieval.config import streaming_profile
+    from podgen.retrieval.config import STREAMING_PROFILE, streaming_profile
     from podgen.writing.research_materials.runtime_tools import definitions as runtime_definitions
     from podgen.writing.research_materials.runtime_tools import source_definitions
 
@@ -170,7 +172,7 @@ def validate_durable(manifest, value):
     if (
         manifest.get("behavior_profile") != "production/1"
         or set(value) != fields
-        or value["retrieval"] != streaming_profile()
+        or value["retrieval"] not in (STREAMING_PROFILE, streaming_profile())
         or value["context_policy"] != "durable-model-window/1"
         or type(value["max_read_chars"]) is not int
         or value["max_read_chars"] != 9600
@@ -181,9 +183,10 @@ def validate_durable(manifest, value):
     from podgen.writing.research_materials.tools import definitions as research_definitions
     from podgen.writing.source_tools import definitions
 
-    expected = source_definitions(research_definitions(definitions(retrieval=True))) + runtime_definitions(
-        history_view=history_view
-    )
+    policy = value["retrieval"].get("retrieval_policy")
+    expected = source_definitions(
+        research_definitions(definitions(retrieval=True, retrieval_policy=policy)), retrieval_policy=policy
+    ) + runtime_definitions(history_view=history_view)
     if mode is not None:
         expected = tools(expected)
     if value["definitions"] != expected:

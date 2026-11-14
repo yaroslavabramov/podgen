@@ -199,11 +199,23 @@ class SourceCorpus:
             if (
                 name == "search_sources"
                 and self.retrieval is not None
+                and self.retrieval.profile.get("retrieval_policy") is not None
+            ):
+                from .retrieval_policy import DiverseSearch
+
+                model = DiverseSearch
+            if (
+                name == "search_sources"
+                and self.retrieval is not None
                 and self.retrieval.profile["version"] == "hybrid-local/2"
             ):
                 from podgen.writing.research_materials.runtime_tools import PersistentSearch
 
                 model = PersistentSearch
+                if self.retrieval.profile.get("retrieval_policy") is not None:
+                    from podgen.writing.research_materials.runtime_tools import DiversePersistentSearch
+
+                    model = DiversePersistentSearch
             args = model.model_validate(arguments)
         except ValidationError as error:
             return {

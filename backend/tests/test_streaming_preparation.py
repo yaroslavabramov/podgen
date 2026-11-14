@@ -83,6 +83,7 @@ def test_source_snapshots_end_before_embedding_and_passages_are_not_read_again(m
     class Text(VerifiedText):
         def __init__(self):
             self.repo = object()
+            self.prepared = None
             self.value = "Original bacteria. " * 1500
 
         def __len__(self):

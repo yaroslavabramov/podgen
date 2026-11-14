@@ -1,26 +1,29 @@
 """Authorized project-scoped FTS/pgvector adapter; selectors refer only to an admitted frozen input."""
 
 import json
+from hashlib import sha256
 
 from sqlalchemy.exc import SQLAlchemyError
 
 from podgen.domain.canonical import digest
 from podgen.persistence.database import one, query
 from podgen.retrieval import RetrievalUnavailable
-from podgen.retrieval.chunks import Chunk
-from podgen.retrieval.lexical import TOKEN, words
+from podgen.retrieval.config import storage_profile
+from podgen.retrieval.lexical import words
 
 from .source_search_access import IndexAccess
 
 WHERE = "project_id=:p AND shared_input_record_id=:r AND profile_sha256=:h"
-CONFIG = "CASE language WHEN 'en' THEN 'english'::regconfig WHEN 'ru' THEN 'russian'::regconfig ELSE 'simple'::regconfig END"
 
 
 class PostgresSearchIndex:
+    passage_table = "source_search_chunks"
+
     def __init__(self, journal, shared_input_ref, profile):
         self.journal, self.profile = journal, profile
+        self.storage_profile = storage_profile(profile)
         self.access = IndexAccess(journal, shared_input_ref)
-        self.params = dict(p=journal.project, r=shared_input_ref.record_id, h=digest(profile))
+        self.params = dict(p=journal.project, r=shared_input_ref.record_id, h=digest(self.storage_profile))
 
     def check_access(self):
         try:
@@ -46,7 +49,7 @@ class PostgresSearchIndex:
                 if (
                     row["source_sha256"] != doc.digest
                     or row["source_length"] != len(doc.text)
-                    or row["profile"] != self.profile
+                    or row["profile"] != self.storage_profile
                 ):
                     raise RetrievalUnavailable("source_search_index_binding_mismatch")
                 return (
@@ -83,7 +86,7 @@ class PostgresSearchIndex:
                     s=source_id,
                     sha=doc.digest,
                     length=len(doc.text),
-                    profile=json.dumps(self.profile),
+                    profile=json.dumps(self.storage_profile),
                     spans=json.dumps(ranges),
                     language=language,
                     count=len(ranges),
@@ -102,7 +105,7 @@ class PostgresSearchIndex:
                     tokens = words(text)
                     query(
                         tx,
-                        "INSERT INTO source_search_chunks VALUES(:p,:r,:h,:s,:start,:end,:language,to_tsvector(CAST(:config AS regconfig),:text),:terms,:phrase,CAST(:vector AS vector))",
+                        "INSERT INTO source_search_chunks VALUES(:p,:r,:h,:s,:start,:end,:language,to_tsvector(CAST(:config AS regconfig),:text),:terms,:phrase,CAST(:vector AS vector),:passage)",
                         **self.params,
                         s=source_id,
                         start=start,
@@ -113,6 +116,7 @@ class PostgresSearchIndex:
                         terms=sorted(set(tokens)),
                         phrase=" ".join(tokens),
                         vector=json.dumps(vector.tolist()),
+                        passage=sha256(text.encode()).hexdigest(),
                     )
         except SQLAlchemyError as error:
             raise RetrievalUnavailable("source_search_index_unavailable") from error
@@ -124,35 +128,12 @@ class PostgresSearchIndex:
             + " AND source_id=ANY(:scope)) "
         )
 
-    def candidates(self, text, vector, allowed, limit):
-        params = dict(
-            self.params, scope=sorted(allowed), q=text, vector=json.dumps(vector.tolist()), limit=limit
-        )
-        permitted = self.permitted()
-        statements = dict(
-            dense="SELECT source_id,start_offset,end_offset,1-(embedding <=> CAST(:vector AS vector)) AS score FROM permitted ORDER BY embedding <=> CAST(:vector AS vector),source_id,start_offset LIMIT :limit",
-            lexical=f"SELECT source_id,start_offset,end_offset,ts_rank_cd(lexical,websearch_to_tsquery({CONFIG},:lexical_query)) AS score FROM permitted WHERE lexical @@ websearch_to_tsquery({CONFIG},:lexical_query) ORDER BY score DESC,source_id,start_offset LIMIT :limit",
-            exact="SELECT source_id,start_offset,end_offset,((strpos(' '||phrase_text||' ',:phrase)>0)::int + (SELECT count(*)::float FROM unnest(CAST(:entities AS text[])) AS e(term) WHERE e.term=ANY(exact_terms))/GREATEST(cardinality(CAST(:entities AS text[])),1)) AS score FROM permitted WHERE strpos(' '||phrase_text||' ',:phrase)>0 OR exact_terms && CAST(:entities AS text[]) ORDER BY score DESC,source_id,start_offset LIMIT :limit",
-        )
-        params.update(
-            lexical_query=" OR ".join('"' + word + '"' for word in words(text)),
-            phrase=" " + " ".join(words(text)) + " ",
-            entities=sorted(
-                {
-                    word.casefold()
-                    for word in TOKEN.findall(text)
-                    if any(c.isdigit() for c in word) or word[0].isupper()
-                }
-            ),
-        )
-        try:
-            with self.access.transaction() as (tx, hashes):
-                return {
-                    name: [
-                        (Chunk(row["source_id"], row["start_offset"], row["end_offset"]), float(row["score"]))
-                        for row in query(tx, permitted + statement, **params).mappings()
-                    ]
-                    for name, statement in statements.items()
-                }
-        except SQLAlchemyError as error:
-            raise RetrievalUnavailable("source_search_index_unavailable") from error
+    def prepare_passages(self, documents):
+        from .passage_index import prepare
+
+        prepare(self, documents)
+
+    def candidates(self, text, vector, allowed, limit, *, group_exact=False):
+        from .source_search_candidates import candidates
+
+        return candidates(self, text, vector, allowed, limit, group_exact=group_exact)
