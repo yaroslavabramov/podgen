@@ -5,6 +5,7 @@ from typing import Annotated, Literal
 from pydantic import Field, model_serializer, model_validator
 
 from .card_catalog import catalog
+from .duration_reference import VoiceDurationEstimate
 from .planning_choice import PlanningChoiceOutput
 from .planning_roles import PlanningOutput
 from .planning_v9 import PlanningOutputV9
@@ -46,13 +47,24 @@ class Assignment(RoleOutput):
     style_guidance: list[FullText] = Field(default_factory=list)
     listener_profile: FullText | None = None
     genre: FullText | None = None
+    duration_estimate: VoiceDurationEstimate | None = None
+
+    @model_validator(mode="after")
+    def duration_voice_scope(self):
+        if self.duration_estimate is not None and (
+            self.format != "solo"
+            or self.output_language.lower().replace("_", "-").split("-")[0] not in ("ru", "en")
+            or self.duration_estimate.synthesis.output_language != self.output_language
+        ):
+            raise ValueError("duration_estimate_assignment_mismatch")
+        return self
 
     @model_serializer(mode="wrap")
     def preserve_historical_shape(self, handler):
         data = handler(self)
-        for field in ("listener_profile", "genre"):
-            if data[field] is None:
-                data.pop(field)
+        for field in ("listener_profile", "genre", "duration_estimate"):
+            if data.get(field) is None:
+                data.pop(field, None)
         return data
 
 

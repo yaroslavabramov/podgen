@@ -24,6 +24,19 @@ def duration_context(assignment, script=None, *, include_requested=True):
     result = dict(current_text=current, audio_measured=False)
     if include_requested:
         result["requested"] = assignment.duration.model_dump(mode="json")
+    reference = getattr(assignment, "duration_estimate", None)
+    if reference is not None:
+        duration = assignment.duration
+        result.update(
+            estimated_word_target=reference.words_for(duration.target_seconds),
+            estimated_word_range=dict(
+                min=reference.words_for(duration.min_seconds), max=reference.words_for(duration.max_seconds)
+            ),
+            estimate_basis="Approximate rate from a previous full recording with the selected voice and delivery.",
+        )
+        if words is not None:
+            result["estimated_current_seconds"] = reference.seconds_for(words)
+        return result
     if language == "ru" and assignment.format == "solo":
         duration = assignment.duration
         result.update(

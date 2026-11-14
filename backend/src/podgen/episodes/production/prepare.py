@@ -30,6 +30,10 @@ def prepare(repo, project, config):
         settings.acquisition.rights.publication_policy_ref,
     ):
         repo.get(project, ArtifactRef.model_validate(ref))
+    if settings.duration_reference is not None:
+        from .duration_reference import validate
+
+        validate(repo, project, settings.duration_reference, settings.audio_profile.synthesis)
     journal = ProductionJournal(repo, project, config.run_id)
     row = journal.prepare(config)
     research = initial_research(config)

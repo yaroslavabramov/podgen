@@ -19,6 +19,8 @@ def resolve_research(resolver, store, key, arguments, operation_id, guard):
     original = ResearchJournal(store.repo, store.project, UUID(resolver.preparation["research_run_id"]))
     parent = original.get("manifest")["config"]
     child = ResearchJournal(store.repo, store.project, uuid5(operation_id, "targeted-research"))
+    episode_assignment = resolver.materials.packet.assignment.model_dump(mode="json")
+    episode_assignment.pop("duration_estimate", None)
     config = ResearchConfig(
         run_id=child.run_id,
         instructions=parent["instructions"],
@@ -28,7 +30,7 @@ def resolve_research(resolver, store, key, arguments, operation_id, guard):
             output_language=resolver.materials.output_language,
             scope=dict(source_mode="open_web"),
             reason=arguments["reason"],
-            episode_assignment=resolver.materials.packet.assignment.model_dump(mode="json"),
+            episode_assignment=episode_assignment,
             task="Resolve this specific open question; do not repeat the general episode research.",
         ),
     )

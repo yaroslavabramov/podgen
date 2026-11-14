@@ -3,13 +3,15 @@ from decimal import Decimal
 from typing import Literal
 from uuid import UUID
 
-from pydantic import Field, model_validator
+from pydantic import Field, model_serializer, model_validator
 
 from podgen.domain.contracts.common import ArtifactRef, Contract, DecimalString, Text
 from podgen.research.hosted.contracts import GeminiProfile
 from podgen.research.hosted.corpus_acquisition import CorpusAcquisition
 from podgen.runtime.evaluation.audio.contracts import VoiceCandidate
 from podgen.runtime.evaluation.contracts import RunLimits
+
+from .duration_reference import SavedDurationReference
 
 
 class ProductionSettings(Contract):
@@ -26,6 +28,14 @@ class ProductionSettings(Contract):
     audio_max_cost_usd: DecimalString
     audio_max_part_characters: int = Field(default=6000, ge=256, le=20000)
     accepts_variable_research_cost: Literal[True]
+    duration_reference: SavedDurationReference | None = None
+
+    @model_serializer(mode="wrap")
+    def preserve_historical_shape(self, handler):
+        data = handler(self)
+        if data.get("duration_reference") is None:
+            data.pop("duration_reference", None)
+        return data
 
     @model_validator(mode="after")
     def valid_profiles_and_budget(self):
@@ -44,6 +54,10 @@ class ProductionSettings(Contract):
             or self.acquisition.profile_ref.kind != "ProcessingProfile"
         ):
             raise ValueError("episode_profile_kind_mismatch")
+        if self.duration_reference is not None:
+            from podgen.audio.synthesis.contracts import SparseDirection
+
+            self.duration_reference.require_voice(self.audio_profile.synthesis, SparseDirection())
         if self.acquisition.reuse_selection_ids:
             raise ValueError("new_episode_cannot_reuse_another_reports_selection")
         return self

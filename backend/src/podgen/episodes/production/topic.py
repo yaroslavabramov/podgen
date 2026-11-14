@@ -22,6 +22,9 @@ def assignment(config):
             max_seconds=config.max_seconds,
         ),
         knowledge_cutoff=config.knowledge_cutoff,
+        duration_estimate=config.settings.duration_reference.estimate
+        if config.settings.duration_reference
+        else None,
         required_topics=[],
         excluded_topics=[],
         style_guidance=[],

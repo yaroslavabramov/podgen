@@ -1,0 +1,95 @@
+{
+  "contract": "voice-duration-free-preflight/1",
+  "run_id": "9af453a9-9dc2-426c-9f79-01f4d93ec08b",
+  "superseded_run_id": "169ceb9c-ab3d-42dd-8aa4-6ef168bb8c4c",
+  "superseded_desired_state": "paused",
+  "prepared_status": {
+    "run_id": "9af453a9-9dc2-426c-9f79-01f4d93ec08b",
+    "topic": "Как расшифровали египетские иероглифы",
+    "state": "prepared",
+    "phase": "research",
+    "desired_state": "running",
+    "research": null,
+    "writing_run_id": null,
+    "revisions_used": 0,
+    "max_script_revisions": 2,
+    "error_code": null,
+    "assembly_ref": null,
+    "acoustic_review": "pending",
+    "production_ready": false
+  },
+  "duration_context": {
+    "current_text": null,
+    "audio_measured": false,
+    "requested": {
+      "target_seconds": 1800,
+      "min_seconds": 1800,
+      "max_seconds": 1980
+    },
+    "estimated_word_target": 4066,
+    "estimated_word_range": {
+      "min": 4066,
+      "max": 4472
+    },
+    "estimate_basis": "Approximate rate from a previous full recording with the selected voice and delivery."
+  },
+  "provider_calls": 0,
+  "paid_counts": 0,
+  "generations": 0,
+  "research_submissions": 0,
+  "tts_submissions": 0,
+  "unchanged_settings_except_duration_reference": true,
+  "scalar_metadata_baseline": {
+    "runtime_json_bodies": 3,
+    "runtime_json_utf8_bytes": 66601,
+    "sql_calls": 69,
+    "blob_read_calls": 0,
+    "blob_read_bytes": 0,
+    "blob_write_calls": 0,
+    "blob_write_bytes": 0,
+    "elapsed_seconds": 0.5808894999972836,
+    "peak_python_bytes": 4474618,
+    "network_calls": 0,
+    "wav_bytes": 0
+  },
+  "batched_metadata_resolve": {
+    "runtime_json_bodies": 3,
+    "runtime_json_utf8_bytes": 66601,
+    "sql_calls": 48,
+    "blob_read_calls": 0,
+    "blob_read_bytes": 0,
+    "blob_write_calls": 0,
+    "blob_write_bytes": 0,
+    "elapsed_seconds": 0.36432699999932083,
+    "peak_python_bytes": 4370698,
+    "network_calls": 0,
+    "wav_bytes": 0
+  },
+  "native_prepare": {
+    "runtime_json_bodies": 4,
+    "runtime_json_utf8_bytes": 72809,
+    "sql_calls": 93,
+    "blob_read_calls": 0,
+    "blob_read_bytes": 0,
+    "blob_write_calls": 0,
+    "blob_write_bytes": 0,
+    "elapsed_seconds": 0.40177154199773213,
+    "peak_python_bytes": 4425318,
+    "network_calls": 0,
+    "wav_bytes": 0
+  },
+  "historical_configuration_unchanged": true,
+  "initial_native_prepare": {
+    "sql_calls": 99,
+    "blob_read_calls": 1,
+    "blob_read_bytes": 2868,
+    "blob_write_calls": 0,
+    "blob_write_bytes": 0,
+    "elapsed_seconds": 0.43397283399826847,
+    "peak_python_bytes": 5380634,
+    "network_calls": 0,
+    "wav_bytes": 0
+  },
+  "preparation_measurement": "Idempotent preparation of the same immutable new run; initial preparation retained separately",
+  "byte_measurement": "Runtime JSON payload UTF-8 size and object-store bytes; SQL protocol bytes not measured"
+}

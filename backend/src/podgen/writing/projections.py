@@ -79,6 +79,7 @@ def validate_editorial_content(packet, documents):
 def assignment_view(packet):
     assignment = packet.assignment.model_dump(mode="json")
     assignment.pop("key")
+    assignment.pop("duration_estimate", None)
     for field in ("excluded_topics", "style_guidance"):
         if not assignment[field]:
             assignment.pop(field)
@@ -230,7 +231,7 @@ def role_payload(
     if script_handoff(projection_version) and stage in ("draft", "review", "revise"):
         payload["duration_context"] = duration_context(packet.assignment, draft, include_requested=False)
     if stage.startswith("plan"):
-        if planning_duration_contract is not None:
+        if planning_duration_contract is not None or packet.assignment.duration_estimate is not None:
             payload["duration_context"] = duration_context(packet.assignment, include_requested=False)
         if packet.contract == "research-editorial-input/1":
             from .research_materials.views import planning_view
