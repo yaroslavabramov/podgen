@@ -1,0 +1,188 @@
+{
+  "contract": "script-only-receipt-accounting/1",
+  "run_id": "1cd0ac76-3326-58bb-83f0-6ee76847cefe",
+  "status": "needs_attention",
+  "failure_code": "provider_http_429",
+  "review_status": "incomplete",
+  "stages": {
+    "draft": {
+      "complete": true,
+      "rejected_requests": 0,
+      "count_calls": 5,
+      "generation_calls": 5,
+      "in_run_count_receipt_reuse_events": 5,
+      "usage": {
+        "input_tokens": 192611,
+        "output_tokens": 14017,
+        "cached_input_tokens": 148811,
+        "cache_write_tokens": 43788,
+        "uncached_input_tokens": 43800,
+        "cache_write_ttl_30m_tokens": 0,
+        "cache_write_ttl_12h_tokens": 0
+      },
+      "first_generation_created_at": null,
+      "final_generation_completed_at": null,
+      "generation_span_seconds": null,
+      "event_kinds": {
+        "source_context_count_intent": 5,
+        "source_context_count": 5,
+        "source_context_plan": 5,
+        "role_input_measurement": 5,
+        "count_receipt_reused": 5,
+        "submit_intent": 5,
+        "provider_response": 5,
+        "source_search_diagnostics": 1,
+        "source_tool_call": 4,
+        "source_tool_result": 4,
+        "source_tools_final_response": 1
+      }
+    },
+    "fact-review": {
+      "complete": false,
+      "rejected_requests": 1,
+      "count_calls": 10,
+      "generation_calls": 9,
+      "in_run_count_receipt_reuse_events": 10,
+      "usage": {
+        "input_tokens": 220827,
+        "output_tokens": 383,
+        "cached_input_tokens": 189176,
+        "cache_write_tokens": 31624,
+        "uncached_input_tokens": 31651,
+        "cache_write_ttl_30m_tokens": 31624,
+        "cache_write_ttl_12h_tokens": 0
+      },
+      "first_generation_created_at": "2026-11-14T21:44:30+00:00",
+      "final_generation_completed_at": "2026-11-14T21:45:08+00:00",
+      "generation_span_seconds": 38,
+      "event_kinds": {
+        "source_context_count_intent": 10,
+        "source_context_count": 10,
+        "source_context_plan": 10,
+        "role_input_measurement": 10,
+        "count_receipt_reused": 10,
+        "submit_intent": 10,
+        "provider_response": 9,
+        "source_tool_call": 9,
+        "source_tool_result": 9,
+        "source_search_diagnostics": 1,
+        "provider_error": 1
+      }
+    },
+    "reader-review": {
+      "complete": true,
+      "rejected_requests": 0,
+      "count_calls": 1,
+      "generation_calls": 1,
+      "in_run_count_receipt_reuse_events": 0,
+      "usage": {
+        "input_tokens": 14205,
+        "output_tokens": 11279,
+        "cached_input_tokens": 0,
+        "cache_write_tokens": 5028,
+        "uncached_input_tokens": 14205,
+        "cache_write_ttl_30m_tokens": 5028,
+        "cache_write_ttl_12h_tokens": 0
+      },
+      "first_generation_created_at": "2026-11-14T21:42:22+00:00",
+      "final_generation_completed_at": "2026-11-14T21:44:28+00:00",
+      "generation_span_seconds": 126,
+      "event_kinds": {
+        "role_input_measurement": 1,
+        "count_intent": 1,
+        "count_response": 1,
+        "submit_intent": 1,
+        "provider_response": 1
+      }
+    }
+  },
+  "count_calls": 16,
+  "generation_calls": 15,
+  "distinct_count_identities": 16,
+  "count_input_tokens": 461444,
+  "in_run_count_receipt_reuse_events": 15,
+  "count_reuse_note": "One exact native count per new request; reused saved receipt at submission is not an extra count call.",
+  "usage": {
+    "input_tokens": 427643,
+    "output_tokens": 25679,
+    "cached_input_tokens": 337987,
+    "cache_write_tokens": 80440,
+    "uncached_input_tokens": 89656,
+    "cache_write_ttl_30m_tokens": 36652,
+    "cache_write_ttl_12h_tokens": 0
+  },
+  "by_model": {
+    "claude-opus-5-5": {
+      "generation_calls": 5,
+      "input_tokens": 192611,
+      "output_tokens": 14017,
+      "cached_input_tokens": 148811,
+      "cache_write_tokens": 43788
+    },
+    "gpt-6.1-terra": {
+      "generation_calls": 10,
+      "input_tokens": 235032,
+      "output_tokens": 11662,
+      "cached_input_tokens": 189176,
+      "cache_write_tokens": 36652
+    }
+  },
+  "rejected_requests": 1,
+  "rejection_receipts": [
+    {
+      "event_ref": {
+        "record_kind": "tool_execution",
+        "record_id": "ab22e58c-ecd8-5dcf-bcb7-1343df6bdab0"
+      },
+      "source_turn_index": 9,
+      "operation": "submit",
+      "ambiguous": false,
+      "http_status": 429,
+      "error": {
+        "message": "You have no credits remaining. Add credits to continue using the API at https://platform.openai.com/settings/organization/billing/.",
+        "type": "insufficient_quota",
+        "param": null,
+        "code": "credit_balance_exhausted"
+      },
+      "receipt_path": "tmp/hieroglyphs-30m-script-2026-11-15/export/archive/fact-review/088-provider_error-response_blob.json"
+    }
+  ],
+  "uncertain_generation_outcomes": 0,
+  "technical_retries": 0,
+  "unknown_usage_invocations": [],
+  "generation_cost_usd": null,
+  "count_cost_usd": null,
+  "cache_cost_usd": null,
+  "usd_basis": "Receipts contain usage but no invoice dollars; frozen profiles have no price schedule.",
+  "research_submissions": 0,
+  "new_planning_generations": 0,
+  "tts_submissions": 0,
+  "audio_assembly_started": false,
+  "prior_planning_usage": {
+    "input_tokens": 672067,
+    "output_tokens": 10678,
+    "cached_input_tokens": 627163,
+    "cache_write_tokens": 44823,
+    "uncached_input_tokens": 44904,
+    "cache_write_ttl_30m_tokens": 44823,
+    "cache_write_ttl_12h_tokens": 0
+  },
+  "prior_planning_calls": {
+    "count": 27,
+    "generation": 27
+  },
+  "prior_planning_repeated": false,
+  "frozen_manifest_unchanged": true,
+  "exporter_aggregate_delta": {
+    "input_tokens": 220827,
+    "output_tokens": 0
+  },
+  "exporter_aggregate_note": "run.json omits successful physical turns of a failed/incomplete stage. This receipt accounting includes them; the delta is not another charge or unknown usage.",
+  "timing": {
+    "cli_log_created_at": "2026-11-14T21:39:34.527208+00:00",
+    "cli_final_log_at": "2026-11-14T21:45:13.558318+00:00",
+    "cli_log_wall_seconds": 339.03111028671265,
+    "note": "Local log creation through final CLI output, including startup and final archive export. Anthropic normalized receipts omit provider start/end timestamps; corresponding stage spans are null."
+  },
+  "cache_note": "Cache hits and writes are input subsets. OpenAI TTL breakdown is available where reported; missing TTL fields on Anthropic normalized receipts are not evidence of zero cache writes."
+}

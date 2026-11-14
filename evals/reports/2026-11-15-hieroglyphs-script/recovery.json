@@ -1,0 +1,17 @@
+{
+  "contract": "saved-credit-refusal-recovery-evidence/1",
+  "run_id": "1cd0ac76-3326-58bb-83f0-6ee76847cefe",
+  "invocation_id": "e70688b0-e79a-5ffe-82ec-d436de3f4b86",
+  "refusal_ref": {
+    "record_kind": "tool_execution",
+    "record_id": "ab22e58c-ecd8-5dcf-bcb7-1343df6bdab0"
+  },
+  "code": "credit_balance_exhausted",
+  "operation": "submit",
+  "ambiguous": false,
+  "failed_source_turn_index": 9,
+  "completed_fact_turns_preserved": 9,
+  "recovery": "After credits are restored: ordinary writing_cli resume for this run with --retry-credit-refusal e70688b0-e79a-5ffe-82ec-d436de3f4b86",
+  "recovery_executed": false,
+  "completed_draft_reader_and_fact_turns_must_not_repeat": true
+}
