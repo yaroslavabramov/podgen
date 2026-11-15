@@ -1,0 +1,36 @@
+{
+  "contract": "offline-export-input-regression/1",
+  "run_id": "1cd0ac76-3326-58bb-83f0-6ee76847cefe",
+  "baseline": {
+    "input_tokens": 2842949,
+    "output_tokens_known": 87801
+  },
+  "corrected": {
+    "input_tokens": 4175299,
+    "output_tokens_known": 87801
+  },
+  "input_delta": 1332350,
+  "unique_physical_generation_receipts": 104,
+  "physical_input_tokens": 4175299,
+  "physical_output_tokens": 87801,
+  "changed_files": [
+    "run.json"
+  ],
+  "run_json_only_expected_numeric_replacement": true,
+  "other_files_byte_identical": 867,
+  "other_files_byte_identical_bytes": 90364720,
+  "total_files": 868,
+  "archive_paths_before": "/Users/yaroslavabramov/side/podgen/tmp/export-input-regression-2026-11-15/before",
+  "archive_paths_after": "/Users/yaroslavabramov/side/podgen/tmp/export-input-regression-2026-11-15/after",
+  "file_inventories": [
+    "/Users/yaroslavabramov/side/podgen/tmp/export-input-regression-2026-11-15/before-files.json",
+    "/Users/yaroslavabramov/side/podgen/tmp/export-input-regression-2026-11-15/after-files.json"
+  ],
+  "raw_invocation_headers_unchanged": true,
+  "status_failure_unknown_markers_unchanged": true,
+  "sql_object_counters_identical": true,
+  "network_attempts": 0,
+  "source_report_unchanged": true,
+  "accounting_scope": "Input is usage/conservative charged physical turns, not USD. Known unsent/refused turns are excluded by charged_rows; ambiguous turns keep their known input and unknown output marker.",
+  "limits": "One representative saved run, separate processes with warm OS/DB caches. SQL protocol bytes and staging filesystem writes not measured; no scale benchmark."
+}

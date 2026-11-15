@@ -112,9 +112,9 @@ def export_run(repo, project, run_id, directory):
             if invocation["operation_kind"] == "role" and applies(stage, from_manifest(manifest)):
                 from .model_turns import charged_rows
 
-                # Known physical output is shown even if a different turn has unknown usage.
+                # Preserve known physical usage even when the semantic stage is incomplete.
                 turns = charged_rows(journal, invocation)
-                result["input_tokens"] += invocation["input_tokens"] or 0
+                result["input_tokens"] += sum(turn["input_tokens"] or 0 for turn in turns)
                 result["output_tokens_known"] += sum(turn["output_tokens"] or 0 for turn in turns)
                 result["unknown_usage_invocations"].extend(
                     str(turn["invocation_id"]) for turn in turns if turn["output_tokens"] is None
