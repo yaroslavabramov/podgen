@@ -81,6 +81,16 @@ def test_terminal_material_continuation_reuses_accepted_plan_and_bounded_revisio
         monkeypatch.setattr(
             "podgen.runtime.models.research_tool_gateway.structured_requests", lambda *args: []
         )
+        from podgen.research.materials.orders import KEY
+
+        create = EvaluationJournal.create_run
+
+        def legacy_manifest(self, command, manifest):
+            manifest = dict(manifest)
+            manifest.pop(KEY, None)
+            return create(self, command, manifest)
+
+        monkeypatch.setattr(EvaluationJournal, "create_run", legacy_manifest)
     models = MaterialProvider(stage)
     runner.writer.provider_factory = lambda _: models
     hosted = Provider(completed(), response(), completed())

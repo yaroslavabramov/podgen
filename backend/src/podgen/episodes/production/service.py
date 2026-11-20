@@ -124,15 +124,36 @@ class EpisodeProduction:
             self.progress.pop("writing_run_id")
             self._save("writing")
             return True
-        question = research.terminal_question(questions[index:])
-        result = research.resolve_terminal(self.journal, self.writer, self.progress, question)
+        from .material_requests import VERSION as BOUND_QUESTION
+
+        bound = any(question.get("contract") == BOUND_QUESTION for question in questions)
+        question = questions[index] if bound else research.terminal_question(questions[index:])
+        result = research.resolve_terminal(
+            self.journal,
+            self.writer,
+            self.progress,
+            question,
+            guard=lambda: self.journal.check_dispatch(self.epoch),
+        )
         if result.get("status") == "pending":
             if not self._research(UUID(result["child_run_id"]), "terminal_materials"):
                 return False
-            result = research.resolve_terminal(self.journal, self.writer, self.progress, question)
+            result = research.resolve_terminal(
+                self.journal,
+                self.writer,
+                self.progress,
+                question,
+                guard=lambda: self.journal.check_dispatch(self.epoch),
+            )
+        if bound:
+            self.progress.setdefault("material_question_results", {}).setdefault(
+                self.progress["writing_run_id"], {}
+            )[str(index)] = result
         if result.get("status") != "resolved":
+            if bound:
+                self._save("terminal_materials")
             raise ContractError("episode_terminal_research_unresolved")
-        self.progress["material_question_index"] = len(questions)
+        self.progress["material_question_index"] = index + 1 if bound else len(questions)
         self._save("terminal_materials")
         return True
 

@@ -52,7 +52,11 @@ def terminal_question(questions):
     )
 
 
-def resolve_terminal(parent, writing_runner, progress, question):
+def resolve_terminal(parent, writing_runner, progress, question, *, guard=lambda: None):
+    from .material_requests import VERSION, resolve
+
+    if question.get("contract") == VERSION:
+        return resolve(parent, writing_runner, progress, question, guard)
     from .writing import saved_command
 
     run_id = UUID(progress["writing_run_id"])

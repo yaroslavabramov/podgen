@@ -44,6 +44,9 @@ class ResearchTools:
             raise ContractError("unsupported_research_history_view")
         self.history_view = history_view
         self.anchored = anchored
+        from podgen.research.materials.orders import policy
+
+        self.research_request_policy = policy(journal.manifest(root["run_id"])) if anchored else None
         if search_argument_policy not in (None, search_argument_errors.VERSION):
             raise ContractError("unsupported_search_argument_policy")
         self.search_argument_policy = search_argument_policy
@@ -67,7 +70,7 @@ class ResearchTools:
                 from .research_binding import bind
 
                 try:
-                    args = bind(self.journal, self.root, args)
+                    args = bind(self.journal, self.root, args, request_policy=self.research_request_policy)
                 except ContractError as error:
                     return dict(error=str(error))
             resolution = resolver.resolve(

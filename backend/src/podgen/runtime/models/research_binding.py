@@ -1,5 +1,6 @@
 """Bind investigation to the immutable script, never to a reviewer's paraphrase."""
 
+import json
 from copy import deepcopy
 
 from podgen.domain.canonical import digest
@@ -9,7 +10,24 @@ from podgen.domain.errors import ContractError
 VERSION = "targeted-script-context/1"
 
 
-def bind(journal, root, arguments):
+def request_arguments(request, *, anchored):
+    arguments = dict(
+        question=request["question"],
+        reason=request.get("why_needed") or request.get("reason") or json.dumps(request, ensure_ascii=False),
+    )
+    if anchored:
+        arguments["anchors"] = deepcopy(request.get("anchors", []))
+    return arguments
+
+
+def bind(journal, root, arguments, *, request_policy=None):
+    from podgen.research.materials.orders import KEY
+    from podgen.research.materials.orders import VERSION as ORDER_VERSION
+
+    if request_policy not in (None, ORDER_VERSION):
+        raise ContractError("unsupported_research_request_contract")
+    if request_policy is not None:
+        arguments = dict(arguments, **{KEY: request_policy})
     request = journal.read(RuntimeRef(record_kind="tool_execution", record_id=root["request_record_id"]))
     context = request["context"]
     ref = context.get("script_ref")

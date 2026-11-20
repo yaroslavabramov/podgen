@@ -25,7 +25,7 @@ class ResearchProvider:
         if stage.startswith("revise-"):
             return self.writer.submit(body, client_request_id=client_request_id)
         data = request_payload(
-            dict(body, input=[item for item in body["input"] if item.get("role") == "user"])
+            dict(body, input=[next(item for item in body["input"] if item.get("role") == "user")])
         )
         turn = int(body["metadata"].get("podgen_source_turn", 0))
         reads = stage.startswith("plan") or stage == "fact-review"

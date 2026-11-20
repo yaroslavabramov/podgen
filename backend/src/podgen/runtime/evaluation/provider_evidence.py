@@ -29,6 +29,11 @@ def register_structured(journal, root, event, requests, calls, turn, history):
     from podgen.runtime.evaluation.validation import load_unique_json
     from podgen.runtime.models.research_continuation import structured_call, structured_requests
 
+    from .source_tool_contract import anchored_research, from_manifest
+
+    contract = from_manifest(journal.manifest(root["run_id"]))
+    anchored = contract is not None and anchored_research(contract, root["stage"])
+
     ref = RuntimeRef(record_kind="tool_execution", record_id=event["_record_id"])
     with journal.read_operation():
         record = journal.read(ref)
@@ -38,7 +43,12 @@ def register_structured(journal, root, event, requests, calls, turn, history):
         or record.get("invocation_id") != str(root["invocation_id"])
         or record.get("data", {}).get("source_turn_index") != turn
         or digest(structured_requests(received, turn, history)) != digest(requests)
-        or digest([structured_call(request, turn, position) for position, request in enumerate(requests)])
+        or digest(
+            [
+                structured_call(request, turn, position, anchored=anchored)
+                for position, request in enumerate(requests)
+            ]
+        )
         != digest(calls)
     ):
         raise Conflict("structured_research_decision_binding_mismatch")

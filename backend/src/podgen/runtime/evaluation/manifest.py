@@ -184,6 +184,11 @@ def create_manifest(repo, generation, command, journal, materials):
         manifest[PRESERVE_KEY] = behavior.plan_review_schema
     if tools is not None:
         manifest[source_tool_contract.KEY] = tools
+        if tools["version"] == "frozen-corpus-tools/8":
+            from podgen.research.materials.orders import KEY as RESEARCH_REQUEST_KEY
+            from podgen.research.materials.orders import VERSION as RESEARCH_REQUEST_VERSION
+
+            manifest[RESEARCH_REQUEST_KEY] = RESEARCH_REQUEST_VERSION
     if editorial and behavior.planning_ending_guidance is not None:
         manifest[ending_guidance.KEY] = behavior.planning_ending_guidance
     if behavior.verification:

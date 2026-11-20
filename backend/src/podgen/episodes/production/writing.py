@@ -75,13 +75,9 @@ def material_questions(journal, result):
     if result.get("review_status") != "needs_material":
         return [], None
     outcome = journal.read(RuntimeRef.model_validate(result["outcome_ref"]))
-    questions = []
-    for ref in outcome["reading_refs"].values():
-        review = journal.read(RuntimeRef.model_validate(ref))["output"]
-        questions.extend(review.get("research_requests", []))
-    if not questions:
-        raise ContractError("episode_material_request_has_no_concrete_question")
-    return questions, outcome["script_ref"]
+    from .material_requests import collect
+
+    return collect(journal, outcome)
 
 
 def pending_handoff(journal, run_id, invocation_id):

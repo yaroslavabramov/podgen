@@ -71,8 +71,13 @@ class ResearchMaterialResolver:
                     shared_input_ref=self.materials.shared_ref.model_dump(mode="json"),
                 ),
             )
+            from .orders import KEY
             from .targeted_reparse import cached_result, save_result
 
+            if name == "request_research" and KEY in arguments:
+                from .order_resolution import resolve
+
+                return resolve(self, store, key, arguments, guard)
             result_key, saved = cached_result(store, key, name, arguments)
             if saved:
                 return MaterialResolution(saved, self.restore(run_id=run_id, guard=guard))

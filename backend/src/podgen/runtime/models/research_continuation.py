@@ -45,12 +45,9 @@ def structured_requests(response, turn, history):
 
 
 def structured_call(request, turn, position, *, anchored=False):
-    arguments = dict(
-        question=request["question"],
-        reason=request.get("why_needed") or request.get("reason") or json.dumps(request, ensure_ascii=False),
-    )
-    if anchored:
-        arguments["anchors"] = request.get("anchors", [])
+    from .research_binding import request_arguments
+
+    arguments = request_arguments(request, anchored=anchored)
     return dict(
         type="function_call",
         call_id=f"structured_research_{turn}_{position}",
