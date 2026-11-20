@@ -8,7 +8,8 @@ from .live import StaleInputs
 def current_inputs(method):
     @wraps(method)
     def read(repo, *args, **kwargs):
-        for attempt in range(3):
+        refreshed = {}
+        while True:
             try:
                 return method(repo, *args, **kwargs)
             except StaleInputs as stale:
@@ -17,12 +18,13 @@ def current_inputs(method):
                     if state.owner is None or state.owner.borrowers:
                         raise
                     state.owner.release()
-                if attempt == 2:
+                key = (stale.project, stale.set_id)
+                refreshed[key] = refreshed.get(key, 0) + 1
+                if refreshed[key] > 2:
                     raise
                 from .inputs import refresh
 
                 refresh(repo, stale.project, stale.set_id)
-        raise AssertionError("unreachable")
 
     return read
 
