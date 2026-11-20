@@ -23,7 +23,10 @@ database configuration. Keep it out of reports.
 
 Use the same arguments with `whole` and `split` for the two paid readings.
 `partition` runs just the split arm's first step. Repeating a completed step
-reads its journal entry. A changed binding or uncertain payment stops execution.
+reads its journal entry. A changed binding or uncertain payment stops execution. If a section terminates on a
+rejected search page key, the experiment records the failure, counts its paid
+work and continues independent sections. It publishes a consolidated review
+only when every section produced a valid result.
 Each arm shares the source command's token allowances across its steps. Measurements
 include the partition and final reader, their exact request identities, access
 checks and journal work. Standalone runs have per-task setup costs. Compare the

@@ -15,6 +15,7 @@ from trial import Trial
 from podgen.persistence.database import Database
 from podgen.persistence.private_journal.state import head
 from podgen.persistence.repository import Repository
+from podgen.runtime.evaluation.contracts import RunFailure
 from podgen.runtime.evaluation.fact_source_experiment.measurements import MeasuredObjects, Measurements
 from podgen.runtime.evaluation.journal import EvaluationJournal
 from podgen.runtime.models.openai_provider import OpenAIProvider
@@ -121,9 +122,27 @@ def main():
         else:
             record = call("partition", "partition", 0, count, {})
             if args.operation == "split":
-                parts = []
+                parts, unfinished = [], []
                 for start, stop in Partition.model_validate(record["output"]).ranges(count):
-                    parts.append((start, call(f"fragment-{start}-{stop}", "fragment", start, stop)))
+                    label = f"fragment-{start}-{stop}"
+                    try:
+                        part = call(label, "fragment", start, stop)
+                    except (ValueError, RunFailure):
+                        unit = uuid5(root, label)
+                        state = journal.run(unit)
+                        if state is None or state["failure_code"] != "source_search_result_version_mismatch":
+                            raise
+                        spent = head(repo, journal.project, unit)["accounting"]
+                        if spent.get("uncertain_calls") or spent.get("output_reserved"):
+                            raise
+                        for key in trial.totals:
+                            trial.totals[key] += spent.get(key + "_tokens", 0)
+                        unfinished.append(dict(label=label, reason=state["failure_code"]))
+                        write(folder / "unfinished-sections.json", unfinished)
+                        continue
+                    parts.append((start, part))
+                if unfinished:
+                    raise SystemExit("Section review incomplete. No consolidated review published.")
                 sections, proofs, issues = handoff(parts)
                 call("synthesis", "synthesis", 0, count, proofs, sections, issues)
     finally:
