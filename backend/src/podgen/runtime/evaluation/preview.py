@@ -15,7 +15,7 @@ from podgen.writing.planning_duration import from_manifest as duration_from_mani
 from podgen.writing.planning_versions import planning_snapshot
 from podgen.writing.projection_versions import manifest_version
 from podgen.writing.projections import CONTRACT, validate_model_content
-from podgen.writing.reading_audit.consistency import VERSION as CONSISTENCY_VERSION
+from podgen.writing.reading_audit.consistency import CURRENT as CONSISTENCY_VERSION
 from podgen.writing.reading_audit.consistency import from_manifest as consistency_from_manifest
 from podgen.writing.reading_views import reading_audience
 from podgen.writing.research_materials.pinning import instructions as adapt_instructions

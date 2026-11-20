@@ -49,6 +49,53 @@ New runs additionally pin `reading_audit_consistency_contract=decision-findings/
 
 This consistency check runs before report persistence and again before combining the two reviews, including saved-outcome and rewrite verification. Address-only anchor repair keeps its existing path and preserves decisions and findings. No schema fields, prompts, models, stages or revision limits change. Saved manifests without the new consistency pin retain their original validation, binding and aggregation semantics; continuations inherit that pin's presence or absence without upgrading the parent run.
 
+### Factual admission for new runs: decision-findings/2
+
+New production manifests and unsaved previews now pin
+`reading_audit_consistency_contract=decision-findings/2`. The audit, fact schema
+and recheck schema remain `reading-audit/1`, `fact-revision/5` and
+`editorial-recheck/3`; response fields are unchanged. Only the new consistency pin
+selects the stricter factual validation and its schema descriptions. `/1` and an
+absent pin retain their exact prior semantics and descriptions.
+
+The fact reviewer establishes the claim actually conveyed, including its scope,
+attribution and dependencies. A stronger imaginable reading is not silently
+substituted for the spoken account. Bounded interpretations and necessary
+inferences can be supported by inspected premises without a verbatim assertion in
+a source. This does not excuse a concrete asserted detail that remains unverified.
+
+For factual reports, `keep` cannot coexist with an `unchecked` claim, coverage
+range or applicable area. `contradicted` and `unsupported` decisions must link to
+an important/blocking finding. The author can correct, narrow or remove a
+dispensable assertion and its dependent wording instead of receiving another
+research task or spoken warning. Optional improvements of supported wording remain
+compatible with `keep`. Non-claim material and inapplicable areas use justified
+`not_applicable`; this cannot discharge an asserted but unchecked fact. These are
+checks on the model's explicit report, not a semantic claim extractor or proof of
+exhaustive verification.
+
+In recheck, a `retained` decision carries its previous contextual verdict and all
+its offered frozen evidence bindings into its current decision(s). Changing that
+verdict or dropping its evidence requires `reassessed`, not an unchanged identifier
+with a different meaning. The existing exact revision comparison and late-finding
+contract bind required reopenings to changed speech, dependent conclusions, new
+evidence, an unresolved assignment or a substantive prior omission. The server
+checks relational consistency; the reviewer must demonstrate the actual reason.
+The same round alone does not justify rereading accepted evidence.
+
+Production's first factual review and factual recheck have new content-addressed
+English instruction bodies. They request retained-source investigation, then
+offered quick web lookup before extended research, verbatim script anchors for
+external questions, and actual inspected source citations. Search navigation and
+research synthesis do not become primary evidence merely by being returned.
+The tool owner pins these operational capabilities separately. Old assets and
+persisted prompt bodies are unchanged; resume/continuation uses its saved pins.
+
+No paid comparison has yet established the new instructions' editorial quality.
+Local tests cover admission contradictions, preserving evidence across recheck,
+bounded contextual admission and frozen `/1` compatibility. They do not establish
+that a model will find every real error or avoid every false claim.
+
 ## Shared packet memory projection
 
 New runs pin `reading_audit_memory_projection=shared-packet-evidence/1`. A previous packet-evidence reference is projected to `from_review=current` and the matching current `B` alias only when full canonical content (including supports), its hash, and all frozen source selectors (document identity, ref, hash and exact ranges) match. Evidence numbering alone or equal text alone is insufficient. A shared packet excerpt is not repeated in model-facing `previous_evidence`. The complete previous report, evidence and original provenance remain immutable; the new binding records the prior-report hash, exact old-reference-to-current-B mapping, and current packet fingerprint. Actual delivered packet evidence is checked against that fingerprint before persistence and on replay.

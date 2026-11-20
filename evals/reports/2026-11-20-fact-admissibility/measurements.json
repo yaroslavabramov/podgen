@@ -1,0 +1,39 @@
+{
+  "contract": "fact-admissibility-offline-assembly/1",
+  "scope": "One complete retained physical request per role, including its existing payload, tools and history. Isolates instruction and schema-description changes; old frozen tool contract held fixed. Files preloaded before timing. Not a live workflow measurement.",
+  "new_pin": "reading_audit_consistency_contract=decision-findings/2",
+  "sql_calls": 0,
+  "network_calls": 0,
+  "provider_calls": 0,
+  "token_count_calls": 0,
+  "exact_new_input_tokens": null,
+  "model_quality_verified": false,
+  "rows": [
+    {
+      "role": "fact-review",
+      "archived_request": "tmp/hieroglyphs-30m-script-2026-11-15/export/archive/fact-review/079-provider_response-wire_request_blob.json",
+      "legacy_instruction_bytes_equal": true,
+      "request_bytes_before": 171401,
+      "request_bytes_after": 174089,
+      "instructions_bytes_before": 15229,
+      "instructions_bytes_after": 17245,
+      "request_sha256_before": "c9957e7edb5664eaf75293909d1bf025ad9697e89ed7ed9555a7ab90bac67671",
+      "request_sha256_after": "5fa2386e8040382c58d00936612adfd381f52c998f6d1256428fcf8cb236a602",
+      "elapsed_seconds": 0.011512375000165775,
+      "peak_python_bytes": 265859
+    },
+    {
+      "role": "fact-verification",
+      "archived_request": "tmp/hieroglyphs-30m-script-2026-11-15/export/archive/fact-review-2/181-provider_response-wire_request_blob.json",
+      "legacy_instruction_bytes_equal": true,
+      "request_bytes_before": 370245,
+      "request_bytes_after": 373540,
+      "instructions_bytes_before": 19519,
+      "instructions_bytes_after": 22142,
+      "request_sha256_before": "7bb4929ef847d00ad1d4ae85e46dcd33ac000bd604da4d1de91353cbdeddb6e7",
+      "request_sha256_after": "9a70e6bd1e035f0f8bb5c30eeac36b4b846db3220b46edb436a662dc1838a343",
+      "elapsed_seconds": 0.021924708009464666,
+      "peak_python_bytes": 1196620
+    }
+  ]
+}

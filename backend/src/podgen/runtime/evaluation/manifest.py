@@ -16,8 +16,8 @@ from podgen.writing.plan_review_descriptions import PRESERVE_KEY
 from podgen.writing.planning_choice import KEY as PLANNING_KEY
 from podgen.writing.planning_duration import KEY as DURATION_KEY
 from podgen.writing.reader_schema import V2 as LEGACY_READER_SCHEMA_VERSION
+from podgen.writing.reading_audit.consistency import CURRENT as CONSISTENCY_VERSION
 from podgen.writing.reading_audit.consistency import KEY as CONSISTENCY_KEY
-from podgen.writing.reading_audit.consistency import VERSION as CONSISTENCY_VERSION
 from podgen.writing.reading_audit.memory_projection import KEY as MEMORY_KEY
 from podgen.writing.reading_audit.memory_projection import VERSION as MEMORY_VERSION
 from podgen.writing.research_materials.schemas import adapt as research_schema

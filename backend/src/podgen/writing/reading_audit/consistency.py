@@ -7,11 +7,14 @@ from . import VERSION as AUDIT_VERSION
 
 KEY = "reading_audit_consistency_contract"
 VERSION = "decision-findings/1"
+ADMISSIBILITY_VERSION = "decision-findings/2"
+CURRENT = ADMISSIBILITY_VERSION
+VERSIONS = (VERSION, ADMISSIBILITY_VERSION)
 
 
 def from_manifest(manifest):
     version = manifest.get(KEY)
-    if version is not None and (version != VERSION or manifest.get(AUDIT_KEY) != AUDIT_VERSION):
+    if version is not None and (version not in VERSIONS or manifest.get(AUDIT_KEY) != AUDIT_VERSION):
         raise ContractError("unsupported_reading_audit_consistency")
     return version
 
@@ -19,7 +22,7 @@ def from_manifest(manifest):
 def validate(output, version):
     if version is None:
         return
-    if version != VERSION:
+    if version not in VERSIONS:
         raise ContractError("unsupported_reading_audit_consistency")
     if "audit" not in output or "finding_links" not in output:
         raise ContractError("audit_consistency_report_missing")
@@ -39,12 +42,16 @@ def validate(output, version):
     }
     if not negative <= linked:
         raise ContractError("audit_negative_decision_unlinked")
+    if version == ADMISSIBILITY_VERSION and "claim_checks" in audit:
+        from .admissibility import validate
+
+        validate(output)
 
 
 def describe(schema, version):
     if version is None:
         return
-    if version != VERSION:
+    if version not in VERSIONS:
         raise ContractError("unsupported_reading_audit_consistency")
     schema["properties"]["finding_links"]["description"] += (
         " Every current reader needs_change or fact contradicted or unsupported decision must be linked to an actual finding."
@@ -52,3 +59,7 @@ def describe(schema, version):
         " important or blocking findings require revision. An unchecked decision"
         " does not automatically require a finding or a mandatory repair."
     )
+    if version == ADMISSIBILITY_VERSION:
+        from .admissibility import describe
+
+        describe(schema)
