@@ -1,0 +1,24 @@
+{
+  "commission_hash": "1181ed9ef30dd7a7b6d5b861faf9a983a0c65c4f586df4544589f60afc6929e0",
+  "model": "gpt-6.1-terra",
+  "tools": [
+    "search_sources",
+    "read_source",
+    "read_material",
+    "list_research_results",
+    "list_research_sources",
+    "select_research_result",
+    "list_sources",
+    "request_source",
+    "request_research",
+    "save_working_state",
+    "list_work_history",
+    "read_work_history",
+    "read_research_result",
+    "web_search"
+  ],
+  "receipt": {
+    "object": "response.input_tokens",
+    "input_tokens": 23640
+  }
+}

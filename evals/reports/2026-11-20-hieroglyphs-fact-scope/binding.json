@@ -1,0 +1,15 @@
+{
+  "source_run": "1cd0ac76-3326-58bb-83f0-6ee76847cefe",
+  "script_ref": {
+    "record_kind": "tool_execution",
+    "record_id": "f608e34b-bf19-5966-bb0a-f6c106506d49"
+  },
+  "script_hash": "f1c9bdf7a5c7e1e11212580f9357bd227ca08c9febf441ad727e73b27046e2ca",
+  "inventory_hash": "aee52895aa40ef6811ee3bf932df71da1032a106f5a795f642d1d3858c9aaa79",
+  "evidence_hash": "dfd80aeb1e715a0c44387d2105327ce9e3bd8384a6d5805b5e8939d086879445",
+  "profile_hash": "60188090818308907753179d29bd89fa0fe7082112134ace479181c11c946738",
+  "documents": 77,
+  "utterances": 66,
+  "retained_passages": 18,
+  "model": "gpt-6.1-terra"
+}
