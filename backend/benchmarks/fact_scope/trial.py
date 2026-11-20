@@ -4,15 +4,17 @@ from copy import deepcopy
 from datetime import datetime, timezone
 from uuid import uuid5
 
+from material import supplied_passages
 from scopes import FOCUS, METHOD, PARTITION, SYNTHESIS, Partition, Synthesis, validate_dispositions
 
 from podgen.domain.canonical import digest
-from podgen.domain.contracts.common import CodeProducer
+from podgen.domain.contracts.common import CodeProducer, RuntimeRef
 from podgen.domain.errors import Conflict
 from podgen.persistence.repository import timestamp
 from podgen.runtime.evaluation import source_tool_contract
 from podgen.runtime.evaluation.compiler import response_request
 from podgen.runtime.evaluation.contracts import command_payload
+from podgen.runtime.evaluation.journal_completion import complete
 from podgen.runtime.evaluation.operation_guard import OperationGuard
 from podgen.runtime.evaluation.reading_audit.lifecycle import finalize
 from podgen.runtime.evaluation.reading_audit.source import AuditContext
@@ -105,7 +107,7 @@ class Trial:
         return body, AuditContext(
             view,
             dict(script_hash=digest(script), frozen_sources=digest(case.inventory)),
-            proofs,
+            supplied_passages(case, proofs),
             case.snapshots,
             self.schema_version,
         )
@@ -269,9 +271,18 @@ class Trial:
                         ]
                     if kind == "synthesis":
                         record["fragment_dispositions"] = checked["fragment_dispositions"]
-                record.update(binding=binding, script_ref=case.script_ref)
-                saved = journal.record(record, record_id=uuid5(invocation["invocation_id"], "output"))
-                journal.transition(invocation, "completed", output_ref=saved)
+                record.update(
+                    contract="fact-scope-result/1",
+                    binding=binding,
+                    script_ref=case.script_ref,
+                    run_id=str(run_id),
+                    stage="fact-review",
+                    invocation_id=str(invocation["invocation_id"]),
+                )
+                saved = RuntimeRef(
+                    record_kind="tool_execution", record_id=uuid5(invocation["invocation_id"], "output")
+                )
+                complete(journal, record, saved)
                 journal.status(run_id, "completed_unaccepted")
                 return self.account(record, journal.invocation(run_id, "fact-review"))
             except Exception as exc:

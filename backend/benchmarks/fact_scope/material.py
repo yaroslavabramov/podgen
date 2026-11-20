@@ -111,3 +111,22 @@ def relevant(case, start, stop):
     return [
         item["receipt"] for item in case.evidence if any(start <= index < stop for index in item["indices"])
     ]
+
+
+def supplied_passages(case, proofs):
+    """Bind supplied H passages to this authorized document snapshot.
+
+    A different unit's private provider receipt is readable only in its own
+    journal. This unit receives a fresh, byte-checked document excerpt. The
+    experiment binding retains the digest of the originating receipt.
+    """
+    with read_sources((*case.materials.documents, *case.materials.runtime_admissions)):
+        result = {}
+        for alias, original in proofs.items():
+            validate_retained(original, case.materials, case.snapshots)
+            result[alias] = {
+                key: original[key]
+                for key in ("original_id", "kind", "content", "content_hash", "source_selectors", "locator")
+                if key in original
+            }
+        return result
