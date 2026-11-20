@@ -73,7 +73,8 @@ def main():
                 with metrics.phase(label):
                     record = trial.execute(root, label, kind, start, stop, proofs, sections, issues)
             finally:
-                state = head(repo, journal.project, uuid5(root, label))
+                unit_id = uuid5(root, label)
+                state = head(repo, journal.project, unit_id) if journal.run(unit_id) else None
                 if state:
                     write(folder / (label + "-usage.json"), state["accounting"])
             write(folder / (label + ".json"), record)
@@ -82,7 +83,10 @@ def main():
 
         if args.operation == "receipts":
             labels = ["partition"]
-            partition = journal.invocation(uuid5(root, "partition"), "fact-review")
+            partition_run = uuid5(root, "partition")
+            partition = (
+                journal.invocation(partition_run, "fact-review") if journal.run(partition_run) else None
+            )
             if partition and partition["status"] == "completed":
                 ranges = Partition.model_validate(journal.output(partition)["output"]).ranges(count)
                 labels.extend(f"fragment-{start}-{stop}" for start, stop in ranges)

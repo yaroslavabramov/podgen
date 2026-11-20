@@ -10,6 +10,8 @@ from podgen.runtime.evaluation.model_turns import events
 
 
 def collect(journal, run_id):
+    if journal.run(run_id) is None:
+        return None
     row = journal.invocation(run_id, "fact-review")
     if row is None:
         return None
