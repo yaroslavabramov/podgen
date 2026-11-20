@@ -21,22 +21,36 @@ def resolve_research(resolver, store, key, arguments, operation_id, guard):
     child = ResearchJournal(store.repo, store.project, uuid5(operation_id, "targeted-research"))
     episode_assignment = resolver.materials.packet.assignment.model_dump(mode="json")
     episode_assignment.pop("duration_estimate", None)
+    targeted = arguments.get("research_contract") == "targeted-script-context/1"
+    from .targeted import INSTRUCTIONS
+
     config = ResearchConfig(
         run_id=child.run_id,
-        instructions=parent["instructions"],
+        instructions=INSTRUCTIONS if targeted else parent["instructions"],
         profile=parent["profile"],
         assignment=dict(
             user_request=arguments["question"],
             output_language=resolver.materials.output_language,
             scope=dict(source_mode="open_web"),
             reason=arguments["reason"],
-            episode_assignment=episode_assignment,
+            **(
+                dict(
+                    script_context={
+                        k: v
+                        for k, v in (arguments.get("script_context") or {}).items()
+                        if k in {"anchors", "utterances"}
+                    }
+                )
+                if targeted
+                else dict(episode_assignment=episode_assignment)
+            ),
             task="Resolve this specific open question; do not repeat the general episode research.",
         ),
     )
     manifest = prepare(child, config)
     handoff = dict(
-        contract="targeted-research-handoff/1",
+        contract="targeted-research-handoff/2" if targeted else "targeted-research-handoff/1",
+        **(dict(script_binding=arguments.get("script_context")) if targeted else {}),
         child_run_id=str(child.run_id),
         question=arguments["question"],
         reason=arguments["reason"],
@@ -55,6 +69,10 @@ def resolve_research(resolver, store, key, arguments, operation_id, guard):
             )
         )
     guard()
+    if targeted:
+        from .targeted_resolution import resolve
+
+        return resolve(resolver, store, key, child, arguments, guard)
     acquisition = resolver.config.model_copy(update={"reuse_selection_ids": []})
     acquired = asyncio.run(
         acquire_corpus(

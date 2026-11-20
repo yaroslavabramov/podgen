@@ -10,6 +10,7 @@ from podgen.domain.errors import ContractError
 from podgen.runtime.evaluation import model_turns
 from podgen.runtime.evaluation.contracts import RunFailure
 from podgen.runtime.evaluation.research_cache_layout import mark_turn
+from podgen.runtime.evaluation.source_tool_contract import anchored_research, quick_search, role_definitions
 
 from .contracts import WireReply
 from .research_context import ResearchContext
@@ -68,8 +69,21 @@ def _invoke(gateway, root, profile, contract, *, limits, totals, guard):
             input_tokens=usage["input"],
             output_tokens=None if usage["unknown"] else usage["known_output"],
         )
-        return gateway._output_text(root, response)
-    proxy = ResearchTools(journal, root, corpus, history, guard, history_view=contract.get("history_view"))
+        return gateway._output_text(
+            root, response, web_search=quick_search(contract, root["stage"], profile.provider)
+        )
+    execution_contract = dict(
+        contract, definitions=role_definitions(contract, root["stage"], profile.provider)
+    )
+    proxy = ResearchTools(
+        journal,
+        root,
+        corpus,
+        history,
+        guard,
+        history_view=contract.get("history_view"),
+        anchored=anchored_research(contract, root["stage"]),
+    )
     if corpus.material_resolver is not None:
         proxy.restore(corpus.material_resolver.restore(run_id=root["run_id"], guard=guard))
         corpus.refresh()
@@ -101,9 +115,9 @@ def _invoke(gateway, root, profile, contract, *, limits, totals, guard):
         if retry_first:
             # Authorization binds this exact unsent/refused physical request.
             # Do not reinterpret its already selected context/checkpoint mode.
-            checkpoint_requested = [tool["name"] for tool in body["tools"]] == ["save_working_state"]
+            checkpoint_requested = [tool.get("name") for tool in body["tools"]] == ["save_working_state"]
         else:
-            body["tools"] = deepcopy(contract["definitions"])
+            body["tools"] = role_definitions(contract, root["stage"], profile.provider)
             body["tool_choice"] = "auto"
             mark_turn(body)
             body, checkpoint_requested = context.request(body, index, segment_start)
@@ -146,7 +160,12 @@ def _invoke(gateway, root, profile, contract, *, limits, totals, guard):
             journal.transition(root, current["status"])
             raise RunFailure(error.code, run_id=root["run_id"], invocation_id=root["invocation_id"]) from None
         usage = _account(journal, root, profile, history, ledger=ledger)
-        calls = _calls(response)
+        search_enabled = quick_search(contract, root["stage"], profile.provider)
+        if search_enabled:
+            from .web_search import record
+
+            record(journal, root, history, response, index)
+        calls = _calls(response, web_search=search_enabled)
         if not calls:
             if checkpoint_requested:
                 context.event(
@@ -164,7 +183,7 @@ def _invoke(gateway, root, profile, contract, *, limits, totals, guard):
                     gateway,
                     root,
                     proxy,
-                    contract,
+                    execution_contract,
                     history,
                     conversation,
                     response,
@@ -174,7 +193,9 @@ def _invoke(gateway, root, profile, contract, *, limits, totals, guard):
                     guard,
                 )
                 continue
-            text = gateway._output_text(root, response)
+            text = gateway._output_text(
+                root, response, web_search=quick_search(contract, root["stage"], profile.provider)
+            )
             final = deepcopy(response)
             final["metadata"] = original["metadata"]
             final["usage"] = dict(
@@ -206,7 +227,9 @@ def _invoke(gateway, root, profile, contract, *, limits, totals, guard):
             existing = history.for_call("source_tool_call", call_index)
             if call["call_id"] in history.call_ids and not existing:
                 raise ContractError("duplicate_provider_tool_call_id")
-            result = _execute(journal, root, proxy, contract, call, call_index, index, guard, history)
+            result = _execute(
+                journal, root, proxy, execution_contract, call, call_index, index, guard, history
+            )
             conversation.append(
                 dict(
                     type="function_call_output",

@@ -111,6 +111,15 @@ class ResearchProvider:
                     source_id="E2" if context["phase"] == "first" else "H1",
                     source_review="current" if context["phase"] == "first" else "previous",
                 )
+                if fact and value["recommendation"] == "keep":
+                    # This fixture checks one scoped statement, with no causal,
+                    # chronological or population-wide claims to leave unfinished.
+                    for area in value["audit"]["areas"]:
+                        if area["status"] == "unchecked":
+                            area.update(
+                                status="not_applicable",
+                                explanation="No such claim is asserted by this synthetic scoped account.",
+                            )
                 if fact and value["findings"]:
                     value["findings"][0]["support_labels"] = ["M1"]
             from jsonschema import Draft202012Validator

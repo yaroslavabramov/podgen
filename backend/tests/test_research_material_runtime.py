@@ -66,7 +66,7 @@ def test_full_research_workflow_preserves_report_and_only_original_source_eviden
         fields = manifest["response_schemas"][stage]["$defs"]["SourcedFactFinding"]["properties"]
         assert "report sections relevant to this finding" in fields["support_labels"]["description"]
         assert "R report-reading receipts are not source evidence" in fields["source_read_ids"]["description"]
-    assert manifest["source_tool_contract"]["version"] == "frozen-corpus-tools/7"
+    assert manifest["source_tool_contract"]["version"] == "frozen-corpus-tools/8"
     assert manifest["source_tool_contract"]["default_read_chars"] == 9600
     assert manifest["prompt_cache_layout"] == "research-role-prefix/2"
     assert manifest["provider_contracts"]["draft"]["api_version"] == "2026-10-21"

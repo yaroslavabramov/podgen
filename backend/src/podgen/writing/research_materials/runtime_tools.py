@@ -50,6 +50,21 @@ class ResearchRequest(Arguments):
     reason: str
 
 
+class ResearchAnchor(Arguments):
+    utterance_index: int = Field(ge=0)
+    quote: str = Field(
+        min_length=1,
+        description="Exact substring of the indexed original utterance; preserve case and punctuation.",
+    )
+
+
+class AnchoredResearchRequest(ResearchRequest):
+    anchors: list[ResearchAnchor] = Field(
+        min_length=1,
+        description="Exact anchors from the script under factual assessment. The runtime supplies full original turns and their neighbors.",
+    )
+
+
 class WorkingState(Arguments):
     state: str = Field(
         description="Complete durable working result, progress, coverage, unresolved issues and next actions. No editorial verdict is required. This full text replaces no persisted evidence."
@@ -138,7 +153,7 @@ TOOLS = (
 )
 
 
-def definitions(*, history_view=None):
+def definitions(*, history_view=None, anchored=False):
     from podgen.domain.errors import ContractError
 
     if history_view not in (None, "research-work-history/1"):
@@ -148,7 +163,9 @@ def definitions(*, history_view=None):
             type="function",
             name=name,
             strict=True,
-            parameters=model.model_json_schema(),
+            parameters=(
+                AnchoredResearchRequest if anchored and name == "request_research" else model
+            ).model_json_schema(),
             description=(
                 "Read prior task messages, actions, arguments and results in character pages. "
                 "Full working notes and exact source passages are retained; transport metadata is omitted. "

@@ -1,0 +1,60 @@
+{
+  "phases": {
+    "prepare": {
+      "seconds": 0.022567124979104847,
+      "sql_calls": 75,
+      "sql_set": 6,
+      "sql_select": 54,
+      "sql_update": 4,
+      "sql_insert": 6,
+      "sql_with": 5,
+      "objects": {
+        "stage_calls": 1,
+        "staged_bytes": 1717,
+        "stream_calls": 1,
+        "read_bytes": 1717,
+        "publish_calls": 1,
+        "published_bytes": 1717
+      }
+    },
+    "resolve": {
+      "seconds": 0.16284529102267697,
+      "sql_calls": 355,
+      "sql_set": 37,
+      "sql_select": 257,
+      "sql_with": 31,
+      "sql_update": 12,
+      "sql_insert": 18,
+      "objects": {
+        "stage_calls": 2,
+        "staged_bytes": 7000,
+        "stream_calls": 2,
+        "read_bytes": 10705,
+        "publish_calls": 2,
+        "published_bytes": 7000,
+        "read_calls": 2
+      }
+    },
+    "replay": {
+      "seconds": 0.013358041003812104,
+      "sql_calls": 51,
+      "sql_set": 4,
+      "sql_select": 39,
+      "sql_with": 7,
+      "sql_update": 1,
+      "objects": {}
+    }
+  },
+  "search_calls": 0,
+  "search_seconds": 0,
+  "process_peak_rss_bytes": 181600256,
+  "limitations": [
+    "Object counters cover the repository store, not cached Unicode projection reads.",
+    "Staging/publication are logical store operations, not physical disk writes; RSS is the process-wide high-water mark.",
+    "Provider costs and token/cache usage remain in complete native trace receipts; USD is not inferred from an unpinned price."
+  ],
+  "discovered_documents": 6,
+  "variant": "anchored",
+  "fetch_calls": 1,
+  "paid_provider_calls": 0
+}

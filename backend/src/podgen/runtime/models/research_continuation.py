@@ -44,11 +44,13 @@ def structured_requests(response, turn, history):
     ]
 
 
-def structured_call(request, turn, position):
+def structured_call(request, turn, position, *, anchored=False):
     arguments = dict(
         question=request["question"],
         reason=request.get("why_needed") or request.get("reason") or json.dumps(request, ensure_ascii=False),
     )
+    if anchored:
+        arguments["anchors"] = request.get("anchors", [])
     return dict(
         type="function_call",
         call_id=f"structured_research_{turn}_{position}",
@@ -71,7 +73,10 @@ def resolve_structured(
     turn,
     guard,
 ):
-    calls = [structured_call(request, turn, position) for position, request in enumerate(requests)]
+    calls = [
+        structured_call(request, turn, position, anchored=proxy.anchored)
+        for position, request in enumerate(requests)
+    ]
     event = history.provider_response(turn)
     from podgen.runtime.evaluation.provider_evidence import register_structured
 

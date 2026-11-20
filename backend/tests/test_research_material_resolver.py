@@ -233,3 +233,260 @@ def test_reused_plan_freezes_original_admissions_and_reserves_ids(
         "S13",
     ]
     assert len(fetcher.calls) == 3
+
+
+def test_anchored_targeted_research_uses_special_task_and_validates_retained_excerpt(
+    repo, scope, producer, monkeypatch
+):
+    materials, _, acquire, fetcher = fixture(repo, scope, producer, monkeypatch)
+    resolver = ResearchMaterialResolver(EvaluationJournal(repo, scope[0]), materials, acquire=acquire)
+    run_id, operation = uuid4(), uuid4()
+    args = dict(
+        question="Верен ли смысл этой реплики?",
+        reason="Уточнить дату.",
+        anchors=[],
+        research_contract="targeted-script-context/1",
+        script_context=dict(
+            script_ref={"technical": "private"},
+            script_hash="bound-hash",
+            anchors=[dict(utterance_index=1, quote="точные часы")],
+            utterances=[dict(utterance_index=1, speaker="A", text="Ёжик и точные часы.")],
+        ),
+    )
+    pending = resolver.resolve(
+        "request_research", args, operation_id=operation, run_id=run_id, guard=lambda: None
+    )
+    assert pending.result["contract"] == "targeted-research-handoff/2"
+    child = ResearchJournal(repo, scope[0], UUID(pending.result["child_run_id"]))
+    manifest = child.get("manifest")
+    request = manifest["request"]["body"]
+    serialized = json.dumps(request, ensure_ascii=False)
+    assert "Ёжик и точные часы." in serialized
+    assert "episode_assignment" not in serialized and "private" not in serialized
+    assert "Do not fabricate" in manifest["config"]["instructions"]
+    save_report(
+        child,
+        json.dumps(
+            dict(
+                answer="Точная выдержка получена.",
+                limitations="",
+                evidence=[
+                    dict(
+                        url="https://example.com/new", quote="Ёжик и точные часы.", relation="Исходные слова."
+                    )
+                ],
+            ),
+            ensure_ascii=False,
+        ),
+    )
+    done = resolver.resolve(
+        "request_research", args, operation_id=operation, run_id=run_id, guard=lambda: None
+    )
+    assert done.result["excerpts"][0] == dict(
+        source_id="S12", quote="Ёжик и точные часы.", start=0, end=19, relation="Исходные слова."
+    )
+    assert done.result["report_id"] == "X1"
+    assert done.result["relationship"] == "validated_source_locations_not_read_receipts"
+    assert len(fetcher.calls) == 2
+    assert (
+        resolver.resolve("request_research", args, operation_id=operation, run_id=run_id, guard=lambda: None)
+        == done
+    )
+    assert len(fetcher.calls) == 2
+
+
+@pytest.mark.parametrize("available", [False, True])
+def test_targeted_evidence_uses_source_path_and_never_admits_unavailable_answer(
+    repo, scope, producer, monkeypatch, available
+):
+    from dataclasses import replace
+
+    materials, _, acquire, fetcher = fixture(repo, scope, producer, monkeypatch)
+    materials = replace(materials, documents=tuple(reversed(materials.documents)))
+    resolver = ResearchMaterialResolver(EvaluationJournal(repo, scope[0]), materials, acquire=acquire)
+    run_id, operation = uuid4(), uuid4()
+    args = dict(
+        question="Read the exact record.",
+        reason="Verify",
+        anchors=[],
+        research_contract="targeted-script-context/1",
+        script_context=None,
+    )
+    pending = resolver.resolve(
+        "request_research", args, operation_id=operation, run_id=run_id, guard=lambda: None
+    )
+    child = ResearchJournal(repo, scope[0], UUID(pending.result["child_run_id"]))
+    url = "https://example.com/article" if available else "https://example.com/missing"
+    if not available:
+        fetcher.documents[url] = document("Not found", url=url, status=404)
+    save_report(
+        child,
+        json.dumps(
+            dict(
+                answer="The original account.",
+                limitations="",
+                evidence=[dict(url=url, quote=ARTICLE[:80], relation="The record.")],
+            ),
+            ensure_ascii=False,
+        ),
+    )
+    result = resolver.resolve(
+        "request_research", args, operation_id=operation, run_id=run_id, guard=lambda: None
+    )
+    if available:
+        assert result.result["excerpts"][0]["source_id"] == "S11"
+        assert result.result["excerpts"][0]["quote"] == ARTICLE[:80]
+        assert len(fetcher.calls) == 1
+    else:
+        assert result.result["status"] == "unavailable"
+        assert result.result["error"] == "targeted_research_evidence_unavailable"
+        assert not any(
+            a.source_id.startswith("X") for a in resolver.restore(run_id=run_id, guard=lambda: None)
+        )
+
+
+def test_narrow_research_parallel_resolution_and_publication_retry_reuse_acquisition(
+    repo, scope, producer, monkeypatch
+):
+    from concurrent.futures import ThreadPoolExecutor
+
+    materials, _, acquire, fetcher = fixture(repo, scope, producer, monkeypatch)
+    resolver = ResearchMaterialResolver(EvaluationJournal(repo, scope[0]), materials, acquire=acquire)
+    run_id, operation = uuid4(), uuid4()
+    args = dict(
+        question="Inspect exact words.",
+        reason="Verify",
+        anchors=[],
+        research_contract="targeted-script-context/1",
+        script_context=None,
+    )
+    pending = resolver.resolve(
+        "request_research", args, operation_id=operation, run_id=run_id, guard=lambda: None
+    )
+    child = ResearchJournal(repo, scope[0], UUID(pending.result["child_run_id"]))
+    save_report(
+        child,
+        json.dumps(
+            dict(
+                answer="The words.",
+                limitations="",
+                evidence=[
+                    dict(url="https://example.com/new", quote="Ёжик и точные часы.", relation="The record.")
+                ],
+            ),
+            ensure_ascii=False,
+        ),
+    )
+    from podgen.research.materials import targeted
+
+    compact = targeted.compact
+    attempts = []
+
+    def interrupted(*args):
+        attempts.append(True)
+        raise RuntimeError("Interrupted after retained acquisition")
+
+    monkeypatch.setattr(targeted, "compact", interrupted)
+    with pytest.raises(RuntimeError, match="retained acquisition"):
+        resolver.resolve("request_research", args, operation_id=operation, run_id=run_id, guard=lambda: None)
+    assert len(fetcher.calls) == 2
+    monkeypatch.setattr(targeted, "compact", compact)
+
+    def resolve(_):
+        from podgen.domain.errors import Conflict
+
+        try:
+            return ResearchMaterialResolver(
+                EvaluationJournal(repo, scope[0]), materials, acquire=acquire
+            ).resolve("request_research", args, operation_id=operation, run_id=run_id, guard=lambda: None)
+        except Conflict as error:
+            assert str(error) == "hosted_research_run_busy"
+            return None
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        results = list(pool.map(resolve, range(2)))
+    first = next(value for value in results if value is not None)
+    second = resolve(0)
+    assert first == second and first.result["status"] == "resolved"
+    assert len(fetcher.calls) == 2
+    assert len([a for a in first.admissions if a.source_id.startswith("X")]) == 1
+
+
+def test_targeted_limitations_without_evidence_are_unresolved(repo, scope, producer, monkeypatch):
+    materials, _, acquire, fetcher = fixture(repo, scope, producer, monkeypatch)
+    resolver = ResearchMaterialResolver(EvaluationJournal(repo, scope[0]), materials, acquire=acquire)
+    run_id, operation = uuid4(), uuid4()
+    args = dict(
+        question="Check the record.",
+        reason="Verify",
+        anchors=[],
+        research_contract="targeted-script-context/1",
+        script_context=None,
+    )
+    pending = resolver.resolve(
+        "request_research", args, operation_id=operation, run_id=run_id, guard=lambda: None
+    )
+    child = ResearchJournal(repo, scope[0], UUID(pending.result["child_run_id"]))
+    save_report(
+        child,
+        json.dumps(
+            dict(
+                answer="No answer established.",
+                limitations="No original document could be inspected.",
+                evidence=[],
+            )
+        ),
+    )
+    result = resolver.resolve(
+        "request_research", args, operation_id=operation, run_id=run_id, guard=lambda: None
+    )
+    assert result.result["status"] == "unresolved"
+    assert not any(a.source_id.startswith("X") for a in resolver.restore(run_id=run_id, guard=lambda: None))
+    assert len(fetcher.calls) == 1
+
+
+@pytest.mark.parametrize("malformed", [False, True])
+def test_invalid_targeted_answer_returns_explicit_unresolved_result_without_repeating_work(
+    repo, scope, producer, monkeypatch, malformed
+):
+    materials, _, acquire, fetcher = fixture(repo, scope, producer, monkeypatch)
+    resolver = ResearchMaterialResolver(EvaluationJournal(repo, scope[0]), materials, acquire=acquire)
+    run_id, operation = uuid4(), uuid4()
+    args = dict(
+        question="Verify this date.",
+        reason="Check",
+        research_contract="targeted-script-context/1",
+        script_context=None,
+    )
+    pending = resolver.resolve(
+        "request_research", args, operation_id=operation, run_id=run_id, guard=lambda: None
+    )
+    child = ResearchJournal(repo, scope[0], UUID(pending.result["child_run_id"]))
+    save_report(
+        child,
+        "malformed saved answer"
+        if malformed
+        else json.dumps(
+            dict(
+                answer="A claim.",
+                limitations="",
+                evidence=[
+                    dict(url="https://example.com/new", quote="Invented missing words.", relation="The date.")
+                ],
+            )
+        ),
+    )
+    result = resolver.resolve(
+        "request_research", args, operation_id=operation, run_id=run_id, guard=lambda: None
+    )
+    assert result.result["status"] == "unresolved"
+    assert result.result["error"] == (
+        "targeted_research_invalid_answer" if malformed else "targeted_research_quote_not_in_source"
+    )
+    assert not any(a.source_id.startswith("X") for a in resolver.restore(run_id=run_id, guard=lambda: None))
+    calls = len(fetcher.calls)
+    assert (
+        resolver.resolve("request_research", args, operation_id=operation, run_id=run_id, guard=lambda: None)
+        == result
+    )
+    assert len(fetcher.calls) == calls

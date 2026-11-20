@@ -18,6 +18,7 @@ from .count_receipts import (
     native_count,
     provider_configuration,
 )
+from .web_search import context_limit
 
 
 class ResearchContext:
@@ -173,7 +174,7 @@ class ResearchContext:
             checkpoint = saved.data["checkpoint"]
         else:
             count = self.measured(body, index, "normal")
-            capacity = self.profile.context_limit - self.profile.output_limit
+            capacity = context_limit(body, self.profile) - self.profile.output_limit
             # Reserve a complete checkpoint response and one maximum UTF-8 tool
             # page before the hard model window. This is a soft checkpoint trigger,
             # not a separate admission ceiling on a normal task.
@@ -186,7 +187,7 @@ class ResearchContext:
             )
         result = deepcopy(body)
         if checkpoint:
-            result["tools"] = [tool for tool in body["tools"] if tool["name"] == "save_working_state"]
+            result["tools"] = [tool for tool in body["tools"] if tool.get("name") == "save_working_state"]
             result["input"].append(
                 dict(
                     role="user",
@@ -203,10 +204,9 @@ class ResearchContext:
                     ],
                 )
             )
-        if (
-            self.measured(result, index, "checkpoint" if checkpoint else "normal") + self.profile.output_limit
-            > self.profile.context_limit
-        ):
+        if self.measured(
+            result, index, "checkpoint" if checkpoint else "normal"
+        ) + self.profile.output_limit > context_limit(result, self.profile):
             phase = self.publication()
             phase.event(
                 "source_context_unfinished",

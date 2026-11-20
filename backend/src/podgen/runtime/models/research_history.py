@@ -41,6 +41,7 @@ class ResearchHistory:
         self.segments = {}
         self.submitted = set()
         self.responses = {}
+        self.web_search_turns = set()
         self.last_count_error = None
         roots = lineage(journal, root)
         loader = getattr(journal, "event_metadata", None)
@@ -78,7 +79,9 @@ class ResearchHistory:
     def _index(self, entry):
         ref, kind, data = entry.reference, entry.kind, entry.data
         self.references[kind].append(ref)
-        if kind == "source_context_count":
+        if kind == "source_web_search":
+            self.web_search_turns.add(data["turn_index"])
+        elif kind == "source_context_count":
             self.counts.setdefault(data["request_hash"], entry)
             if data.get("count_identity"):
                 self.exact_counts.setdefault(data["count_identity"], entry)

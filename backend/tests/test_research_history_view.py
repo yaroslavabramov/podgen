@@ -51,6 +51,9 @@ def test_checkpoint_history_is_semantic_for_new_runs_and_exact_for_existing_runs
     journal, profile, limits, corpus = research_setup(monkeypatch)
     contract = journal.snapshot["source_tool_contract"]
     if legacy:
+        contract["version"] = "frozen-corpus-tools/7"
+        contract.pop("fact_request_research")
+        contract.pop("web_search_definition")
         contract.pop("history_view")
         replacements = {item["name"]: item for item in definitions()}
         contract["definitions"] = [replacements.get(item["name"], item) for item in contract["definitions"]]

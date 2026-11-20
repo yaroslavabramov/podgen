@@ -14,5 +14,10 @@ During planning, use select_research_result to explicitly select any complete su
 """
 
 
-def attach(body):
-    return body + "\n\n# Durable research tools and context\n\n" + BODY
+ANCHORED = """For request_research during a script assessment, supply anchors with exact quote and utterance_index from the supplied script. The runtime attaches the complete original turns and adjacent context; ask about their actual meaning without strengthening the claim. Use retained sources first. During factual review, use the Responses web_search tool for a narrow missing fact before requesting deeper investigation. Search results and citations are navigation, never E evidence: obtain the exact document with request_source and read its retained text with read_source before citing it. Deep research is for questions requiring comparison or unresolved conflicting accounts. Its synthesis also needs original-source reading."""
+
+
+def attach(body, *, anchored=False):
+    return (
+        body + "\n\n# Durable research tools and context\n\n" + BODY + ("\n" + ANCHORED if anchored else "")
+    )

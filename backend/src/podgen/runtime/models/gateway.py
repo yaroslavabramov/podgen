@@ -201,7 +201,7 @@ class ModelGateway:
             return "provider_response_metadata_mismatch"
         return None
 
-    def _output_text(self, invocation, response):
+    def _output_text(self, invocation, response, *, web_search=False):
         output = response.get("output")
         if not isinstance(output, list):
             self._fail(invocation, "provider_output_missing")
@@ -209,6 +209,11 @@ class ModelGateway:
         for item in output:
             if not isinstance(item, dict):
                 self._fail(invocation, "provider_malformed_output")
+            if item.get("type") == "web_search_call" and web_search:
+                from .web_search import receipts
+
+                receipts(dict(output=[item]))
+                continue
             if item.get("type") == "reasoning":
                 continue
             if item.get("type") != "message" or item.get("role") != "assistant":

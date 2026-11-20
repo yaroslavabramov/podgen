@@ -62,6 +62,9 @@ def export_run(repo, project, run_id, directory):
         unknown_usage_invocations=[],
     )
 
+    if manifest.get("source_tool_contract", {}).get("version") == "frozen-corpus-tools/8":
+        result["web_search"] = dict(tool_calls=0, search_calls=0, amount_usd=None, uncertain_turns=[])
+
     def write_json(path, value):
         _write(directory / path, (json.dumps(value, ensure_ascii=False, indent=2) + "\n").encode())
 
@@ -106,7 +109,10 @@ def export_run(repo, project, run_id, directory):
             base = Path("archive") / stage
             if invocation["attempt_index"]:
                 base /= f"attempt-{invocation['attempt_index']}"
-            _export_attempt(journal, invocation, base, write_json, directory)
+            search_usage = _export_attempt(journal, invocation, base, write_json, directory)
+            if "web_search" in result and search_usage:
+                for key in ("tool_calls", "search_calls"):
+                    result["web_search"][key] += search_usage[key]
             from .source_tool_contract import applies, from_manifest
 
             if invocation["operation_kind"] == "role" and applies(stage, from_manifest(manifest)):
@@ -114,6 +120,10 @@ def export_run(repo, project, run_id, directory):
 
                 # Preserve known physical usage even when the semantic stage is incomplete.
                 turns = charged_rows(journal, invocation)
+                if "web_search" in result and base_stage(stage) == "fact-review":
+                    result["web_search"]["uncertain_turns"].extend(
+                        str(turn["invocation_id"]) for turn in turns if turn["status"] == "outcome_unknown"
+                    )
                 result["input_tokens"] += sum(turn["input_tokens"] or 0 for turn in turns)
                 result["output_tokens_known"] += sum(turn["output_tokens"] or 0 for turn in turns)
                 result["unknown_usage_invocations"].extend(

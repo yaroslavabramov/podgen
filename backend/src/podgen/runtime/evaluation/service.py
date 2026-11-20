@@ -365,7 +365,7 @@ class WritingEvaluation:
                     if index is not None and guard.supports_publication_snapshot:
                         index.access.run_id = command.run_id
                     corpus = SourceCorpus(materials, retrieval=retrieval, index=index)
-                    if source_contract(manifest)["version"] == "frozen-corpus-tools/7":
+                    if source_contract(manifest)["version"] in ("frozen-corpus-tools/7", "frozen-corpus-tools/8"):
                         corpus.material_resolver = self.material_resolver(command, materials)
                 except ImportError:
                     journal.status(command.run_id, "needs_attention", "source_search_dependencies_missing")

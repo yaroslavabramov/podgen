@@ -127,7 +127,7 @@ def research_materials():
 
 def _tools(materials):
     return ResearchTools(
-        None,
+        SimpleNamespace(execution=SimpleNamespace(prepare=lambda *args, **kwargs: None)),
         dict(invocation_id=uuid4(), run_id=uuid4()),
         SourceCorpus(materials),
         None,
@@ -197,7 +197,7 @@ def test_v7_plan_has_catalog_navigation_and_keeps_the_literary_instructions(rese
     names = {tool["name"] for tool in body["tools"]}
     assert {"list_sources", "request_source", "request_research", "save_working_state"} <= names
     contract = create(SimpleNamespace(name="production/1"), research_materials)
-    assert contract["version"] == "frozen-corpus-tools/7"
+    assert contract["version"] == "frozen-corpus-tools/8"
     assert not {"max_model_turns", "max_tool_calls", "final_turn"} & contract.keys()
 
 
@@ -429,3 +429,22 @@ def test_admitted_url_alias_is_searchable_within_its_original_material(
     assert [row.model_dump(mode="json") for row in research_materials.packet.sources] == original_catalog
     assert source.source_id == "S2" and source.reported_url == reported_url
     assert corpus.admission_catalog["S64"] == catalog
+
+
+@pytest.mark.parametrize("stage", ["plan", "draft"])
+def test_v8_preserves_complete_non_fact_request(research_materials, monkeypatch, stage):
+    from podgen.runtime.evaluation import source_tool_contract
+
+    run = uuid4()
+    inputs = dict(approved_plan=_plan(research_materials)) if stage == "draft" else {}
+    current = create(SimpleNamespace(name="production/1"), research_materials)
+    original = deepcopy(current)
+    original["version"] = "frozen-corpus-tools/7"
+    original.pop("fact_request_research")
+    original.pop("web_search_definition")
+    after = preview_request(run, stage, _profile(stage), research_materials, **inputs)
+    monkeypatch.setattr(source_tool_contract, "create", lambda *args: original)
+    before = preview_request(run, stage, _profile(stage), research_materials, **inputs)
+    assert after == before
+    tool = next(row for row in after["tools"] if row["name"] == "request_research")
+    assert set(tool["parameters"]["properties"]) == {"question", "reason"}

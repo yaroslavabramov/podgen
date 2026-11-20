@@ -26,11 +26,13 @@ def export_attempt(journal, invocation, base, write_json, directory):
             write_json(base / "request-record.json", request)
         write(directory / base / "request.json", raw)
     with TemporaryDirectory(prefix=".turn-events-", dir=directory) as spool:
-        _events(journal, invocation, directory / base, Path(spool))
+        search_usage = _events(journal, invocation, directory / base, Path(spool))
         _turns(journal, invocation, base, directory, Path(spool))
+    return search_usage
 
 
 def _events(journal, invocation, directory, spool):
+    search_usage = dict(tool_calls=0, search_calls=0)
     with ExitStack() as outputs:
         all_events = outputs.enter_context(json_array(directory / "events.json"))
         selected = {}
@@ -46,10 +48,14 @@ def _events(journal, invocation, directory, spool):
                     value = dict(record_ref=reference.model_dump(mode="json"), **record)
                     all_events(value)
                     kind = event["event_kind"]
+                    if kind == "source_web_search":
+                        for key in search_usage:
+                            search_usage[key] += record["data"][key]
                     name = {
                         "source_tool_call": "source-tools.json",
                         "source_tool_result": "source-tools.json",
                         "source_search_diagnostics": "source-search.json",
+                        "source_web_search": "web-search.json",
                     }.get(kind)
                     if name:
                         if name not in selected:
@@ -85,6 +91,8 @@ def _events(journal, invocation, directory, spool):
                         for path, reference, blob in blobs:
                             write(staged / path.relative_to(directory), journal.read_blob(reference, blob))
                         journal.authorize_many(references)
+
+    return search_usage
 
 
 def _turns(journal, invocation, base, directory, spool):

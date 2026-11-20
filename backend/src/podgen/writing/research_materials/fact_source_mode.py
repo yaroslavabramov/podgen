@@ -28,7 +28,7 @@ def validate(mode):
 
 
 def tools(definitions):
-    result = [deepcopy(t) for t in definitions if t["name"] in ALLOWED_TOOLS]
+    result = [deepcopy(t) for t in definitions if t.get("name") in ALLOWED_TOOLS]
     if {t["name"] for t in result} != ALLOWED_TOOLS:
         raise ContractError("fact_source_only_tool_baseline_mismatch")
     for tool in result:
@@ -48,6 +48,7 @@ def tools(definitions):
             field["description"] = field["description"].replace("E/R", "E")
         if tool["name"] in ("list_work_history", "read_work_history"):
             tool["description"] = tool["description"].replace("E/R", "E")
+    result.extend(deepcopy(t) for t in definitions if t.get("type") == "web_search")
     return result
 
 

@@ -24,7 +24,10 @@ def input_budget_for_profile(name, *, model_window=False):
 def validate_manifest_budget(manifest):
     budget = manifest.get("role_input_budget")
     if budget == MODEL_WINDOW_BUDGET:
-        if manifest.get("source_tool_contract", {}).get("version") != "frozen-corpus-tools/7":
+        if manifest.get("source_tool_contract", {}).get("version") not in (
+            "frozen-corpus-tools/7",
+            "frozen-corpus-tools/8",
+        ):
             raise ContractError("model_window_requires_durable_research_runtime")
         return budget.copy()
     if budget != input_budget_for_profile(manifest.get("behavior_profile")):

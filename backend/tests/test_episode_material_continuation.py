@@ -16,6 +16,7 @@ from tests.episode_production_support import REPORT, setup_episode
 from tests.hosted_research_support import Provider, response
 from tests.research_material_provider import ResearchProvider
 from tests.revision_providers import reply
+from tests.source_acquisition_support import ARTICLE
 
 QUESTION = dict(
     question="Which observation established the chronology?",
@@ -23,8 +24,23 @@ QUESTION = dict(
 )
 
 
-def completed():
-    return response("completed", steps=[dict(type="model_output", content=[dict(type="text", text=REPORT)])])
+def completed(*, targeted=False):
+    text = (
+        json.dumps(
+            dict(
+                answer="The retained account.",
+                limitations="",
+                evidence=[
+                    dict(
+                        url="https://example.com/article", quote=ARTICLE[:80], relation="The original words."
+                    )
+                ],
+            )
+        )
+        if targeted
+        else REPORT
+    )
+    return response("completed", steps=[dict(type="model_output", content=[dict(type="text", text=text)])])
 
 
 class MaterialProvider(ResearchProvider):
@@ -120,6 +136,15 @@ class ToolHandoffProvider(ResearchProvider):
         if stage in ("plan", "fact-review") and turn == 1 and stage not in self.requested:
             self.requested.add(stage)
             self.requests.append(body)
+            args = dict(question=f"Question for {stage}?", reason="Missing a dated observation.")
+            definition = next(t for t in body["tools"] if t.get("name") == "request_research")
+            if "anchors" in definition["parameters"]["properties"]:
+                from podgen.runtime.evaluation.request_payload import request_payload
+
+                script = request_payload(
+                    dict(body, input=[item for item in body["input"] if item.get("role") == "user"])
+                )["script"]
+                args["anchors"] = [dict(utterance_index=0, quote=script["utterances"][0]["text"])]
             return WireReply(
                 json.dumps(
                     dict(
@@ -133,12 +158,7 @@ class ToolHandoffProvider(ResearchProvider):
                                 status="completed",
                                 name="request_research",
                                 call_id=f"{stage}_question",
-                                arguments=json.dumps(
-                                    dict(
-                                        question=f"Question for {stage}?",
-                                        reason="Missing a dated observation.",
-                                    )
-                                ),
+                                arguments=json.dumps(args),
                             )
                         ],
                         usage=dict(input_tokens=100, output_tokens=100),
@@ -155,7 +175,7 @@ def test_resolved_planning_handoff_does_not_mask_later_fact_handoff(repo, scope,
     )
     models = ToolHandoffProvider()
     runner.writer.provider_factory = lambda _: models
-    hosted = Provider(completed(), completed(), completed())
+    hosted = Provider(completed(), completed(), completed(targeted=True))
     runner.research_provider = hosted
     prepare(repo, scope[0], config)
     result = runner.run()

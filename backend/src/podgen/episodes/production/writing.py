@@ -108,6 +108,6 @@ def pending_handoff(journal, run_id, invocation_id):
             if key in resolved:
                 continue
             result = record["data"]["result"]
-            if result.get("contract") == "targeted-research-handoff/1":
+            if result.get("contract") in ("targeted-research-handoff/1", "targeted-research-handoff/2"):
                 return result
     raise ContractError("episode_research_handoff_missing")

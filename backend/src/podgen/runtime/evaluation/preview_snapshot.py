@@ -25,7 +25,10 @@ def load_preview_snapshot(journal, generation, run_id, stage, materials):
     if journal.run(run_id) is None:
         return None
     manifest = journal.manifest(run_id)
-    if manifest.get("source_tool_contract", {}).get("version") == "frozen-corpus-tools/7":
+    if manifest.get("source_tool_contract", {}).get("version") in (
+        "frozen-corpus-tools/7",
+        "frozen-corpus-tools/8",
+    ):
         from podgen.research.materials.resolver import ResearchMaterialResolver
 
         materials.runtime_admissions[:] = ResearchMaterialResolver(journal, materials).restore(

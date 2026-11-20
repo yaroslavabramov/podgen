@@ -72,6 +72,8 @@ def conversation(items):
             message("assistant", item["content"])
         elif kind == "message" or kind is None and "role" in item:
             message(item["role"], item["content"])
+        elif kind == "web_search_call":
+            entries.append(dict(action="web_search", arguments=item.get("action"), relationship="navigation_not_source_evidence"))
         elif kind != "reasoning":
             raise ContractError("unsupported_history_item")
     return entries

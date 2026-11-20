@@ -14,7 +14,9 @@ VERSION = "frozen-corpus-tools/4"
 RESEARCH_VERSION = "frozen-corpus-tools/5"
 PAGED_RESEARCH_VERSION = "frozen-corpus-tools/6"
 DURABLE_RESEARCH_VERSION = "frozen-corpus-tools/7"
-RESEARCH_VERSIONS = (RESEARCH_VERSION, PAGED_RESEARCH_VERSION, DURABLE_RESEARCH_VERSION)
+CURRENT_RESEARCH_VERSION = "frozen-corpus-tools/8"
+DURABLE_VERSIONS = (DURABLE_RESEARCH_VERSION, CURRENT_RESEARCH_VERSION)
+RESEARCH_VERSIONS = (RESEARCH_VERSION, PAGED_RESEARCH_VERSION, *DURABLE_VERSIONS)
 RESEARCH_ROLES = (
     "plan",
     "plan-review",
@@ -50,7 +52,9 @@ def create(behavior, materials=None):
         from podgen.writing.research_materials.runtime_tools import source_definitions
 
         return dict(
-            version=DURABLE_RESEARCH_VERSION,
+            version=CURRENT_RESEARCH_VERSION,
+            fact_request_research=targeted_definition(history_view),
+            web_search_definition=dict(type="web_search", search_context_size="low"),
             definitions=source_definitions(declarations, retrieval_policy=retrieval.get("retrieval_policy"))
             + runtime_definitions(history_view=history_view),
             retrieval=streaming_profile(),
@@ -77,7 +81,7 @@ def from_manifest(manifest):
         return None
     if not isinstance(value, dict):
         raise ContractError("unsupported_source_tool_contract")
-    if value.get("version") == DURABLE_RESEARCH_VERSION:
+    if value.get("version") in DURABLE_VERSIONS:
         return validate_durable(manifest, value)
     fields = {"version", "definitions", "max_model_turns", "max_tool_calls"}
     if value.get("version") in (FINAL_TURN_VERSION, READ_BUDGET_VERSION, VERSION, *RESEARCH_VERSIONS):
@@ -142,11 +146,17 @@ def applies(stage, contract):
 
 def bind(body, stage, profile, contract):
     if applies(stage, contract):
-        body.update(tools=deepcopy(contract["definitions"]), tool_choice="auto", parallel_tool_calls=False)
-        if contract["version"] == DURABLE_RESEARCH_VERSION:
+        body.update(
+            tools=role_definitions(contract, stage, profile.provider),
+            tool_choice="auto",
+            parallel_tool_calls=False,
+        )
+        if contract["version"] in DURABLE_VERSIONS:
             body["metadata"]["podgen_context_policy"] = contract["context_policy"]
         if profile.provider == "openai":
             body["include"] = ["reasoning.encrypted_content"]
+            if quick_search(contract, stage, profile.provider):
+                body["include"].append("web_search_call.action.sources")
     return body
 
 
@@ -156,6 +166,8 @@ def validate_durable(manifest, value):
     from podgen.writing.research_materials.runtime_tools import source_definitions
 
     fields = {"version", "definitions", "retrieval", "max_read_chars", "default_read_chars", "context_policy"}
+    if value["version"] == CURRENT_RESEARCH_VERSION:
+        fields.update({"fact_request_research", "web_search_definition"})
     from podgen.writing.research_materials.fact_source_mode import KEY, VERSION, tools
 
     mode = value.get(KEY)
@@ -189,14 +201,51 @@ def validate_durable(manifest, value):
     ) + runtime_definitions(history_view=history_view)
     if mode is not None:
         expected = tools(expected)
+    if value["version"] == CURRENT_RESEARCH_VERSION and (
+        value.get("fact_request_research") != targeted_definition(history_view)
+        or value.get("web_search_definition") != dict(type="web_search", search_context_size="low")
+    ):
+        raise ContractError("fact_search_tool_definitions_changed")
     if value["definitions"] != expected:
         raise ContractError("durable_source_tool_definitions_changed")
     return value
 
 
 def instructions(body, stage, contract):
-    if contract is not None and contract["version"] == DURABLE_RESEARCH_VERSION and applies(stage, contract):
+    if contract is not None and contract["version"] in DURABLE_VERSIONS and applies(stage, contract):
         from podgen.writing.research_materials.runtime_instructions import attach
 
-        return attach(body)
+        return attach(body, anchored=anchored_research(contract, stage))
     return body
+
+
+def anchored_research(contract, stage):
+    return contract["version"] == CURRENT_RESEARCH_VERSION and base_stage(stage) == "fact-review"
+
+
+def quick_search(contract, stage, provider):
+    return (
+        contract["version"] == CURRENT_RESEARCH_VERSION
+        and base_stage(stage) == "fact-review"
+        and provider == "openai"
+    )
+
+
+def role_definitions(contract, stage, provider):
+    result = deepcopy(contract["definitions"])
+    if anchored_research(contract, stage):
+        result = [
+            deepcopy(contract["fact_request_research"]) if t["name"] == "request_research" else t
+            for t in result
+        ]
+    if quick_search(contract, stage, provider):
+        result.append(deepcopy(contract["web_search_definition"]))
+    return result
+
+
+def targeted_definition(history_view):
+    from podgen.writing.research_materials.runtime_tools import definitions
+
+    return next(
+        t for t in definitions(history_view=history_view, anchored=True) if t["name"] == "request_research"
+    )

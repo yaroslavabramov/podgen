@@ -37,7 +37,7 @@ def _account(journal, root, profile, history, *, ledger=None):
     return value
 
 
-def _calls(response):
+def _calls(response, *, web_search=False):
     output = response.get("output")
     if not isinstance(output, list):
         raise ContractError("provider_output_missing")
@@ -67,6 +67,10 @@ def _calls(response):
                 raise ContractError("provider_malformed_content")
             if any(content.get("type") == "refusal" for content in contents):
                 raise ContractError("provider_refused")
+        elif item.get("type") == "web_search_call" and web_search:
+            from .web_search import receipts
+
+            receipts(dict(output=[item]))
         elif item.get("type") not in ("message", "reasoning"):
             raise ContractError("unexpected_provider_tool_or_output")
     if len({call["call_id"] for call in calls}) != len(calls):
@@ -138,7 +142,7 @@ def _execute(journal, root, corpus, contract, call, index, turn, guard, history)
         )
         if saved_data != expected:
             raise Conflict("source_tool_call_changed")
-    definition = next((tool for tool in contract["definitions"] if tool["name"] == call["name"]), None)
+    definition = next((tool for tool in contract["definitions"] if tool.get("name") == call["name"]), None)
     if definition is None:
         result = dict(error="unknown_source_tool")
     else:
@@ -211,7 +215,7 @@ def _execute(journal, root, corpus, contract, call, index, turn, guard, history)
 
 
 def invoke_tools(gateway, root, profile, contract, *, limits, totals, guard):
-    if contract["version"] == "frozen-corpus-tools/7":
+    if contract["version"] in ("frozen-corpus-tools/7", "frozen-corpus-tools/8"):
         from .research_tool_gateway import invoke
 
         return invoke(gateway, root, profile, contract, limits=limits, totals=totals, guard=guard)

@@ -7,6 +7,7 @@ from podgen.domain.errors import Conflict
 from podgen.persistence.read_authorization import authorized_read
 
 FIELDS = {
+    "source_web_search": ("turn_index",),
     "source_context_count_error": ("count_identity", "turn_index", "retryable"),
     "source_context_count": ("request_hash", "input_tokens", "turn_index", "label", "count_identity"),
     "source_context_plan": ("turn_index", "conversation_hash", "checkpoint"),

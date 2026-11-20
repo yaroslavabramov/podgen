@@ -36,3 +36,15 @@ Use the ordinary `podgen.writing_cli` with project, actor, object store and `POD
 Evaluator export writes the complete admitted report, readable source texts, admission, source/catalog ranges, original preparation and retained result/acquisition provenance under `research/`; fixed-plan clearances retain their original journal provenance.
 
 Prepare and preview are offline. `run` and `resume` execute model calls. The defaults retain one allowed plan revision and two allowed script revisions. Review the full actual request and instruction changes before a paid run; inspect the resulting plan and its separate review before evaluating downstream quality.
+
+## Fact-only native search and narrow research (`frozen-corpus-tools/8`)
+
+New runs use `/8`; saved `/7` and older manifests retain their original model-facing requests and research commissions. Non-factual roles keep the `/7` tools and instructions unchanged. Factual review receives anchored `request_research`; OpenAI factual review also receives Responses `web_search` with low search context. Existing model profiles are reused. Hosted search requests enforce its 128,000-token window in checkpoint planning and dispatch.
+
+Search is navigation, not primary evidence. Obtain a chosen document with `request_source`, then read its retained text with `read_source` to create E receipts. Search calls are physical provider work, accounted separately through `responses-web-search-receipt/1`, `web-search.json` and new-run `run.json.web_search`. Unknown network outcomes remain uncertain and are never automatically resubmitted. Existing count, token, cache and refusal accounting remains authoritative.
+
+For both direct and structured factual requests, `targeted-script-context/1` validates exact anchors against the immutable caller script hash and attaches complete original turns and adjacent turns. Its exact script reference stays in the private caller context. The dedicated English research commission receives verified text; `output_language` controls generated prose.
+
+`targeted-research-handoff/2` resumes the same assessment through the existing hosted-research lifecycle. Its bounded JSON answer is validated against retained document bytes and source paths. `targeted-research-answer/1` returns only the short answer, limitations, exact S excerpt ranges and relevance. These locations still require `read_source`; they are not E receipts. Only necessary excerpt documents are acquired, reusing the ordinary acquisition/admission mechanism.
+
+Malformed/oversized answers, fabricated quotes and missing documents yield explicit unresolved/unavailable results without publishing a completed X answer or repeating paid research. Saved native results and acquisitions survive interruption; concurrent resolution uses the existing run lock and explicit busy rejection. See `evals/reports/2026-11-20-targeted-research/` for offline native requests, complete-operation measurements and verification limits.

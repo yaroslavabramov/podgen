@@ -41,14 +41,18 @@ def validate(materials, manifest):
         "frozen-corpus-tools/5",
         "frozen-corpus-tools/6",
         "frozen-corpus-tools/7",
+        "frozen-corpus-tools/8",
     ):
         raise ContractError("unexpected_research_source_tool_contract")
-    if expected is not None and ((projection == PROJECTION) != (tool_version == "frozen-corpus-tools/7")):
+    if expected is not None and (
+        (projection == PROJECTION) != (tool_version in ("frozen-corpus-tools/7", "frozen-corpus-tools/8"))
+    ):
         raise ContractError("research_runtime_projection_mismatch")
     if expected is not None and tool_version not in (
         "frozen-corpus-tools/5",
         "frozen-corpus-tools/6",
         "frozen-corpus-tools/7",
+        "frozen-corpus-tools/8",
     ):
         raise ContractError("research_source_tool_contract_missing")
 

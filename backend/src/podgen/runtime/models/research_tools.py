@@ -26,12 +26,13 @@ def text_page(text, start, end):
 
 
 class ResearchTools:
-    def __init__(self, journal, root, corpus, history, guard, *, history_view=None):
+    def __init__(self, journal, root, corpus, history, guard, *, history_view=None, anchored=False):
         self.journal, self.root, self.corpus = journal, root, corpus
         self.history, self.guard = history, guard
         if history_view not in (None, research_history_view.VERSION):
             raise ContractError("unsupported_research_history_view")
         self.history_view = history_view
+        self.anchored = anchored
 
     @property
     def last_search_diagnostics(self):
@@ -48,6 +49,13 @@ class ResearchTools:
             resolver = self.corpus.material_resolver
             if resolver is None:
                 return dict(error="source_acquisition_not_configured")
+            if name == "request_research" and self.anchored:
+                from .research_binding import bind
+
+                try:
+                    args = bind(self.journal, self.root, args)
+                except ContractError as error:
+                    return dict(error=str(error))
             resolution = resolver.resolve(
                 name,
                 args,

@@ -30,13 +30,14 @@ def compile_role_request(
         materials,
         projection_version=projection_version,
         research_navigation=bool(
-            source_tool_contract and source_tool_contract["version"] == "frozen-corpus-tools/7"
+            source_tool_contract
+            and source_tool_contract["version"] in ("frozen-corpus-tools/7", "frozen-corpus-tools/8")
         ),
         **inputs,
     )
     if (
         source_tool_contract
-        and source_tool_contract["version"] == "frozen-corpus-tools/7"
+        and source_tool_contract["version"] in ("frozen-corpus-tools/7", "frozen-corpus-tools/8")
         and stage == "draft"
     ):
         from .research_annex import attach as attach_annex
@@ -47,7 +48,10 @@ def compile_role_request(
             inputs.get("approved_plan")
             or (materials.fixed.plan.model_dump(mode="json") if materials.fixed else None),
         )
-    if source_tool_contract and source_tool_contract["version"] == "frozen-corpus-tools/7":
+    if source_tool_contract and source_tool_contract["version"] in (
+        "frozen-corpus-tools/7",
+        "frozen-corpus-tools/8",
+    ):
         payload["research_results"] = dict(tool="list_research_results", offset=0, version=None)
     references = reference_catalog or preview_references(materials, projection_version)
     if references is not None:
@@ -96,13 +100,14 @@ def compile_reading_request(
         materials,
         prompt_cache_layout=prompt_cache_layout,
         research_navigation=bool(
-            source_tool_contract and source_tool_contract["version"] == "frozen-corpus-tools/7"
+            source_tool_contract
+            and source_tool_contract["version"] in ("frozen-corpus-tools/7", "frozen-corpus-tools/8")
         ),
         **inputs,
     )
     if (
         source_tool_contract
-        and source_tool_contract["version"] == "frozen-corpus-tools/7"
+        and source_tool_contract["version"] in ("frozen-corpus-tools/7", "frozen-corpus-tools/8")
         and base_stage(stage) == "revise"
     ):
         from .research_annex import attach as attach_annex
@@ -115,7 +120,7 @@ def compile_reading_request(
         )
     if (
         source_tool_contract
-        and source_tool_contract["version"] == "frozen-corpus-tools/7"
+        and source_tool_contract["version"] in ("frozen-corpus-tools/7", "frozen-corpus-tools/8")
         and base_stage(stage) != "reader-review"
     ):
         payload["research_results"] = dict(tool="list_research_results", offset=0, version=None)

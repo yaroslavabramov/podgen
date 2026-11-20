@@ -183,7 +183,9 @@ class ModelStep:
                 )
             except ContractError as error:
                 step.fail(invocation, error.code, status="validation_failed")
-            if invocation["input_tokens"] + profile.output_limit > profile.context_limit:
+            from .web_search import context_limit
+
+            if invocation["input_tokens"] + profile.output_limit > context_limit(body, profile):
                 step.fail(invocation, "context_capacity_exceeded", status="validation_failed")
             if (
                 totals["input"] + invocation["input_tokens"] > 2**63 - 1

@@ -23,6 +23,12 @@ def request_payload(body):
             users.append(item)
         elif role in ("system", "developer", "assistant"):
             continue
+        elif (
+            role is None
+            and item.get("type") == "web_search_call"
+            and any(tool.get("type") == "web_search" for tool in body.get("tools", []))
+        ):
+            continue
         elif role is None and item.get("type") in (
             "reasoning",
             "function_call",
