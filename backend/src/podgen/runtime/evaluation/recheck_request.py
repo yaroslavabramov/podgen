@@ -39,7 +39,7 @@ def semantic_request(journal, run_id, stage, invocation, context, script, output
     if invocation["run_id"] != run_id or invocation["stage"] != stage:
         raise Conflict("revision_verification_request_lineage_mismatch")
     if invocation["operation_kind"] == "role":
-        return journal.request(invocation)
+        return _role_commission(journal, invocation)
     if invocation["operation_kind"] != "anchor_repair":
         raise Conflict("revision_verification_request_lineage_mismatch")
     rows = journal.attempts(run_id, stage)
@@ -116,4 +116,11 @@ def semantic_request(journal, run_id, stage, invocation, context, script, output
     expected_repaired = completed["wire_output"] if "reading_audit" in completed else output
     if repaired != expected_repaired:
         raise Conflict("revision_verification_repaired_output_mismatch")
-    return original[2]
+    return _role_commission(journal, original[0])
+
+
+def _role_commission(journal, invocation):
+    """Physical source recovery retains service messages, not a new commission."""
+    from .source_tool_trace import commission_invocation
+
+    return journal.request(commission_invocation(journal, invocation))

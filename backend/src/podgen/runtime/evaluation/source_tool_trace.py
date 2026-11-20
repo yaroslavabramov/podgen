@@ -38,3 +38,24 @@ def successful_read_passages(journal, invocation):
         and "passage" in record["data"]["result"]
         and "error" not in record["data"]["result"]
     ]
+
+
+def commission_invocation(journal, invocation):
+    """The first role attempt owns the semantic assignment across operational retries."""
+    root = original_invocation(journal, invocation)
+    from .source_tool_recovery import continuation, lineage
+
+    ancestors = lineage(journal, root)
+    if len(ancestors) > 1:
+        from podgen.domain.contracts.common import RuntimeRef
+
+        from .source_tool_contract import applies, from_manifest
+
+        record = journal.read(RuntimeRef(record_kind="tool_execution", record_id=root["request_record_id"]))
+        authorization = record.get("authorization") or {}
+        contract = from_manifest(journal.manifest(root["run_id"]))
+        if "source_tool_resume" in authorization or applies(root["stage"], contract):
+            if "source_tool_resume" not in authorization:
+                raise Conflict("source_tool_resume_authorization_mismatch")
+            continuation(journal, root)
+    return ancestors[0]

@@ -158,7 +158,7 @@ def test_repaired_credit_recovery_replays_exact_paid_conversation(monkeypatch):
     case = recovered_repair(monkeypatch)
     journal, root, retry, *_ = case
     before = deepcopy(journal.records)
-    assert verify(case) == journal.request(retry)
+    assert verify(case) == journal.request(root)
     assert request_payload(verify(case)) == request_payload(journal.request(root))
     assert journal.records == before
 
@@ -183,3 +183,13 @@ def test_changed_source_retry_or_crossed_chain_is_rejected(monkeypatch, wrong):
         record["context"]["script_hash"] = "changed"
     with pytest.raises((Conflict, RunFailure)):
         verify(case)
+
+
+def test_role_commission_cannot_bypass_missing_recovery_authorization(monkeypatch):
+    from podgen.runtime.evaluation.source_tool_trace import commission_invocation
+
+    journal, root, retry, *_ = recovered_repair(monkeypatch)
+    assert commission_invocation(journal, retry) == root
+    journal.records[retry["request_record_id"]]["authorization"].pop("source_tool_resume")
+    with pytest.raises(Conflict, match="source_tool_resume_authorization_mismatch"):
+        commission_invocation(journal, retry)

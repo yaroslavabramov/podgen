@@ -69,7 +69,9 @@ def prepare(journal, run_id, stage, manifest, materials, script, script_ref):
             record_kind="tool_execution", record_id=revision["output_record_id"]
         ).model_dump(mode="json")
         before = journal.read(RuntimeRef.model_validate(record["script_ref"]))["output"]
-        writer = request_payload(journal.request(revision))
+        from ..source_tool_trace import commission_invocation
+
+        writer = request_payload(journal.request(commission_invocation(journal, revision)))
         if (
             current_ref != script_ref
             or record["output"] != script

@@ -141,7 +141,10 @@ def packet_catalog(payload, materials, snapshot_index=None, references=None):
 
 
 def current_catalog(journal, invocation, materials, snapshot_index=None, corpus=None):
-    root = original_invocation(journal, invocation)
+    ancestors = lineage(journal, original_invocation(journal, invocation))
+    # Recovery requests contain the exact continued conversation, including extra
+    # user messages with material results. Only the first attempt is the commission.
+    root = ancestors[0]
     request_ref = RuntimeRef(record_kind="tool_execution", record_id=root["request_record_id"])
     request = journal.read(request_ref)
     payload = request_payload(journal.request(root))
@@ -152,7 +155,7 @@ def current_catalog(journal, invocation, materials, snapshot_index=None, corpus=
             request_ref=request_ref.model_dump(mode="json"), origin_invocation_id=str(root["invocation_id"])
         )
     corpus = corpus or SourceCorpus(materials)
-    for ancestor in lineage(journal, root):
+    for ancestor in ancestors:
         turns = {row["turn_index"]: row for row in model_turns.rows(journal, ancestor)}
         for record in model_turns.events(journal, ancestor, kinds={"source_tool_result"}):
             data = record["data"]

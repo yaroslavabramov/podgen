@@ -12,7 +12,6 @@ from podgen.runtime.evaluation.preview_snapshot import load_preview_snapshot
 from podgen.runtime.evaluation.profiles import create_profile, load_profile
 from podgen.runtime.evaluation.request_payload import request_payload
 from podgen.runtime.evaluation.workflow import profile_for
-
 from tests.reading_audit_provider import AuditProvider
 from tests.test_editorial_independence import invoke
 from tests.test_independent_readings import setup_review
@@ -47,7 +46,7 @@ def test_full_audit_memory_retains_old_read_without_reexecuting_it_and_replays(
     manifest = journal.manifest(run_id)
     command = WritingRunCommand.model_validate(manifest["command"])
     assert manifest["reading_audit_contract"] == "reading-audit/1"
-    assert manifest["reading_audit_consistency_contract"] == "decision-findings/1"
+    assert manifest["reading_audit_consistency_contract"] == "decision-findings/2"
     assert manifest["reading_audit_memory_projection"] == "shared-packet-evidence/1"
     fact_calls = [
         body for body in provider.requests if body["metadata"]["podgen_stage"].startswith("fact-review")

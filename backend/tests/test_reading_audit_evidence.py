@@ -5,13 +5,13 @@ from types import SimpleNamespace as NS
 from uuid import uuid4
 
 import pytest
+
 from podgen.domain.contracts.common import RuntimeRef
 from podgen.domain.errors import ContractError
 from podgen.runtime.evaluation.reading_audit import evidence
 from podgen.runtime.evaluation.reading_audit.lifecycle import _locator
 from podgen.writing.revision.assignment import tasks
 from podgen.writing.source_tools import SourceCorpus, attach_task_passages
-
 from tests.test_frozen_source_tools import finding, materials, read
 
 
@@ -115,3 +115,36 @@ def test_read_receipt_requires_its_actual_completed_turn(monkeypatch):
     event["invocation_id"] = str(uuid4())
     with pytest.raises(ContractError, match="audit_source_read_provenance_mismatch"):
         evidence.current_catalog(journal, root, m, index, corpus)
+
+
+def test_retry_uses_initial_commission_and_all_ancestor_read_receipts(monkeypatch):
+    m, corpus, root, turn, event, journal, index = catalog(monkeypatch)
+    retry = dict(root, invocation_id=uuid4(), request_record_id=uuid4())
+    retry_turn = dict(turn, turn_index=1, invocation_id=uuid4(), request_record_id=uuid4())
+    retry_event = deepcopy(event)
+    retry_event.update(
+        _record_id=uuid4(),
+        invocation_id=str(retry["invocation_id"]),
+        request_ref=RuntimeRef(record_kind="tool_execution", record_id=retry["request_record_id"]).model_dump(
+            mode="json"
+        ),
+    )
+    retry_event["data"]["turn_index"] = 1
+    retry_event["data"]["result"]["passage"]["read_id"] = "E2"
+    original_request = journal.request
+
+    def commission(row):
+        assert row is root  # The retry contains an extra service user message.
+        return original_request(row)
+
+    journal.request = commission
+    monkeypatch.setattr(evidence, "lineage", lambda journal, invocation: [root, retry])
+    monkeypatch.setattr(evidence.model_turns, "rows", lambda j, row: [turn if row is root else retry_turn])
+    monkeypatch.setattr(
+        evidence.model_turns, "events", lambda j, row, **kw: [event if row is root else retry_event]
+    )
+    current = evidence.current_catalog(journal, retry, m, index, corpus)
+    assert set(current) == {"B1", "E1", "E2"}
+    assert current["B1"]["origin_invocation_id"] == str(root["invocation_id"])
+    assert current["E1"]["origin_invocation_id"] == str(root["invocation_id"])
+    assert current["E2"]["origin_invocation_id"] == str(retry["invocation_id"])

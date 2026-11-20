@@ -5,7 +5,6 @@ from copy import deepcopy
 
 from podgen.runtime.evaluation.request_payload import request_payload
 from podgen.runtime.models.contracts import WireReply
-
 from tests.reading_audit_cases import report
 from tests.test_independent_readings import ReadingProvider
 
@@ -55,6 +54,13 @@ class AuditProvider:
                 still_open=fact and stage == "fact-review-1",
             )
             if fact:
+                if value["recommendation"] == "keep":
+                    for area in value["audit"]["areas"]:
+                        if area["status"] == "unchecked":
+                            area.update(
+                                status="not_applicable",
+                                explanation="No such relation is asserted by this synthetic scoped account.",
+                            )
                 value["audit"]["claim_checks"][0]["source_refs"].append(
                     dict(from_review="current", evidence_id="B1")
                 )
