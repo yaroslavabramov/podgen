@@ -68,9 +68,8 @@ def _calls(response, *, web_search=False):
             if any(content.get("type") == "refusal" for content in contents):
                 raise ContractError("provider_refused")
         elif item.get("type") == "web_search_call" and web_search:
-            from .web_search import receipts
-
-            receipts(dict(output=[item]))
+            # The research loop has already recorded and validated this native output.
+            continue
         elif item.get("type") not in ("message", "reasoning"):
             raise ContractError("unexpected_provider_tool_or_output")
     if len({call["call_id"] for call in calls}) != len(calls):

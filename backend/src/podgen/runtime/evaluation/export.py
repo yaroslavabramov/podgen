@@ -62,8 +62,13 @@ def export_run(repo, project, run_id, directory):
         unknown_usage_invocations=[],
     )
 
-    if manifest.get("source_tool_contract", {}).get("version") == "frozen-corpus-tools/8":
+    from podgen.runtime.models import web_search
+
+    contract = manifest.get("source_tool_contract", {})
+    if contract.get("version") == "frozen-corpus-tools/8":
         result["web_search"] = dict(tool_calls=0, search_calls=0, amount_usd=None, uncertain_turns=[])
+        if contract.get(web_search.KEY) == web_search.CURRENT:
+            result["web_search"]["unsuccessful_tool_calls"] = 0
 
     def write_json(path, value):
         _write(directory / path, (json.dumps(value, ensure_ascii=False, indent=2) + "\n").encode())
@@ -109,10 +114,19 @@ def export_run(repo, project, run_id, directory):
             base = Path("archive") / stage
             if invocation["attempt_index"]:
                 base /= f"attempt-{invocation['attempt_index']}"
-            search_usage = _export_attempt(journal, invocation, base, write_json, directory)
+            recover_web_tail = (
+                "web_search" in result
+                and base_stage(stage) == "fact-review"
+                and invocation["operation_kind"] == "role"
+                and invocation["status"] != "completed"
+            )
+            search_usage = _export_attempt(
+                journal, invocation, base, write_json, directory, recover_web_tail=recover_web_tail
+            )
             if "web_search" in result and search_usage:
-                for key in ("tool_calls", "search_calls"):
-                    result["web_search"][key] += search_usage[key]
+                for key, count in search_usage.items():
+                    if count:
+                        result["web_search"][key] = result["web_search"].get(key, 0) + count
             from .source_tool_contract import applies, from_manifest
 
             if invocation["operation_kind"] == "role" and applies(stage, from_manifest(manifest)):

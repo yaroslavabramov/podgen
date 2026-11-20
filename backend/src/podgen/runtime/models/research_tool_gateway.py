@@ -12,6 +12,7 @@ from podgen.runtime.evaluation.contracts import RunFailure
 from podgen.runtime.evaluation.research_cache_layout import mark_turn
 from podgen.runtime.evaluation.source_tool_contract import anchored_research, quick_search, role_definitions
 
+from . import web_search
 from .contracts import WireReply
 from .research_context import ResearchContext
 from .research_continuation import append_response, resolve_structured, structured_requests
@@ -56,6 +57,8 @@ def _invoke(gateway, root, profile, contract, *, limits, totals, guard):
     from podgen.runtime.evaluation.turn_ledger import TurnLedger
 
     ledger = TurnLedger(journal, root, profile.output_limit, history)
+    search_enabled = quick_search(contract, root["stage"], profile.provider)
+    search_version = contract.get(web_search.KEY, web_search.LEGACY)
     final = history.latest("source_tools_final_response")
     if final:
         from podgen.domain.contracts.common import BlobRef
@@ -70,9 +73,7 @@ def _invoke(gateway, root, profile, contract, *, limits, totals, guard):
             input_tokens=usage["input"],
             output_tokens=None if usage["unknown"] else usage["known_output"],
         )
-        return gateway._output_text(
-            root, response, web_search=quick_search(contract, root["stage"], profile.provider)
-        )
+        return gateway._output_text(root, response, web_search=search_enabled)
     execution_contract = dict(
         contract, definitions=role_definitions(contract, root["stage"], profile.provider)
     )
@@ -97,7 +98,7 @@ def _invoke(gateway, root, profile, contract, *, limits, totals, guard):
     segment = history.latest("source_context_segment")
     segment_start = segment["data"]["next_turn"] if segment else 0
     call_index = segment["data"]["checkpoint_call_index"] + 1 if segment else 0
-    if prefix_receipts and not (
+    if (prefix_receipts or start_turn) and not (
         segment
         and segment["invocation_id"] == str(root["invocation_id"])
         and segment["data"]["next_turn"] > start_turn
@@ -164,12 +165,13 @@ def _invoke(gateway, root, profile, contract, *, limits, totals, guard):
             journal.transition(root, current["status"])
             raise RunFailure(error.code, run_id=root["run_id"], invocation_id=root["invocation_id"]) from None
         usage = _account(journal, root, profile, history, ledger=ledger)
-        search_enabled = quick_search(contract, root["stage"], profile.provider)
-        if search_enabled:
-            from .web_search import record
-
-            record(journal, root, history, response, index)
+        failed_searches = (
+            web_search.record(journal, root, history, response, index, search_version)
+            if search_enabled
+            else []
+        )
         calls = _calls(response, web_search=search_enabled)
+        continuation_response = web_search.continuation_response(response, failed_searches)
         if not calls:
             if checkpoint_requested:
                 context.event(
@@ -180,6 +182,9 @@ def _invoke(gateway, root, profile, contract, *, limits, totals, guard):
                     run_id=root["run_id"],
                     invocation_id=root["invocation_id"],
                 )
+            if failed_searches and not any(item.get("type") == "message" for item in response["output"]):
+                append_response(conversation, continuation_response, profile.provider)
+                continue
             requests = structured_requests(response, index, history)
             if requests:
                 call_index = resolve_structured(
@@ -190,16 +195,14 @@ def _invoke(gateway, root, profile, contract, *, limits, totals, guard):
                     execution_contract,
                     history,
                     conversation,
-                    response,
+                    continuation_response,
                     profile,
                     call_index,
                     index,
                     guard,
                 )
                 continue
-            text = gateway._output_text(
-                root, response, web_search=quick_search(contract, root["stage"], profile.provider)
-            )
+            text = gateway._output_text(root, response, web_search=search_enabled)
             final = deepcopy(response)
             final["metadata"] = original["metadata"]
             final["usage"] = dict(
@@ -226,7 +229,7 @@ def _invoke(gateway, root, profile, contract, *, limits, totals, guard):
             raise ContractError("research_checkpoint_requires_one_state_call")
         if checkpoint_requested:
             conversation = deepcopy(body["input"])
-        append_response(conversation, response, profile.provider)
+        append_response(conversation, continuation_response, profile.provider)
         for call in calls:
             existing = history.for_call("source_tool_call", call_index)
             if call["call_id"] in history.call_ids and not existing:

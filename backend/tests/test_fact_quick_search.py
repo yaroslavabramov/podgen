@@ -104,13 +104,9 @@ def test_only_fact_openai_gets_native_search_and_count_includes_it(monkeypatch):
     assert len(requests) == 4
 
 
-def test_legacy_rejects_native_search_and_new_rejects_incomplete_search():
+def test_undeclared_native_search_is_rejected():
     with pytest.raises(ContractError, match="unexpected_provider_tool_or_output"):
         _calls(dict(output=[search()]))
-    bad = search()
-    bad["status"] = "failed"
-    with pytest.raises(ContractError, match="provider_web_search"):
-        _calls(dict(output=[bad]), web_search=True)
 
 
 def test_both_research_paths_keep_exact_words_and_original_neighbors():

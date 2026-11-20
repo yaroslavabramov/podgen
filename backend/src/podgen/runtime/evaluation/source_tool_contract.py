@@ -3,6 +3,7 @@
 from copy import deepcopy
 
 from podgen.domain.errors import ContractError
+from podgen.runtime.models import web_search
 from podgen.runtime.models.search_argument_errors import KEY as SEARCH_ARGUMENT_KEY
 from podgen.runtime.models.search_argument_errors import PAGING as SEARCH_PAGING
 from podgen.runtime.models.search_argument_errors import VERSION as SEARCH_ARGUMENT_VERSION
@@ -56,7 +57,7 @@ def create(behavior, materials=None):
 
         return dict(
             version=CURRENT_RESEARCH_VERSION,
-            **{SEARCH_ARGUMENT_KEY: SEARCH_ARGUMENT_VERSION},
+            **{SEARCH_ARGUMENT_KEY: SEARCH_ARGUMENT_VERSION, web_search.KEY: web_search.CURRENT},
             fact_request_research=targeted_definition(history_view),
             web_search_definition=dict(type="web_search", search_context_size="low"),
             definitions=source_definitions(declarations, retrieval_policy=retrieval.get("retrieval_policy"))
@@ -174,6 +175,10 @@ def validate_durable(manifest, value):
         fields.update({"fact_request_research", "web_search_definition"})
     from podgen.writing.research_materials.fact_source_mode import KEY, VERSION, tools
 
+    if web_search.KEY in value:
+        if value["version"] != CURRENT_RESEARCH_VERSION or value[web_search.KEY] != web_search.CURRENT:
+            raise ContractError("unsupported_web_search_receipt_contract")
+        fields.add(web_search.KEY)
     if SEARCH_ARGUMENT_KEY in value:
         if (
             value["version"] != CURRENT_RESEARCH_VERSION

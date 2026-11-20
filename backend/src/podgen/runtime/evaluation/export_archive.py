@@ -9,6 +9,7 @@ from podgen.domain.contracts.common import BlobRef, RuntimeRef
 from podgen.persistence.private_journal.archive_pages import event_pages, turn_pages
 
 from .export_files import json_array, projection, staged_files, write
+from .export_web_search import SearchUsage
 
 BATCH = 64
 
@@ -17,7 +18,7 @@ def read_many(journal, references):
     return journal.read_many(references)
 
 
-def export_attempt(journal, invocation, base, write_json, directory):
+def export_attempt(journal, invocation, base, write_json, directory, *, recover_web_tail=False):
     request_ref = RuntimeRef(record_kind="tool_execution", record_id=invocation["request_record_id"])
     with journal.read_operation():
         request = journal.read(request_ref)
@@ -26,13 +27,15 @@ def export_attempt(journal, invocation, base, write_json, directory):
             write_json(base / "request-record.json", request)
         write(directory / base / "request.json", raw)
     with TemporaryDirectory(prefix=".turn-events-", dir=directory) as spool:
-        search_usage = _events(journal, invocation, directory / base, Path(spool))
+        search_usage = _events(
+            journal, invocation, directory / base, Path(spool), recover_web_tail=recover_web_tail
+        )
         _turns(journal, invocation, base, directory, Path(spool))
     return search_usage
 
 
-def _events(journal, invocation, directory, spool):
-    search_usage = dict(tool_calls=0, search_calls=0)
+def _events(journal, invocation, directory, spool, *, recover_web_tail=False):
+    usage = SearchUsage(recover_web_tail)
     with ExitStack() as outputs:
         all_events = outputs.enter_context(json_array(directory / "events.json"))
         selected = {}
@@ -48,9 +51,13 @@ def _events(journal, invocation, directory, spool):
                     value = dict(record_ref=reference.model_dump(mode="json"), **record)
                     all_events(value)
                     kind = event["event_kind"]
-                    if kind == "source_web_search":
-                        for key in search_usage:
-                            search_usage[key] += record["data"][key]
+                    usage.observe(
+                        kind,
+                        record["data"],
+                        (directory / f"{index:03d}-{kind}-response_blob.json")
+                        if record.get("response_blob")
+                        else None,
+                    )
                     name = {
                         "source_tool_call": "source-tools.json",
                         "source_tool_result": "source-tools.json",
@@ -92,7 +99,7 @@ def _events(journal, invocation, directory, spool):
                             write(staged / path.relative_to(directory), journal.read_blob(reference, blob))
                         journal.authorize_many(references)
 
-    return search_usage
+    return usage.result()
 
 
 def _turns(journal, invocation, base, directory, spool):
