@@ -115,8 +115,10 @@ class WritingEvaluation:
             existing = journal.run(command.run_id)
             if max_elapsed_seconds is not None and not existing:
                 raise ContractError("elapsed_extension_requires_existing_run")
-            if existing and journal.manifest(command.run_id).get("fact_review_experiment") is not None:
-                raise ContractError("standalone_fact_experiment_requires_its_runner")
+            if existing:
+                saved = journal.manifest(command.run_id)
+                if "fact_review_experiment" in saved or "fact_scope_comparison" in saved:
+                    raise ContractError("standalone_fact_experiment_requires_its_runner")
             from .run_configuration import production_command
 
             command = production_command(
