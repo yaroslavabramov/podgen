@@ -48,6 +48,9 @@ def test_complete_targeted_operation(repo, scope, producer, monkeypatch, count, 
         else "# Answer\n\nТочная цитата.\n\n**Sources:**\n"
         + "\n".join(f"{i + 1}. [Record]({url})" for i, url in enumerate(urls))
     )
+    if anchored:
+        sources = (Path(__file__).parent / "fixtures/gemini_deep_research_sources.md").read_text()
+        text = f"```json\n{text}\n```\n\n{sources}"
     # Same discovery list; only the narrow answer identifies the excerpt actually needed.
     material = parse_report(
         dict(

@@ -1,0 +1,81 @@
+{
+  "phases": {
+    "research_handoff": {
+      "seconds": 5.114948333997745,
+      "sql_calls": 3741,
+      "sql_select": 2442,
+      "sql_set": 411,
+      "sql_with": 497,
+      "sql_update": 208,
+      "sql_insert": 174,
+      "sql_delete": 9,
+      "objects": {
+        "stage_calls": 84,
+        "staged_bytes": 2080950,
+        "stream_calls": 85,
+        "read_bytes": 2350819,
+        "publish_calls": 84,
+        "published_bytes": 2080950,
+        "read_calls": 8
+      }
+    },
+    "credit_refusal": {
+      "seconds": 1.2136537090118509,
+      "sql_calls": 1993,
+      "sql_select": 1456,
+      "sql_set": 220,
+      "sql_with": 257,
+      "sql_update": 43,
+      "sql_insert": 16,
+      "sql_delete": 1,
+      "objects": {
+        "stage_calls": 6,
+        "staged_bytes": 226169,
+        "stream_calls": 7,
+        "read_bytes": 747912,
+        "publish_calls": 6,
+        "published_bytes": 226169,
+        "read_calls": 17
+      }
+    },
+    "credit_recovery_and_recheck": {
+      "seconds": 3.258433832990704,
+      "sql_calls": 4517,
+      "sql_select": 3166,
+      "sql_set": 420,
+      "sql_with": 798,
+      "sql_update": 78,
+      "sql_insert": 52,
+      "sql_delete": 3,
+      "objects": {
+        "stage_calls": 32,
+        "staged_bytes": 1001466,
+        "stream_calls": 32,
+        "read_bytes": 2310459,
+        "publish_calls": 32,
+        "published_bytes": 1001466,
+        "read_calls": 32
+      }
+    },
+    "completed_replay": {
+      "seconds": 0.13520987500669435,
+      "sql_calls": 217,
+      "sql_select": 162,
+      "sql_set": 23,
+      "sql_with": 31,
+      "sql_update": 1,
+      "objects": {}
+    }
+  },
+  "search_calls": 0,
+  "search_seconds": 0,
+  "process_peak_rss_bytes": 1026031616,
+  "limitations": [
+    "Object counters cover the repository store, not cached Unicode projection reads.",
+    "Staging/publication are logical store operations, not physical disk writes; RSS is the process-wide high-water mark.",
+    "Provider costs and token/cache usage remain in complete native trace receipts; USD is not inferred from an unpinned price."
+  ],
+  "target_stage": "fact-review",
+  "native_requests": 31,
+  "paid_provider_calls": 0
+}

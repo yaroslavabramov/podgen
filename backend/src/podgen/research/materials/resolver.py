@@ -71,10 +71,16 @@ class ResearchMaterialResolver:
                     shared_input_ref=self.materials.shared_ref.model_dump(mode="json"),
                 ),
             )
-            saved = store.get(key + ":result")
+            from .targeted_reparse import cached_result, save_result
+
+            result_key, saved = cached_result(store, key, name, arguments)
             if saved:
                 return MaterialResolution(saved, self.restore(run_id=run_id, guard=guard))
-            if name == "request_research":
+            if result_key != key + ":result":
+                from .targeted_reparse import resolve_saved
+
+                resolution = resolve_saved(self, store, key, arguments, guard)
+            elif name == "request_research":
                 from .research_requests import resolve_research
 
                 resolution = resolve_research(self, store, key, arguments, operation_id, guard)
@@ -98,7 +104,7 @@ class ResearchMaterialResolver:
             else:
                 return MaterialResolution(dict(error="unknown_material_request"))
             if resolution.result.get("status") != "pending":
-                store.put(key + ":result", resolution.result)
+                save_result(store, key, result_key, resolution.result)
             return resolution
 
     def document(self, store, url, guard):

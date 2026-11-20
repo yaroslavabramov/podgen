@@ -379,18 +379,18 @@ def test_narrow_research_parallel_resolution_and_publication_retry_reuse_acquisi
     )
     from podgen.research.materials import targeted
 
-    compact = targeted.compact
+    handoff = targeted.handoff
     attempts = []
 
     def interrupted(*args):
         attempts.append(True)
         raise RuntimeError("Interrupted after retained acquisition")
 
-    monkeypatch.setattr(targeted, "compact", interrupted)
+    monkeypatch.setattr(targeted, "handoff", interrupted)
     with pytest.raises(RuntimeError, match="retained acquisition"):
         resolver.resolve("request_research", args, operation_id=operation, run_id=run_id, guard=lambda: None)
     assert len(fetcher.calls) == 2
-    monkeypatch.setattr(targeted, "compact", compact)
+    monkeypatch.setattr(targeted, "handoff", handoff)
 
     def resolve(_):
         from podgen.domain.errors import Conflict

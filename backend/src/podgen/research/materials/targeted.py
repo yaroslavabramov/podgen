@@ -23,14 +23,10 @@ class Answer(BaseModel):
 
 
 def parse(text):
-    # A provider may wrap its otherwise exact JSON in a Markdown code fence.
-    value = text.strip()
-    if value.startswith("```json\n") and value.endswith("\n```"):
-        value = value[8:-4]
     try:
-        from podgen.runtime.evaluation.validation import load_unique_json
+        from .targeted_parser import answer_object
 
-        result = Answer.model_validate(load_unique_json(value))
+        result = Answer.model_validate(answer_object(text))
     except (ValidationError, ValueError) as error:
         raise ContractError("targeted_research_invalid_answer") from error
     if not result.evidence and not result.limitations.strip():
@@ -40,23 +36,45 @@ def parse(text):
 
 def compact(answer, sources):
     """Match against retained text, not provider citations or search snippets."""
+    evidence, rejected = validated_excerpts(answer, sources)
+    if rejected:
+        raise ContractError(rejected[0]["error"])
+    return handoff(answer, evidence)
+
+
+def handoff(answer, evidence):
+    return dict(
+        contract="targeted-research-answer/1",
+        answer=answer.answer,
+        limitations=answer.limitations,
+        excerpts=evidence,
+        relationship="validated_source_locations_not_read_receipts",
+        next_action="Read these exact source ranges with read_source to obtain E evidence receipts.",
+    )
+
+
+def validated_excerpts(answer, sources):
+    """Keep literal matches separately from unresolved provider assertions."""
     from podgen.research.hosted.corpus_acquisition import document_url
 
     from .resolver import same_document
 
-    evidence = []
-    for row in answer.evidence:
+    evidence, rejected = [], []
+    for index, row in enumerate(answer.evidence):
         try:
             canonical = document_url(row.url)
-        except (ValueError, ContractError) as error:
-            raise ContractError("targeted_research_invalid_evidence_url") from error
+        except (ValueError, ContractError):
+            rejected.append(dict(evidence_index=index, error="targeted_research_invalid_evidence_url"))
+            continue
         source = next((s for url, s in sources if same_document(url, canonical)), None)
         if source is None:
-            raise ContractError("targeted_research_evidence_not_retained")
+            rejected.append(dict(evidence_index=index, error="targeted_research_evidence_not_retained"))
+            continue
         # VerifiedText.find uses the retained immutable representation.
         start = source.text.find(row.quote)
         if start < 0:
-            raise ContractError("targeted_research_quote_not_in_source")
+            rejected.append(dict(evidence_index=index, error="targeted_research_quote_not_in_source"))
+            continue
         evidence.append(
             dict(
                 source_id=source.source_id,
@@ -66,11 +84,4 @@ def compact(answer, sources):
                 relation=row.relation,
             )
         )
-    return dict(
-        contract="targeted-research-answer/1",
-        answer=answer.answer,
-        limitations=answer.limitations,
-        excerpts=evidence,
-        relationship="validated_source_locations_not_read_receipts",
-        next_action="Read these exact source ranges with read_source to obtain E evidence receipts.",
-    )
+    return evidence, rejected
