@@ -48,3 +48,9 @@ Still unverified: live provider acceptance/answer quality, behavior on long prio
 The targeted suite covers native SDK requests, strict legacy compatibility, exact full plan/draft equality, direct/structured binding, provider window admission, independent search accounting, interrupted/rejected/uncertain recovery, source-path ordering, malformed and fabricated excerpts, missing sources, concurrent completion and interrupted publication, plus full production continuation through planning and factual handoffs.
 
 Final verification: **97 passed** on PostgreSQL, including all six complete-operation measurements and the native production handoff. Ruff and whitespace checks passed. No paid calls were made.
+
+## Search continuation argument recovery
+
+Follow-up pin: `source_tool_contract.search_argument_policy=recoverable-search-result-version/1`, enabled only for factual roles in newly prepared runs. Reusing an accurately copied result key and offset=6 with a rephrased query still fails in `StreamingSearchIndex`; the model receives a precise tool error and fresh-search arguments, without foreign hits. Only the new factual tool description clarifies that pagination preserves query and within verbatim; rephrasing starts at offset=0 with no key. No automatic search retry or fallback is performed. An authorization check precedes returning the error; storage/access failures and other conflicts still stop execution. Existing manifests without the pin retain the previous behavior.
+
+Verification: one addressed PostgreSQL test through the real streaming index and native Responses loop (real previously issued key + offset=6 + changed query → delivered error → corrected next model call → successful search), including old behavior and access/storage propagation assertions. Additional compatibility checks: 44 passed, 1 database-dependent test skipped. Ruff and whitespace checks passed; no paid calls.

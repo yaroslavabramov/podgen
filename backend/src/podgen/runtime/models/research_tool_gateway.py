@@ -17,6 +17,7 @@ from .research_context import ResearchContext
 from .research_continuation import append_response, resolve_structured, structured_requests
 from .research_history import ResearchHistory
 from .research_tools import ResearchTools
+from .search_argument_errors import KEY as SEARCH_ARGUMENT_KEY
 from .tool_gateway import _account, _calls, _execute
 
 
@@ -83,6 +84,9 @@ def _invoke(gateway, root, profile, contract, *, limits, totals, guard):
         guard,
         history_view=contract.get("history_view"),
         anchored=anchored_research(contract, root["stage"]),
+        search_argument_policy=(
+            contract.get(SEARCH_ARGUMENT_KEY) if anchored_research(contract, root["stage"]) else None
+        ),
     )
     if corpus.material_resolver is not None:
         proxy.restore(corpus.material_resolver.restore(run_id=root["run_id"], guard=guard))

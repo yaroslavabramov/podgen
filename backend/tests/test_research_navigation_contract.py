@@ -441,6 +441,7 @@ def test_v8_preserves_complete_non_fact_request(research_materials, monkeypatch,
     original = deepcopy(current)
     original["version"] = "frozen-corpus-tools/7"
     original.pop("fact_request_research")
+    original.pop("search_argument_policy", None)
     original.pop("web_search_definition")
     after = preview_request(run, stage, _profile(stage), research_materials, **inputs)
     monkeypatch.setattr(source_tool_contract, "create", lambda *args: original)

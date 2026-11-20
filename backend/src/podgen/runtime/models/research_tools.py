@@ -3,9 +3,9 @@
 from uuid import uuid5
 
 from podgen.domain.contracts.common import BlobRef
-from podgen.domain.errors import ContractError
+from podgen.domain.errors import Conflict, ContractError
 
-from . import research_history_view
+from . import research_history_view, search_argument_errors
 
 PAGE = 9600
 CATALOG_PAGE = 6
@@ -26,13 +26,27 @@ def text_page(text, start, end):
 
 
 class ResearchTools:
-    def __init__(self, journal, root, corpus, history, guard, *, history_view=None, anchored=False):
+    def __init__(
+        self,
+        journal,
+        root,
+        corpus,
+        history,
+        guard,
+        *,
+        history_view=None,
+        anchored=False,
+        search_argument_policy=None,
+    ):
         self.journal, self.root, self.corpus = journal, root, corpus
         self.history, self.guard = history, guard
         if history_view not in (None, research_history_view.VERSION):
             raise ContractError("unsupported_research_history_view")
         self.history_view = history_view
         self.anchored = anchored
+        if search_argument_policy not in (None, search_argument_errors.VERSION):
+            raise ContractError("unsupported_search_argument_policy")
+        self.search_argument_policy = search_argument_policy
 
     @property
     def last_search_diagnostics(self):
@@ -163,7 +177,18 @@ class ResearchTools:
                     tool="list_research_sources", result_id=args["result_id"], offset=0, version=None
                 ),
             )
-        return self.corpus.execute(name, args, read_id=read_id, **options)
+        try:
+            return self.corpus.execute(name, args, read_id=read_id, **options)
+        except Conflict as error:
+            if (
+                self.search_argument_policy != search_argument_errors.VERSION
+                or name != "search_sources"
+                or not args.get("result_version")
+                or error.code != "source_search_result_version_mismatch"
+            ):
+                raise
+            self.guard()
+            return search_argument_errors.result(args)
 
     def restore(self, admissions):
         self.corpus._materials.runtime_admissions[:] = admissions

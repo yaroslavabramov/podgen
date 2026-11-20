@@ -3,6 +3,9 @@
 from copy import deepcopy
 
 from podgen.domain.errors import ContractError
+from podgen.runtime.models.search_argument_errors import KEY as SEARCH_ARGUMENT_KEY
+from podgen.runtime.models.search_argument_errors import PAGING as SEARCH_PAGING
+from podgen.runtime.models.search_argument_errors import VERSION as SEARCH_ARGUMENT_VERSION
 
 from .reading_workflow import base_stage
 
@@ -53,6 +56,7 @@ def create(behavior, materials=None):
 
         return dict(
             version=CURRENT_RESEARCH_VERSION,
+            **{SEARCH_ARGUMENT_KEY: SEARCH_ARGUMENT_VERSION},
             fact_request_research=targeted_definition(history_view),
             web_search_definition=dict(type="web_search", search_context_size="low"),
             definitions=source_definitions(declarations, retrieval_policy=retrieval.get("retrieval_policy"))
@@ -170,6 +174,13 @@ def validate_durable(manifest, value):
         fields.update({"fact_request_research", "web_search_definition"})
     from podgen.writing.research_materials.fact_source_mode import KEY, VERSION, tools
 
+    if SEARCH_ARGUMENT_KEY in value:
+        if (
+            value["version"] != CURRENT_RESEARCH_VERSION
+            or value[SEARCH_ARGUMENT_KEY] != SEARCH_ARGUMENT_VERSION
+        ):
+            raise ContractError("unsupported_search_argument_policy")
+        fields.add(SEARCH_ARGUMENT_KEY)
     mode = value.get(KEY)
     if KEY in value:
         if mode != VERSION or manifest.get(KEY) != mode or manifest.get("stages") != ["fact-review"]:
@@ -238,6 +249,9 @@ def role_definitions(contract, stage, provider):
             deepcopy(contract["fact_request_research"]) if t["name"] == "request_research" else t
             for t in result
         ]
+    if anchored_research(contract, stage) and contract.get(SEARCH_ARGUMENT_KEY) == SEARCH_ARGUMENT_VERSION:
+        search = next(tool for tool in result if tool["name"] == "search_sources")
+        search["description"] += SEARCH_PAGING
     if quick_search(contract, stage, provider):
         result.append(deepcopy(contract["web_search_definition"]))
     return result

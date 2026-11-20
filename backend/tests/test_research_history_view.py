@@ -53,6 +53,7 @@ def test_checkpoint_history_is_semantic_for_new_runs_and_exact_for_existing_runs
     if legacy:
         contract["version"] = "frozen-corpus-tools/7"
         contract.pop("fact_request_research")
+        contract.pop("search_argument_policy", None)
         contract.pop("web_search_definition")
         contract.pop("history_view")
         replacements = {item["name"]: item for item in definitions()}
