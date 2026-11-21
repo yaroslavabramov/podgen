@@ -1,0 +1,70 @@
+{
+  "run_id": "0d0c1d0b-8e00-4f88-9676-54aad5ec6e9f",
+  "original_run_id": "1cd0ac76-3326-58bb-83f0-6ee76847cefe",
+  "checks": {
+    "original_run_row_unchanged": true,
+    "original_manifest_unchanged": true,
+    "original_first_draft_unchanged": true
+  },
+  "readings": [
+    {
+      "stage": "reader-review",
+      "status": "completed",
+      "script_ref": {
+        "record_kind": "tool_execution",
+        "record_id": "c2326791-8010-5be0-a9c3-79b9957d273a"
+      },
+      "script_hash": "f35884031861084fbacaa367cdbe0a8886a3cf46bdfe076b2b53e9fd0d57e006",
+      "utterances": 67,
+      "complete_script_exact": true,
+      "audit_phase": "first",
+      "request_hash": "8a44f3faa26be56e0b280f651824f51b41a022357d083faeff7a757290cfd739",
+      "payload_parts": [
+        [
+          "output_language",
+          "audience",
+          "format",
+          "genre"
+        ],
+        [
+          "script",
+          "duration_context",
+          "audit_context"
+        ]
+      ],
+      "initial_previous_context_empty": true
+    },
+    {
+      "stage": "fact-review",
+      "status": "validation_failed",
+      "script_ref": {
+        "record_kind": "tool_execution",
+        "record_id": "c2326791-8010-5be0-a9c3-79b9957d273a"
+      },
+      "script_hash": "f35884031861084fbacaa367cdbe0a8886a3cf46bdfe076b2b53e9fd0d57e006",
+      "utterances": 67,
+      "complete_script_exact": true,
+      "audit_phase": "first",
+      "request_hash": "9b7bfac4312c076c5fdb188bcc25f669a3c5226b4d06f6e15172d8b018988b6b",
+      "payload_parts": [
+        [
+          "output_language",
+          "research_contents",
+          "source_bibliography",
+          "factual_remit",
+          "research_cautions"
+        ],
+        [
+          "script",
+          "evidence",
+          "research_results",
+          "audit_context"
+        ]
+      ],
+      "initial_previous_context_empty": true
+    }
+  ],
+  "source_tool_contract": "frozen-corpus-tools/8",
+  "behavior_profile": "production/1",
+  "research_request_contract": "bound-research-orders/1"
+}

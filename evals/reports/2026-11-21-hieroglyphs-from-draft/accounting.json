@@ -1,0 +1,98 @@
+{
+  "contract": "hieroglyphs-new-cycle-accounting/1",
+  "run_id": "0d0c1d0b-8e00-4f88-9676-54aad5ec6e9f",
+  "status": "needs_attention",
+  "failure_code": "unbound_private_checkpoint_source",
+  "review_status": "incomplete",
+  "generation_calls": 88,
+  "count_calls": 94,
+  "count_cost_usd": 0,
+  "count_input_tokens": 3051760,
+  "count_receipt_reuse_events": 87,
+  "usage": {
+    "input_tokens": 2874617,
+    "output_tokens": 29676,
+    "cached_input_tokens": 2540147,
+    "cache_write_tokens": 259679
+  },
+  "by_model": {
+    "gpt-6.1-terra": {
+      "generation_calls": 88,
+      "input_tokens": 2874617,
+      "output_tokens": 29676,
+      "cost_usd": 0.6747771
+    }
+  },
+  "stages": {
+    "fact-review": [
+      {
+        "event_kinds": {
+          "source_context_count_intent": 93,
+          "source_context_count": 93,
+          "source_context_plan": 87,
+          "role_input_measurement": 87,
+          "count_receipt_reused": 87,
+          "submit_intent": 87,
+          "provider_response": 87,
+          "source_tool_call": 87,
+          "source_tool_result": 86,
+          "source_search_diagnostics": 28,
+          "source_context_segment": 6,
+          "source_web_search": 7,
+          "failure": 1
+        },
+        "generation_calls": 87,
+        "cost_usd": 0.6110951,
+        "input_tokens": 2860412,
+        "output_tokens": 20032
+      }
+    ],
+    "reader-review": [
+      {
+        "event_kinds": {
+          "role_input_measurement": 1,
+          "count_intent": 1,
+          "count_response": 1,
+          "submit_intent": 1,
+          "provider_response": 1
+        },
+        "generation_calls": 1,
+        "cost_usd": 0.063682,
+        "input_tokens": 14205,
+        "output_tokens": 9644
+      }
+    ]
+  },
+  "provider_errors": [],
+  "unknown_usage_invocations": [],
+  "web_search": {
+    "completed_tool_calls": 8,
+    "actions": {
+      "search": 7,
+      "open_page": 1
+    },
+    "submitted_search_queries": 21,
+    "unsuccessful_tool_calls": 0,
+    "uncertain_turns": [],
+    "estimated_completed_native_web_tool_fee_usd": 0.08,
+    "fee_note": "Estimate: published $10/1000 calls applied to all completed native web_search_call items, including navigation; search/query counts are separate. Exact invoice not available."
+  },
+  "token_cost_usd": 0.6747771,
+  "estimated_known_generation_and_search_cost_usd": 0.7547771,
+  "new_research_jobs": [],
+  "research_submissions": 0,
+  "completed_script_rewrites": 0,
+  "author_generations": 0,
+  "new_planning_generations": 0,
+  "tts_calls": 0,
+  "old_run_cost_included": false,
+  "pricing": {
+    "date": "2026-11-21",
+    "openai": "https://developers.openai.com/api/docs/models/gpt-6.1-terra",
+    "anthropic": "https://platform.claude.com/docs/en/about-claude/pricing",
+    "web": "https://developers.openai.com/api/docs/pricing",
+    "openai_count": "https://help.openai.com/en/articles/4936856-understanding-and-counting-tokens",
+    "anthropic_count": "https://platform.claude.com/docs/en/build-with-claude/token-counting",
+    "basis": "Public standard prices, exact native token/cache usage; estimate, not an invoice. Counting receipts are reported separately and do not create generation tokens. Deep Research, if any, requires separate native receipt accounting."
+  }
+}
