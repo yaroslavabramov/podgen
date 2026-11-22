@@ -56,6 +56,9 @@ qdrant_data/
 *.log
 logs/
 tmp/
+# Local evaluation exports and raw model replies
+/evals/reports/**/export/
+/evals/reports/**/model-response.json
 
 # Coverage
 htmlcov/

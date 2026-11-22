@@ -33,6 +33,8 @@ in `docs/podcast-production/`.
 - Inspect changes before merging, and commit completed work in coherent units.
   Preserve unrelated changes. Report known defects instead of declaring readiness
   merely because tests pass.
+- Write full evaluation exports and raw provider responses to `tmp/`. Keep
+  conclusions and the fixtures needed to reproduce checks in `evals/`.
 
 Run only one heavy Podgen test suite on this machine at a time. Coordinate the slot
 with other agents and chats. Do not resume paid generation unless the current user
