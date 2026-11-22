@@ -1,0 +1,294 @@
+{
+  "run": "4801838f-73b2-44be-9145-a8c6ab9006d6",
+  "separate_research_jobs": [
+    "a6776ed3-1f58-5c32-8d3d-1ab454ef6d45"
+  ],
+  "stages": {
+    "fact-review": {
+      "cached": 3511178,
+      "checkpoints": 0,
+      "counts": 56,
+      "input": 3623690,
+      "model_calls": 56,
+      "output": 16673,
+      "outside_source_results": [
+        {
+          "diagnostics": [],
+          "source_id": null,
+          "status": "unavailable",
+          "url": "https://www.hmolpedia.com/page/Egypt_%28Britannica%29"
+        },
+        {
+          "diagnostics": null,
+          "source_id": "S82",
+          "status": "resolved",
+          "url": null
+        },
+        {
+          "diagnostics": null,
+          "source_id": "S83",
+          "status": "resolved",
+          "url": null
+        },
+        {
+          "diagnostics": [],
+          "source_id": null,
+          "status": "unavailable",
+          "url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQHDRHgQRFViyttHLFu8TMZKGIrRPREDYpsw9wj82iVTRrg6bPGmNGirM_fqJucpMgniIDRAKrbDkRUSsUm5ypaxsJdWeKA08OvCBPBm2PR5ERLQzrCepnSr2J0ZTevRESGHRGkJoCk8NZD3HOncj6mV6U5I6t-NbA=="
+        },
+        {
+          "diagnostics": null,
+          "source_id": "S84",
+          "status": "resolved",
+          "url": null
+        }
+      ],
+      "queries": [
+        {
+          "aliases_of": null,
+          "offset": 0,
+          "query": "Rosetta stone Young Champollion Cleopatra hieroglyphs 1822 1823 decipherment",
+          "result_version": null,
+          "within": null
+        },
+        {
+          "aliases_of": null,
+          "offset": 0,
+          "query": "Cleopatra egg feminine ending determinative bread t pronunciation Champollion",
+          "result_version": null,
+          "within": null
+        },
+        {
+          "aliases_of": null,
+          "offset": 0,
+          "query": "Alexander AΛKΣENTPΣ cartouche Champollion Alexander Greek hieroglyph",
+          "result_version": null,
+          "within": null
+        },
+        {
+          "aliases_of": null,
+          "offset": 0,
+          "query": "Rosetta Stone 14 lines 196 BC first translation Greek September 1799 decree birth hieroglyph fourteen",
+          "result_version": null,
+          "within": null
+        },
+        {
+          "aliases_of": null,
+          "offset": 0,
+          "query": "Kircher Typhon throne Isis moisture nature Anubis Osiris says two words betrayal translation",
+          "result_version": null,
+          "within": null
+        },
+        {
+          "aliases_of": null,
+          "offset": 0,
+          "query": "Horapollo vulture mother word mut same as mother vulture phonetic",
+          "result_version": null,
+          "within": null
+        },
+        {
+          "aliases_of": null,
+          "offset": 0,
+          "query": "hieroglyphic Rosetta stone birthday birth mes hieroglyph Champollion birthday fragment m s signs",
+          "result_version": null,
+          "within": null
+        },
+        {
+          "aliases_of": null,
+          "offset": 0,
+          "query": "Young Ptolemy lion lo ole sign alphabet first lion sound",
+          "result_version": null,
+          "within": "S25"
+        },
+        {
+          "aliases_of": null,
+          "offset": 0,
+          "query": "Young lion Ptolemy hieroglyph lion lo ole Young alphabet lion",
+          "result_version": null,
+          "within": null
+        },
+        {
+          "aliases_of": null,
+          "offset": 0,
+          "query": "Horapollo vulture mother Egyptian word vulture mother both mut phonetic",
+          "result_version": null,
+          "within": null
+        },
+        {
+          "aliases_of": null,
+          "offset": 0,
+          "query": "vulture mother hieroglyph Horapollo mut phonetic sign",
+          "result_version": null,
+          "within": null
+        },
+        {
+          "aliases_of": null,
+          "offset": 0,
+          "query": "Young lion Ptolemy alphabet",
+          "result_version": null,
+          "within": "S82"
+        },
+        {
+          "aliases_of": null,
+          "offset": 0,
+          "query": "vulture mother hieroglyph mother Horapollo sound",
+          "result_version": null,
+          "within": "S82"
+        },
+        {
+          "aliases_of": null,
+          "offset": 0,
+          "query": "\"vulture\" \"mother\" phonetic",
+          "result_version": null,
+          "within": "S64"
+        },
+        {
+          "aliases_of": null,
+          "offset": 0,
+          "query": "Rosetta stone \"plaster casts\" \"ink\" French 1799 copies casts",
+          "result_version": null,
+          "within": null
+        },
+        {
+          "aliases_of": null,
+          "offset": 0,
+          "query": "French \"plaster casts\" \"stone\" 1800",
+          "result_version": null,
+          "within": "S3"
+        },
+        {
+          "aliases_of": null,
+          "offset": 0,
+          "query": "feminine t ending phonogram determinative egg Cleopatra hieroglyph female names phonetic",
+          "result_version": null,
+          "within": "S82"
+        },
+        {
+          "aliases_of": null,
+          "offset": 0,
+          "query": "\"vulture\" \"mother\" \"word\"",
+          "result_version": null,
+          "within": null
+        },
+        {
+          "aliases_of": null,
+          "offset": 0,
+          "query": "\"vulture\" \"mother\"",
+          "result_version": null,
+          "within": "S82"
+        },
+        {
+          "aliases_of": null,
+          "offset": 0,
+          "query": "plaster cast French copies before British 1801",
+          "result_version": null,
+          "within": null
+        },
+        {
+          "aliases_of": null,
+          "offset": 0,
+          "query": "\"plaster\" \"French\" \"copies\"",
+          "result_version": null,
+          "within": "S19"
+        },
+        {
+          "aliases_of": null,
+          "offset": 0,
+          "query": "\"plaster\" \"French\" \"printing\" Rosetta Stone copies 1800",
+          "result_version": null,
+          "within": null
+        },
+        {
+          "aliases_of": null,
+          "offset": 0,
+          "query": "Rosetta stone fourteen lines hieroglyph text",
+          "result_version": null,
+          "within": "S82"
+        },
+        {
+          "aliases_of": null,
+          "offset": 0,
+          "query": "\"14\" \"lines\" \"hieroglyphic\" stone",
+          "result_version": null,
+          "within": null
+        }
+      ],
+      "repeats": {
+        "fresh": 111,
+        "same_location_new_excerpt": 22,
+        "same_text": 11
+      },
+      "report_reads": [
+        {
+          "end": null,
+          "result_id": "X1",
+          "start": 0
+        }
+      ],
+      "token_and_web_usd": 0.41639,
+      "token_usd": 0.39639040000000003,
+      "tools": {
+        "list_research_sources": 1,
+        "read_material": 5,
+        "read_research_result": 1,
+        "read_source": 18,
+        "request_research": 1,
+        "request_source": 5,
+        "search_sources": 24
+      },
+      "web_actions": {
+        "search": 2
+      },
+      "web_calls": 2,
+      "vulture_local_queries": 7
+    }
+  },
+  "status": "running",
+  "token_and_web_usd": 0.41639,
+  "unknown_usage": [],
+  "gemini": {
+    "state": "completed",
+    "submissions": 1,
+    "usage": {
+      "total_tokens": 1465635,
+      "total_input_tokens": 1270918,
+      "input_tokens_by_modality": [
+        {
+          "modality": "text",
+          "tokens": 1270918
+        }
+      ],
+      "total_cached_tokens": 91220,
+      "cached_tokens_by_modality": [
+        {
+          "modality": "text",
+          "tokens": 91220
+        }
+      ],
+      "total_output_tokens": 22548,
+      "output_tokens_by_modality": [
+        {
+          "modality": "text",
+          "tokens": 22548
+        }
+      ],
+      "total_tool_use_tokens": 119273,
+      "total_thought_tokens": 52896,
+      "grounding_tool_count": [
+        {
+          "type": "google_search",
+          "count": 47
+        }
+      ],
+      "initial_input_tokens": 1270918
+    },
+    "cost_usd": null,
+    "cost_basis": "provider_invoice_not_available"
+  },
+  "rates": {
+    "openai_terra": "https://developers.openai.com/api/docs/models/gpt-6.1-terra",
+    "openai_search": "https://developers.openai.com/api/docs/pricing",
+    "gemini": "https://ai.google.dev/gemini-api/docs/pricing",
+    "usd_estimate_basis": "Terra native token receipts and 2 completed native web tool calls. Gemini is a separate charge with no invoice amount in its response."
+  }
+}

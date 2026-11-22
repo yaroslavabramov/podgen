@@ -1,0 +1,54 @@
+{
+  "source_run": "0d0c1d0b-8e00-4f88-9676-54aad5ec6e9f",
+  "stage": "fact-review",
+  "working_window": 128000,
+  "checkpoint_window": 200000,
+  "response_reservation": 24576,
+  "largest_admitted_working_input": 103424,
+  "recorded_decisions": [
+    {
+      "turn": 10,
+      "input_tokens": 40471,
+      "count_request_sha256": "21f8eb27cacb94f009c0af96e1a6e77e9aabb1dae2ccec0a4c99dcc2e1ce4842",
+      "old_checkpoint": true,
+      "new_checkpoint": false
+    },
+    {
+      "turn": 26,
+      "input_tokens": 41313,
+      "count_request_sha256": "bce3515f306fe196e8199818a52bfc68209cd56f6a4995fe73407ce33511e6dd",
+      "old_checkpoint": true,
+      "new_checkpoint": false
+    },
+    {
+      "turn": 40,
+      "input_tokens": 41274,
+      "count_request_sha256": "207d956779455715896af2076b8be7f1f149480811cbef97e41aef354c860ec3",
+      "old_checkpoint": true,
+      "new_checkpoint": false
+    },
+    {
+      "turn": 54,
+      "input_tokens": 41696,
+      "count_request_sha256": "f1e713b19555c2397b4c50bb78d5c3b7e2c7ce81be672a667357fa6193fd248a",
+      "old_checkpoint": true,
+      "new_checkpoint": false
+    },
+    {
+      "turn": 67,
+      "input_tokens": 40634,
+      "count_request_sha256": "926fecc3f4460d9847491abff2d51e19b810003bfb9dff42f4730986db17ac68",
+      "old_checkpoint": true,
+      "new_checkpoint": false
+    },
+    {
+      "turn": 83,
+      "input_tokens": 41094,
+      "count_request_sha256": "19e4e6c788625d07867fa2a7d3ab539982308753a670eb8753e5fd62985a8182",
+      "old_checkpoint": true,
+      "new_checkpoint": false
+    }
+  ],
+  "provider_calls": 0,
+  "measurement": "Re-evaluated each actual archived native token count independently. These decisions do not simulate subsequent model turns."
+}
