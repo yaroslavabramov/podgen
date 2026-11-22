@@ -9,6 +9,7 @@ from podgen.domain.contracts.common import RuntimeRef
 from podgen.domain.errors import Conflict
 from podgen.writing.projections import indexed_draft
 from podgen.writing.reading_audit import VERSION
+from podgen.writing.reading_audit.consistency import DELTA_VERSION
 from podgen.writing.reading_audit.consistency import from_manifest as consistency_from_manifest
 from podgen.writing.reading_audit.input import initial_context
 from podgen.writing.reading_audit.memory_projection import from_manifest as memory_from_manifest
@@ -29,6 +30,7 @@ class AuditContext:
     previous_evidence: dict
     snapshot_index: dict
     consistency_contract: str | None = None
+    retained_decisions: tuple[dict, ...] = ()
 
 
 def prepare(journal, run_id, stage, manifest, materials, script, script_ref):
@@ -59,6 +61,7 @@ def prepare(journal, run_id, stage, manifest, materials, script, script_ref):
             binding["packet_evidence_hash"] = fingerprint(packet)
     view = initial_context(fact=fact)
     previous_evidence = {}
+    retained_decisions = []
     if stage != base_stage(stage):
         number = int(stage.rsplit("-", 1)[1])
         revision = journal.invocation(run_id, f"revise-{number}")
@@ -128,6 +131,8 @@ def prepare(journal, run_id, stage, manifest, materials, script, script_ref):
                     for ref in row["source_refs"]
                 ]
             prior_decisions.append(compact)
+            if fact and consistency == DELTA_VERSION:
+                retained_decisions.append(dict(deepcopy(row), source_refs=deepcopy(compact["source_refs"])))
         compared = comparison(before, script, writer, prior["output"])
         assignments = compared["assignments"]
         if fact:
@@ -142,6 +147,14 @@ def prepare(journal, run_id, stage, manifest, materials, script, script_ref):
             previous_script_in_order=compared["previous_script_in_order"],
             revision_operation=compared["revision_operation"],
         )
+        if fact and consistency == DELTA_VERSION:
+            from podgen.writing.reading_audit.recheck_changes import attach
+
+            attach(view, before, script)
+            complete_decisions = {row["decision_id"]: row for row in retained_decisions}
+            for row in view["previous_decisions"]:
+                if row["requires_update"]:
+                    row["rationale"] = complete_decisions[row["decision_id"]]["rationale"]
         binding.update(
             prior_review_ref=prior_ref.model_dump(mode="json"),
             prior_report_hash=digest(prior),
@@ -161,6 +174,25 @@ def prepare(journal, run_id, stage, manifest, materials, script, script_ref):
             )
             for alias, value in previous_evidence.items()
         ]
+        if consistency == DELTA_VERSION and view["phase"] == "recheck":
+            from .. import source_tool_contract
+            from .recheck_evidence import compact
+
+            tools = source_tool_contract.from_manifest(manifest)
+            readable = bool(
+                tools
+                and source_tool_contract.applies(stage, tools)
+                and any(tool.get("name") == "read_source" for tool in tools.get("definitions", ()))
+            )
+            compact(
+                view,
+                previous_evidence,
+                materials,
+                snapshot_index,
+                read_source_available=readable,
+            )
     binding["memory_view_hash"] = digest(view)
     binding["previous_evidence_hash"] = digest(previous_evidence)
-    return AuditContext(view, binding, previous_evidence, snapshot_index, consistency)
+    return AuditContext(
+        view, binding, previous_evidence, snapshot_index, consistency, tuple(retained_decisions)
+    )

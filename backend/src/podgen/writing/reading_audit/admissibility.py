@@ -122,7 +122,8 @@ def describe(schema):
         " Unchecked is unfinished work and blocks keep; it does not mean false. A contextual"
         " interpretation may be supported by inspected premises without a verbatim source."
     )
-    definitions["DecisionDisposition"]["properties"]["disposition"]["description"] += (
+    disposition = definitions.get("DecisionDisposition", definitions.get("ChangedDecision"))
+    disposition["properties"]["disposition"]["description"] += (
         " Retained carries forward the applicable contextual verdict and its frozen evidence."
         " A changed verdict or evidential basis requires reassessment and concrete grounds."
     )

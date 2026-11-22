@@ -8,7 +8,7 @@ from podgen.persistence.source_reading import read_sources
 from podgen.writing.model_references import context_references
 from podgen.writing.reading_audit import VERSION
 from podgen.writing.reading_audit.admissibility import carry_retained
-from podgen.writing.reading_audit.consistency import RETAINED_EVIDENCE_VERSION
+from podgen.writing.reading_audit.consistency import DELTA_VERSION, RETAINED_EVIDENCE_VERSION
 from podgen.writing.reading_audit.validation import validate
 from podgen.writing.roles import WriteOutput
 from podgen.writing.source_tools import SourceCorpus
@@ -21,12 +21,14 @@ from .evidence import current_catalog, resolve, validate_retained
 from .source import prepare
 
 
-def _locator(value, materials, snapshot_index, corpus):
+def _locator(value, materials, snapshot_index, corpus, *, require_unique=False):
     validate_retained(value, materials, snapshot_index)
     if "locator" in value:
         if corpus.locate(value["locator"]) != value["content"]:
             raise ContractError("audit_source_read_binding_changed")
         return value["locator"]
+    if require_unique and len(value["source_selectors"]) != 1:
+        raise ContractError("audit_finding_read_ambiguous")
     primary = [source.key for source in materials.packet.documents if source.purpose == "primary"]
     for selector in value["source_selectors"]:
         if selector["key"] in primary:
@@ -53,9 +55,18 @@ def _finalize(journal, invocation, parsed, audit, materials, script):
     parsed.validate_against(WriteOutput.model_validate(script))
     output = parsed.model_dump(mode="json")
     contract, require_unique_transfer = admission_policy(journal, invocation, audit.consistency_contract)
-    carried = (
-        carry_retained(output, audit.view) if fact and contract == RETAINED_EVIDENCE_VERSION else None
-    )
+    delta = None
+    if fact and contract == DELTA_VERSION and audit.view["phase"] == "recheck":
+        from podgen.writing.reading_audit.recheck_merge import expand
+        from podgen.writing.reading_audit.schemas import AuditedFact
+
+        output, delta = expand(output, audit.view, audit.retained_decisions)
+        complete = AuditedFact.model_validate(output)
+        complete.validate_against(WriteOutput.model_validate(script))
+        output = complete.model_dump(mode="json")
+    carried = None
+    if fact and contract == RETAINED_EVIDENCE_VERSION:
+        carried = carry_retained(output, audit.view, require_unique_transfer=require_unique_transfer)
     validate(output, script, audit.view, fact=fact, consistency_contract=contract)
     retained = {}
     if fact:
@@ -78,12 +89,22 @@ def _finalize(journal, invocation, parsed, audit, materials, script):
                 if alias not in table:
                     raise ContractError("audit_finding_source_not_delivered")
                 value = table[alias]
-                locators.append(_locator(value, materials, audit.snapshot_index, corpus))
+                locators.append(
+                    _locator(
+                        value,
+                        materials,
+                        audit.snapshot_index,
+                        corpus,
+                        require_unique=contract == DELTA_VERSION,
+                    )
+                )
                 retained[("previous:" if old else "current:") + alias] = deepcopy(value)
             finding["source_read_ids"] = locators
     report = dict(contract=VERSION, binding=deepcopy(audit.binding), resolved_evidence=retained)
     if carried is not None:
         report["retained_evidence_carried"] = carried
+    if delta is not None:
+        report["recheck_delta"] = delta
     if contract != audit.consistency_contract:
         report["admission_contract"] = contract
     return output, report
@@ -118,7 +139,9 @@ def _verify_saved(
     from podgen.writing.reading_audit.registry import model
 
     raw = record["wire_output"]
-    parsed = model(stage).model_validate(references.translate(raw, inbound=True) if references else raw)
+    parsed = model(stage, consistency_contract=audit.consistency_contract).model_validate(
+        references.translate(raw, inbound=True) if references else raw
+    )
     output, proof = finalize(journal, invocation, parsed, audit, materials, script)
     if record["output"] != output or record.get("reading_audit") != proof:
         raise Conflict("audit_saved_report_mismatch")

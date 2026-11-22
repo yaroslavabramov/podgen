@@ -11,7 +11,6 @@ from podgen.runtime.evaluation.reading_cycle import combine
 from podgen.writing.reading_audit.admissibility import carry_retained
 from podgen.writing.reading_audit.consistency import (
     ADMISSIBILITY_VERSION,
-    CURRENT,
     RETAINED_EVIDENCE_VERSION,
     VERSION,
 )
@@ -150,8 +149,7 @@ def carried(value, context):
     return result, check(value, context, version=RETAINED_EVIDENCE_VERSION)
 
 
-def test_new_contract_carries_frozen_evidence_instead_of_rejecting_its_omission():
-    assert CURRENT == RETAINED_EVIDENCE_VERSION
+def test_archived_v3_carries_frozen_evidence_instead_of_rejecting_its_omission():
     value, context = retained()
     value["audit"]["claim_checks"][0]["source_refs"] = [dict(from_review="current", evidence_id="E1")]
     with pytest.raises(ContractError, match="audit_retained_evidence_missing"):

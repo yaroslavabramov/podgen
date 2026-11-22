@@ -47,6 +47,7 @@ def _rejected_feedback(journal, original, request):
             reader_schema_version=manifest.get("reader_review_schema_version"),
             revision_verification_contract=manifest.get(verification.KEY),
             fact_schema_version=manifest.get("fact_review_schema_version"),
+            reading_audit_consistency_contract=manifest.get("reading_audit_consistency_contract"),
         ),
         code="review_anchor_repair_not_eligible",
     )

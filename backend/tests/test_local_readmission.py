@@ -65,7 +65,8 @@ def resume(prefix, run_id, tmp_path, *extra):
     )
 
 
-def test_current_contract_carries_retained_evidence_and_replays(own_dataset, tmp_path, monkeypatch):
+def test_archived_v3_carries_retained_evidence_and_replays(own_dataset, tmp_path, monkeypatch):
+    monkeypatch.setattr("podgen.runtime.evaluation.manifest.CONSISTENCY_VERSION", "decision-findings/3")
     prefix, options, provider, journal = start(own_dataset, tmp_path, monkeypatch)
     assert invoke(prefix, "run", **options) == 0
     run_id = options["run_id"]

@@ -42,6 +42,7 @@ def output_model(
     projection_version=V1,
     planning_output_contract=None,
     revision_verification_contract=None,
+    reading_audit_consistency_contract=None,
 ):
     from podgen.writing.reading_audit import FACT_SCHEMA, READER_SCHEMA, RECHECK_SCHEMA
     from podgen.writing.reading_audit.registry import model as audit_model
@@ -52,7 +53,7 @@ def output_model(
         or fact_schema_version == FACT_SCHEMA
         or revision_verification_contract == RECHECK_SCHEMA
     ):
-        return audit_model(stage)
+        return audit_model(stage, consistency_contract=reading_audit_consistency_contract)
     from podgen.writing.revision.verification import applies, feedback_model
 
     if applies(stage, revision_verification_contract):

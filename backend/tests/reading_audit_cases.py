@@ -4,7 +4,6 @@ from copy import deepcopy
 
 from podgen.writing.reading_audit.input import initial_context
 from podgen.writing.reading_audit.validation import FACT_ASPECTS, READER_ASPECTS
-
 from tests.revision_cases import scope
 
 SCRIPT = dict(
@@ -89,7 +88,7 @@ def report(
                 substantive_consequence="The stated contextual meaning remains materially unsupported.",
             )
         ]
-    return dict(
+    value = dict(
         reading_mode="informed" if fact or not first else "script_only",
         listener_answer="The listener understands the investigation in its stated scope.",
         important_limits=[],
@@ -128,6 +127,13 @@ def report(
         late_findings=late,
         effect_on_episode=None if first else "The edit's effect on the whole account was assessed.",
     )
+
+    if fact and "script_changes" in context:
+        value["retained_confirmation"] = dict(
+            confirmed=True,
+            grounds="The remaining prior contextual decisions and their inspected evidence still apply.",
+        )
+    return value
 
 
 def recheck_context(*, fact=False):

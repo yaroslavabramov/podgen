@@ -29,7 +29,13 @@ def from_manifest(manifest):
     return value
 
 
-def model(stage):
+def model(stage, *, consistency_contract=None):
+    from .consistency import DELTA_VERSION
+
+    if stage.startswith("fact-review-") and consistency_contract == DELTA_VERSION:
+        from .recheck_schema import FactRecheck
+
+        return FactRecheck
     if stage == "fact-review" or stage.startswith("fact-review-"):
         return AuditedFact
     if stage == "reader-review" or stage.startswith("reader-review-"):
@@ -38,6 +44,12 @@ def model(stage):
 
 
 def schema(stage, *, consistency_contract=None):
+    from .consistency import DELTA_VERSION
+
+    if stage.startswith("fact-review-") and consistency_contract == DELTA_VERSION:
+        from .recheck_schema import schema as recheck_schema
+
+        return recheck_schema()
     result = model(stage).model_json_schema()
     from .descriptions import describe_fact, describe_reader
 

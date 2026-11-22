@@ -6,6 +6,8 @@ New-run pins: `reading_audit_contract=reading-audit/1`, `reader_review_schema_ve
 
 ## Output fields
 
+These are the complete persisted reports. The `/4` factual recheck wire is the compact delta described below.
+
 Existing `listener_answer`, `findings`, `research_requests`, `revision_scope`, `strengths`, `recommendation` and other report fields remain. Audit-only fields never become author tasks.
 
 Both roles add:
@@ -98,7 +100,7 @@ that a model will find every real error or avoid every false claim.
 
 ### Retained evidence carried by admission: decision-findings/3
 
-New production manifests pin `decision-findings/3`. The model-facing schema,
+Archived production manifests may pin `decision-findings/3`. The model-facing schema,
 descriptions, prompts and response fields are exactly those of `/2`; only factual
 admission changes. Before validation, the server carries every frozen evidence
 reference of a `retained` previous decision that the reviewer did not cite again.
@@ -144,3 +146,46 @@ Offline checks: `backend/tests/test_fact_admissibility.py` and the PostgreSQL ru
 New runs pin `reading_audit_memory_projection=shared-packet-evidence/1`. A previous packet-evidence reference is projected to `from_review=current` and the matching current `B` alias only when full canonical content (including supports), its hash, and all frozen source selectors (document identity, ref, hash and exact ranges) match. Evidence numbering alone or equal text alone is insufficient. A shared packet excerpt is not repeated in model-facing `previous_evidence`. The complete previous report, evidence and original provenance remain immutable; the new binding records the prior-report hash, exact old-reference-to-current-B mapping, and current packet fingerprint. Actual delivered packet evidence is checked against that fingerprint before persistence and on replay.
 
 Unique prior source reads retain full content and receipts under `H` aliases even if their text also appears in a packet excerpt. Only fully identical retained receipts may share an `H` alias; different read provenance remains distinct. All previous decisions, contextual meanings/scopes, authored memory summaries, coverage, assignments and revision reconstruction are preserved. No semantic fields are shortened. Requests without this pin, including their continuations, keep the exact previous projection and aliases. Prompts, models, response fields and limits do not change.
+
+### Delta factual rechecks: decision-findings/4
+
+New production manifests pin `/4` together with the English instruction in
+`writing/prompts/current/fact-verification.md`. First factual audits and reader
+reports retain their complete forms. Subsequent fact reviews receive the full
+current script, exact before/after edit windows, original assignments, previous
+contextual decisions and authenticated evidence. They do not reconstruct an old
+script. Each quoted anchor appears once: `anchor_version` identifies its version;
+unambiguous unchanged turns are placed at their current indices. Assignment
+quotes retain the previous coordinates, with current indices or change-window
+indices supplied separately.
+
+The recheck wire contains one explicit `retained_confirmation`, current full
+coverage and judgment, only new/reassessed `audit.claim_checks`, and only
+reassessed/retired `previous_dispositions`. Every edited, removed or ambiguous
+prior anchor requires an explicit update. Changed surrounding context or evidence
+may also justify updating an otherwise aligned decision. Prior decision IDs stay
+reserved unless explicitly reassessed; split and merged claims select their own
+evidence. No prior evidence is copied automatically into these claims.
+
+The backend expands confirmation from the complete native prior records, remaps
+only unambiguous unchanged anchors and resolves every evidence reference. It
+persists the usual complete `AuditedFact` report for writers, audit memory,
+aggregation and export. The separate wire output and `recheck_delta` proof retain
+the model's exact confirmation and exceptions. Unsupported, contradicted or
+unchecked retained decisions cannot disappear behind a global keep. Unknown
+anchors, references or unfinished coverage reject admission through the same
+ordinary audit path.
+
+For unaffected supported decisions, a uniquely readable H passage may be offered
+as H plus exact current S/start/end instead of repeated text. `read_source` returns
+the original text and its normal pagination; reopening is optional for unchanged
+confirmed work. Evidence needed by affected or unresolved decisions, evidence
+with multiple selectors and evidence unavailable through the offered read tool
+stays inline. The complete evidence and provenance are always retained in the
+backend and reauthorized; this projection does not grant access or turn a locator
+into a new E receipt.
+
+Saved `/2` and `/3` schemas, instructions, payloads, evidence transfer rules and
+existing local-readmission grants keep their pins. `/4` changes new ordinary
+rechecks; it does not replace the separately authorized local admission of a
+previously rejected response.

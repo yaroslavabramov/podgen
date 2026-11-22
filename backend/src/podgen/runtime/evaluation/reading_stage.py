@@ -75,6 +75,7 @@ def execute_reading_stage(
         reader_schema_version=manifest.get("reader_review_schema_version"),
         fact_schema_version=manifest.get("fact_review_schema_version"),
         revision_verification_contract=recheck_pin,
+        reading_audit_consistency_contract=manifest.get("reading_audit_consistency_contract"),
     )
     revision = prepare_revision(
         journal,
@@ -250,7 +251,9 @@ def execute_reading_stage(
                     from .reading_audit.lifecycle import finalize
 
                     normalized, audit_report = finalize(journal, invocation, parsed, audit, materials, script)
-                    parsed = model.model_validate(normalized)
+                    from podgen.writing.reading_audit.registry import model as admitted_model
+
+                    parsed = admitted_model(stage).model_validate(normalized)
             elif {row.speaker for row in parsed.utterances} != set(materials.speaker_labels):
                 raise ValueError("speaker_labels_mismatch")
         except (ValidationError, ValueError, ContractError) as error:
