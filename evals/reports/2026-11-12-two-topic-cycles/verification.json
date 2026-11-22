@@ -1,0 +1,61 @@
+{
+  "apollo13-air": {
+    "run_id": "78a70249-0eb2-400d-beab-0ba47c23cdba",
+    "review_status": "keep",
+    "plan_revisions": 1,
+    "script_revisions": 2,
+    "final_script_hash": "20c770429e5749102dcf96280670673ed996e006335cb17c39e79d859a0e6a86",
+    "words": 880,
+    "final_review_stages": [
+      "reader-review-2",
+      "fact-review-2"
+    ],
+    "model_responses_by_stage": {
+      "reader-review-1": 1,
+      "draft": 1,
+      "revise-2": 1,
+      "plan-review-revised": 1,
+      "fact-review": 9,
+      "fact-review-1": 3,
+      "plan": 1,
+      "reader-review-2": 1,
+      "fact-review-2": 1,
+      "revise-1": 3,
+      "plan-revise": 1,
+      "reader-review": 1,
+      "plan-review": 1
+    },
+    "usage": {
+      "input": 449518,
+      "output": 69942
+    },
+    "production_configuration_unchanged": true
+  },
+  "rain-soil": {
+    "run_id": "e89d67be-f630-4e3d-bb05-f3bf637c797a",
+    "review_status": "keep",
+    "plan_revisions": 0,
+    "script_revisions": 1,
+    "final_script_hash": "9be098eacf3170a019d5963d0d67bcf1e3148c9709fc0ff5042f959c6ae9deea",
+    "words": 523,
+    "final_review_stages": [
+      "reader-review-1",
+      "fact-review-1"
+    ],
+    "model_responses_by_stage": {
+      "reader-review-1": 1,
+      "draft": 1,
+      "fact-review": 8,
+      "fact-review-1": 1,
+      "plan": 1,
+      "revise-1": 1,
+      "reader-review": 1,
+      "plan-review": 1
+    },
+    "usage": {
+      "input": 202217,
+      "output": 32969
+    },
+    "production_configuration_unchanged": true
+  }
+}
