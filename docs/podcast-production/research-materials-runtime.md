@@ -41,6 +41,23 @@ Prepare and preview are offline. `run` and `resume` execute model calls. The def
 
 New runs use `/8`; saved `/7` and older manifests retain their original model-facing requests and research commissions. Non-factual roles keep the `/7` tools and instructions unchanged. Factual review receives anchored `request_research`; OpenAI factual review also receives Responses `web_search` with low search context. Existing model profiles are reused. Hosted search requests enforce its 128,000-token window in checkpoint planning and dispatch.
 
+New factual commissions record two settings in the manifest. With
+`shown-source-passages/1`, the initial request lists the original questions of
+available supplemental reports. Repeated library hits point to their previous
+delivery in the same assessment and distinguish identical text from a different
+excerpt at the same location. The journal retains the full acquisition receipt
+when the model receives an unavailable-source result.
+
+With `measured-fact-window/1`, a normal turn must fit its actual tool window
+with one full answer reserved. The subsequent state-saving turn uses the
+model's local-tool window and needs room for the working answer and its own
+answer. At 128,000 and 200,000 tokens respectively, with a 24,576-token answer,
+the working input limit is 103,424. The provider counts the actual requests.
+If a new tool result makes even the state-saving request too large, its omitted
+exchange is stored before dispatch and remains readable after a checkpoint or
+an authorized retry. Saved runs without these settings retain their original
+requests and window policy.
+
 Search is navigation, not primary evidence. Obtain a chosen document with `request_source`, then read its retained text with `read_source` to create E receipts. Search calls are physical provider work, accounted separately through `responses-web-search-receipt/1`, `web-search.json` and new-run `run.json.web_search`. Unknown network outcomes remain uncertain and are never automatically resubmitted. Existing count, token, cache and refusal accounting remains authoritative.
 
 For both direct and structured factual requests, `targeted-script-context/1` validates exact anchors against the immutable caller script hash and attaches complete original turns and adjacent turns. Its exact script reference stays in the private caller context. The dedicated English research commission receives verified text; `output_language` controls generated prose.

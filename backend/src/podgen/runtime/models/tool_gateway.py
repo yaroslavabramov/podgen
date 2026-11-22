@@ -87,7 +87,8 @@ def _execute(journal, root, corpus, contract, call, index, turn, guard, history)
             or data["raw_arguments"] != call["arguments"]
         ):
             raise Conflict("source_tool_call_changed")
-        return data["result"]
+        projection = getattr(corpus, "model_result", None)
+        return projection(data["name"], data["result"]) if projection else data["result"]
     try:
         arguments = load_unique_json(call["arguments"])
     except ValueError:
@@ -213,9 +214,11 @@ def _execute(journal, root, corpus, contract, call, index, turn, guard, history)
         history=history,
         diagnostics=diagnostics,
         record_call=not durable_intent and not intents,
+        search_delivery=getattr(corpus, "last_search_delivery", None),
     )
     phase.commit()
-    return result
+    projection = getattr(corpus, "model_result", None)
+    return projection(call["name"], result) if projection else result
 
 
 def invoke_tools(gateway, root, profile, contract, *, limits, totals, guard):

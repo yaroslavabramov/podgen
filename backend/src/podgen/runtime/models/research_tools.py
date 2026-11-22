@@ -37,6 +37,7 @@ class ResearchTools:
         history_view=None,
         anchored=False,
         search_argument_policy=None,
+        fact_navigation=False,
     ):
         self.journal, self.root, self.corpus = journal, root, corpus
         self.history, self.guard = history, guard
@@ -50,12 +51,22 @@ class ResearchTools:
         if search_argument_policy not in (None, search_argument_errors.VERSION):
             raise ContractError("unsupported_search_argument_policy")
         self.search_argument_policy = search_argument_policy
+        self.fact_navigation = fact_navigation
+        self.last_search_delivery = None
 
     @property
     def last_search_diagnostics(self):
         return self.corpus.last_search_diagnostics
 
+    def model_result(self, name, result):
+        if self.fact_navigation and name == "request_source":
+            from .fact_navigation import source_result
+
+            return source_result(result)
+        return result
+
     def execute(self, name, args, *, read_id, **options):
+        self.last_search_delivery = None
         if getattr(self.corpus, "fact_input_mode", None) is not None:
             from podgen.writing.research_materials.fact_source_mode import ALLOWED_TOOLS
 
@@ -138,7 +149,12 @@ class ResearchTools:
                     return dict(error="unknown_work_history_entry")
                 data = saved[0]["data"]
                 text = research_history_view.encoded(
-                    research_history_view.tool_result(data) if self.history_view else data
+                    dict(
+                        research_history_view.tool_result(data),
+                        result=self.model_result(data["name"], data["result"]),
+                    )
+                    if self.history_view
+                    else data
                 )
             elif args["kind"] == "conversation":
                 refs = self.history.references["source_context_segment"]
@@ -156,7 +172,10 @@ class ResearchTools:
                     text = self.journal.read_blob(ref, blob).decode()
             else:
                 return dict(error="unknown_work_history_kind")
-            return dict(kind=args["kind"], index=args["index"], **text_page(text, args["start"], args["end"]))
+            from .fact_navigation import history_page
+
+            page = (history_page if self.fact_navigation else text_page)(text, args["start"], args["end"])
+            return dict(kind=args["kind"], index=args["index"], **page)
         if name == "read_research_result":
             source = self.corpus.supplemental_reports.get(args["result_id"])
             if source is None:
@@ -181,7 +200,12 @@ class ResearchTools:
                 ),
             )
         try:
-            return self.corpus.execute(name, args, read_id=read_id, **options)
+            result = self.corpus.execute(name, args, read_id=read_id, **options)
+            if name == "search_sources" and self.fact_navigation:
+                from .fact_navigation import annotate
+
+                result, self.last_search_delivery = annotate(result, self.corpus, self.history)
+            return result
         except Conflict as error:
             if (
                 self.search_argument_policy != search_argument_errors.VERSION

@@ -9,6 +9,7 @@ from podgen.domain.errors import Conflict, ContractError
 from podgen.runtime.evaluation.compiler import count_request
 from podgen.runtime.evaluation.contracts import RunFailure
 
+from . import research_window
 from .contracts import ProviderFault
 from .count_receipts import (
     CONTRACT,
@@ -165,7 +166,7 @@ class ResearchContext:
         with self.journal.read_operation():
             return receipt(self.journal, self.history.counted(digest(body)), body, self.profile)
 
-    def request(self, body, index, segment_start):
+    def request(self, body, index, segment_start, *, policy=None, prior_input_items=None):
         self.pending_events = []
         saved = self.history.context_plan(index)
         if saved:
@@ -174,39 +175,31 @@ class ResearchContext:
             checkpoint = saved.data["checkpoint"]
         else:
             count = self.measured(body, index, "normal")
-            capacity = context_limit(body, self.profile) - self.profile.output_limit
-            # Reserve a complete checkpoint response and one maximum UTF-8 tool
-            # page before the hard model window. This is a soft checkpoint trigger,
-            # not a separate admission ceiling on a normal task.
-            checkpoint = index > segment_start and count + self.profile.output_limit + 4 * 9600 >= capacity
+            checkpoint = index > segment_start and research_window.needs_checkpoint(
+                body, self.profile, count, policy
+            )
             self.pending_events.append(
                 (
                     "source_context_plan",
                     dict(turn_index=index, conversation_hash=digest(body), checkpoint=checkpoint),
                 )
             )
-        result = deepcopy(body)
-        if checkpoint:
-            result["tools"] = [tool for tool in body["tools"] if tool.get("name") == "save_working_state"]
-            result["input"].append(
-                dict(
-                    role="user",
-                    content=[
-                        dict(
-                            type="input_text",
-                            text=json.dumps(
-                                dict(
-                                    runtime_checkpoint="Before this model window fills, save complete working notes and a separate compact resume_state using save_working_state. Do not issue an editorial verdict. All full messages and receipts remain available through work history."
-                                ),
-                                ensure_ascii=False,
-                            ),
-                        )
-                    ],
-                )
-            )
-        if self.measured(
-            result, index, "checkpoint" if checkpoint else "normal"
-        ) + self.profile.output_limit > context_limit(result, self.profile):
+        result = research_window.checkpoint_request(body) if checkpoint else body
+        required = (
+            self.measured(result, index, "checkpoint" if checkpoint else "normal") + self.profile.output_limit
+        )
+        if (
+            required > context_limit(result, self.profile)
+            and checkpoint
+            and policy == research_window.MEASURED
+            and prior_input_items is not None
+        ):
+            # An unexpectedly large result arrived after the previous request fit.
+            # Its full exchange stays in the archived segment and remains readable.
+            result = research_window.checkpoint_request(body, prior_input_items=prior_input_items)
+            research_window.preserve_deferred(self, index, result, body["input"][prior_input_items:])
+            required = self.measured(result, index, "checkpoint") + self.profile.output_limit
+        if required > context_limit(result, self.profile):
             phase = self.publication()
             phase.event(
                 "source_context_unfinished",

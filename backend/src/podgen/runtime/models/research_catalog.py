@@ -59,9 +59,11 @@ def source_page(corpus, args):
 
 
 def report_page(corpus, args):
-    reports = [
-        row for row in corpus._materials.runtime_admissions if row.catalog.get("kind") == "research_report"
-    ]
+    return report_catalog(corpus._materials, args)
+
+
+def report_catalog(materials, args):
+    reports = [row for row in materials.runtime_admissions if row.catalog.get("kind") == "research_report"]
     version = digest([[row.source_id, row.sha256] for row in reports])
     # Only metadata for the requested page is materialized; text remains lazy.
     metadata = [

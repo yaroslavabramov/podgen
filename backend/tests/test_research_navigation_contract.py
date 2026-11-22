@@ -440,6 +440,8 @@ def test_v8_preserves_complete_non_fact_request(research_materials, monkeypatch,
     current = create(SimpleNamespace(name="production/1"), research_materials)
     original = deepcopy(current)
     original["version"] = "frozen-corpus-tools/7"
+    original.pop("fact_research_navigation")
+    original.pop("fact_context_policy")
     original.pop("fact_request_research")
     original.pop("web_search_receipt_contract")
     original.pop("search_argument_policy", None)

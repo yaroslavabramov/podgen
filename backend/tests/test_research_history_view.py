@@ -52,6 +52,8 @@ def test_checkpoint_history_is_semantic_for_new_runs_and_exact_for_existing_runs
     contract = journal.snapshot["source_tool_contract"]
     if legacy:
         contract["version"] = "frozen-corpus-tools/7"
+        contract.pop("fact_research_navigation")
+        contract.pop("fact_context_policy")
         contract.pop("fact_request_research")
         contract.pop("web_search_receipt_contract")
         contract.pop("search_argument_policy", None)

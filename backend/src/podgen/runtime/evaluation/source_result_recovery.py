@@ -10,6 +10,7 @@ from podgen.persistence.repository import Repository
 from podgen.runtime.models.research_continuation import append_response
 from podgen.runtime.models.research_turn_request import normal_request
 from podgen.runtime.models.tool_result_publication import prepare_result
+from podgen.writing.research_materials.fact_navigation import enabled as navigation_enabled
 
 from .journal import EvaluationJournal
 from .profiles import load_profile
@@ -42,10 +43,16 @@ def recover(repo, project, run_id, *, stage, invocation_id, call_id):
         profile = load_profile(
             generation, project, ArtifactRef.model_validate(request_record["context"]["profile_ref"]), stage
         )
+        contract = from_manifest(journal.manifest(run_id))
+        result = evidence.result
+        if navigation_enabled(contract, stage):
+            from podgen.runtime.models.fact_navigation import source_result
+
+            result = source_result(result)
         conversation = deepcopy(evidence.request["input"])
         append_response(conversation, evidence.response, profile.provider)
         conversation.append(
-            dict(type="function_call_output", call_id=call_id, output=encoded(evidence.result).decode())
+            dict(type="function_call_output", call_id=call_id, output=encoded(result).decode())
         )
         next_turn = evidence.turn["turn_index"] + 1
         candidate = normal_request(
@@ -53,7 +60,7 @@ def recover(repo, project, run_id, *, stage, invocation_id, call_id):
             conversation,
             evidence.root,
             next_turn,
-            from_manifest(journal.manifest(run_id)),
+            contract,
             profile.provider,
         )
         if profile.provider == "openai":

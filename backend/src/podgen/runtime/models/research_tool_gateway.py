@@ -3,21 +3,26 @@
 import json
 from copy import deepcopy
 from itertools import count
-from uuid import uuid5
 
 from podgen.domain.contracts.common import RuntimeRef
 from podgen.domain.errors import ContractError
 from podgen.runtime.evaluation import model_turns
 from podgen.runtime.evaluation.contracts import RunFailure
-from podgen.runtime.evaluation.research_cache_layout import mark_turn
-from podgen.runtime.evaluation.source_tool_contract import anchored_research, quick_search, role_definitions
+from podgen.runtime.evaluation.source_tool_contract import (
+    anchored_research,
+    quick_search,
+    role_definitions,
+    window_policy,
+)
+from podgen.writing.research_materials.fact_navigation import enabled as navigation_enabled
 
-from . import web_search
+from . import research_window, web_search
 from .contracts import WireReply
 from .research_context import ResearchContext
 from .research_continuation import append_response, resolve_structured, structured_requests
 from .research_history import ResearchHistory
 from .research_tools import ResearchTools
+from .research_turn_request import normal_request, turn_request
 from .search_argument_errors import KEY as SEARCH_ARGUMENT_KEY
 from .tool_gateway import _account, _calls, _execute
 
@@ -88,6 +93,7 @@ def _invoke(gateway, root, profile, contract, *, limits, totals, guard):
         search_argument_policy=(
             contract.get(SEARCH_ARGUMENT_KEY) if anchored_research(contract, root["stage"]) else None
         ),
+        fact_navigation=navigation_enabled(contract, root["stage"]),
     )
     if corpus.material_resolver is not None:
         proxy.restore(corpus.material_resolver.restore(run_id=root["run_id"], guard=guard))
@@ -108,24 +114,23 @@ def _invoke(gateway, root, profile, contract, *, limits, totals, guard):
         conversation = deepcopy(original["input"])
     else:
         conversation = context.restart(segment) if segment else deepcopy(original["input"])
+    policy = window_policy(contract, root["stage"])
+    prior_input_items = None
     for index in count(segment_start):
         getattr(guard, "checkpoint", guard)()
-        body = deepcopy(original)
-        body["input"] = deepcopy(conversation)
-        body["metadata"].update(
-            podgen_invocation_id=str(uuid5(root["invocation_id"], f"source-turn:{index}")),
-            podgen_source_turn=str(index),
-        )
         retry_first = bool(root.get("attempt_index", 0) and index == start_turn)
         if retry_first:
+            body = turn_request(original, conversation, root, index)
             # Authorization binds this exact unsent/refused physical request.
             # Do not reinterpret its already selected context/checkpoint mode.
             checkpoint_requested = [tool.get("name") for tool in body["tools"]] == ["save_working_state"]
         else:
-            body["tools"] = role_definitions(contract, root["stage"], profile.provider)
-            body["tool_choice"] = "auto"
-            mark_turn(body)
-            body, checkpoint_requested = context.request(body, index, segment_start)
+            body = normal_request(original, conversation, root, index, contract, profile.provider)
+            full_input = body["input"]
+            body, checkpoint_requested = context.request(
+                body, index, segment_start, policy=policy, prior_input_items=prior_input_items
+            )
+        prior_input_items = len(body["input"])
         turn_journal = model_turns.TurnJournal(journal, root, index, history=history, ledger=ledger)
         turn, prepared_phase, request_snapshot = turn_journal.stage_prepare(
             body,
@@ -228,7 +233,13 @@ def _invoke(gateway, root, profile, contract, *, limits, totals, guard):
         if checkpoints and len(calls) != 1 or checkpoint_requested and not checkpoints:
             raise ContractError("research_checkpoint_requires_one_state_call")
         if checkpoint_requested:
-            conversation = deepcopy(body["input"])
+            # Archive the complete exchange even when the state-saving request
+            # had to defer a large tool result. A retry already has its directive.
+            conversation = (
+                research_window.retry_checkpoint_input(context, index, body)
+                if retry_first
+                else [*full_input, body["input"][-1]]
+            )
         append_response(conversation, continuation_response, profile.provider)
         for call in calls:
             existing = history.for_call("source_tool_call", call_index)

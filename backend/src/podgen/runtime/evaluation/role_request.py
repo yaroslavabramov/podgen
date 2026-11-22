@@ -85,6 +85,7 @@ def compile_reading_request(
     *,
     reference_catalog=None,
     revision_comparison=None,
+    fact_navigation_view=None,
     reading_audit_context=None,
     prompt_cache_layout=None,
     source_tool_contract=None,
@@ -124,6 +125,14 @@ def compile_reading_request(
         and base_stage(stage) != "reader-review"
     ):
         payload["research_results"] = dict(tool="list_research_results", offset=0, version=None)
+        from podgen.writing.research_materials.fact_navigation import enabled
+
+        if enabled(source_tool_contract, stage):
+            from podgen.runtime.models.fact_navigation import entry_catalog
+
+            payload["research_results"] = (
+                fact_navigation_view if fact_navigation_view is not None else entry_catalog(materials)
+            )
     if reading_audit_context is not None:
         from podgen.writing.reading_audit.input import attach
         from podgen.writing.revision.verification import bind_assignments

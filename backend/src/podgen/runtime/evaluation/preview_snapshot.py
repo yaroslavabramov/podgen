@@ -1,6 +1,6 @@
 """Read an existing run's immutable preview dependencies without reloading current resources."""
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 from podgen.domain.contracts.common import ArtifactRef, RuntimeRef
 from podgen.domain.errors import Conflict
@@ -19,6 +19,7 @@ class PreviewSnapshot:
     fact_plan: dict | None = None
     continuation_inputs: dict | None = None
     reading_audit_context: dict | None = None
+    fact_navigation_view: dict | None = None
 
 
 def load_preview_snapshot(journal, generation, run_id, stage, materials):
@@ -96,6 +97,20 @@ def load_preview_snapshot(journal, generation, run_id, stage, materials):
     snapshot = PreviewSnapshot(
         manifest, instructions, script, composition, fact_plan=fact_plan, revision_comparison=comparison
     )
+    from podgen.writing.research_materials.fact_navigation import enabled
+
+    if enabled(manifest.get("source_tool_contract"), stage):
+        invocation = journal.invocation(run_id, stage)
+        if invocation is not None:
+            from .request_payload import request_payload
+            from .source_tool_trace import commission_invocation
+
+            view = request_payload(journal.request(commission_invocation(journal, invocation))).get(
+                "research_results"
+            )
+            if not isinstance(view, dict) or "reports" not in view:
+                raise Conflict("preview_fact_navigation_missing")
+            snapshot = replace(snapshot, fact_navigation_view=view)
     from .editorial_continuation.preview import attach as attach_editorial
     from .reading_audit.preview import attach as attach_audit
 

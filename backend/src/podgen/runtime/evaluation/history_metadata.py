@@ -32,11 +32,18 @@ class EventMetadata:
 def project(reference, kind, invocation_id, data):
     result = data.get("result", {}) if kind == "source_tool_result" else {}
     receipts = tuple(result[field]["read_id"] for field in ("passage", "material_passage") if field in result)
+    compact = {key: data[key] for key in FIELDS.get(kind, ()) if key in data}
+    if kind == "source_tool_result" and data.get("name") == "search_sources":
+        from podgen.writing.research_materials.fact_navigation import VERSION
+
+        delivery = data.get("search_delivery_identity") or {}
+        if delivery.get("contract") == VERSION:
+            compact["shown_search_passages"] = delivery["passages"]
     return EventMetadata(
         reference,
         kind,
         str(invocation_id),
-        {key: data[key] for key in FIELDS.get(kind, ()) if key in data},
+        compact,
         receipts,
     )
 

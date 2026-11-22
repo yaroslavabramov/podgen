@@ -33,6 +33,8 @@ class ResearchHistory:
         self.receipts = set()
         self.call_ids = set()
         self.entries = []
+        self.returned_search_passages = {}
+        self.shown_search_previews = {}
         from podgen.runtime.evaluation.source_tool_recovery import lineage
 
         self.counts = {}
@@ -100,6 +102,9 @@ class ResearchHistory:
             self.calls[kind, data["call_index"]] = ref
             if kind == "source_tool_result":
                 self.entries.append(("tool_result", data["call_index"]))
+                for identity, preview in data.get("shown_search_passages", ()):
+                    self.returned_search_passages.setdefault(identity, data["call_index"])
+                    self.shown_search_previews.setdefault(preview, data["call_index"])
             self.call_ids.add(data["call_id"])
             self.receipts.update(entry.receipt_ids)
 

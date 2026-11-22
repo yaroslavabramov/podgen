@@ -3,10 +3,13 @@
 from copy import deepcopy
 
 from podgen.domain.errors import ContractError
-from podgen.runtime.models import web_search
+from podgen.runtime.models import research_window, web_search
 from podgen.runtime.models.search_argument_errors import KEY as SEARCH_ARGUMENT_KEY
 from podgen.runtime.models.search_argument_errors import PAGING as SEARCH_PAGING
 from podgen.runtime.models.search_argument_errors import VERSION as SEARCH_ARGUMENT_VERSION
+from podgen.writing.research_materials.fact_navigation import KEY as NAVIGATION_KEY
+from podgen.writing.research_materials.fact_navigation import VERSION as NAVIGATION_VERSION
+from podgen.writing.research_materials.fact_navigation import enabled as navigation_enabled
 
 from .reading_workflow import base_stage
 
@@ -58,6 +61,8 @@ def create(behavior, materials=None):
         return dict(
             version=CURRENT_RESEARCH_VERSION,
             **{SEARCH_ARGUMENT_KEY: SEARCH_ARGUMENT_VERSION, web_search.KEY: web_search.CURRENT},
+            **{NAVIGATION_KEY: NAVIGATION_VERSION},
+            **{research_window.FACT_KEY: research_window.MEASURED},
             fact_request_research=targeted_definition(history_view),
             web_search_definition=dict(type="web_search", search_context_size="low"),
             definitions=source_definitions(declarations, retrieval_policy=retrieval.get("retrieval_policy"))
@@ -157,7 +162,7 @@ def bind(body, stage, profile, contract):
             parallel_tool_calls=False,
         )
         if contract["version"] in DURABLE_VERSIONS:
-            body["metadata"]["podgen_context_policy"] = contract["context_policy"]
+            body["metadata"]["podgen_context_policy"] = window_policy(contract, stage)
         if profile.provider == "openai":
             body["include"] = ["reasoning.encrypted_content"]
             if quick_search(contract, stage, profile.provider):
@@ -175,6 +180,13 @@ def validate_durable(manifest, value):
         fields.update({"fact_request_research", "web_search_definition"})
     from podgen.writing.research_materials.fact_source_mode import KEY, VERSION, tools
 
+    if research_window.FACT_KEY in value:
+        if (
+            value["version"] != CURRENT_RESEARCH_VERSION
+            or value[research_window.FACT_KEY] != research_window.MEASURED
+        ):
+            raise ContractError("unsupported_fact_context_policy")
+        fields.add(research_window.FACT_KEY)
     if web_search.KEY in value:
         if value["version"] != CURRENT_RESEARCH_VERSION or value[web_search.KEY] != web_search.CURRENT:
             raise ContractError("unsupported_web_search_receipt_contract")
@@ -186,6 +198,13 @@ def validate_durable(manifest, value):
         ):
             raise ContractError("unsupported_search_argument_policy")
         fields.add(SEARCH_ARGUMENT_KEY)
+    if NAVIGATION_KEY in value:
+        if (
+            value["version"] != CURRENT_RESEARCH_VERSION
+            or value[NAVIGATION_KEY] != NAVIGATION_VERSION
+        ):
+            raise ContractError("unsupported_fact_research_navigation")
+        fields.add(NAVIGATION_KEY)
     mode = value.get(KEY)
     if KEY in value:
         if mode != VERSION or manifest.get(KEY) != mode or manifest.get("stages") != ["fact-review"]:
@@ -224,6 +243,8 @@ def validate_durable(manifest, value):
         raise ContractError("fact_search_tool_definitions_changed")
     if value["definitions"] != expected:
         raise ContractError("durable_source_tool_definitions_changed")
+    if NAVIGATION_KEY in value and history_view != "research-work-history/1":
+        raise ContractError("unsupported_fact_research_navigation")
     return value
 
 
@@ -231,8 +252,19 @@ def instructions(body, stage, contract):
     if contract is not None and contract["version"] in DURABLE_VERSIONS and applies(stage, contract):
         from podgen.writing.research_materials.runtime_instructions import attach
 
-        return attach(body, anchored=anchored_research(contract, stage))
+        result = attach(body, anchored=anchored_research(contract, stage))
+        if navigation_enabled(contract, stage):
+            from podgen.writing.research_materials.fact_navigation import BODY
+
+            result += "\n\n# Existing investigations and repeated search results\n\n" + BODY
+        return result
     return body
+
+
+def window_policy(contract, stage):
+    if anchored_research(contract, stage) and research_window.FACT_KEY in contract:
+        return contract[research_window.FACT_KEY]
+    return contract["context_policy"]
 
 
 def anchored_research(contract, stage):
@@ -259,6 +291,19 @@ def role_definitions(contract, stage, provider):
         search["description"] += SEARCH_PAGING
     if quick_search(contract, stage, provider):
         result.append(deepcopy(contract["web_search_definition"]))
+    if navigation_enabled(contract, stage):
+        for tool in result:
+            if tool.get("name") == "search_sources":
+                tool["description"] += (
+                    " Repeated hits include previous_result: a history index and same_text or same_location_new_excerpt. A repeated location may show a new quotation; this is not a reading receipt."
+                )
+            elif tool.get("name") == "read_work_history":
+                tool["description"] += (
+                    " Read at most 9600 characters: end=null selects one page; follow next_start."
+                )
+                tool["parameters"]["properties"]["end"]["description"] = (
+                    "Exclusive character end, at most start+9600; null selects one page. Follow next_start."
+                )
     return result
 
 

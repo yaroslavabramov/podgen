@@ -225,6 +225,7 @@ def preview_request(
             revision_context_contract=revision_context,
             revision_comparison=recheck,
             reading_audit_context=audit_context,
+            fact_navigation_view=snapshot.fact_navigation_view if snapshot else None,
             audience=reading_audience(materials.packet.assignment, snapshot.manifest)
             if snapshot
             else behavior.audience(materials.packet.assignment),
