@@ -7,6 +7,7 @@ from podgen.writing.fact_context import evidence_for_materials, from_manifest
 from podgen.writing.reading_audit.input import packet_index
 
 from .evidence import packet_catalog, validate_retained
+from .reference_text import alias_number
 
 PACKET_FIELDS = ("original_id", "kind", "content", "content_hash", "source_selectors")
 
@@ -32,13 +33,21 @@ def identity(value):
     return digest({key: value[key] for key in ("content", "content_hash", "source_selectors")})
 
 
-def project(previous, current, materials, snapshot_index, *, shared):
+def project(previous, current, materials, snapshot_index, *, shared, previous_max=None):
+    maximum = previous_max or 0
     packet_matches = {}
     if shared:
         for alias, value in current.items():
             if value["kind"] == "packet_evidence":
                 packet_matches.setdefault(identity(value), alias)
     refs, retained, reused, receipts = {}, {}, {}, {}
+    if previous_max is not None:
+        for key, value in previous.items():
+            scope, _, name = key.partition(":")
+            number = alias_number(name)
+            if scope == "previous" and number:
+                maximum = max(maximum, number)
+                receipts.setdefault(digest(value), name)
     for key, value in previous.items():
         validate_retained(value, materials, snapshot_index)
         match = packet_matches.get(identity(value)) if shared and value["kind"] == "packet_evidence" else None
@@ -48,9 +57,13 @@ def project(previous, current, materials, snapshot_index, *, shared):
             continue
         proof = digest(value)
         alias = receipts.get(proof) if shared else None
+        if previous_max is not None and key.startswith("previous:H"):
+            alias = key.partition(":")[2]
         if alias is None:
-            alias = f"H{len(retained) + 1}"
+            maximum += 1
+            alias = f"H{maximum}"
+        if alias not in retained:
             retained[alias] = deepcopy(value)
-            receipts[proof] = alias
+            receipts.setdefault(proof, alias)
         refs[key] = dict(from_review="previous", evidence_id=alias)
     return refs, retained, reused

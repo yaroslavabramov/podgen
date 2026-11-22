@@ -12,6 +12,7 @@ from podgen.writing.reading_audit import VERSION
 from podgen.writing.reading_audit.consistency import DELTA_VERSION
 from podgen.writing.reading_audit.consistency import from_manifest as consistency_from_manifest
 from podgen.writing.reading_audit.input import initial_context
+from podgen.writing.reading_audit.memory_projection import STABLE_REFERENCES
 from podgen.writing.reading_audit.memory_projection import from_manifest as memory_from_manifest
 from podgen.writing.reading_audit.registry import from_manifest
 from podgen.writing.reading_audit.validation import decisions
@@ -21,6 +22,7 @@ from ..reading_workflow import base_stage
 from ..request_payload import request_payload
 from .evidence import snapshots
 from .memory import current_packet, fingerprint, project
+from .reference_text import alias_number, fields, text_aliases
 
 
 @dataclass(frozen=True)
@@ -62,6 +64,9 @@ def prepare(journal, run_id, stage, manifest, materials, script, script_ref):
     view = initial_context(fact=fact)
     previous_evidence = {}
     retained_decisions = []
+    stable_references = fact and memory_projection == STABLE_REFERENCES
+    if stable_references:
+        binding["evidence_reference_max"] = 0
     if stage != base_stage(stage):
         number = int(stage.rsplit("-", 1)[1])
         revision = journal.invocation(run_id, f"revise-{number}")
@@ -111,28 +116,39 @@ def prepare(journal, run_id, stage, manifest, materials, script, script_ref):
             raise Conflict("audit_previous_context_changed")
         aliases = {}
         if fact:
+            if stable_references:
+                binding["evidence_reference_max"] = bound.get("evidence_reference_max", 0)
             aliases, previous_evidence, reused = project(
                 prior["reading_audit"]["resolved_evidence"],
                 packet,
                 materials,
                 snapshot_index,
                 shared=memory_projection is not None,
+                previous_max=binding.get("evidence_reference_max"),
             )
+            if stable_references:
+                text_references = text_aliases(prior["reading_audit"]["resolved_evidence"], aliases)
+                binding["evidence_reference_max"] = max(
+                    [binding["evidence_reference_max"], *(alias_number(key) for key in previous_evidence)]
+                )
             if memory_projection is not None:
                 binding["reused_packet_evidence"] = reused
         prior_decisions = []
-        for row in decisions(prior["output"]):
+        for native in decisions(prior["output"]):
+            row = fields(native, text_references) if stable_references else dict(native)
+            if fact:
+                row["source_refs"] = [
+                    dict(aliases[f"{ref['from_review']}:{ref['evidence_id']}"])
+                    for ref in native["source_refs"]
+                ]
             compact = {
                 key: deepcopy(value) for key, value in row.items() if key not in ("rationale", "source_refs")
             }
             if fact:
-                compact["source_refs"] = [
-                    deepcopy(aliases[f"{ref['from_review']}:{ref['evidence_id']}"])
-                    for ref in row["source_refs"]
-                ]
+                compact["source_refs"] = [dict(ref) for ref in row["source_refs"]]
             prior_decisions.append(compact)
             if fact and consistency == DELTA_VERSION:
-                retained_decisions.append(dict(deepcopy(row), source_refs=deepcopy(compact["source_refs"])))
+                retained_decisions.append(row)
         compared = comparison(before, script, writer, prior["output"])
         assignments = compared["assignments"]
         if fact:
@@ -150,7 +166,7 @@ def prepare(journal, run_id, stage, manifest, materials, script, script_ref):
         if fact and consistency == DELTA_VERSION:
             from podgen.writing.reading_audit.recheck_changes import attach
 
-            attach(view, before, script)
+            attach(view, before, script, stable_occurrences=stable_references)
             complete_decisions = {row["decision_id"]: row for row in retained_decisions}
             for row in view["previous_decisions"]:
                 if row["requires_update"]:

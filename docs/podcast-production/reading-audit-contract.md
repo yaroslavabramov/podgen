@@ -143,9 +143,15 @@ Offline checks: `backend/tests/test_fact_admissibility.py` and the PostgreSQL ru
 
 ## Shared packet memory projection
 
-New runs pin `reading_audit_memory_projection=shared-packet-evidence/1`. A previous packet-evidence reference is projected to `from_review=current` and the matching current `B` alias only when full canonical content (including supports), its hash, and all frozen source selectors (document identity, ref, hash and exact ranges) match. Evidence numbering alone or equal text alone is insufficient. A shared packet excerpt is not repeated in model-facing `previous_evidence`. The complete previous report, evidence and original provenance remain immutable; the new binding records the prior-report hash, exact old-reference-to-current-B mapping, and current packet fingerprint. Actual delivered packet evidence is checked against that fingerprint before persistence and on replay.
+The first shared projection is pinned as `reading_audit_memory_projection=shared-packet-evidence/1`. A previous packet-evidence reference is projected to `from_review=current` and the matching current `B` alias only when full canonical content (including supports), its hash, and all frozen source selectors (document identity, ref, hash and exact ranges) match. Evidence numbering alone or equal text alone is insufficient. A shared packet excerpt is not repeated in model-facing `previous_evidence`. The complete previous report, evidence and original provenance remain immutable; the new binding records the prior-report hash, exact old-reference-to-current-B mapping, and current packet fingerprint. Actual delivered packet evidence is checked against that fingerprint before persistence and on replay.
 
 Unique prior source reads retain full content and receipts under `H` aliases even if their text also appears in a packet excerpt. Only fully identical retained receipts may share an `H` alias; different read provenance remains distinct. All previous decisions, contextual meanings/scopes, authored memory summaries, coverage, assignments and revision reconstruction are preserved. No semantic fields are shortened. Requests without this pin, including their continuations, keep the exact previous projection and aliases. Prompts, models, response fields and limits do not change.
+
+New runs pin `shared-packet-evidence/2`. When a decision carries forward, its
+references in both the structured evidence list and the reviewer's explanation
+must still identify the same frozen passages. This applies to the request seen
+by the next fact checker and to the full report expanded from its confirmation.
+The original review, source receipts and verbatim script anchors remain immutable.
 
 ### Delta factual rechecks: decision-findings/4
 
@@ -157,7 +163,10 @@ contextual decisions and authenticated evidence. They do not reconstruct an old
 script. Each quoted anchor appears once: `anchor_version` identifies its version;
 unambiguous unchanged turns are placed at their current indices. Assignment
 quotes retain the previous coordinates, with current indices or change-window
-indices supplied separately.
+indices supplied separately. With memory projection `/2`, repeated identical
+turns can retain their decisions when the particular occurrence is unambiguous.
+Deleting one of two indistinguishable neighbouring turns still requires an
+explicit reassessment.
 
 The recheck wire contains one explicit `retained_confirmation`, current full
 coverage and judgment, only new/reassessed `audit.claim_checks`, and only

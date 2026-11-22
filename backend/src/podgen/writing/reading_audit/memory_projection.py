@@ -7,10 +7,13 @@ from . import VERSION as AUDIT_VERSION
 
 KEY = "reading_audit_memory_projection"
 VERSION = "shared-packet-evidence/1"
+STABLE_REFERENCES = "shared-packet-evidence/2"
 
 
 def from_manifest(manifest):
     value = manifest.get(KEY)
-    if value is not None and (value != VERSION or manifest.get(AUDIT_KEY) != AUDIT_VERSION):
+    if value is not None and (
+        value not in (VERSION, STABLE_REFERENCES) or manifest.get(AUDIT_KEY) != AUDIT_VERSION
+    ):
         raise ContractError("unsupported_reading_audit_memory_projection")
     return value

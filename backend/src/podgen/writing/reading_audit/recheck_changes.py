@@ -7,11 +7,40 @@ from difflib import SequenceMatcher
 from podgen.domain.errors import ContractError
 
 
-def comparison(before, after):
+def _stable_occurrences(old, new, old_positions, new_positions, unique):
+    """Conservatively match unchanged gaps between ordered unique landmarks.
+
+    Shared turns in each gap must be identical in order and count. Only turns
+    absent from the opposite *whole* script may be filtered as external edits;
+    a turn moved into another gap must still prevent matching its original gap.
+    Reordered unique landmarks disable new occurrence matching altogether. This
+    deliberately leaves uncertain gaps unresolved, using O(n+m) time and memory
+    in addition to the existing edit-window computation.
+    """
+    shared = {key for key in old_positions if new_positions.get(key)}
+    if len(shared) == len(unique):
+        return {}
+    landmarks = list(unique.items())  # In original-script order.
+    if any(right <= left for (_, left), (_, right) in zip(landmarks, landmarks[1:], strict=False)):
+        return {}
+    result = {}
+    old_start = new_start = 0
+    for old_end, new_end in [*landmarks, (len(old), len(new))]:
+        left = [(i, old[i]) for i in range(old_start, old_end) if old[i] in shared]
+        right = [(i, new[i]) for i in range(new_start, new_end) if new[i] in shared]
+        if [key for _, key in left] == [key for _, key in right]:
+            result.update((i, j) for (i, _), (j, _) in zip(left, right, strict=True))
+        old_start, new_start = old_end + 1, new_end + 1
+    return result
+
+
+def comparison(before, after, *, stable_occurrences=False):
     def keys(script):
         return [(row["speaker"], row["text"]) for row in script["utterances"]]
 
     old, new = keys(before), keys(after)
+    if stable_occurrences and old == new:
+        return [], {i: i for i in range(len(old))}
     windows = []
     for kind, first, last, start, end in SequenceMatcher(None, old, new, autojunk=False).get_opcodes():
         if kind == "equal":
@@ -33,6 +62,8 @@ def comparison(before, after):
         for key, positions in old_positions.items()
         if len(positions) == 1 and len(new_positions[key]) == 1
     }
+    if stable_occurrences:
+        aligned.update(_stable_occurrences(old, new, old_positions, new_positions, aligned))
     return windows, aligned
 
 
@@ -56,8 +87,8 @@ def align_anchors(anchors, before, after, alignment):
     return None if missing else current
 
 
-def attach(view, before, after):
-    changes, alignment = comparison(before, after)
+def attach(view, before, after, *, stable_occurrences=False):
+    changes, alignment = comparison(before, after, stable_occurrences=stable_occurrences)
     view.pop("previous_script_in_order", None)
     view["script_changes"] = changes
     for row in view["previous_decisions"]:

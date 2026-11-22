@@ -47,7 +47,7 @@ def test_full_audit_memory_retains_old_read_without_reexecuting_it_and_replays(
     command = WritingRunCommand.model_validate(manifest["command"])
     assert manifest["reading_audit_contract"] == "reading-audit/1"
     assert manifest["reading_audit_consistency_contract"] == "decision-findings/4"
-    assert manifest["reading_audit_memory_projection"] == "shared-packet-evidence/1"
+    assert manifest["reading_audit_memory_projection"] == "shared-packet-evidence/2"
     fact_calls = [
         body for body in provider.requests if body["metadata"]["podgen_stage"].startswith("fact-review")
     ]

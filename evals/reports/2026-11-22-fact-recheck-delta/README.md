@@ -60,3 +60,24 @@ Local complete comparison and exact requests are in
 
 New runs use /4 through the ordinary entry point and preview. No temporary prompt
 copy, manifest override, or substitute behavior is needed.
+
+## Evidence references across rounds
+
+On the same 66-utterance script, 17 of the 24 carried decisions under memory
+projection `/1` named a different or missing passage in their prose. In D11 the
+name H12 changed from Champollion's letter to an analysis of Cleopatra's name.
+
+With memory projection `/2`, all 24 carried decisions identify their original
+passages in both the actual request and the locally expanded report. All 23
+decisions shown at the preceding recheck also matched their original sources.
+The comparison checked each occurrence against the complete archived receipt,
+and checked the corresponding inline passage or exact source range shown in
+the request. The two reassessed decisions used the saved answer with citations
+translated by receipt. The current run's reviewers made no new decisions.
+
+Warm preparation, compilation and admission made 478 SQL calls and two object
+reads (391,695 bytes) with either memory projection. There were no object writes
+or provider calls. The prior archived request and the earlier delta candidate's
+request, admitted report and admission proof were reproduced unchanged.
+The local comparison and full candidate are in
+`tmp/fact-recheck-citations-2026-11-22/`.

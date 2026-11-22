@@ -3,14 +3,14 @@
 from copy import deepcopy
 
 import pytest
+
 from podgen.domain.canonical import digest
 from podgen.domain.errors import ContractError
 from podgen.runtime.evaluation.reading_audit.evidence import current_catalog
 from podgen.runtime.evaluation.reading_audit.memory import fingerprint, project
 from podgen.writing.reading_audit import VERSION as AUDIT_VERSION
-from podgen.writing.reading_audit.memory_projection import KEY, VERSION, from_manifest
+from podgen.writing.reading_audit.memory_projection import KEY, STABLE_REFERENCES, VERSION, from_manifest
 from podgen.writing.reading_audit.registry import from_manifest as audit_from_manifest
-
 from tests.test_reading_audit_evidence import catalog
 
 
@@ -96,9 +96,10 @@ def test_missing_pin_preserves_the_exact_old_alias_order_and_full_evidence(monke
     assert fingerprint(changed) != fingerprint(current)
 
 
-def test_memory_projection_pin_is_explicit_and_requires_the_audit_contract():
+@pytest.mark.parametrize("version", [VERSION, STABLE_REFERENCES])
+def test_memory_projection_pin_is_explicit_and_requires_the_audit_contract(version):
     assert from_manifest({}) is None
-    assert from_manifest({KEY: VERSION, "reading_audit_contract": AUDIT_VERSION}) == VERSION
-    for manifest in ({KEY: VERSION}, {KEY: "future", "reading_audit_contract": AUDIT_VERSION}):
+    assert from_manifest({KEY: version, "reading_audit_contract": AUDIT_VERSION}) == version
+    for manifest in ({KEY: version}, {KEY: "future", "reading_audit_contract": AUDIT_VERSION}):
         with pytest.raises(ContractError, match="unsupported_reading_audit_memory_projection"):
             audit_from_manifest(manifest)

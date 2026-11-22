@@ -33,6 +33,7 @@ class RetainedWithoutFrozenEvidence(AuditProvider):
 
 
 def start(own_dataset, tmp_path, monkeypatch):
+    monkeypatch.setattr("podgen.runtime.evaluation.manifest.MEMORY_VERSION", "shared-packet-evidence/1")
     repo, project, *_ = own_dataset
     prefix, options, _ = setup_review(own_dataset, tmp_path, monkeypatch)
     for role, model in (("writer", "claude-opus-5-5"), ("reviewer", "gpt-6.1-terra")):

@@ -47,8 +47,8 @@ class DeltaProvider(AuditProvider):
                 ],
                 contextual_meaning="An unchanged final contextual claim.",
                 verdict="supported",
-                rationale="The final contextual claim stays within the investigation's established scope and is supported by the explicitly selected source passage and packet evidence.",
-                memory_summary="The final claim is supported at its stated contextual scope by the recorded evidence.",
+                rationale="The final claim is supported at the stated scope by the source read E1 and packet excerpt B1.",
+                memory_summary="E1 and B1 support the final claim at this scope.",
             )
             value["audit"]["claim_checks"].append(stable)
             value["audit"]["coverage"][-1]["decision_ids"].append("D2")
@@ -72,6 +72,7 @@ class DeltaProvider(AuditProvider):
                 row for row in payload["audit_context"]["previous_decisions"] if row["decision_id"] == "D2"
             )
             assert previous["anchor_version"] == "current" and not previous["requires_update"]
+            assert previous["memory_summary"] == "H1 and B1 support the final claim at this scope."
             value["audit"]["coverage"][-1]["decision_ids"].append("D2")
             next(row for row in value["audit"]["areas"] if row["aspect"] == "factual_accuracy")[
                 "decision_ids"
@@ -118,10 +119,9 @@ def test_complete_delta_cycle_persists_full_audit_and_replays_without_provider(
         assert len(saved["wire_output"]["audit"]["claim_checks"]) == 1
         assert len(saved["output"]["audit"]["claim_checks"]) == 2
         kept = next(item for item in saved["output"]["audit"]["claim_checks"] if item["decision_id"] == "D2")
-        assert (
-            kept["contextual_meaning"] == stable["contextual_meaning"]
-            and kept["rationale"] == stable["rationale"]
-        )
+        assert kept["contextual_meaning"] == stable["contextual_meaning"]
+        assert kept["rationale"] == stable["rationale"].replace("E1", "H1")
+        assert kept["memory_summary"] == stable["memory_summary"].replace("E1", "H1")
         assert saved["reading_audit"]["recheck_delta"]["retained_decision_ids"] == ["D2"]
         assert saved["reading_audit"]["resolved_evidence"]["previous:H1"]["original_id"] == "E1"
         script = journal.read(RuntimeRef.model_validate(saved["script_ref"]))["output"]
