@@ -121,7 +121,7 @@ def lineage(journal, root):
     return list(reversed(result))
 
 
-def continuation(journal, root):
+def continuation(journal, root, *, receipt_metadata=None):
     """Validate the explicit authorization and exact failed-turn request before any network action."""
     ancestors = lineage(journal, root)
     for parent, child in zip(ancestors, ancestors[1:], strict=False):
@@ -165,11 +165,19 @@ def continuation(journal, root):
     auth = journal.read(RuntimeRef(record_kind="tool_execution", record_id=root["request_record_id"]))[
         "authorization"
     ]
-    records = [
-        record
-        for ancestor in ancestors[:-1]
-        for record in model_turns.events(journal, ancestor, kinds={"source_tool_result"})
-    ]
+    if receipt_metadata is None:
+        records = [
+            record
+            for ancestor in ancestors[:-1]
+            for record in model_turns.events(journal, ancestor, kinds={"source_tool_result"})
+        ]
+    else:
+        owners = {str(ancestor["invocation_id"]) for ancestor in ancestors[:-1]}
+        records = [
+            {"data": entry.data}
+            for entry in receipt_metadata
+            if entry.invocation_id in owners and entry.kind == "source_tool_result"
+        ]
     records.sort(key=lambda record: record["data"]["call_index"])
     if [record["data"]["call_index"] for record in records] != list(range(len(records))):
         raise Conflict("source_tool_resume_receipts_changed")

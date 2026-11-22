@@ -4,7 +4,6 @@ from dataclasses import dataclass
 
 from podgen.domain.contracts.common import RuntimeRef
 from podgen.domain.errors import Conflict
-from podgen.persistence.read_authorization import authorized_read
 
 FIELDS = {
     "source_web_search": ("turn_index",),
@@ -53,27 +52,22 @@ def from_record(reference, record):
 
 
 def stream(journal, roots):
-    """Authorize once per bounded restore, and discard full event bodies as we go.
+    """Restore authorized control indexes in bounded pages, not native/tool bodies.
 
-    The existing graph reader remains authoritative. Its common provenance memo
-    lives only inside this local read-only snapshot, never across provider calls.
-    Full event bodies (including checkpoint arguments and source passages) are
-    removed from that memo after projection, so restore retains only references.
+    Private rows project only the fields needed by the indexes. Legacy records
+    use the existing batch reader. Full contents remain behind their original
+    reading boundary, and no authorization snapshot survives external work.
     """
-    events = [(root, event) for root in roots for event in journal.events(root)]
-    repo = journal.repo
-    with repo.database.read_transaction() as tx, authorized_read(repo, tx):
-        journal.authorize(tx)
-        for root, event in events:
-            reference = RuntimeRef(record_kind="tool_execution", record_id=event["record_id"])
-            record = journal.read(reference)
+    from .history_restore import records
+
+    fields = {field for values in FIELDS.values() for field in values}
+    for root in roots:
+        for reference, kind, record in records(journal, root, fields):
             if (
-                record["event_kind"] != event["event_kind"]
+                record["event_kind"] != kind
                 or record["invocation_id"] != str(root["invocation_id"])
                 or record["request_ref"]["record_id"] != str(root["request_record_id"])
             ):
                 raise Conflict("research_history_event_binding_changed")
             metadata = from_record(reference, record)
-            # Authorization facts hold only typed references and node metadata.
-            # The full selected event body remains local to this iteration.
             yield metadata

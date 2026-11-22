@@ -21,6 +21,7 @@ from .contracts import WireReply
 from .research_context import ResearchContext
 from .research_continuation import append_response, resolve_structured, structured_requests
 from .research_history import ResearchHistory
+from .research_resume import retained_turn
 from .research_tools import ResearchTools
 from .research_turn_request import normal_request, turn_request
 from .search_argument_errors import KEY as SEARCH_ARGUMENT_KEY
@@ -47,7 +48,8 @@ def _invoke(gateway, root, profile, contract, *, limits, totals, guard):
         raise ContractError("fact_source_only_requires_initial_fact_review")
     from podgen.runtime.evaluation.source_tool_recovery import continuation, lineage, turn_input_policy
 
-    start_turn, prefix_receipts = continuation(journal, root)
+    history = ResearchHistory(journal, root)
+    start_turn, prefix_receipts = continuation(journal, root, receipt_metadata=history.result_metadata)
     input_policy = turn_input_policy(journal, root)
     ancestors = lineage(journal, root)
     original = journal.request(root)
@@ -58,7 +60,6 @@ def _invoke(gateway, root, profile, contract, *, limits, totals, guard):
     task = (
         original if ancestors[0]["invocation_id"] == root["invocation_id"] else journal.request(ancestors[0])
     )
-    history = ResearchHistory(journal, root)
     from podgen.runtime.evaluation.turn_ledger import TurnLedger
 
     ledger = TurnLedger(journal, root, profile.output_limit, history)
@@ -111,15 +112,27 @@ def _invoke(gateway, root, profile, contract, *, limits, totals, guard):
     ):
         segment_start = start_turn
         call_index = len(prefix_receipts)
-        conversation = deepcopy(original["input"])
+        restart_original = True
     else:
-        conversation = context.restart(segment) if segment else deepcopy(original["input"])
+        restart_original = segment is None
+    retained = retained_turn(journal, root, ledger, history, minimum=segment_start)
+    if retained:
+        conversation = deepcopy(retained.body["input"])
+        call_index = history.call_start(retained.index)
+    else:
+        conversation = deepcopy(original["input"]) if restart_original else context.restart(segment)
     policy = window_policy(contract, root["stage"])
     prior_input_items = None
-    for index in count(segment_start):
+    for index in count(retained.index if retained else segment_start):
         getattr(guard, "checkpoint", guard)()
         retry_first = bool(root.get("attempt_index", 0) and index == start_turn)
-        if retry_first:
+        restoring = retained is not None and index == retained.index
+        if restoring:
+            # The paid turn's complete request, including a checkpoint directive
+            # or deferred exchange, is immutable. Do not choose its context again.
+            body = deepcopy(retained.body)
+            checkpoint_requested = [tool.get("name") for tool in body["tools"]] == ["save_working_state"]
+        elif retry_first:
             body = turn_request(original, conversation, root, index)
             # Authorization binds this exact unsent/refused physical request.
             # Do not reinterpret its already selected context/checkpoint mode.
@@ -237,7 +250,7 @@ def _invoke(gateway, root, profile, contract, *, limits, totals, guard):
             # had to defer a large tool result. A retry already has its directive.
             conversation = (
                 research_window.retry_checkpoint_input(context, index, body)
-                if retry_first
+                if retry_first or restoring
                 else [*full_input, body["input"][-1]]
             )
         append_response(conversation, continuation_response, profile.provider)

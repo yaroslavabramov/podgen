@@ -35,6 +35,7 @@ class MemoryJournal:
         self.roots = {self.root["invocation_id"]: self.root}
         self.repo = SimpleNamespace(actor_id=uuid4())
         self.execution = SimpleNamespace(
+            remember_physical=lambda *args: None,
             invocation=lambda _: None,
             provider_receipt=lambda *args: None,
             prepare=lambda *args, **kwargs: None,

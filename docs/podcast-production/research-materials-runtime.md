@@ -139,3 +139,21 @@ reviews, original result or paid report. Provenance and result share one atomic
 record; a replay or concurrent recovery reuses it. The new X admission is available
 to subsequent unsent stages through ordinary material restoration. Technical
 order identities stay in archived results rather than the model-facing message.
+
+### Addressed paid-turn restoration
+
+A cold factual-review resume restores compact authorized history metadata and the
+latest completed physical turn after the active checkpoint boundary. Its immutable
+request is authoritative, including shortened checkpoint input. Completed calls
+in that response retain their operation identities and E numbers; pending and
+remaining calls continue through the normal resolver. The following request uses
+the same context/window selection as continuous execution. Failed, unsent and
+uncertain turns retain their existing explicit retry/reconciliation rules.
+
+Private history is projected in pages of 64 immutable entries with fresh run,
+input and entry privacy checks. Legacy events use the authorized batch reader.
+Only control fields, receipt IDs and search delivery identities enter the index;
+native requests and tool bodies remain behind their ordinary read boundary.
+Authorized retry lineage reuses that same index for receipt numbering; its exact
+failed-request and permission checks remain mandatory. No new manifest or
+model-facing contract is introduced.

@@ -32,6 +32,9 @@ class ResearchHistory:
         self.calls = {}
         self.receipts = set()
         self.call_ids = set()
+        self.first_call_by_turn = {}
+        self.next_call_index = 0
+        self.result_metadata = []
         self.entries = []
         self.returned_search_passages = {}
         self.shown_search_previews = {}
@@ -99,8 +102,13 @@ class ResearchHistory:
             self.segments.setdefault(data["next_turn"], entry)
             self.entries.append(("conversation", len(self.references[kind]) - 1))
         if kind in {"source_tool_call", "source_tool_result"}:
+            position, turn = data["call_index"], data.get("turn_index")
+            if turn is not None:
+                self.first_call_by_turn[turn] = min(self.first_call_by_turn.get(turn, position), position)
+            self.next_call_index = max(self.next_call_index, position + 1)
             self.calls[kind, data["call_index"]] = ref
             if kind == "source_tool_result":
+                self.result_metadata.append(entry)
                 self.entries.append(("tool_result", data["call_index"]))
                 for identity, preview in data.get("shown_search_passages", ()):
                     self.returned_search_passages.setdefault(identity, data["call_index"])
@@ -150,6 +158,9 @@ class ResearchHistory:
     def for_call(self, kind, index):
         ref = self.calls.get((kind, index))
         return [self.read(ref)] if ref else []
+
+    def call_start(self, turn):
+        return self.first_call_by_turn.get(turn, self.next_call_index)
 
     def latest(self, kind):
         refs = self.references[kind]
