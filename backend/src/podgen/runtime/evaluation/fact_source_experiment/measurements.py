@@ -62,7 +62,10 @@ class Measurements:
         finally:
             elapsed = time.monotonic() - started
             event.remove(self.database.engine, "before_cursor_execute", sql)
-            self.phases[name] = dict(seconds=elapsed, **counters, objects=dict(self.objects.counts - before))
+            phase = self.phases.setdefault(name, {"objects": Counter()})
+            for key, value in dict(counters, seconds=elapsed, intervals=1).items():
+                phase[key] = phase.get(key, 0) + value
+            phase["objects"].update(self.objects.counts - before)
 
     def instrument_search(self, corpus):
         original = corpus.retrieval.search
