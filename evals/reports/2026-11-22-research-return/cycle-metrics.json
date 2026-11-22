@@ -1,0 +1,44 @@
+{
+  "phases": {
+    "writing_cycle": {
+      "objects": {
+        "stream_calls": 141,
+        "read_bytes": 16241876,
+        "stage_calls": 64,
+        "staged_bytes": 7450881,
+        "publish_calls": 64,
+        "published_bytes": 7450881,
+        "read_calls": 35
+      },
+      "sql_calls": 6614,
+      "sql_select": 4262,
+      "sql_set": 558,
+      "sql_with": 1397,
+      "sql_update": 125,
+      "sql_insert": 267,
+      "sql_delete": 5,
+      "seconds": 525.627875999955,
+      "intervals": 1
+    },
+    "export": {
+      "objects": {
+        "read_bytes": 66475211,
+        "read_calls": 340
+      },
+      "sql_calls": 1638,
+      "sql_select": 1058,
+      "sql_set": 152,
+      "sql_with": 428,
+      "seconds": 4.819419207982719,
+      "intervals": 1
+    }
+  },
+  "search_calls": 0,
+  "search_seconds": 0,
+  "process_peak_rss_bytes": 1292304384,
+  "limitations": [
+    "Object counters cover the repository store, not cached Unicode projection reads.",
+    "Staging/publication are logical store operations, not physical disk writes; RSS is the process-wide high-water mark.",
+    "Provider costs and token/cache usage remain in complete native trace receipts; USD is not inferred from an unpinned price."
+  ]
+}

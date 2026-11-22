@@ -1,0 +1,110 @@
+{
+  "status": "resolved",
+  "report_id": "X2",
+  "title": "Верно ли в контексте примера Гораполлона, что египетское слово «мать» звучало так же, как слово «гриф», и что соответствующий знак обозначает мать именно в силу этого звукового совпадения? Найдите египтологический источник по словам и значению знака и текст Гораполлона; различайте совпадение согласных и полное произношение.",
+  "report_excerpt": {
+    "text": "Возвращаясь к исходному вопросу пользователя, поставленному в техническом задании: *Верно ли в контексте примера Гораполлона, что египетское слово «мать» звучало так же, как слово «гриф», и что соответствующий знак обозначает мать именно в силу этого звукового совпадения?*\n\nУтверждение, представленное в реплике 12 сценария, требует строгой деконструкции и разделения на верные интуиции и ложные факты:\n\n1. **«Египетское слово «мать» звучало так же, как слово «гриф»:** **Категорически неверно.** \n   Египетское слово, обозначающее понятие «мать», — *mwt* [cite: 9, 17, 32]. Египетское слово, обозначающее птицу «гриф» (стервятник/сип), — *nrt* [cite: 7, 9, 15, 32]. Прямой омофонии между этими общеупотребительными зоологическими и родственными терминами не было и не могло быть ни на уровне согласных, ни тем более на уровне гласных.\n2. **«Соответствующий знак обозначает мать в силу этого звукового совпадения»:** **Частично верно, но логически искажено.**\n   Сам графический *знак* (изображение грифа, классификация G14) имеет закрепленное фонетическое значение *mwt*. Знак использовался для записи слова «мать» по принципу ребуса (фонетического заимствования значения знака, а не омофонии двух самостоятельных словарных слов) [cite: 7, 13]. Знак читается как *mwt* не потому, что птицу звали *mwt*, а, вероятнее всего, из-за глубокой теологической связи с богиней Мут (*mwt*), чьим священным животным был гриф [cite: 7, 27].\n3. **«Это игра звуков, а вовсе не натурфилософия» (Контекст сценария):** **Верно.** \n   Сценарист (или Рассказчик) абсолютно прав в том, что концептуально противопоставляет лингвистическую природу иероглифики (ребусный принцип, фонетика) тем пространным аллегорическим выдумкам (зачатие от северного ветра, отсутствие самцов), которые Гораполлон предлагал своим читателям [cite: 7, 23]. Ошибка текста заключается лишь в неаккуратном, научно некорректном обращении с лексическим материалом: вместо точной фразы «знак грифа читался так же, как слово мать» была использована формулировка «слово гриф звучало так же», что с точки зрения египтологии является грубой ошибкой.\n\n## Заключение\n\nВсесторонний анализ египтологических источников (включая авторитетные словари Фолкнера и списки Гардинера), исторической фонологии коптского языка и подлинных античных текстов (Гораполлон, Аммиан Марцеллин) позволяет дать исчерпывающий ответ на поставленный вопрос, прояснив все нюан",
+    "start": 21555,
+    "end": 23955
+  },
+  "sources": [
+    {
+      "reported_url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQG_ZCeKFPR0LsW4fJ_xezVRkAHdL5-ud7QRbzW9vmZnBzyUJPcoGhIfYSupK8JfIIPApuMNYOW9LaP-9gFTKySPyH9AfbnQQwiNMvuAjKExSCK5GIHVbq0Hr0KFyvug_4fex4udeCX4usRnjRBhh7PDK5SFuQuSSQB-dB2ucmHDRje5TSQoIEESyj_LvoFVpQPFbghrnaNKHtjjSCFGPz2hwYfLrLgPCXJavnZBNjAi8eiOFjYun6Y4GTgL7HNJE0CFoCH3XnIn7WjNKiUcK8Ilfd2mSq1H3sLmMA==",
+      "title": "cambridge.org",
+      "report_numbers": [
+        7
+      ],
+      "source_id": null,
+      "availability": "not_acquired",
+      "open": {
+        "tool": "request_source",
+        "url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQG_ZCeKFPR0LsW4fJ_xezVRkAHdL5-ud7QRbzW9vmZnBzyUJPcoGhIfYSupK8JfIIPApuMNYOW9LaP-9gFTKySPyH9AfbnQQwiNMvuAjKExSCK5GIHVbq0Hr0KFyvug_4fex4udeCX4usRnjRBhh7PDK5SFuQuSSQB-dB2ucmHDRje5TSQoIEESyj_LvoFVpQPFbghrnaNKHtjjSCFGPz2hwYfLrLgPCXJavnZBNjAi8eiOFjYun6Y4GTgL7HNJE0CFoCH3XnIn7WjNKiUcK8Ilfd2mSq1H3sLmMA==",
+        "reason": "Inspect this reported original source."
+      }
+    },
+    {
+      "reported_url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQHcJLYy_9WG1Ec_XqObW9vsxkwX26NcgCQ3m5uKMU32cuRZ6YeiFNnwIxcTa_oG3Tup_AcmokhImMGO3fnr4y_KWKgAcxi6s-i_Jpfe0x6JNA-K3BIHlfWu7p1SoCBSBy3d-GiuhPHtqGH35Ukj2SPLt73O1BNxymZ2pKZFYKQPWdDxgnmjOwbOL_2wXIn4NvwUxg==",
+      "title": "cdn-website.com",
+      "report_numbers": [
+        9
+      ],
+      "source_id": null,
+      "availability": "not_acquired",
+      "open": {
+        "tool": "request_source",
+        "url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQHcJLYy_9WG1Ec_XqObW9vsxkwX26NcgCQ3m5uKMU32cuRZ6YeiFNnwIxcTa_oG3Tup_AcmokhImMGO3fnr4y_KWKgAcxi6s-i_Jpfe0x6JNA-K3BIHlfWu7p1SoCBSBy3d-GiuhPHtqGH35Ukj2SPLt73O1BNxymZ2pKZFYKQPWdDxgnmjOwbOL_2wXIn4NvwUxg==",
+        "reason": "Inspect this reported original source."
+      }
+    },
+    {
+      "reported_url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQHFRidrzgcskRTgyjt7dyOww1cApfwExux1DD3E8p889XsKpiqBKtTxqBs2iDvd8QlGLQ4vbMAaz6Xi6-Y6EKZ9TK--ygq1jKLFl21362HV2pMmVfHCFJviMdFaeKRDJaQO8d8cJqgr51bHn7f2xSw-O1jqETAajphffOl2miA9jXbo1HNcOgzJtTprLfnlNITlzp9LAJC0au6ZUgQ=",
+      "title": "reddit.com",
+      "report_numbers": [
+        13
+      ],
+      "source_id": null,
+      "availability": "not_acquired",
+      "open": {
+        "tool": "request_source",
+        "url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQHFRidrzgcskRTgyjt7dyOww1cApfwExux1DD3E8p889XsKpiqBKtTxqBs2iDvd8QlGLQ4vbMAaz6Xi6-Y6EKZ9TK--ygq1jKLFl21362HV2pMmVfHCFJviMdFaeKRDJaQO8d8cJqgr51bHn7f2xSw-O1jqETAajphffOl2miA9jXbo1HNcOgzJtTprLfnlNITlzp9LAJC0au6ZUgQ=",
+        "reason": "Inspect this reported original source."
+      }
+    },
+    {
+      "reported_url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQHl-2n2rc23MzwookGg94zG5tQwydmUKQfkEMveKQvMkWtbqQce2R5wci9zcdS5X9A9ucNnSfzQ3M-_EwVJCRY8EKODvmaZefK2QqeL1nevdQsz7nbRwD-b77w71djpmOAn",
+      "title": "wiktionary.org",
+      "report_numbers": [
+        15
+      ],
+      "source_id": null,
+      "availability": "not_acquired",
+      "open": {
+        "tool": "request_source",
+        "url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQHl-2n2rc23MzwookGg94zG5tQwydmUKQfkEMveKQvMkWtbqQce2R5wci9zcdS5X9A9ucNnSfzQ3M-_EwVJCRY8EKODvmaZefK2QqeL1nevdQsz7nbRwD-b77w71djpmOAn",
+        "reason": "Inspect this reported original source."
+      }
+    },
+    {
+      "reported_url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQFjuG_SXYZ3ywfjI5Tq8xihmnyEzrDvjKCGHFSK8rEvjz2PK0rJEMYarlWvkZ7T1FFyNSBScy6iiRpHzHUbJsFc49nWJoxpkrED8-L6gsVieECf4X06kINm",
+      "title": "wiktionary.org",
+      "report_numbers": [
+        17
+      ],
+      "source_id": null,
+      "availability": "not_acquired",
+      "open": {
+        "tool": "request_source",
+        "url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQFjuG_SXYZ3ywfjI5Tq8xihmnyEzrDvjKCGHFSK8rEvjz2PK0rJEMYarlWvkZ7T1FFyNSBScy6iiRpHzHUbJsFc49nWJoxpkrED8-L6gsVieECf4X06kINm",
+        "reason": "Inspect this reported original source."
+      }
+    },
+    {
+      "reported_url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQGBa-S0-ePE6d8qnoXGyaSBSB-qpsx7sW-FhFWgcZ2BUKl4jXuKX2HbAi1gplqPrm5LF4uK4sDDDzR7EHgzvRB7mv7VjE17TbMPw0mfWZuvh3j8ral09Qk5VkTYIkkzlcLH0vw=",
+      "title": "Current time information in Egypt.",
+      "report_numbers": [
+        23
+      ],
+      "source_id": null,
+      "availability": "not_acquired",
+      "open": {
+        "tool": "request_source",
+        "url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQGBa-S0-ePE6d8qnoXGyaSBSB-qpsx7sW-FhFWgcZ2BUKl4jXuKX2HbAi1gplqPrm5LF4uK4sDDDzR7EHgzvRB7mv7VjE17TbMPw0mfWZuvh3j8ral09Qk5VkTYIkkzlcLH0vw=",
+        "reason": "Inspect this reported original source."
+      }
+    }
+  ],
+  "read_report": {
+    "tool": "read_research_result",
+    "result_id": "X2",
+    "start": 21555,
+    "end": 23955
+  },
+  "source_catalog": {
+    "tool": "list_research_sources",
+    "result_id": "X2",
+    "offset": 0,
+    "version": null
+  },
+  "relationship": "research_context_not_primary_source_evidence",
+  "next_action": "Use validated excerpt ranges with read_source, or read the report and select an original. Report text and citations are leads; only read_source supplies E evidence receipts."
+}

@@ -1,0 +1,17 @@
+{
+  "report_id": "X2",
+  "reported_source_count": 38,
+  "link_number": 7,
+  "requested": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQG_ZCeKFPR0LsW4fJ_xezVRkAHdL5-ud7QRbzW9vmZnBzyUJPcoGhIfYSupK8JfIIPApuMNYOW9LaP-9gFTKySPyH9AfbnQQwiNMvuAjKExSCK5GIHVbq0Hr0KFyvug_4fex4udeCX4usRnjRBhh7PDK5SFuQuSSQB-dB2ucmHDRje5TSQoIEESyj_LvoFVpQPFbghrnaNKHtjjSCFGPz2hwYfLrLgPCXJavnZBNjAi8eiOFjYun6Y4GTgL7HNJE0CFoCH3XnIn7WjNKiUcK8Ilfd2mSq1H3sLmMA==",
+  "resolved": "https://www.cambridge.org/core/journals/classical-quarterly/article/bees-and-vultures-egyptian-hieroglyphs-in-ammianus-marcellinus/1AE56E417E65D564626555736176CB23",
+  "status": 200,
+  "source_id": "S85",
+  "read_id": "E3",
+  "start": 5209,
+  "end": 6276,
+  "matched_exactly": true,
+  "article_text_hash": "a5c0ff9bf1db64eb7931b7daf7619a5156dec2a9363cfcd832794b9728e8355a",
+  "evidence_reference": "Local isolated assessment. The identifier belongs to this read only.",
+  "independent_replay": "/Users/yaroslavabramov/side/podgen/tmp/research-handoff-2026-11-22/read-source-tool-result.json",
+  "verified_excerpt": "a phonogram *mt*, *mwt*, *mỉwt*, and also a determinative in *nrt* (vulture)"
+}

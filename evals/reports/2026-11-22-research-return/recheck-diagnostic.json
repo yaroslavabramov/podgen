@@ -1,0 +1,161 @@
+{
+  "stage": "fact-review-1",
+  "product_status": "needs_attention",
+  "ordered_validation_errors": [
+    "feedback_quote_mismatch",
+    "audit_retained_evidence_missing"
+  ],
+  "defects": [
+    {
+      "previous_decision": {
+        "decision_id": "D2",
+        "anchors": [
+          {
+            "utterance_index": 5,
+            "quote": "Языков на камне два: египетский и греческий. А способов записи три."
+          },
+          {
+            "utterance_index": 7,
+            "quote": "приложить слово к слову, как кальку, не получится"
+          }
+        ],
+        "contextual_meaning": "Три надписи передают общее постановление на двух языках, но их повреждение и несовпадения формулировок не позволяют просто наложить греческий перевод на иероглифы.",
+        "context_scope": "Практическая задача исследователя Розеттского камня.",
+        "memory_summary": "Две языковые версии, три письменности и невозможность механической пословной подстановки поддержаны E8–E10 и E15.",
+        "claim_types": [
+          "factual",
+          "causal"
+        ],
+        "verdict": "supported",
+        "source_refs": [
+          {
+            "from_review": "previous",
+            "evidence_id": "H3"
+          },
+          {
+            "from_review": "previous",
+            "evidence_id": "H2"
+          },
+          {
+            "from_review": "previous",
+            "evidence_id": "H4"
+          },
+          {
+            "from_review": "previous",
+            "evidence_id": "H5"
+          }
+        ]
+      },
+      "disposition": {
+        "previous_decision_id": "D2",
+        "disposition": "retained",
+        "current_decision_ids": [
+          "D2"
+        ],
+        "context_assessment": "Различение языков и письменностей и трудность пословного сравнения не изменены.",
+        "reason": "Прежние свидетельства поддерживают тот же ограниченный вывод."
+      },
+      "current_source_refs": {
+        "D2": [
+          {
+            "from_review": "previous",
+            "evidence_id": "H3"
+          },
+          {
+            "from_review": "previous",
+            "evidence_id": "H2"
+          },
+          {
+            "from_review": "previous",
+            "evidence_id": "H4"
+          }
+        ]
+      },
+      "missing_received_in_request": [
+        {
+          "evidence_id": "H5",
+          "source_id": "S2",
+          "start": 0,
+          "end": 8150
+        }
+      ]
+    },
+    {
+      "previous_decision": {
+        "decision_id": "D20",
+        "anchors": [
+          {
+            "utterance_index": 59,
+            "quote": "другие сразу два или три согласных"
+          },
+          {
+            "utterance_index": 62,
+            "quote": "два согласных сразу, «мс»"
+          }
+        ],
+        "contextual_meaning": "Современная иероглифика включает знаки для одного, двух и трёх согласных, логограммы и определители; первоначальное односогласное чтение среднего знака Рамсеса было неполным.",
+        "context_scope": "Современное учебное описание письма и уточнение ранее изложенной исторической догадки.",
+        "memory_summary": "Смешанная система письма и современное значение ms для среднего знака Рамсеса подтверждены E8, E13 и E6.",
+        "claim_types": [
+          "factual",
+          "generalization"
+        ],
+        "verdict": "supported",
+        "source_refs": [
+          {
+            "from_review": "previous",
+            "evidence_id": "H3"
+          },
+          {
+            "from_review": "previous",
+            "evidence_id": "H13"
+          },
+          {
+            "from_review": "previous",
+            "evidence_id": "H6"
+          }
+        ]
+      },
+      "disposition": {
+        "previous_decision_id": "D20",
+        "disposition": "retained",
+        "current_decision_ids": [
+          "D20",
+          "D26"
+        ],
+        "context_assessment": "Современная смешанная система и значение ms сохранены; объяснение восстановления гласных уточнено.",
+        "reason": "H3, H13 и H6 продолжают поддерживать прежний вывод, а новая формулировка рассмотрена в D26."
+      },
+      "current_source_refs": {
+        "D20": [
+          {
+            "from_review": "previous",
+            "evidence_id": "H3"
+          },
+          {
+            "from_review": "previous",
+            "evidence_id": "H13"
+          }
+        ],
+        "D26": [
+          {
+            "from_review": "previous",
+            "evidence_id": "H3"
+          },
+          {
+            "from_review": "previous",
+            "evidence_id": "H14"
+          }
+        ]
+      },
+      "missing_received_in_request": [
+        {
+          "evidence_id": "H6",
+          "source_id": "S9",
+          "start": 0,
+          "end": 7828
+        }
+      ]
+    }
+  ]
+}

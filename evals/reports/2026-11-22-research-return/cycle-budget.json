@@ -1,0 +1,23 @@
+{
+  "run_id": "4801838f-73b2-44be-9145-a8c6ab9006d6",
+  "initial_script": "first saved 67 utterances",
+  "approved_ceiling": 4194304,
+  "paid_fact_input": 3623690,
+  "remaining": 570614,
+  "old_stage_inputs": {
+    "reader-review": 14205,
+    "revise-1": 105097,
+    "reader-review-1": 23323,
+    "fact-review-1": 393879,
+    "revise-2": 36937,
+    "reader-review-2": 19929,
+    "fact-review-2": 1111523
+  },
+  "one_rewrite_dispatched_inputs_if_same_as_nov15": 4160194,
+  "room_after_historical_first_recheck": 34110,
+  "two_rewrites_including_incomplete_fact_review_2_if_same_as_nov15": 5328583,
+  "second_recheck_was_incomplete": true,
+  "old_receipts": "evals/reports/2026-11-15-hieroglyphs-script/generation-receipts.json",
+  "current_receipts": "tmp/hieroglyphs-fact-2026-11-22/export/run.json",
+  "note": "Measured previous inputs provide a scenario, not a bound or prediction. All cached input counts against this product ceiling. It is a run-wide limit. Continuing the saved initial reading avoids paying to obtain that reading again."
+}
