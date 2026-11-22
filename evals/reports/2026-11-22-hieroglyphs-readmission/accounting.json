@@ -1,0 +1,47 @@
+{
+  "run_id": "4801838f-73b2-44be-9145-a8c6ab9006d6",
+  "status": "completed_unaccepted",
+  "new_work": {
+    "revise-2": {
+      "model_calls": 1,
+      "counts": 1,
+      "input": 37106,
+      "cached": 0,
+      "output": 835,
+      "token_and_web_usd": 0.202226
+    },
+    "reader-review-2": {
+      "model_calls": 1,
+      "counts": 1,
+      "input": 19848,
+      "cached": 0,
+      "output": 9065,
+      "token_and_web_usd": 0.066602
+    },
+    "fact-review-2": {
+      "model_calls": 1,
+      "counts": 1,
+      "input": 54700,
+      "cached": 0,
+      "output": 11937,
+      "token_and_web_usd": 0.128059
+    }
+  },
+  "new_total": {
+    "model_calls": 3,
+    "counts": 3,
+    "input": 111654,
+    "output": 21837,
+    "token_usd": 0.396887
+  },
+  "readmission": {
+    "stage": "fact-review-1",
+    "generations": 0,
+    "counts": 0,
+    "http": 0
+  },
+  "run_total_token_and_web_usd": 1.630968,
+  "run_total_input": 4052598,
+  "ceiling": 4194304,
+  "pricing": "Same per-receipt formula and published rates as evals/reports/2026-11-22-research-return; not an invoice. Excludes the earlier Gemini order."
+}

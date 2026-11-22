@@ -1,0 +1,50 @@
+{
+  "copy_database": "podgen_readmission_copy (template of production, since dropped)",
+  "stop": "Stop('first external count reached')",
+  "calls": {
+    "count": 1
+  },
+  "readmission": {
+    "attempt_kind": "local_readmission",
+    "operation_kind": "anchor_repair",
+    "status": "completed",
+    "invocation_id": "714f72c5-453d-5293-8b10-cf84d76d564f",
+    "parent": "c2f0f3ff-f0d6-5173-8fa3-34902930870d"
+  },
+  "recommendation": "keep",
+  "carried": [
+    {
+      "previous_decision_id": "D2",
+      "current_decision_ids": [
+        "D2"
+      ],
+      "source_refs": [
+        {
+          "from_review": "previous",
+          "evidence_id": "H5"
+        }
+      ]
+    },
+    {
+      "previous_decision_id": "D20",
+      "current_decision_ids": [
+        "D20"
+      ],
+      "source_refs": [
+        {
+          "from_review": "previous",
+          "evidence_id": "H6"
+        }
+      ]
+    }
+  ],
+  "admission_contract": "decision-findings/3",
+  "sql_driver_calls": {
+    "run": 4812,
+    "readmission_authorize": 279,
+    "readmission_saved_output": 160,
+    "readmission_admission_contract": 46
+  },
+  "peak_rss_bytes": 271351808,
+  "seconds": 27.43
+}
