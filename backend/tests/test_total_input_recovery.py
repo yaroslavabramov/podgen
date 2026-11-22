@@ -4,8 +4,9 @@ from copy import deepcopy
 from types import SimpleNamespace
 from uuid import uuid4
 
-import httpx
+import httpx2
 import pytest
+
 from podgen.domain.errors import Conflict, ContractError
 from podgen.runtime.evaluation.contracts import RunFailure
 from podgen.runtime.evaluation.recovery import authorize_recovery
@@ -15,7 +16,6 @@ from podgen.runtime.evaluation.usage import attempt_usage
 from podgen.runtime.models.gateway import ModelGateway
 from podgen.runtime.models.openai_provider import OpenAIProvider
 from podgen.writing_cli import parser
-
 from tests.test_source_tool_recovery import invoke, prepare
 
 
@@ -39,7 +39,7 @@ def case(monkeypatch):
 def test_explicit_ceiling_resumes_exact_unsent_turn_and_preserves_other_limits(monkeypatch, remaining_limit):
     journal, profile, limits, corpus, server, handler, command = case(monkeypatch)
     frozen = deepcopy(journal.snapshot)
-    with httpx.Client(transport=httpx.MockTransport(handler)) as client:
+    with httpx2.Client(transport=httpx2.MockTransport(handler)) as client:
         gateway = ModelGateway(
             journal, lambda _: OpenAIProvider("test-secret", http_client=client), source_corpus=corpus
         )
@@ -111,7 +111,7 @@ def test_explicit_ceiling_resumes_exact_unsent_turn_and_preserves_other_limits(m
 @pytest.mark.parametrize("ceiling", [True, 198, 199, 449])
 def test_ceiling_must_explicitly_cover_proven_total_input_refusal(monkeypatch, ceiling):
     journal, profile, limits, corpus, server, handler, command = case(monkeypatch)
-    with httpx.Client(transport=httpx.MockTransport(handler)) as client:
+    with httpx2.Client(transport=httpx2.MockTransport(handler)) as client:
         gateway = ModelGateway(
             journal, lambda _: OpenAIProvider("test-secret", http_client=client), source_corpus=corpus
         )
@@ -127,7 +127,7 @@ def test_ceiling_must_explicitly_cover_proven_total_input_refusal(monkeypatch, c
 def test_local_input_refusal_is_not_a_total_input_authorization(monkeypatch):
     journal, profile, limits, corpus, server, handler, command = case(monkeypatch)
     journal.snapshot["role_input_budget"]["input_tokens"] = 200
-    with httpx.Client(transport=httpx.MockTransport(handler)) as client:
+    with httpx2.Client(transport=httpx2.MockTransport(handler)) as client:
         gateway = ModelGateway(
             journal, lambda _: OpenAIProvider("test-secret", http_client=client), source_corpus=corpus
         )
@@ -176,7 +176,7 @@ def test_output_only_refusal_cannot_authorize_total_input_growth(monkeypatch):
     limits.max_total_input_tokens = 1000
     limits.max_total_output_tokens = 24580
     journal.snapshot["command"]["limits"]["max_total_input_tokens"] = 1000
-    with httpx.Client(transport=httpx.MockTransport(handler)) as client:
+    with httpx2.Client(transport=httpx2.MockTransport(handler)) as client:
         gateway = ModelGateway(
             journal, lambda _: OpenAIProvider("test-secret", http_client=client), source_corpus=corpus
         )
@@ -191,7 +191,7 @@ def test_output_only_refusal_cannot_authorize_total_input_growth(monkeypatch):
 
 def test_total_input_recovery_still_runs_elapsed_guard_before_authorization(monkeypatch):
     journal, profile, limits, corpus, server, handler, command = case(monkeypatch)
-    with httpx.Client(transport=httpx.MockTransport(handler)) as client:
+    with httpx2.Client(transport=httpx2.MockTransport(handler)) as client:
         gateway = ModelGateway(
             journal, lambda _: OpenAIProvider("test-secret", http_client=client), source_corpus=corpus
         )

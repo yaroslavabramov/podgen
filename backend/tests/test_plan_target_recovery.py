@@ -5,6 +5,7 @@ from copy import deepcopy
 
 import pytest
 
+from podgen.runtime.evaluation.attempts import attempt_identity
 from podgen.runtime.evaluation.contracts import RunFailure
 from podgen.runtime.evaluation.export import export_run
 from podgen.runtime.evaluation.journal import EvaluationJournal
@@ -12,6 +13,7 @@ from podgen.runtime.evaluation.service import WritingEvaluation
 from podgen.writing.planning_roles import PlanReviewOutput
 from tests.credit_provider import CreditProvider
 from tests.plan_target_provider import PlanTargetProvider
+from tests.stage_pause import pause_before_attempt_count
 from tests.test_own_plan import command_for
 from tests.test_own_plan import own_dataset as own_dataset
 
@@ -157,21 +159,17 @@ def test_prepared_selector_resume_does_not_reload_active_prompt_or_repeat_paid_s
         execute(own_dataset, command, provider)
     original = journal.invocation(command.run_id, "plan-review")
 
-    def stop():
-        if len(provider.requests) == 2:
-            raise KeyboardInterrupt()
-
-    provider.on_count = stop
-    with pytest.raises(KeyboardInterrupt):
+    repair_id = attempt_identity(command.run_id, "plan-review", 1, "plan_target_repair", original)
+    with pause_before_attempt_count(repair_id):
         execute(own_dataset, command, provider, repair_plan_targets=original["invocation_id"])
     child = journal.invocation(command.run_id, "plan-review")
+    assert child["invocation_id"] == repair_id
     saved = journal.request(child)
     monkeypatch.setattr(
         plan_target_recovery,
         "load_plan_target_repair_instructions",
         lambda: pytest.fail("never re-read admitted selector prompt"),
     )
-    provider.on_count = None
     result = execute(own_dataset, command, provider)
     assert result["status"] == "completed_unaccepted"
     assert len(provider.requests) == 6

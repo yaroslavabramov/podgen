@@ -4,6 +4,7 @@ import json
 from uuid import uuid4
 
 import pytest
+
 from podgen import writing_cli
 from podgen.domain.contracts.common import RuntimeRef
 from podgen.domain.errors import AccessDenied, ContractError
@@ -17,8 +18,8 @@ from podgen.runtime.evaluation.journal import EvaluationJournal
 from podgen.runtime.evaluation.profiles import create_profile
 from podgen.runtime.evaluation.service import WritingEvaluation
 from podgen.writing.materials import load_own_plan_materials
-
 from tests.own_plan_provider import OwnPlanProvider
+from tests.stage_pause import pause_before_count
 from tests.test_writing_cli import ROOT
 
 
@@ -251,17 +252,11 @@ def test_partial_resume_uses_exact_saved_plan_and_pinned_prompts(own_dataset, mo
     command = command_for(own_dataset)
     provider = OwnPlanProvider()
 
-    def interrupt():
-        if len(provider.requests) == 3:
-            raise KeyboardInterrupt()
-
-    provider.on_count = interrupt
-    with pytest.raises(KeyboardInterrupt):
+    with pause_before_count(command.run_id, "plan-review-revised"):
         execute(own_dataset, command, provider)
     journal = EvaluationJournal(own_dataset[0], command.project_id)
     saved = journal.request(journal.invocation(command.run_id, "plan-review-revised"))
     manifest = journal.manifest(command.run_id)
-    provider.on_count = None
     monkeypatch.setattr(
         manifest_module,
         "resolve_behavior",

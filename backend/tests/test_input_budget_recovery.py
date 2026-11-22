@@ -9,6 +9,7 @@ import pytest
 
 from podgen.domain.errors import Conflict
 from podgen.runtime.evaluation.contracts import RunFailure, RunLimits
+from podgen.runtime.evaluation.input_budget_evidence import unsent_evidence
 from podgen.runtime.evaluation.input_budget_recovery import effective_limits
 from podgen.runtime.evaluation.journal import EvaluationJournal
 from podgen.runtime.evaluation.recovery import authorize_recovery
@@ -49,6 +50,10 @@ def test_exact_unsent_budget_retry_preserves_history_counts_tokens_and_keeps_all
 ):
     original_command, _, _ = setup_writer
     profile = SimpleNamespace(
+        provider="openai",
+        api_family="responses",
+        adapter_version="openai-responses-v1",
+        model_revision_or_alias="synthetic-budget",
         output_limit=24576,
         context_limit=200000,
         timeout_policy=dict(poll_deadline_seconds=10),
@@ -187,7 +192,16 @@ def test_exact_unsent_budget_retry_preserves_history_counts_tokens_and_keeps_all
             )
 
     command, journal, original, _, provider = blocked()
-    journal.event(original, "submit_intent", data=dict(client_request_id=str(original["invocation_id"])))
+    # A stale validation-failed projection cannot authorize a retry after a submit intent.
+    phase = journal.publication(original)
+    phase.event(
+        "submit_intent",
+        data=dict(client_request_id=str(original["invocation_id"]), output_reserved=profile.output_limit),
+    )
+    phase.transition("submitting", input_tokens=35000)
+    phase.commit()
+    with pytest.raises(RunFailure, match="input_budget_retry_not_eligible"):
+        unsent_evidence(journal, original)
     with pytest.raises(RunFailure, match="input_budget_retry_not_eligible"):
         authorize_recovery(
             journal,

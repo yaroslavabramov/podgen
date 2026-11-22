@@ -8,9 +8,13 @@ from podgen.runtime.dispatch import DispatchStopped, bind
 from podgen.runtime.evaluation.attempts import attempt_identity
 
 
-@contextmanager
 def pause_before_count(run_id, stage):
-    target = str(attempt_identity(run_id, stage, 0, "role", None))
+    return pause_before_attempt_count(attempt_identity(run_id, stage, 0, "role", None))
+
+
+@contextmanager
+def pause_before_attempt_count(invocation_id):
+    target = str(invocation_id)
 
     def stop(kind, identity):
         if kind == "model_count" and identity == target:

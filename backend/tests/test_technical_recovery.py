@@ -4,7 +4,7 @@ import json
 from copy import deepcopy
 from types import SimpleNamespace
 
-import httpx
+import httpx2
 import pytest
 
 from podgen.domain.contracts.common import BlobRef, RuntimeRef
@@ -73,7 +73,14 @@ def plain(faults=1):
     journal.records[journal.root["request_record_id"]]["context"] = dict(profile_ref={"saved": "profile"})
     provider = Provider(faults)
     profile = SimpleNamespace(
-        output_limit=1000, context_limit=10000, generation_parameters=dict(store=False), timeout_policy={}
+        provider="openai",
+        api_family="responses",
+        adapter_version="openai-responses-v1",
+        model_revision_or_alias=body["model"],
+        output_limit=1000,
+        context_limit=10000,
+        generation_parameters=dict(store=False),
+        timeout_policy={},
     )
     limits = SimpleNamespace(max_total_input_tokens=10000, max_total_output_tokens=10000)
     gateway = ModelGateway(journal, lambda _: provider)
@@ -190,8 +197,6 @@ def test_changed_request_or_authorization_cannot_submit():
 
 @pytest.mark.parametrize("fault", ["timeout", "520"])
 def test_source_retry_keeps_completed_reads_transcript_and_unknown_turn_cost(monkeypatch, fault):
-    import httpx2 as httpx
-
     journal, profile, limits, corpus, server, handler = prepare(monkeypatch, "unknown")
     journal.snapshot["stages"] = [journal.root["stage"]]
     journal.records[journal.root["request_record_id"]]["context"] = dict(profile_ref={"saved": "profile"})
@@ -200,12 +205,12 @@ def test_source_retry_keeps_completed_reads_transcript_and_unknown_turn_cost(mon
     def handler(request):
         try:
             return original_handler(request)
-        except httpx.ReadTimeout:
+        except httpx2.ReadTimeout:
             if fault == "timeout":
                 raise
-            return httpx.Response(520, json={"error": {"message": "Upstream disconnected"}})
+            return httpx2.Response(520, json={"error": {"message": "Upstream disconnected"}})
 
-    with httpx.Client(transport=httpx.MockTransport(handler)) as client:
+    with httpx2.Client(transport=httpx2.MockTransport(handler)) as client:
         gateway = ModelGateway(
             journal, lambda _: OpenAIProvider("test-secret", http_client=client), source_corpus=corpus
         )
@@ -295,8 +300,6 @@ def test_incomplete_local_archive_still_retrieves_known_response(archived):
 
 @pytest.mark.parametrize("archived", [False, True])
 def test_known_completed_tool_response_reconciles_in_place_without_repeating_reads(monkeypatch, archived):
-    import httpx2 as httpx
-
     journal, profile, limits, corpus, server, original = prepare(monkeypatch, "unknown")
     journal.snapshot["stages"] = [journal.root["stage"]]
     journal.records[journal.root["request_record_id"]]["context"] = dict(profile_ref={"saved": "profile"})
@@ -308,8 +311,8 @@ def test_known_completed_tool_response_reconciles_in_place_without_repeating_rea
         if request.method == "GET":
             reads.append(str(request.url))
             if archived:
-                return httpx.Response(503, json={"error": {"message": "Unavailable"}})
-            return httpx.Response(200, json=dict(known, status="completed", output=[call(2)]))
+                return httpx2.Response(503, json={"error": {"message": "Unavailable"}})
+            return httpx2.Response(200, json=dict(known, status="completed", output=[call(2)]))
         body = json.loads(request.content)
         if (
             request.url.path.endswith("/responses")
@@ -325,10 +328,10 @@ def test_known_completed_tool_response_reconciles_in_place_without_repeating_rea
                 usage=dict(input_tokens=350, output_tokens=10),
             )
             server.sent.append(body)
-            return httpx.Response(200, json=known)
+            return httpx2.Response(200, json=known)
         return original(request)
 
-    with httpx.Client(transport=httpx.MockTransport(handler)) as client:
+    with httpx2.Client(transport=httpx2.MockTransport(handler)) as client:
         gateway = ModelGateway(
             journal, lambda _: OpenAIProvider("test-secret", http_client=client), source_corpus=corpus
         )
@@ -375,11 +378,11 @@ def test_failed_fourth_count_resumes_exact_tool_transcript_without_repeating_thr
         if request.url.path.endswith("/input_tokens"):
             counts.append(body)
             if len(counts) == 4:
-                raise httpx.ReadTimeout("Count endpoint interrupted", request=request)
-            return httpx.Response(200, json=dict(input_tokens=100))
+                raise httpx2.ReadTimeout("Count endpoint interrupted", request=request)
+            return httpx2.Response(200, json=dict(input_tokens=100))
         sent.append(body)
         turn = int(body["metadata"]["podgen_source_turn"])
-        return httpx.Response(
+        return httpx2.Response(
             200,
             json=dict(
                 id=f"resp_turn_{turn}",
@@ -391,7 +394,7 @@ def test_failed_fourth_count_resumes_exact_tool_transcript_without_repeating_thr
             ),
         )
 
-    with httpx.Client(transport=httpx.MockTransport(handler)) as client:
+    with httpx2.Client(transport=httpx2.MockTransport(handler)) as client:
         gateway = ModelGateway(
             journal, lambda _: OpenAIProvider("test-secret", http_client=client), source_corpus=corpus
         )
