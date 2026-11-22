@@ -63,3 +63,10 @@ def instructions(materials, role, body):
 
         return adapt(role, materials.format, body)
     return body
+
+
+def role_instructions(materials, role, behavior):
+    sources = "research" if is_research(getattr(materials, "packet", None)) else "cards"
+    if sources == "cards":
+        return behavior.instructions(role, materials.format)
+    return behavior.instructions(role, materials.format, sources=sources)

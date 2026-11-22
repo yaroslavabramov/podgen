@@ -10,7 +10,7 @@ from podgen.persistence.repository import Repository
 from podgen.runtime.models.research_continuation import append_response
 from podgen.runtime.models.research_turn_request import normal_request
 from podgen.runtime.models.tool_result_publication import prepare_result
-from podgen.writing.research_materials.fact_navigation import enabled as navigation_enabled
+from podgen.writing.research_materials.fact_navigation import history_enabled as navigation_enabled
 
 from .journal import EvaluationJournal
 from .profiles import load_profile

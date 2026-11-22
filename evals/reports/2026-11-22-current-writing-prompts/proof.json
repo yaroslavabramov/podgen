@@ -1,0 +1,66 @@
+{
+  "parity": {
+    "baseline": "82c36d20",
+    "cases": 366,
+    "same_text": true,
+    "version_changes": [
+      "production/1/1/solo/review/cards",
+      "production/1/1/solo/revise/cards",
+      "production/1/1/dialogue/review/cards",
+      "production/1/1/dialogue/revise/cards"
+    ],
+    "before_sha256": "0c56f534a32637b8a2f3120589a698ee8dfb56a3623c6a26ae951e6720946dbd",
+    "after_sha256": "5e1b26b8a37050285323600b64efa71ffe75de1790cb7595f827e0e05df129dd",
+    "baseline_tools_preserved": true,
+    "navigation_api_adapter_only": true
+  },
+  "resources-proof": {
+    "active_markdown": 22,
+    "archived_markdown": {
+      "runtime": 1,
+      "repairs": 1,
+      "numbered": 18,
+      "adapters": 25,
+      "releases": 37
+    },
+    "archived_catalogs": 7,
+    "consumers": {
+      "current": "production/1, fresh manifest and preview; source variants, repairs and Russian craft reference",
+      "releases": "existing/1; narrative-rebuild/1 and /2; editorial-candidate/1 and /2",
+      "adapters": "explicit archived research and source-only fingerprint lookup",
+      "numbered": "role_instructions_for_version whole-episode-a/1,/2,/3",
+      "runtime": "Frozen continuation texts for old manifests without research_runtime_instructions",
+      "repairs": "Frozen anchor-selection v1 suffix for old manifests without repair pin"
+    },
+    "remaining_duplicates": "Two numbered public components (v1/v2 draft and solo), kept at their published component paths; none in supported profile/adaptor bodies."
+  },
+  "wheel-proof": {
+    "active_markdown": 22,
+    "historical_resources": 89,
+    "no_hash_named_assets": true
+  },
+  "installed-proof": {
+    "installed_assemblies": 32,
+    "isolated_package": true
+  },
+  "external_model_calls": 0,
+  "paid_calls": 0,
+  "request_parity": {
+    "cases": 12,
+    "complete_request_equal": true,
+    "normal_manifest_equals_fresh_and_pinned_preview": true,
+    "before_sha256": "f62f26c2acf100157da2df32042b4e44eeb4035787b3a0325f6428291272599c",
+    "after_sha256": "f62f26c2acf100157da2df32042b4e44eeb4035787b3a0325f6428291272599c"
+  },
+  "validation": {
+    "passed": 119,
+    "existing_warnings": 1,
+    "shared_heavy_lock": true,
+    "external_provider_calls": 0
+  },
+  "runtime_blocks_legacy_checksum": "7369a55444831df09454a1e82ead1781bf3ac0f3bdd03ecc56bdcb043b07f1b8",
+  "pre_v4_index": {
+    "blob": "7425ac3460d60ab41a77dfdd0909d68d256c7d57",
+    "baseline_role_variants_equal": 6
+  }
+}

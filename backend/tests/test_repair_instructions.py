@@ -10,14 +10,15 @@ import pytest
 from podgen.domain.contracts.common import RuntimeRef
 from podgen.runtime.evaluation.contracts import RunFailure
 from podgen.runtime.evaluation.journal import EvaluationJournal
-from podgen.runtime.evaluation.review_repair import LEGACY_REPAIR_INSTRUCTIONS_V1, prepare_anchor_repair
+from podgen.runtime.evaluation.review_repair import legacy_repair_instructions, prepare_anchor_repair
 from podgen.writing import prompts
+from podgen.writing.prompts import composition
 from tests.test_writing_evaluation import FakeProvider, run
 from tests.test_writing_evaluation import setup_writer as setup_writer
 
 
 def test_legacy_repair_suffix_is_byte_identical():
-    assert hashlib.sha256(LEGACY_REPAIR_INSTRUCTIONS_V1.encode()).hexdigest() == (
+    assert hashlib.sha256(legacy_repair_instructions().encode()).hexdigest() == (
         "b0ce4671ccc75b88e77889bc92223a5feb4b841a329374bf696e654f478161fa"
     )
 
@@ -27,8 +28,8 @@ def test_editing_current_repair_does_not_change_released_or_existing_runs(
     repo, setup_writer, tmp_path, monkeypatch, legacy
 ):
     resources = tmp_path / "resources"
-    shutil.copytree(prompts.files("podgen.writing.prompts"), resources)
-    monkeypatch.setattr(prompts, "files", lambda _: resources)
+    shutil.copytree(composition.files("podgen.writing.prompts"), resources)
+    monkeypatch.setattr(composition, "files", lambda _: resources)
     initial_suffix = prompts.load_anchor_repair_instructions()
     initial_roles = prompts.load_instruction_set("dialogue")
     create_run = EvaluationJournal.create_run
@@ -76,7 +77,7 @@ def test_editing_current_repair_does_not_change_released_or_existing_runs(
         guard=lambda: None,
     )
     saved_request = journal.request(invocation)
-    expected_suffix = LEGACY_REPAIR_INSTRUCTIONS_V1 if legacy else initial_suffix.body
+    expected_suffix = legacy_repair_instructions() if legacy else initial_suffix.body
     assert saved_request["instructions"] == original_body + expected_suffix
     context = journal.read(
         RuntimeRef(record_kind="tool_execution", record_id=invocation["request_record_id"])
@@ -86,7 +87,9 @@ def test_editing_current_repair_does_not_change_released_or_existing_runs(
     )
     # Further resource changes and even complete loss cannot rebuild this prepared attempt.
     shutil.rmtree(resources)
-    monkeypatch.setattr(prompts, "files", lambda _: pytest.fail("resume must not read current instructions"))
+    monkeypatch.setattr(
+        composition, "files", lambda _: pytest.fail("resume must not read current instructions")
+    )
     result = run(repo, command, loader, provider, repair=True)
     assert result["status"] == "completed_unaccepted"
     assert len(provider.requests) == 4

@@ -1,0 +1,19 @@
+{
+  "formats": {
+    "solo": {
+      "plan-review": {
+        "version": "whole-episode-a/sha256:cabfe708720545c20cd07deb2ba5f28ff9af9ce3c5fbb89168b22282f7df5383",
+        "sha256": "b687d499b612f130a08a93a0e062c59d26bb64e7e5f9193e828018e2e8d49676",
+        "path": "releases/narrative-rebuild-2/formats/solo/plan-review.md"
+      }
+    },
+    "dialogue": {
+      "plan-review": {
+        "version": "whole-episode-a/sha256:65e7416a8c54e2daf8a816aa0e7e2f0efbae73a94a5ba71fe2106d8acdd825a8",
+        "sha256": "7e04e9dad58d4482b09e98311f8802d98265de973b810bdb82e83877c2581b50",
+        "path": "releases/narrative-rebuild-2/formats/dialogue/plan-review.md"
+      }
+    }
+  },
+  "readings": {}
+}

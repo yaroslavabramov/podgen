@@ -1,48 +1,83 @@
-# Writing instructions
+# Working writing instructions
 
-Edit the applicable UTF-8 Markdown file in `current/`. The planner receives only `plan.md`; planning revision receives `plan.md`, then `plan-revise.md`. These files form the complete planning task, with format, speakers and language supplied in the payload. Other ordinary roles receive `common.md`, the format component, then their stage component. Instruction text is English; `output_language` controls spoken text and other human-readable output. Preserve supplied labels, exact quotations, keys and enum values.
+**Edit `current/` only for the active production behavior.** Runtime and fresh
+preview use the same named Markdown composition. Each role has one readable
+file; related source variants remain conditional sections in that file.
 
-| Component | Responsibility |
+| Role | File |
 | --- | --- |
-| `common.md` | Language, assignment and evidence rules |
-| `dialogue.md`, `solo.md` | Speaker functions and explanation in that format |
-| `plan.md` | Choose a connected route from the assignment and semantic dossier |
-| `plan-review.md` | Review the exact candidate with attributed evidence |
-| `plan-revise.md` | Return a complete new proposal from actionable feedback |
-| `draft.md` | Realize accepted story decisions as a complete spoken episode |
-| `review.md` | Inspect the entire actual script, with exact anchors |
-| `revise.md` | Return the complete improved script when revision is required |
-| `anchor-repair.md` | Select passages for unresolved script anchors only |
-| `plan-target-repair.md` | Select fields for unresolved plan review targets only |
+| Story planner / planning revision | `planner.md` / `plan-revision.md` |
+| Plan editor | `plan-editor.md` |
+| Author / independent-reading revision | `author.md` / `author-revision.md` |
+| Listener / factual reading | `listener-review.md` / `fact-review.md` |
+| Repeated listener / factual reading | `revision-verification.md` / `fact-verification.md` |
+| Single-editor historical workflow | `script-editor.md` / `script-revision.md` |
+| Script / plan address repair | `anchor-repair.md` / `plan-target-repair.md` |
 
-Repair instructions are standalone. They do not inherit ordinary reviewer instructions or format components. They locate existing judgments without rewriting or approving anything.
+`common.md`, `solo.md`, `dialogue.md` and the three substantial research blocks
+are shared only where explicitly included. `durable-tools.md` owns operational
+instructions, including the conditional planning selection and factual research
+paragraphs. `research-navigation.md` explains retained investigations and search
+history. `research-continuation.md` owns checkpoint/deferred-exchange and
+material-return messages; new research manifests pin this bundle and old manifests
+read its frozen v1 counterpart. `source-tools.md` is the retained-source-only operational variant.
+`style-reference-ru.md` supplies the author's separate Russian craft reference.
+System instructions remain English; `output_language` selects generated language.
 
-## Inputs and decisions
+## Composition
 
-New `editorial-role-packets/1` runs use role-specific semantic views. Full original sources, inputs and outputs remain persisted. No file paths, hashes or technical identities belong in model-visible content. Natural support labels and exact response locations are supplied only where the task needs them. The planner chooses the route and way of explaining factual research material. The author receives accepted creative decisions and selected claims with their context and limits; the positive plan review and source library are not writing inputs. No read/research tools are available in these calls.
+The composer preserves UTF-8 text, whitespace and CRLF bytes. No English sentence
+is found or replaced in Python. Its only syntax is:
 
-Own-plan loads the shared assignment and dossier without the separate fixed outline. Only a complete ready proposal explicitly accepted by a separate plan editor reaches the writer. A required revision produces a full new proposal and a new review. A blocking evidence question stops writing; recording it does not obtain an answer. Fixed-plan uses its separately admitted structured outline and does not invoke planning roles.
+- `{{include:common.md}}` and `{{include:{format}.md}}` explicitly include blocks.
+- `{{if sources=research}}…{{elif sources=sources}}…{{else}}…{{endif}}` selects a
+  source variant. `cards`, `research` and `sources` are explicit caller inputs.
+- `{{section task}}…{{endsection}}` defines a named block within a role file.
+  `{{include:planner.md#task}}` reuses its task without adding its reading suffix.
+- `|rstrip` is an explicit whitespace filter on an include, used to preserve the
+  published source-only framing. Boolean conditions select `anchored` and
+  `planning_selection` in the operational block.
 
-The script editor distinguishes `keep`, `revise` and `needs_material`. An unambiguous `keep` reuses the exact saved draft without another author call. Missing material stops the chain; contradictory decisions fail explicitly. The prompts must not ask for a redundant rewrite of an adequate text.
+Unknown directives/conditions, missing sections, invalid paths and cycles fail
+explicitly. There is no process-wide prompt cache. A new manifest or fresh preview snapshots
+local Markdown once for that bounded assembly; nested includes reuse its bytes.
+A later assembly observes a new edit.
 
-See [the role-input contract](../../../../../docs/podcast-production/08-editorial-inputs.md) and [offline examples and commands](../../../../../evals/reports/2026-11-05-editorial-inputs/README.md).
+`load_role(role, format, sources=...)` returns the complete semantic role body.
+The ordinary manifest and preview choose this context from admitted materials,
+then attach only the operational blocks selected by their tool contract.
+`load_instruction_set`, `role_instructions` and `load_reading_instructions`
+inspect those same active bodies. A fresh manifest hashes the **complete final
+instruction text**, including operational blocks, into its prompt version.
+A new research manifest additionally pins exactly the initial `fact-review`
+source-only variant in `fact_source_instruction_variants`, bound to the complete
+original instruction fingerprint. Report-off preparation and its ordinary request
+compiler use this saved pair even after later edits. No unused recheck variants
+are persisted. Older manifests without this field use their frozen fingerprint
+adapter; they never fall back to reading current text.
 
-## Editing and saved runs
+## Saved runs and history
 
-A text edit is sufficient for a new assembly: no copied version directory, registration or unrelated hash updates. `load_instruction_set(format, include_planning=True)` reads components once and assembles all six ordinary roles. `role_instructions(stage, format)` can inspect any ordinary current role. Resources come from the installed package, independently of the working directory; deployed packages must receive changed assets.
+Admission pins the complete instruction text, schema, craft reference and prompt
+identity. Saved preview/resume read the manifest and saved definitions; they do
+not reconstruct prompts from `current/`, Git or a release hash. Editing a file
+never migrates a saved run. Model-facing instructions contain no generated hash
+header or file paths.
 
-Each assembly has a content ID derived from its stage and exact ordered component names/bytes, including format when a format component is used. Isolated planning bodies have the same ID for solo and dialogue. Editing `plan.md` affects planning and its revision; editing `plan-revise.md` affects only revision. Common and format edits affect the other ordinary roles. Their existing ID construction remains unchanged. The ID stays in runtime provenance, outside model instructions. Repair bodies have separate content IDs.
+`history/profiles/` and named files in `history/releases/` preserve previous
+behavior profiles. `history/numbered/` preserves published numbered APIs with
+unchanged universal-newline semantics. Tests' prior comparison bodies and unshipped samples live
+under `backend/tests/fixtures/writing-instructions/` with descriptive names;
+unreferenced drafts remain available in Git, not the runtime package.
+Unused opaque hash-named files are removed.
 
-A new run pins complete prompt bodies in saved definitions. Resume uses these bodies, not mutable `current/` or Git. Planning's second review uses the pinned plan-review body but reviews the new exact candidate. Every candidate, draft and review retains its own binding. Successful structured output is not semantic acceptance.
+Historical research experiments use a frozen fingerprint lookup in
+`history/research-adapters.json` or `history/source-adapters.json`. An unknown
+archived body is rejected; it is never interpreted by replacing English phrases
+or searching candidate current role texts. Active source variants use the
+explicit role/format/source context instead.
 
-The frozen `v1/`, `v2/`, `v3/` directories remain unchanged. The historical resolver handles numbered versions only. An old content hash is not a globally retrievable snapshot: inspect that run's saved definition or exported request. Existing legacy runs resume under their archived input contract; editing current assets does not migrate them.
-
-To inspect actual instructions, open the exported stage's `request.json`, or `attempt-N/request.json` for a later attempt. To inspect a new request without any provider or token-endpoint call, use `podgen.writing_cli preview`. Its output includes the complete request and visible-byte sizes; rendering does not truncate source text. The report documents every role and both repair previews.
-
-## Ownership and limits
-
-The editor owns wording and editorial material. The developer owns schemas, projections, loading, persistence, isolation, validation and request assembly. Full semantic fields must never be silently shortened. A capacity error requires a deliberate meaningful representation or a different unit of work.
-
-The script review uses exact zero-based utterance positions and verbatim nonempty quotes; plan review selects existing fields in the exact candidate. Locations are not independent evidence. A reviewer supplied with story intent and dossier reports `reading_mode=informed`; this is not a blind human listening trial.
-
-Schema checks, source-range checks, compactness and completed execution establish their specific properties only. They do not establish independent factual approval, measured duration, human understanding or production readiness.
+Wheel builds include both current Markdown and required historical resources.
+Use the offline writing preview to inspect the **complete** final request before
+running a provider. Validate changes against full instructions and actual stage
+payloads; schema success alone establishes no editorial or factual acceptance.

@@ -8,6 +8,10 @@ from podgen.writing.source_tools.contracts import Arguments, Search
 from podgen.writing.source_tools.retrieval_policy import DiverseSearch
 from podgen.writing.source_tools.retrieval_policy import schema as policy_schema
 
+REPORT_SELECTION_STAGES = frozenset({"plan", "plan-revise", "plan-review", "plan-review-revised"})
+ROLE_TOOL_KEY = "role_tool_scope"
+ROLE_TOOL_VERSION = "planning-report-selection/1"
+
 
 class CatalogPage(Arguments):
     offset: int = Field(ge=0, description="Start at zero, then use next_offset.")

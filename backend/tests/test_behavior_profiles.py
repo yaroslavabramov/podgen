@@ -5,6 +5,7 @@ from pathlib import Path
 from uuid import uuid4
 
 import pytest
+
 from podgen.domain.canonical import digest
 from podgen.domain.contracts.common import RuntimeRef
 from podgen.domain.errors import ContractError
@@ -142,10 +143,15 @@ def test_recreate_three_historical_readings_with_identical_requests_and_final_te
         assert outcome["script_hash"] == original_result["script_hash"] == digest(outcome["output"])
         manifest = journal.manifest(rid)
         assert manifest["behavior_profile"] == "narrative-rebuild/1" and manifest["editorial_pass"] == index
-        assert (
-            manifest["role_instructions_versions"]
-            == read(HISTORY / original / "manifest-selection.json")["role_instructions_versions"]
-        )
+        # New admissions hash their actual complete text; saved historical request
+        # bodies above remain byte-identical, including the older framed ID era.
+        from hashlib import sha256
+
+        from podgen.domain.contracts.common import ArtifactRef
+
+        for stage, version in manifest["role_instructions_versions"].items():
+            saved = repo.get(project, ArtifactRef.model_validate(manifest["prompt_refs"][stage]))
+            assert version.endswith(sha256(saved.payload["template"].encode()).hexdigest())
         if index == 1:
             plan_ref = export_plan_ref(journal, rid)
             with pytest.raises(ContractError, match="expected_planning_clearance"):

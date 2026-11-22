@@ -3,9 +3,9 @@
 import hashlib
 import json
 from copy import deepcopy
-from pathlib import Path
 
 import pytest
+
 from podgen.runtime.evaluation.preview import preview_request
 from podgen.runtime.evaluation.preview_snapshot import PreviewSnapshot
 from podgen.runtime.evaluation.role_schema import response_schema
@@ -19,10 +19,10 @@ from podgen.writing.reader_schema import (
     SCENE_COMPARISON_VERSION,
     feedback_model,
 )
-
 from tests.schema_cases import without_descriptions
 from tests.source_excerpt_cases import data_and_profile
 from tests.source_excerpt_cases import release_before_reading_audit as release
+from tests.writing_instruction_history import historical_instructions
 
 HISTORICAL = [
     "cd3cb34dff240906a91da99a41f9d0100e8153036c813f4a8bea29f89d725cf9",
@@ -142,9 +142,7 @@ def test_frozen_previous_reader_replays_full_prompt_and_schema(monkeypatch, prev
     materials, _, _, _, script, _, _, _, profile = data_and_profile()
     _, _, command, manifest = release(monkeypatch, materials, profile)
     assert manifest["reader_review_schema_version"] == COMPACT_VERSION
-    previous = (
-        Path(__file__).parents[1] / f"src/podgen/writing/behavior/assets/{previous_hash}.md"
-    ).read_text()
+    previous = historical_instructions(previous_hash)
     assert hashlib.sha256(previous.encode()).hexdigest() == previous_hash
     current = resolve_behavior().instructions("reader-review", materials.format).body
     assert previous != current

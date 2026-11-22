@@ -9,8 +9,9 @@ from podgen.domain.contracts.common import CodeProducer, RuntimeRef
 from podgen.domain.errors import Conflict
 from podgen.persistence.repository import timestamp
 from podgen.writing.reading_audit.input import initial_context
-from podgen.writing.research_materials.fact_source_instructions import adapt
 from podgen.writing.research_materials.fact_source_mode import KEY, VERSION, request, schema, tools
+from podgen.writing.research_materials.source_instruction_variant import from_manifest as source_variant
+from podgen.writing.research_materials.source_instruction_variant import resolve as source_instructions
 from podgen.writing.research_materials.views import source_catalog
 from podgen.writing.scene_plan import is_scene_plan
 from podgen.writing.source_tools import SourceCorpus
@@ -82,7 +83,11 @@ def prepare(repo, generation, journal, source_run_id, run_id):
     contract.update(definitions=tools(contract["definitions"]), **{KEY: VERSION})
     manifest["source_tool_contract"] = contract
     manifest["response_schemas"]["fact-review"] = schema(manifest["response_schemas"]["fact-review"])
-    instructions = adapt(source_body["instructions"])
+    pinned_variant = source_variant(source)
+    instructions = source_instructions(pinned_variant, source_body["instructions"])
+    from podgen.writing.prompts.composition import identity
+
+    manifest["role_instructions_versions"]["fact-review"] = identity("fact-review", instructions)
     profile = load_profile(generation, journal.project, old_command.reviewer_profile_ref, "fact-review")
     plan_ref = script_record.get("accepted_plan_ref")
     plan = journal.read(RuntimeRef.model_validate(plan_ref))["output"] if plan_ref else None
@@ -102,7 +107,7 @@ def prepare(repo, generation, journal, source_run_id, run_id):
     body = preview_request(
         run_id, "fact-review", profile, materials, snapshot=snapshot, draft=script, approved_plan=plan
     )
-    expected = request(source_body, VERSION)
+    expected = request(source_body, VERSION, source_instruction_variant=pinned_variant)
     expected["metadata"].update(
         podgen_run_id=str(run_id), podgen_invocation_id=str(uuid5(run_id, "invocation:fact-review"))
     )

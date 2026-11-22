@@ -19,15 +19,20 @@ from .request_payload import request_payload
 from .validation import load_unique_json
 from .workflow import output_model
 
+
 # Frozen compatibility for manifests created before repair instructions were pinned.
-LEGACY_REPAIR_INSTRUCTIONS_V1 = (
-    "\n\nAnchor selection repair v1. This call selects exact source passages for the rejected anchors only. "
-    "Keep the draft, sources, all editorial judgments and already valid anchors unchanged. "
-    "Return AnchorChoices using only the published anchor_id and selector_id values. "
-    "Choose selector_id=null when no offered passage supports the judgment. "
-    "No factual corrections or new evidence are being supplied. "
-    "Use the response schema for AnchorChoices on this dedicated call."
-)
+def legacy_repair_instructions():
+    from hashlib import sha256
+
+    from podgen.writing.prompts.composition import read
+
+    text = read("repairs/anchor-selection-v1.md", historical=True)
+    if (
+        sha256(text.encode()).hexdigest()
+        != "b0ce4671ccc75b88e77889bc92223a5feb4b841a329374bf696e654f478161fa"
+    ):
+        raise ContractError("legacy_anchor_repair_instructions_changed")
+    return text
 
 
 def _rejected_feedback(journal, original, request):
@@ -96,7 +101,7 @@ def prepare_anchor_repair(journal, original, *, draft, draft_ref, guard):
     manifest = journal.manifest(original["run_id"])
     pinned = manifest.get("anchor_repair_instructions")
     if "anchor_repair_instructions" not in manifest:
-        pinned = dict(version="anchor-repair/1", body=LEGACY_REPAIR_INSTRUCTIONS_V1)
+        pinned = dict(version="anchor-repair/1", body=legacy_repair_instructions())
     if (
         not isinstance(pinned, dict)
         or set(pinned) != {"version", "body"}

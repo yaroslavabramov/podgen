@@ -15,11 +15,15 @@ from podgen.writing.planning_duration import from_manifest as duration_from_mani
 from podgen.writing.planning_versions import planning_snapshot
 from podgen.writing.projection_versions import manifest_version
 from podgen.writing.projections import CONTRACT, validate_model_content
+from podgen.writing.prompts.snapshot import instruction_snapshot
 from podgen.writing.reading_audit.consistency import CURRENT as CONSISTENCY_VERSION
 from podgen.writing.reading_audit.consistency import from_manifest as consistency_from_manifest
 from podgen.writing.reading_views import reading_audience
-from podgen.writing.research_materials.pinning import instructions as adapt_instructions
+from podgen.writing.research_materials.pinning import role_instructions
 from podgen.writing.research_materials.schemas import adapt as research_schema
+from podgen.writing.research_materials.source_instruction_variant import (
+    for_request as source_variant_for_request,
+)
 from podgen.writing.revision import verification
 from podgen.writing.revision.context import from_manifest as revision_context_from_manifest
 
@@ -31,6 +35,7 @@ from .role_schema import response_schema
 from .workflow import prompt_stage
 
 
+@instruction_snapshot()
 def preview_request(
     run_id, stage, profile, materials, *, snapshot=None, behavior_profile=None, editorial_pass=None, **inputs
 ):
@@ -184,9 +189,7 @@ def preview_request(
                 role = "revision-verification"
             if stage != base and base == "fact-review" and behavior.reading_audit:
                 role = "fact-verification"
-            instructions = adapt_instructions(
-                materials, role, behavior.instructions(role, materials.format).body
-            )
+            instructions = role_instructions(materials, role, behavior).body
             instructions = source_tool_contract.instructions(instructions, stage, tools)
         readings = None
         revision = None
@@ -213,6 +216,9 @@ def preview_request(
             projection_version=projection,
             reference_catalog=references,
             source_tool_contract=tools,
+            source_instruction_variant=source_variant_for_request(snapshot.manifest, stage)
+            if snapshot
+            else None,
             messages_tool_policy=messages_tool_policy,
             prompt_cache_layout=cache_layout,
             fact_context_contract=fact_context.from_manifest(snapshot.manifest)
@@ -250,9 +256,7 @@ def preview_request(
             if snapshot:
                 raise ContractError("preview_stage_not_pinned")
             role = prompt_stage(stage)
-            instructions = adapt_instructions(
-                materials, role, behavior.instructions(role, materials.format).body
-            )
+            instructions = role_instructions(materials, role, behavior).body
             instructions = source_tool_contract.instructions(instructions, stage, tools)
         return compile_role_request(
             run_id,

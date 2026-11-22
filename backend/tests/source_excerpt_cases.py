@@ -13,7 +13,6 @@ from podgen.runtime.evaluation.contracts import WritingRunCommand
 from podgen.writing.editorial_contract import EditorialInput
 from podgen.writing.model_references import preview_references
 from podgen.writing.projection_versions import V9
-
 from tests.test_editorial_independence import payload
 from tests.test_source_passage_handoff import current_materials, selected_plan
 from tests.test_v5_role_wire import fixture
@@ -167,11 +166,23 @@ def pin_before_reading_audit(monkeypatch):
     behavior = replace(
         resolve_behavior("production/1"),
         reader_schema="listener-experience/13",
-        resources={**resolve_behavior("production/1").resources, **resources},
+        resources={**resolve_behavior("narrative-rebuild/1").resources, **resources},
+        prompt_source="history",
     )
     monkeypatch.setattr(BehaviorProfile, "reading_audit", property(lambda self: None))
     monkeypatch.setattr(BehaviorProfile, "fact_schema", property(lambda self: "fact-revision/4"))
     monkeypatch.setattr(BehaviorProfile, "verification", property(lambda self: "editorial-recheck/2"))
+    from podgen.writing import behavior as behavior_module
+    from tests.writing_instruction_history import historical_instructions
+
+    previous_body = behavior_module._body
+    monkeypatch.setattr(
+        behavior_module,
+        "_body",
+        lambda entry: (
+            historical_instructions(entry["sha256"]) if "fixture" in entry else previous_body(entry)
+        ),
+    )
     monkeypatch.setattr(manifests, "resolve_behavior", lambda *args, **kwargs: behavior)
 
 

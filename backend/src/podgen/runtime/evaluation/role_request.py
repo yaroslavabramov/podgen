@@ -89,6 +89,7 @@ def compile_reading_request(
     reading_audit_context=None,
     prompt_cache_layout=None,
     source_tool_contract=None,
+    source_instruction_variant=None,
     messages_tool_policy=None,
     **inputs,
 ):
@@ -180,4 +181,8 @@ def compile_reading_request(
 
     from .source_tool_contract import bind
 
-    return request(bind(body, stage, profile, source_tool_contract), (source_tool_contract or {}).get(KEY))
+    return request(
+        bind(body, stage, profile, source_tool_contract),
+        (source_tool_contract or {}).get(KEY),
+        source_instruction_variant=source_instruction_variant,
+    )

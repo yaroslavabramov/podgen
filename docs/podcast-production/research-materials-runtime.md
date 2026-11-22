@@ -39,7 +39,7 @@ Prepare and preview are offline. `run` and `resume` execute model calls. The def
 
 ## Fact-only native search and narrow research (`frozen-corpus-tools/8`)
 
-New runs use `/8`; saved `/7` and older manifests retain their original model-facing requests and research commissions. Non-factual roles keep the `/7` tools and instructions unchanged. Factual review receives anchored `request_research`; OpenAI factual review also receives Responses `web_search` with low search context. Existing model profiles are reused. Hosted search requests enforce its 128,000-token window in checkpoint planning and dispatch.
+New runs use `/8`; saved `/7` and older manifests retain their original model-facing requests and research commissions. New manifests pin `role_tool_scope=planning-report-selection/1`. Only planning and plan review receive `select_research_result` and its instructions. Earlier unscoped manifests retain their original tool lists. Factual review receives anchored `request_research`; OpenAI factual review also receives Responses `web_search` with low search context. Existing model profiles are reused. Hosted search requests enforce its 128,000-token window in checkpoint planning and dispatch.
 
 New factual commissions record two settings in the manifest. With
 `shown-source-passages/1`, the initial request lists the original questions of
@@ -160,3 +160,12 @@ native requests and tool bodies remain behind their ordinary read boundary.
 Authorized retry lineage reuses that same index for receipt numbering; its exact
 failed-request and permission checks remain mandatory. No new manifest or
 model-facing contract is introduced.
+
+The active writing instruction surface is `writing/prompts/current/`, including
+research reading, operational and runtime continuation messages. A new research
+manifest pins exactly the initial fact review's source-off instruction variant
+with its original complete instruction fingerprint. Subsequent current edits do
+not affect report-off preparation or resume. Hosted web search and its include
+remain available in the comparison. New scoped source-off runs retain source
+search/history navigation without exposing the X report catalog; older scoped
+choices and saved requests keep their archived behavior.

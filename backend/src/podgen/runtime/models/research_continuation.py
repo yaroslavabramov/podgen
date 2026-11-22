@@ -69,7 +69,13 @@ def resolve_structured(
     call_index,
     turn,
     guard,
+    *,
+    runtime_texts=None,
 ):
+    from podgen.writing.prompts.research_runtime import legacy
+
+    runtime_texts = runtime_texts if runtime_texts is not None else legacy()
+
     calls = [
         structured_call(request, turn, position, anchored=proxy.anchored)
         for position, request in enumerate(requests)
@@ -111,7 +117,7 @@ def resolve_structured(
                     text=json.dumps(
                         dict(
                             material_request_resolutions=results,
-                            runtime_continuation="Continue this same assessment. Inspect the returned material through the reading tools, preserve unresolved limitations, and finish the existing role output when its necessary work is complete. Retrieval is not verification.",
+                            runtime_continuation=runtime_texts["structured"],
                         ),
                         ensure_ascii=False,
                         separators=(",", ":"),

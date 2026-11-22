@@ -14,6 +14,9 @@ from podgen.writing.model_references import CATALOG_KEY, run_references
 from podgen.writing.plan_selection import from_manifest as selection_from_manifest
 from podgen.writing.projection_versions import script_handoff
 from podgen.writing.reading_views import reading_audience
+from podgen.writing.research_materials.source_instruction_variant import (
+    for_request as source_variant_for_request,
+)
 from podgen.writing.revision import verification
 from podgen.writing.revision.context import from_manifest as revision_context_from_manifest
 from podgen.writing.roles import WriteOutput
@@ -139,6 +142,7 @@ def execute_reading_stage(
             reference_catalog=references,
             prompt_cache_layout=prompt_cache.from_manifest(manifest),
             source_tool_contract=source_tool_contract.from_manifest(manifest),
+            source_instruction_variant=source_variant_for_request(manifest, stage),
             messages_tool_policy=tool_policy(manifest, stage),
             fact_context_contract=fact_context.from_manifest(manifest),
             plan_selection_contract=selection_from_manifest(manifest),

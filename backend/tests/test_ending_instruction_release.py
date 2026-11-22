@@ -2,7 +2,6 @@
 
 import hashlib
 from copy import deepcopy
-from pathlib import Path
 
 import pytest
 
@@ -15,8 +14,8 @@ from podgen.writing.editorial_contract import EditorialInput
 from tests.revision_cases import composition, scope
 from tests.source_excerpt_cases import data_and_profile, release
 from tests.test_planning_v9 import selected
+from tests.writing_instruction_history import historical_instructions
 
-ASSETS = Path(__file__).parents[1] / "src/podgen/writing/behavior/assets"
 PREVIOUS = {
     "plan": "933d42194b42f45af89c54c294fd0d66f1c70001eeea33513895de2bf519a265",
     "plan-revise": "55f6064cf4ab5dd8359562c0aca328d94dd44911cbccdb530676b1f28173c408",
@@ -76,7 +75,7 @@ def compiled_requests(monkeypatch, format):
             else name
         )
         key = f"{role}-{format}" if role in ("draft", "plan-review") else role
-        previous = (ASSETS / f"{PREVIOUS[key]}.md").read_text()
+        previous = historical_instructions(PREVIOUS[key])
         assert hashlib.sha256(previous.encode()).hexdigest() == PREVIOUS[key]
         pinned = store.get(
             command.project_id, ArtifactRef.model_validate(manifest["prompt_refs"][name])

@@ -438,6 +438,8 @@ def test_v8_preserves_complete_non_fact_request(research_materials, monkeypatch,
     run = uuid4()
     inputs = dict(approved_plan=_plan(research_materials)) if stage == "draft" else {}
     current = create(SimpleNamespace(name="production/1"), research_materials)
+    # Compare the two released contracts before the explicit planning-tool scoping change.
+    current.pop("role_tool_scope")
     original = deepcopy(current)
     original["version"] = "frozen-corpus-tools/7"
     original.pop("fact_research_navigation")
@@ -447,9 +449,47 @@ def test_v8_preserves_complete_non_fact_request(research_materials, monkeypatch,
     original.pop("web_search_receipt_contract")
     original.pop("search_argument_policy", None)
     original.pop("web_search_definition")
+    monkeypatch.setattr(source_tool_contract, "create", lambda *args: current)
     after = preview_request(run, stage, _profile(stage), research_materials, **inputs)
     monkeypatch.setattr(source_tool_contract, "create", lambda *args: original)
     before = preview_request(run, stage, _profile(stage), research_materials, **inputs)
     assert after == before
     tool = next(row for row in after["tools"] if row["name"] == "request_research")
     assert set(tool["parameters"]["properties"]) == {"question", "reason"}
+
+
+@pytest.mark.parametrize(
+    "stage",
+    [
+        "plan",
+        "plan-review",
+        "plan-revise",
+        "plan-review-revised",
+        "draft",
+        "revise-2",
+        "fact-review",
+        "fact-review-2",
+    ],
+)
+def test_selection_instructions_match_tools_executable_by_the_role(stage):
+    from podgen.runtime.evaluation import source_tool_contract as contract
+    from podgen.writing.research_materials.runtime_tools import ROLE_TOOL_KEY
+
+    policy = contract.create(
+        SimpleNamespace(name="production/1"),
+        SimpleNamespace(packet=SimpleNamespace(contract="research-editorial-input/1")),
+    )
+    selects = stage in {"plan", "plan-review", "plan-revise", "plan-review-revised"}
+    provider = "anthropic" if stage in ("draft", "revise-2") else "openai"
+
+    def offered(value):
+        return {t.get("name", t["type"]) for t in contract.role_definitions(value, stage, provider)}
+
+    assert ("select_research_result" in offered(policy)) == selects
+    assert ("select_research_result" in contract.instructions("Task", stage, policy)) == selects
+    historical = {k: v for k, v in policy.items() if k != ROLE_TOOL_KEY}
+    assert "select_research_result" in offered(historical)
+    assert "select_research_result" in contract.instructions("Task", stage, historical)
+    assert offered(policy) == (
+        offered(historical) if selects else offered(historical) - {"select_research_result"}
+    )

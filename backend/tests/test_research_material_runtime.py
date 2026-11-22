@@ -110,8 +110,8 @@ def test_full_research_workflow_preserves_report_and_only_original_source_eviden
         snapshot = load_preview_snapshot(journal, generation, command.run_id, stage, materials)
         assert snapshot.instructions == journal.request(row)["instructions"]
         monkeypatch.setattr(
-            "podgen.writing.research_materials.runtime_instructions.BODY",
-            "Changed current adapter must not alter frozen instructions.",
+            "podgen.writing.research_materials.runtime_instructions.render",
+            lambda *a, **kw: "Changed current adapter must not alter frozen instructions.",
         )
         record = journal.output(row)
         inputs = {}

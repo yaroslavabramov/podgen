@@ -8,12 +8,12 @@ from uuid import uuid4
 import pytest
 
 from podgen.domain.errors import Conflict, ContractError
-from podgen.retrieval.config import streaming_profile
+from podgen.retrieval.config import STREAMING_PROFILE, streaming_profile
 from podgen.runtime.evaluation.fact_source_experiment.measurements import MeasuredObjects
 from podgen.runtime.evaluation.fact_source_experiment.service import ApprovalBoundGateway
 from podgen.runtime.evaluation.preview import preview_request
 from podgen.runtime.evaluation.request_payload import request_payload
-from podgen.runtime.evaluation.source_tool_contract import create, from_manifest
+from podgen.runtime.evaluation.source_tool_contract import from_manifest
 from podgen.runtime.models.research_tools import ResearchTools
 from podgen.writing.research_materials import fact_source_mode as mode
 from podgen.writing.research_materials.runtime_tools import definitions as runtime_definitions
@@ -35,14 +35,21 @@ def test_exact_wire_changes_keep_the_existing_fact_judgment(research_materials):
         uuid4(), "fact-review", _profile("fact-review"), research_materials, draft=script
     )
     frozen = deepcopy(before)
-    after = mode.request(before, mode.VERSION)
+    from podgen.writing.behavior import resolve_behavior
+    from podgen.writing.research_materials.source_instruction_variant import pin
+
+    variant = pin(resolve_behavior(), "fact-review", research_materials.format, before["instructions"])
+    after = mode.request(before, mode.VERSION, source_instruction_variant=variant)
     assert before == frozen
     assert mode.request(before, None) is before
-    assert mode.request(after, mode.VERSION) == after
+    assert mode.request(after, mode.VERSION, source_instruction_variant=variant) == after
     before_payload, after_payload = request_payload(before), request_payload(after)
     assert set(before_payload) - set(after_payload) == {"research_contents", "research_results"}
     assert after_payload == {k: v for k, v in before_payload.items() if k not in mode.HIDDEN_FIELDS}
-    assert {t["name"] for t in after["tools"]} == mode.ALLOWED_TOOLS
+    assert {t["name"] for t in after["tools"] if t["type"] == "function"} == mode.ALLOWED_TOOLS
+    assert [t for t in after["tools"] if t["type"] != "function"] == [
+        t for t in before["tools"] if t["type"] != "function"
+    ]
     changed = {"instructions", "tools", "input", "text"}
     assert {k: v for k, v in before.items() if k not in changed} == {
         k: v for k, v in after.items() if k not in changed
@@ -100,11 +107,16 @@ def test_report_scope_never_falls_back_to_all_documents(research_materials, quer
     )
 
 
-def test_raw_history_contract_is_preserved_and_mode_is_explicit(research_materials):
-    contract = create(SimpleNamespace(name="production/1"), research_materials)
-    contract.pop("history_view")
-    contract["definitions"] = (
-        source_definitions(research_definitions(definitions(retrieval=True))) + runtime_definitions()
+def test_raw_history_contract_is_preserved_and_mode_is_explicit():
+    # The original /7 contract predates the history view, search paging and /8 declarations.
+    contract = dict(
+        version="frozen-corpus-tools/7",
+        retrieval=deepcopy(STREAMING_PROFILE),
+        definitions=source_definitions(research_definitions(definitions(retrieval=True)))
+        + runtime_definitions(),
+        context_policy="durable-model-window/1",
+        max_read_chars=9600,
+        default_read_chars=9600,
     )
     old = deepcopy(contract)
     assert from_manifest(dict(behavior_profile="production/1", source_tool_contract=contract)) == old
@@ -124,7 +136,7 @@ def test_raw_history_contract_is_preserved_and_mode_is_explicit(research_materia
     for change in ({"stages": ["draft", "fact-review"]}, {mode.KEY: None}):
         with pytest.raises(ContractError):
             from_manifest(dict(manifest, **change))
-    assert contract["retrieval"] == streaming_profile()
+    assert contract["retrieval"] == STREAMING_PROFILE
 
 
 def test_unapproved_request_never_constructs_provider():
@@ -189,3 +201,69 @@ def test_later_report_admission_cannot_expose_report(research_materials):
     )
     assert corpus.supplemental_reports == {} and corpus.admission_catalog == {}
     assert "X1" not in corpus.documents
+
+
+def test_new_source_only_search_and_history_hints_match_execution(research_materials):
+    from podgen.domain.canonical import digest
+    from podgen.runtime.evaluation.source_tool_contract import create, role_definitions
+    from podgen.writing.behavior import resolve_behavior
+    from podgen.writing.research_materials.fact_navigation import enabled, history_enabled
+    from podgen.writing.research_materials.runtime_tools import ROLE_TOOL_KEY
+
+    contract = create(resolve_behavior(), research_materials)
+    contract.update(definitions=mode.tools(contract["definitions"]), **{mode.KEY: mode.VERSION})
+    assert not enabled(contract, "fact-review")  # No report catalog enters the packet.
+    assert history_enabled(contract, "fact-review")
+    assert not history_enabled({k: v for k, v in contract.items() if k != ROLE_TOOL_KEY}, "fact-review")
+    offered = {t.get("name"): t for t in role_definitions(contract, "fact-review", "openai")}
+    assert "Repeated hits include previous_result" in offered["search_sources"]["description"]
+    assert "at most 9600" in offered["read_work_history"]["description"]
+    assert "start+9600" in offered["read_work_history"]["parameters"]["properties"]["end"]["description"]
+    assert offered[None]["type"] == "web_search"  # Native search survives subsequent turns.
+    preview = "Exact original passage."
+    source = SimpleNamespace(digest="retained-document-identity")
+    corpus = SimpleNamespace(
+        fact_input_mode=mode.VERSION,
+        documents={"S1": source},
+        execute=lambda *a, **kw: dict(
+            hits=[
+                dict(
+                    source_id="S1",
+                    start=0,
+                    end=len(preview),
+                    preview_start=0,
+                    preview_end=len(preview),
+                    preview=preview,
+                )
+            ]
+        ),
+    )
+    identity = digest(dict(document=source.digest, start=0, end=len(preview)))
+    shown = digest(dict(document=source.digest, start=0, end=len(preview), text=preview))
+    history = SimpleNamespace(
+        shown_search_previews={shown: 2},
+        returned_search_passages={identity: 2},
+        for_call=lambda *a: [
+            dict(data=dict(name="read_source", arguments={}, result=dict(text="X" * 12000)))
+        ],
+    )
+    executor = ResearchTools(
+        None,
+        dict(run_id=uuid4()),
+        corpus,
+        history,
+        lambda: None,
+        history_view="research-work-history/1",
+        fact_navigation=history_enabled(contract, "fact-review"),
+    )
+    result = executor.execute("search_sources", {}, read_id="E4")
+    assert result["hits"][0]["previous_result"] == dict(index=2, match="same_text")
+    page = executor.execute(
+        "read_work_history", dict(kind="tool_result", index=2, start=0, end=None), read_id="E5"
+    )
+    assert page["end"] == page["next_start"] == 9600
+    assert len(page["text"]) == 9600
+    refused = executor.execute(
+        "read_work_history", dict(kind="tool_result", index=2, start=0, end=11000), read_id="E6"
+    )
+    assert refused["max_page_characters"] == 9600 and refused["retry"] == dict(start=0, end=9600)

@@ -3,9 +3,9 @@
 import hashlib
 import json
 from copy import deepcopy
-from pathlib import Path
 
 import pytest
+
 from podgen.persistence.editorial_inputs import EditorialMaterials
 from podgen.runtime.evaluation import script_revision
 from podgen.runtime.evaluation.preview import preview_request
@@ -17,15 +17,14 @@ from podgen.writing.compact_editorial_descriptions import READER_FIELDS, READER_
 from podgen.writing.editorial_contract import EditorialInput
 from podgen.writing.model_references import bind_schema, run_references
 from podgen.writing.reader_schema import COMPACT_VERSION, SCENE_COMPARISON_VERSION, feedback_model
-
 from tests.revision_cases import scope
 from tests.schema_cases import without_descriptions
 from tests.source_excerpt_cases import data_and_profile, release
 from tests.test_cache_revision_schema import manifest as revision_manifest
 from tests.test_cache_revision_schema import selections
 from tests.test_planning_v9 import selected
+from tests.writing_instruction_history import historical_instructions
 
-ASSETS = Path(__file__).parents[1] / "src/podgen/writing/behavior/assets"
 OLD = dict(
     plan="933d42194b42f45af89c54c294fd0d66f1c70001eeea33513895de2bf519a265",
     **{
@@ -148,7 +147,7 @@ def test_actual_five_role_previews_and_frozen_replay_for_both_formats(monkeypatc
                 "plan-review": "d79bad884366548c474ac500fa739f61b0c92b6e33e2ca28dec8fb2947186f09",
                 "draft": "cf8863c91cf3139c8d5e51317240ea3417f98dcd807ce7a8d78686048ae1dd5a",
             }.get(role, identity)
-        previous = (ASSETS / f"{identity}.md").read_text()
+        previous = historical_instructions(identity)
         assert hashlib.sha256(previous.encode()).hexdigest() == identity
         old["response_schemas"][stage] = bind_schema(
             response_schema(

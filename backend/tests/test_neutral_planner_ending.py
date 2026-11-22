@@ -1,9 +1,9 @@
 """Only planner field tasks change; reviewer, public shape and saved /2 requests are immutable."""
 
 from copy import deepcopy
-from pathlib import Path
 
 import pytest
+
 from podgen.runtime.evaluation.preview import preview_request
 from podgen.runtime.evaluation.preview_snapshot import PreviewSnapshot
 from podgen.runtime.evaluation.role_schema import response_schema
@@ -11,9 +11,9 @@ from podgen.writing import ending_guidance
 from podgen.writing.behavior import resolve_behavior
 from podgen.writing.model_references import bind_schema, run_references
 from podgen.writing.planner_ending_descriptions import FIELDS, PLAN_FIELDS
-
 from tests.source_excerpt_cases import data_and_profile, release
 from tests.test_planning_v9 import selected
+from tests.writing_instruction_history import historical_instructions
 
 
 def schema(stage, version):
@@ -58,9 +58,7 @@ def test_real_planner_and_rewrite_previews_keep_previous_schema_and_prompt_when_
         "plan": "a3634c8af3c1a83c4a3e5b97c4b46cc72ba041953c9d94163bba16c4ec23467c",
         "plan-revise": "12a11b1988cdae45d68be3690cf336a3a718474f97deaef85ce9fde64f3abbc7",
     }[stage]
-    previous = (
-        Path(__file__).parents[1] / f"src/podgen/writing/behavior/assets/{previous_sha}.md"
-    ).read_text()
+    previous = historical_instructions(previous_sha)
     instructions = resolve_behavior().instructions(stage, materials.format).body
     inputs = {} if stage == "plan" else dict(candidate=selected(plan), plan_review=review)
     saved = preview_request(

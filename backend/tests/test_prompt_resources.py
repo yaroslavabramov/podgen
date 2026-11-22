@@ -14,6 +14,7 @@ import pytest
 from podgen.domain.contracts.common import ArtifactRef
 from podgen.runtime.evaluation.journal import EvaluationJournal
 from podgen.writing import prompts
+from podgen.writing.prompts import composition
 from tests.test_writing_evaluation import FakeProvider, run
 from tests.test_writing_evaluation import setup_writer as setup_writer
 
@@ -69,7 +70,7 @@ print(json.dumps(dict(active=active, history=history, repair=dict(version=repair
 
 
 @pytest.mark.parametrize(
-    "component", ["common", "solo", "dialogue", "draft", "review", "revise", "anchor-repair"]
+    "component", ["common", "solo", "dialogue", "author", "script-editor", "script-revision", "anchor-repair"]
 )
 def test_edit_one_installed_component_changes_only_applicable_bodies(installed_package, component):
     target = installed_package
@@ -84,7 +85,11 @@ def test_edit_one_installed_component_changes_only_applicable_bodies(installed_p
         assert (after["repair"] != before["repair"]) == (component == "anchor-repair")
         for key, old in before["active"].items():
             stage, format = key.split("/")
-            affected = component in ("common", stage, format)
+            affected = component in (
+                "common",
+                {"draft": "author", "review": "script-editor", "revise": "script-revision"}[stage],
+                format,
+            )
             assert (after["active"][key]["version"] != old["version"]) == affected
             assert (after["active"][key]["body"] != old["body"]) == affected
             if affected:
@@ -100,61 +105,20 @@ role_instructions_for_version("review", "solo", version={before["active"]["revie
     assert deployed_python(target, SNAPSHOT) == before
 
 
-@pytest.mark.parametrize("include_planning", [False, True])
-def test_instruction_set_reads_each_used_component_once(monkeypatch, include_planning):
-    reads = []
-    root = prompts.files("podgen.writing.prompts")
-
-    class Resource:
-        def __init__(self, path):
-            self.path = path
-
-        def joinpath(self, name):
-            return Resource(self.path.joinpath(name))
-
-        def read_bytes(self):
-            reads.append(self.path.name)
-            return self.path.read_bytes()
-
-    monkeypatch.setattr(prompts, "files", lambda _: Resource(root))
-    assembly = prompts.load_instruction_set("solo", include_planning=include_planning)
-    expected = ["common.md", "solo.md", "draft.md", "review.md", "revise.md"]
-    stages = {"draft", "review", "revise"}
-    if include_planning:
-        expected += ["plan.md", "plan-review.md", "plan-revise.md"]
-        stages |= {"plan", "plan-review", "plan-revise"}
-    assert reads == expected
-    assert set(assembly) == stages
-
-
-def test_content_id_is_exact_ordered_and_has_no_generated_header(monkeypatch, tmp_path):
-    current = tmp_path / "current"
-    current.mkdir()
-    components = [("common.md", b"same\r\n"), ("solo.md", b"format"), ("review.md", b"stage")]
-    for name, content in components:
-        (current / name).write_bytes(content)
-    monkeypatch.setattr(prompts, "files", lambda _: tmp_path)
-    source = json.dumps(
-        ["semantic-body/1", "review", "solo", [[name, data.decode()] for name, data in components]],
-        ensure_ascii=False,
-        separators=(",", ":"),
-    ).encode()
-    version = "whole-episode-a/sha256:" + hashlib.sha256(source).hexdigest()
-    body = prompts.role_instructions("review", "solo")
-    assert body == "same\r\n\n\nformat\n\nstage"
-    assert (
-        prompts._assemble("review", "solo", {name: data.decode() for name, data in components}).version
-        == version
-    )
-    (current / "common.md").write_bytes(b"same\n")
-    assert prompts.role_instructions("review", "solo") != body
-    # Reassigning the same concatenated bytes across component boundaries is also a different assembly.
-    (current / "common.md").write_bytes(b"same\r\n\n\nformat")
-    (current / "solo.md").write_bytes(b"")
-    assert (
-        prompts._assemble("review", "solo", prompts._read(current, [name for name, _ in components])).version
-        != version
-    )
+def test_content_id_hashes_actual_bytes_and_includes_are_explicit(monkeypatch, tmp_path):
+    root = tmp_path / "current"
+    root.mkdir()
+    (root / "common.md").write_bytes(b"same\r\n")
+    (root / "script-editor.md").write_bytes(b"{{include:common.md}}\nbody")
+    monkeypatch.setattr(composition, "files", lambda _: tmp_path)
+    prompt = prompts.load_role("review", "solo")
+    assert prompt.body == "same\r\n\nbody"
+    assert prompt.version == "whole-episode-a/sha256:" + hashlib.sha256(prompt.body.encode()).hexdigest()
+    (root / "common.md").write_bytes(b"edited\n")
+    assert prompts.load_role("review", "solo") != prompt
+    (root / "common.md").write_text("{{include:script-editor.md}}")
+    with pytest.raises(Exception, match="cyclic_writing_prompt_include"):
+        prompts.load_role("review", "solo")
 
 
 @pytest.mark.parametrize(
@@ -189,13 +153,19 @@ def test_installed_resume_and_replay_use_archived_bodies_without_prompt_files(
         monkeypatch.setattr(EvaluationJournal, "create_run", legacy_manifest)
     provider = FakeProvider()
 
-    def interrupt_before_review_count():
-        if len(provider.requests) == 1:
-            raise KeyboardInterrupt()
+    from podgen.runtime.models.gateway import ModelGateway
 
-    provider.on_count = interrupt_before_review_count
-    with pytest.raises(KeyboardInterrupt):
-        run(repo, command, loader, provider)
+    invoke = ModelGateway.invoke
+
+    def interrupt_before_review_count(gateway, invocation, *args, **kwargs):
+        if invocation["stage"] == "review":
+            raise KeyboardInterrupt()
+        return invoke(gateway, invocation, *args, **kwargs)
+
+    with monkeypatch.context() as interruption:
+        interruption.setattr(ModelGateway, "invoke", interrupt_before_review_count)
+        with pytest.raises(KeyboardInterrupt):
+            run(repo, command, loader, provider)
     journal = EvaluationJournal(repo, command.project_id)
     manifest = journal.manifest(command.run_id)
     assert journal.invocation(command.run_id, "revise") is None
@@ -203,7 +173,7 @@ def test_installed_resume_and_replay_use_archived_bodies_without_prompt_files(
     shutil.copytree(installed_package, target)
     # Neither active nor numbered source packages remain on this deployed host.
     resource_root = target / "podgen/writing/prompts"
-    for name in ("current", "v1", "v2", "v3"):
+    for name in ("current", "history"):
         shutil.rmtree(resource_root / name)
     config = tmp_path / "resume.json"
     config.write_text(
@@ -263,10 +233,13 @@ def test_numbered_history_preserves_original_universal_newline_semantics(version
         for format in ("solo", "dialogue")
     }
     directory = "v" + version.rsplit("/", 1)[1]
-    shutil.copytree(prompts.files("podgen.writing.prompts").joinpath(directory), tmp_path / directory)
-    common = tmp_path / directory / "common.md"
+    shutil.copytree(
+        composition.files("podgen.writing.prompts").joinpath("history", "numbered", directory),
+        tmp_path / "history" / "numbered" / directory,
+    )
+    common = tmp_path / "history" / "numbered" / directory / "common.md"
     common.write_bytes(common.read_bytes().replace(b"\n", b"\r\n"))
-    monkeypatch.setattr(prompts, "files", lambda _: tmp_path)
+    monkeypatch.setattr(composition, "files", lambda _: tmp_path)
     for (stage, format), body in before.items():
         assert prompts.role_instructions_for_version(stage, format, version=version) == body
 
@@ -276,7 +249,7 @@ def test_numbered_history_preserves_original_universal_newline_semantics(version
 def test_planning_current_public_api_matches_run_assembly(stage, format):
     assembled = prompts.load_instruction_set(format, include_planning=True)
     assert prompts.role_instructions(stage, format) == assembled[stage].body
-    with pytest.raises(ValueError, match="unknown_writing_stage"):
+    with pytest.raises(ValueError, match="unknown_historical_writing_role"):
         prompts.role_instructions_for_version(stage, format, version="whole-episode-a/3")
 
 
@@ -288,7 +261,7 @@ print(json.dumps({stage+'/'+format:dict(version=p.version,body=p.body)
 for format in ('solo','dialogue') for stage,p in load_instruction_set(format,include_planning=True).items()}))
 """
     before = deployed_python(installed_package, script)
-    path = installed_package / "podgen/writing/prompts/current/plan-review.md"
+    path = installed_package / "podgen/writing/prompts/current/plan-editor.md"
     original = path.read_bytes()
     try:
         path.write_bytes(original + b"\nSYNTHETIC revised plan editor guidance.\n")

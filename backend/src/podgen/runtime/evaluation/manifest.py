@@ -8,6 +8,7 @@ from uuid import uuid5
 
 from podgen.domain.contracts.common import CodeProducer
 from podgen.persistence.repository import timestamp
+from podgen.research.materials.contracts import is_research
 from podgen.writing import author_plan, ending_guidance, fact_context, prompt_cache, source_passages
 from podgen.writing.author_reply import contract_pin, offered
 from podgen.writing.behavior import resolve_behavior
@@ -15,12 +16,16 @@ from podgen.writing.model_references import CATALOG_KEY, bind_schema, preview_re
 from podgen.writing.plan_review_descriptions import PRESERVE_KEY
 from podgen.writing.planning_choice import KEY as PLANNING_KEY
 from podgen.writing.planning_duration import KEY as DURATION_KEY
+from podgen.writing.prompts import research_runtime
+from podgen.writing.prompts.snapshot import instruction_snapshot
 from podgen.writing.reader_schema import V2 as LEGACY_READER_SCHEMA_VERSION
 from podgen.writing.reading_audit.consistency import CURRENT as CONSISTENCY_VERSION
 from podgen.writing.reading_audit.consistency import KEY as CONSISTENCY_KEY
 from podgen.writing.reading_audit.memory_projection import KEY as MEMORY_KEY
 from podgen.writing.reading_audit.memory_projection import VERSION as MEMORY_VERSION
 from podgen.writing.research_materials.schemas import adapt as research_schema
+from podgen.writing.research_materials.source_instruction_variant import KEY as SOURCE_INSTRUCTIONS_KEY
+from podgen.writing.research_materials.source_instruction_variant import pin as pin_source_instructions
 from podgen.writing.revision.contracts import VERSION as REVISION_VERSION
 
 from . import source_tool_contract
@@ -35,6 +40,7 @@ from .wire_budget import input_budget_for_profile
 from .workflow import profile_for, prompt_stage, stages_for
 
 
+@instruction_snapshot()
 def create_manifest(repo, generation, command, journal, materials):
     if command.editorial_parent_run_id is not None:
         from .editorial_continuation.manifest import create
@@ -72,6 +78,7 @@ def create_manifest(repo, generation, command, journal, materials):
     prompts = {}
     schemas = {}
     prompt_versions = {}
+    source_variants = {}
     for stage in stages_for(command):
         profile = load_profile(generation, command.project_id, profile_for(command, stage), stage)
         behavior.validate_model(stage, profile)
@@ -85,13 +92,20 @@ def create_manifest(repo, generation, command, journal, materials):
                 role = "fact-verification"
         else:
             role = prompt_stage(stage)
-        prompt = behavior.instructions(role, materials.format)
-        from podgen.writing.research_materials.pinning import instructions as adapt_instructions
+        from podgen.writing.research_materials.pinning import role_instructions
 
-        instructions = source_tool_contract.instructions(
-            adapt_instructions(materials, role, prompt.body), stage, tools
-        )
-        prompt_versions[stage] = prompt.version
+        prompt = role_instructions(materials, role, behavior)
+
+        instructions = source_tool_contract.instructions(prompt.body, stage, tools)
+        from podgen.writing.prompts.composition import identity as prompt_identity
+
+        prompt_versions[stage] = prompt_identity(role, instructions)
+        if (
+            stage == "fact-review"
+            and role == "fact-review"
+            and is_research(getattr(materials, "packet", None))
+        ):
+            source_variants[stage] = pin_source_instructions(behavior, role, materials.format, instructions)
         prompt = repo.create(
             command.project_id,
             "PromptDefinition",
@@ -149,6 +163,12 @@ def create_manifest(repo, generation, command, journal, materials):
         materials_hash=materials_hash(payload),
         prompt_refs=prompts,
         role_instructions_versions=prompt_versions,
+        **(
+            {research_runtime.KEY: research_runtime.pin()}
+            if tools and tools["version"] in source_tool_contract.DURABLE_VERSIONS
+            else {}
+        ),
+        **({SOURCE_INSTRUCTIONS_KEY: source_variants} if source_variants else {}),
         anchor_repair_instructions=asdict(behavior.instructions("anchor-repair", materials.format)),
         behavior_profile=behavior.name,
         editorial_pass=behavior.editorial_pass,

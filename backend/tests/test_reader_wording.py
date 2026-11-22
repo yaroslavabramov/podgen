@@ -62,10 +62,17 @@ def test_current_schema_reconstructs_the_story_before_assigning_structural_and_l
 def test_worked_edits_are_bound_to_the_full_reader_prompt_only():
     from hashlib import sha256
 
-    examples = ROOT / "backend/src/podgen/writing/prompts/examples/reader-edits.md"
+    examples = ROOT / "backend/tests/fixtures/writing-instructions/reader-wording/reader-edits.md"
     samples = examples.read_text()
     assert samples.count("- Draft:") == samples.count("- Assignment:") == samples.count("- Edited:") == 3
-    prompt = load_reading_instructions("reader-review")
+    from podgen.writing.prompts import RoleInstructions
+
+    text = (
+        (ROOT / "backend/tests/fixtures/writing-instructions/reader-wording/reader-review.md").read_text()
+        + "\n"
+        + samples
+    )
+    prompt = RoleInstructions("reader-review/sha256:" + sha256(text.encode()).hexdigest(), text)
     assert prompt.body.endswith(samples)
     assert prompt.version == "reader-review/sha256:" + sha256(prompt.body.encode()).hexdigest()
     assert all(samples not in load_reading_instructions(role).body for role in ("fact-review", "dual-revise"))

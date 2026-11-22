@@ -1,85 +1,68 @@
-"""Planner instructions have only planning dependencies, in source and installed wheels."""
+"""Active Markdown composition has explicit, role-owned dependencies and byte identities."""
 
 import hashlib
-import json
 
 import pytest
 
 from podgen.writing import prompts
+from podgen.writing.prompts import composition
 from tests.test_prompt_resources import deployed_python
 from tests.test_prompt_resources import installed_package as installed_package
 
 SNAPSHOT = """
 import json
-from podgen.writing.prompts import load_instruction_set, role_instructions
-result = {}
-for format in ('solo','dialogue'):
-    for stage,prompt in load_instruction_set(format,include_planning=True).items():
-        assert role_instructions(stage,format) == prompt.body
-        result[stage+'/'+format] = dict(version=prompt.version,body=prompt.body)
-print(json.dumps(result))
+from podgen.writing.prompts import load_instruction_set
+print(json.dumps({stage+'/'+fmt:dict(version=p.version,body=p.body)
+for fmt in ('solo','dialogue') for stage,p in load_instruction_set(fmt,include_planning=True).items()}))
 """
 
 
-def test_planning_roles_read_no_shared_or_format_resource(monkeypatch, tmp_path):
+def test_planner_and_revision_have_no_implicit_format_or_common_dependencies(monkeypatch, tmp_path):
     current = tmp_path / "current"
     current.mkdir()
-    plan, revision = "Choose the story.\r\n", "Revise that chosen story.\n"
-    (current / "plan.md").write_bytes(plan.encode())
-    (current / "plan-revise.md").write_bytes(revision.encode())
-    editor = "Assess the whole telling.\n"
-    (current / "plan-review.md").write_bytes(editor.encode())
-    monkeypatch.setattr(prompts, "files", lambda _: tmp_path)
+    (current / "planner.md").write_bytes(b"Choose the story.\r\n")
+    (current / "plan-revision.md").write_bytes(b"{{include:planner.md}}\n\nRevise.\n")
+    monkeypatch.setattr(composition, "files", lambda _: tmp_path)
     for format in ("solo", "dialogue"):
-        assert prompts.role_instructions("plan-review", format) == editor
-        assert prompts.role_instructions("plan", format) == plan
-        assert prompts.role_instructions("plan-revise", format) == plan + "\n\n" + revision
+        assert prompts.role_instructions("plan", format) == "Choose the story.\r\n"
+        assert prompts.role_instructions("plan-revise", format) == "Choose the story.\r\n\n\nRevise.\n"
 
 
 @pytest.mark.parametrize("format", ["solo", "dialogue"])
-def test_current_assemblies_use_exact_owned_components_and_preserve_other_ids(format):
-    root = prompts.files("podgen.writing.prompts").joinpath("current")
-
-    def text(name):
-        return root.joinpath(name).read_bytes().decode()
-
+def test_current_ids_hash_actual_bodies_and_planning_format_is_explicit(format):
     assembled = prompts.load_instruction_set(format, include_planning=True)
-    assert assembled["plan"].body == text("plan.md")
-    assert assembled["plan-revise"].body == text("plan.md") + "\n\n" + text("plan-revise.md")
-    other_format = "solo" if format == "dialogue" else "dialogue"
-    other = prompts.load_instruction_set(other_format, include_planning=True)
+    other = prompts.load_instruction_set("dialogue" if format == "solo" else "solo", include_planning=True)
     assert assembled["plan"] == other["plan"]
     assert assembled["plan-revise"] == other["plan-revise"]
-
-    assert assembled["plan-review"] == other["plan-review"]
-    assert assembled["plan-review"].body == text("plan-review.md")
-
-    for stage in ("draft", "review", "revise"):
-        parts = [[name, text(name)] for name in ("common.md", format + ".md", stage + ".md")]
-        source = json.dumps(
-            ["semantic-body/1", stage, format, parts], ensure_ascii=False, separators=(",", ":")
-        ).encode()
-        assert assembled[stage].version == "whole-episode-a/sha256:" + hashlib.sha256(source).hexdigest()
-        assert assembled[stage].body == "\n\n".join(part[1] for part in parts)
+    assert assembled["plan-review"] != other["plan-review"]
+    for prompt in assembled.values():
+        assert prompt.version == "whole-episode-a/sha256:" + hashlib.sha256(prompt.body.encode()).hexdigest()
+        assert "{{include:" not in prompt.body
 
 
-@pytest.mark.parametrize("component", ["common", "solo", "dialogue", "plan", "plan-revise", "plan-review"])
+@pytest.mark.parametrize(
+    "component", ["common", "solo", "dialogue", "planner", "plan-revision", "plan-editor"]
+)
 def test_installed_planning_content_ids_follow_actual_components(installed_package, component):
     before = deployed_python(installed_package, SNAPSHOT)
     path = installed_package / "podgen/writing/prompts/current" / (component + ".md")
     original = path.read_bytes()
     try:
-        path.write_bytes(original + b"\nSYNTHETIC dependency edit.\r\n")
+        path.write_bytes(
+            original.replace(b"{{endsection}}", b"\nSYNTHETIC dependency edit.\r\n{{endsection}}")
+            if component == "planner"
+            else original + b"\nSYNTHETIC dependency edit.\r\n"
+        )
         after = deployed_python(installed_package, SNAPSHOT)
         expected = set()
         for key in before:
             stage, format = key.split("/")
             dependencies = (
-                {stage}
-                if stage in ("plan", "plan-review")
-                else {"plan", "plan-revise"}
+                {"planner"}
+                if stage == "plan"
+                else {"planner", "plan-revision"}
                 if stage == "plan-revise"
-                else {"common", format, stage}
+                else {"common", format, composition.ROLES[stage]}
             )
             if component in dependencies:
                 expected.add(key)

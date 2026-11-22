@@ -23,7 +23,12 @@ from .web_search import context_limit
 
 
 class ResearchContext:
-    def __init__(self, gateway, root, profile, original, history, guard, *, history_view=None):
+    def __init__(
+        self, gateway, root, profile, original, history, guard, *, history_view=None, runtime_texts=None
+    ):
+        from podgen.writing.prompts.research_runtime import legacy
+
+        self.runtime_texts = runtime_texts if runtime_texts is not None else legacy()
         self.gateway, self.root, self.profile = gateway, root, profile
         self.original, self.history, self.guard = original, history, guard
         self.journal = gateway.journal
@@ -184,7 +189,9 @@ class ResearchContext:
                     dict(turn_index=index, conversation_hash=digest(body), checkpoint=checkpoint),
                 )
             )
-        result = research_window.checkpoint_request(body) if checkpoint else body
+        result = (
+            research_window.checkpoint_request(body, instructions=self.runtime_texts) if checkpoint else body
+        )
         required = (
             self.measured(result, index, "checkpoint" if checkpoint else "normal") + self.profile.output_limit
         )
@@ -196,7 +203,9 @@ class ResearchContext:
         ):
             # An unexpectedly large result arrived after the previous request fit.
             # Its full exchange stays in the archived segment and remains readable.
-            result = research_window.checkpoint_request(body, prior_input_items=prior_input_items)
+            result = research_window.checkpoint_request(
+                body, prior_input_items=prior_input_items, instructions=self.runtime_texts
+            )
             research_window.preserve_deferred(self, index, result, body["input"][prior_input_items:])
             required = self.measured(result, index, "checkpoint") + self.profile.output_limit
         if required > context_limit(result, self.profile):

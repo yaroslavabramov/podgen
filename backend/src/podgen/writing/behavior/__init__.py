@@ -1,15 +1,15 @@
-"""Released writing behavior. Prompt bodies are shared, addressed by their exact UTF-8 bytes."""
+"""Behavior policies with editable production prompts and immutable historical releases."""
 
 import hashlib
-import json
+from collections.abc import Mapping
 from dataclasses import dataclass
-from functools import lru_cache
 from importlib.resources import files
 from typing import Literal
 
 from podgen.domain.errors import ContractError
 from podgen.writing.projection_versions import V9
-from podgen.writing.prompts import RoleInstructions
+from podgen.writing.prompts import RoleInstructions, load_role
+from podgen.writing.prompts.composition import read
 
 ProfileName = Literal[
     "production/1",
@@ -31,7 +31,7 @@ ROOT = files(__name__)
 class BehaviorProfile:
     name: ProfileName
     editorial_pass: int
-    resources: dict
+    resources: Mapping
     planning_contract: str | None
     planning_duration: str | None
     selection: str | None
@@ -39,6 +39,7 @@ class BehaviorProfile:
     reader_schema: str
     reading_audience_from_brief: bool
     projection: str = V9
+    prompt_source: Literal["current", "history"] = "history"
 
     @property
     def fact_context(self):
@@ -92,7 +93,9 @@ class BehaviorProfile:
             return "editorial-recheck/3"
         return "editorial-recheck/1" if self.name in CANDIDATES else None
 
-    def instructions(self, role, format):
+    def instructions(self, role, format, *, sources="cards"):
+        if self.prompt_source == "current":
+            return load_role(role, format, sources=sources)
         if role in ("anchor-repair", "plan-target-repair"):
             entry = self.resources["repairs"][role]
         elif role in (
@@ -106,13 +109,16 @@ class BehaviorProfile:
             entry = self.resources["readings"][key]
         else:
             entry = self.resources["formats"][format][role]
-        return RoleInstructions(entry["version"], _body(entry["sha256"]))
+        return RoleInstructions(entry["version"], _body(entry))
 
     def craft(self, language):
         if language.lower().replace("_", "-").split("-")[0] != "ru":
             return None
-        identity = self.resources["craft_ru"]
-        return dict(language="ru", text=_body(identity), sha256=identity)
+        if self.prompt_source == "current":
+            text = read("style-reference-ru.md")
+            return dict(language="ru", text=text, sha256=hashlib.sha256(text.encode()).hexdigest())
+        entry = self.resources["craft_ru"]
+        return dict(language="ru", text=_body(entry), sha256=entry["sha256"])
 
     def audience(self, assignment):
         return (
@@ -158,15 +164,13 @@ class BehaviorProfile:
             raise ContractError("behavior_model_profile_mismatch", stage)
 
 
-@lru_cache
-def _body(identity):
-    raw = ROOT.joinpath("assets", identity + ".md").read_bytes()
-    if hashlib.sha256(raw).hexdigest() != identity:
+def _body(entry):
+    raw = read(entry["path"], historical=True).encode("utf-8")
+    if hashlib.sha256(raw).hexdigest() != entry["sha256"]:
         raise ContractError("released_writing_asset_hash_mismatch")
-    return raw.decode()
+    return raw.decode("utf-8")
 
 
-@lru_cache
 def resolve_behavior(name=None, editorial_pass=1):
     name = DEFAULT if name is None else name
     if (
@@ -177,22 +181,20 @@ def resolve_behavior(name=None, editorial_pass=1):
     ):
         raise ContractError("unknown_writing_behavior")
     modern = name == "existing/1"
-    catalog = ("existing-1" if modern else "narrative-rebuild-1") + ".json"
-    resources = json.loads(ROOT.joinpath(catalog).read_text(encoding="utf-8"))
-    overlays = CANDIDATES[: CANDIDATES.index(name) + 1] if name in CANDIDATES else ()
-    if name in ("narrative-rebuild/2", PRODUCTION):
-        overlays = (name,)
-    for release in overlays:
-        # Each overlay inherits the preceding release and replaces only its owned roles.
-        overlay = ROOT.joinpath(
-            "production.json" if release == PRODUCTION else release.replace("/", "-") + ".json"
+    if name == PRODUCTION:
+        from .resources import CurrentResources
+
+        resources = CurrentResources()
+    else:
+        catalog = ("existing-1" if modern else "narrative-rebuild-1") + ".json"
+        from .resources import ReleasedResources
+
+        overlays = CANDIDATES[: CANDIDATES.index(name) + 1] if name in CANDIDATES else ()
+        if name == "narrative-rebuild/2":
+            overlays = (name,)
+        resources = ReleasedResources(
+            catalog, tuple(release.replace("/", "-") + ".json" for release in overlays)
         )
-        if not overlay.is_file():
-            raise ContractError("writing_behavior_not_released", name)
-        change = json.loads(overlay.read_text(encoding="utf-8"))
-        for fmt, roles in change["formats"].items():
-            resources["formats"][fmt].update(roles)
-        resources["readings"].update(change["readings"])
     return BehaviorProfile(
         name,
         editorial_pass,
@@ -211,4 +213,5 @@ def resolve_behavior(name=None, editorial_pass=1):
         if modern
         else "listener-experience/5",
         modern,
+        prompt_source="current" if name == PRODUCTION else "history",
     )

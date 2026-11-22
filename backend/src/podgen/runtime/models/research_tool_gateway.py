@@ -14,7 +14,7 @@ from podgen.runtime.evaluation.source_tool_contract import (
     role_definitions,
     window_policy,
 )
-from podgen.writing.research_materials.fact_navigation import enabled as navigation_enabled
+from podgen.writing.research_materials.fact_navigation import history_enabled as navigation_enabled
 
 from . import research_window, web_search
 from .contracts import WireReply
@@ -99,8 +99,17 @@ def _invoke(gateway, root, profile, contract, *, limits, totals, guard):
     if corpus.material_resolver is not None:
         proxy.restore(corpus.material_resolver.restore(run_id=root["run_id"], guard=guard))
         corpus.refresh()
+    from podgen.writing.prompts.research_runtime import from_manifest as runtime_texts
+
     context = ResearchContext(
-        gateway, root, profile, task, history, guard, history_view=contract.get("history_view")
+        gateway,
+        root,
+        profile,
+        task,
+        history,
+        guard,
+        history_view=contract.get("history_view"),
+        runtime_texts=runtime_texts(manifest_snapshot),
     )
     segment = history.latest("source_context_segment")
     segment_start = segment["data"]["next_turn"] if segment else 0
@@ -218,6 +227,7 @@ def _invoke(gateway, root, profile, contract, *, limits, totals, guard):
                     call_index,
                     index,
                     guard,
+                    runtime_texts=context.runtime_texts,
                 )
                 continue
             text = gateway._output_text(root, response, web_search=search_enabled)

@@ -11,7 +11,6 @@ from .web_search import context_limit
 
 FACT_KEY = "fact_context_policy"
 MEASURED = "measured-fact-window/1"
-CHECKPOINT = "Before this model window fills, save complete working notes and a separate compact resume_state using save_working_state. Do not issue an editorial verdict. All full messages and receipts remain available through work history."
 
 
 def needs_checkpoint(body, profile, measured_input, policy):
@@ -25,16 +24,15 @@ def needs_checkpoint(body, profile, measured_input, policy):
     return measured_input + 2 * output + 4 * 9600 >= window
 
 
-def checkpoint_request(body, *, prior_input_items=None):
+def checkpoint_request(body, *, prior_input_items=None, instructions=None):
+    from podgen.writing.prompts.research_runtime import legacy
+
+    instructions = instructions if instructions is not None else legacy()
     inputs = body["input"]
-    instruction = CHECKPOINT
+    instruction = instructions["checkpoint"]
     if prior_input_items is not None:
         inputs = inputs[:prior_input_items]
-        instruction += (
-            " The latest exchange was too large to include in this checkpoint. Mark it as pending"
-            " in resume_state. After resuming, reopen the end of this archived conversation"
-            " through list_work_history and read_work_history."
-        )
+        instruction += instructions["deferred"]
     result = deepcopy(
         dict(body, input=inputs, tools=[t for t in body["tools"] if t.get("name") == "save_working_state"])
     )
@@ -59,7 +57,9 @@ def preserve_deferred(context, index, request, tail):
     blob = phase.blob(json.dumps(tail, ensure_ascii=False, allow_nan=False, separators=(",", ":")).encode())
     phase.event(
         "source_context_deferred_exchange",
-        data=dict(turn_index=index, checkpoint_input_hash=binding, exchange_blob=blob.model_dump(mode="json")),
+        data=dict(
+            turn_index=index, checkpoint_input_hash=binding, exchange_blob=blob.model_dump(mode="json")
+        ),
         history=context.history,
     )
     phase.commit()

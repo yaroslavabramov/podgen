@@ -33,6 +33,8 @@ class SourceOnlyProvider:
     def submit(self, body, *, client_request_id):
         self.requests.append(deepcopy(body))
         assert body["metadata"]["podgen_stage"] == "fact-review"
+        assert any(tool.get("type") == "web_search" for tool in body["tools"])
+        assert "web_search_call.action.sources" in body.get("include", [])
         data = request_payload(dict(body, input=[x for x in body["input"] if x.get("role") == "user"]))
         assert "research_contents" not in data and "research_results" not in data
         if len(self.requests) == 1:
@@ -47,7 +49,24 @@ class SourceOnlyProvider:
                     status="completed",
                 )
             ]
+        elif len(self.requests) == 2:
+            output = [
+                dict(
+                    type="function_call",
+                    call_id="reopen_read",
+                    name="read_work_history",
+                    arguments=json.dumps(dict(kind="tool_result", index=0, start=0, end=None)),
+                    status="completed",
+                )
+            ]
         else:
+            reopened = next(
+                json.loads(item["output"])
+                for item in body["input"]
+                if item.get("type") == "function_call_output" and item["call_id"] == "reopen_read"
+            )
+            assert reopened["start"] == 0 and reopened["end"] <= 9600
+            assert "E1" in reopened["text"]
             script = dict(
                 utterances=[
                     {k: v for k, v in row.items() if k != "index"} for row in data["script"]["utterances"]
@@ -113,9 +132,34 @@ def test_fact_only_runner_pins_once_reads_sources_and_never_repeats_completed_wo
         max_plan_revisions=1,
         max_script_revisions=2,
     )
+    from podgen.writing.prompts import composition
+    from podgen.writing.research_materials.source_instruction_variant import KEY as VARIANTS
+
+    read = composition.read
+    words = "SYNTHETIC current wording before the source run."
+    monkeypatch.setattr(
+        composition,
+        "read",
+        lambda path, **kw: read(path, **kw) + ("\n" + words if path == "fact-review.md" else ""),
+    )
     WritingEvaluation(repo, lambda _: ResearchProvider()).run(command)
+    source_manifest = EvaluationJournal(repo, project).manifest(command.run_id)
+    assert set(source_manifest[VARIANTS]) == {"fact-review"}
+    assert words in source_manifest[VARIANTS]["fact-review"]["body"]
+    words = "SYNTHETIC changed again after the source run."
+
     generation, journal, run_id = generation_repo(repo), EvaluationJournal(repo, project), uuid4()
     prepared = prepare(repo, generation, journal, command.run_id, run_id)
+    assert "SYNTHETIC current wording before the source run." in prepared.body["instructions"]
+    assert words not in prepared.body["instructions"]
+    with monkeypatch.context() as frozen:
+        frozen.setattr(
+            composition,
+            "historical_adapter",
+            lambda *a, **kw: pytest.fail("Fresh report-off used the frozen fingerprint index"),
+        )
+        repeated = prepare(repo, generation, journal, command.run_id, run_id)
+    assert repeated.body == prepared.body
     initial_hash = digest(prepared.body)
     assert prepared.command.reviewer_profile_ref == command.reviewer_profile_ref
     assert {row["source_id"] for row in prepared.sources} == {
@@ -139,7 +183,7 @@ def test_fact_only_runner_pins_once_reads_sources_and_never_repeats_completed_wo
         metrics,
         tmp_path / "result",
     )
-    assert len(provider.requests) == 2
+    assert len(provider.requests) == 3
     assert result.output["findings"][0]["support_labels"] == []
     assert journal.invocation(run_id, "draft") is None
     assert journal.invocation(run_id, "reader-review") is None
@@ -156,6 +200,6 @@ def test_fact_only_runner_pins_once_reads_sources_and_never_repeats_completed_wo
         metrics,
         tmp_path / "replay",
     )
-    assert len(provider.requests) == 2
+    assert len(provider.requests) == 3
     with pytest.raises(ContractError, match="standalone_fact_experiment_requires_its_runner"):
         WritingEvaluation(repo, lambda _: pytest.fail("full workflow invoked")).run(prepared.command)

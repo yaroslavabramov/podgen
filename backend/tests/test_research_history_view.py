@@ -54,6 +54,7 @@ def test_checkpoint_history_is_semantic_for_new_runs_and_exact_for_existing_runs
         contract["version"] = "frozen-corpus-tools/7"
         contract.pop("fact_research_navigation")
         contract.pop("targeted_report_delivery")
+        contract.pop("role_tool_scope")
         contract.pop("fact_context_policy")
         contract.pop("fact_request_research")
         contract.pop("web_search_receipt_contract")

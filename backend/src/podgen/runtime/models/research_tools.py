@@ -4,6 +4,7 @@ from uuid import uuid5
 
 from podgen.domain.contracts.common import BlobRef
 from podgen.domain.errors import Conflict, ContractError
+from podgen.writing.research_materials.runtime_tools import REPORT_SELECTION_STAGES
 
 from . import research_history_view, search_argument_errors
 
@@ -99,7 +100,7 @@ class ResearchTools:
             self.corpus.refresh()
             return resolution.result
         if name == "select_research_result":
-            if self.root["stage"] not in {"plan", "plan-revise", "plan-review", "plan-review-revised"}:
+            if self.root["stage"] not in REPORT_SELECTION_STAGES:
                 return dict(error="research_selection_requires_planner")
             if args["result_id"] not in self.corpus.supplemental_reports:
                 return dict(error="unknown_research_result")

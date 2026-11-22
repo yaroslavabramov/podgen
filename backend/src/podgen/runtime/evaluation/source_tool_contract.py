@@ -13,6 +13,12 @@ from podgen.runtime.models.search_argument_errors import VERSION as SEARCH_ARGUM
 from podgen.writing.research_materials.fact_navigation import KEY as NAVIGATION_KEY
 from podgen.writing.research_materials.fact_navigation import VERSION as NAVIGATION_VERSION
 from podgen.writing.research_materials.fact_navigation import enabled as navigation_enabled
+from podgen.writing.research_materials.fact_navigation import history_enabled
+from podgen.writing.research_materials.runtime_tools import (
+    REPORT_SELECTION_STAGES,
+    ROLE_TOOL_KEY,
+    ROLE_TOOL_VERSION,
+)
 
 from .reading_workflow import base_stage
 
@@ -66,6 +72,7 @@ def create(behavior, materials=None):
             **{SEARCH_ARGUMENT_KEY: SEARCH_ARGUMENT_VERSION, web_search.KEY: web_search.CURRENT},
             **{NAVIGATION_KEY: NAVIGATION_VERSION},
             **{REPORT_DELIVERY_KEY: REPORT_DELIVERY_VERSION},
+            **{ROLE_TOOL_KEY: ROLE_TOOL_VERSION},
             **{research_window.FACT_KEY: research_window.MEASURED},
             fact_request_research=targeted_definition(history_view),
             web_search_definition=dict(type="web_search", search_context_size="low"),
@@ -207,6 +214,10 @@ def validate_durable(manifest, value):
             raise ContractError("unsupported_fact_research_navigation")
         fields.add(NAVIGATION_KEY)
     mode = value.get(KEY)
+    if ROLE_TOOL_KEY in value:
+        if value["version"] != CURRENT_RESEARCH_VERSION or value[ROLE_TOOL_KEY] != ROLE_TOOL_VERSION:
+            raise ContractError("unsupported_role_tool_scope")
+        fields.add(ROLE_TOOL_KEY)
     if REPORT_DELIVERY_KEY in value:
         if (
             value["version"] != CURRENT_RESEARCH_VERSION
@@ -260,11 +271,15 @@ def instructions(body, stage, contract):
     if contract is not None and contract["version"] in DURABLE_VERSIONS and applies(stage, contract):
         from podgen.writing.research_materials.runtime_instructions import attach
 
-        result = attach(body, anchored=anchored_research(contract, stage))
+        result = attach(
+            body,
+            anchored=anchored_research(contract, stage),
+            planning_selection=offers_report_selection(contract, stage),
+        )
         if navigation_enabled(contract, stage):
-            from podgen.writing.research_materials.fact_navigation import BODY
+            from podgen.writing.research_materials.fact_navigation import attach as attach_navigation
 
-            result += "\n\n# Existing investigations and repeated search results\n\n" + BODY
+            result = attach_navigation(result)
         return result
     return body
 
@@ -287,8 +302,14 @@ def quick_search(contract, stage, provider):
     )
 
 
+def offers_report_selection(contract, stage):
+    return ROLE_TOOL_KEY not in contract or stage in REPORT_SELECTION_STAGES
+
+
 def role_definitions(contract, stage, provider):
     result = deepcopy(contract["definitions"])
+    if not offers_report_selection(contract, stage):
+        result = [t for t in result if t["name"] != "select_research_result"]
     if anchored_research(contract, stage):
         result = [
             deepcopy(contract["fact_request_research"]) if t["name"] == "request_research" else t
@@ -299,7 +320,7 @@ def role_definitions(contract, stage, provider):
         search["description"] += SEARCH_PAGING
     if quick_search(contract, stage, provider):
         result.append(deepcopy(contract["web_search_definition"]))
-    if navigation_enabled(contract, stage):
+    if history_enabled(contract, stage):
         for tool in result:
             if tool.get("name") == "search_sources":
                 tool["description"] += (

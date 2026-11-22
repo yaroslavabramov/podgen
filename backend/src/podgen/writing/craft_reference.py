@@ -12,7 +12,7 @@ def load_reference(output_language):
     language = output_language.lower().replace("_", "-").split("-")[0]
     if language != "ru":
         return None
-    resource = files("podgen.writing.prompts").joinpath("examples", "ru.md")
+    resource = files("podgen.writing.prompts").joinpath("current", "style-reference-ru.md")
     if not resource.is_file():
         raise ContractError("craft_reference_unavailable")
     raw = resource.read_bytes()

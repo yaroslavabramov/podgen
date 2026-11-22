@@ -3,9 +3,9 @@
 import hashlib
 import json
 from copy import deepcopy
-from pathlib import Path
 
 import pytest
+
 from podgen.persistence.editorial_inputs import EditorialMaterials
 from podgen.runtime.evaluation.preview import preview_request
 from podgen.runtime.evaluation.preview_snapshot import PreviewSnapshot
@@ -16,12 +16,11 @@ from podgen.writing.editorial_contract import EditorialInput
 from podgen.writing.model_references import bind_schema, run_references
 from podgen.writing.projections import role_payload
 from podgen.writing.reading_views import reading_payload
-
 from tests.schema_cases import without_descriptions
 from tests.source_excerpt_cases import data_and_profile, release
 from tests.test_planning_v9 import selected
+from tests.writing_instruction_history import historical_instructions
 
-ASSETS = Path(__file__).parents[1] / "src/podgen/writing/behavior/assets"
 STAGES = ("plan", "plan-revise", "plan-review", "plan-review-revised")
 PREVIOUS = dict(
     plan="2219c9245f9efe29c975e9ba6c89eb915fcd889f7427a49fa224b4403bf650cc",
@@ -109,7 +108,7 @@ def test_full_requests_replay_all_planning_branches_without_changing_payload(mon
     for stage in STAGES:
         role = "plan-review" if stage.startswith("plan-review") else stage
         identity = PREVIOUS[role + "-" + format if role == "plan-review" else role]
-        previous = (ASSETS / f"{identity}.md").read_text()
+        previous = historical_instructions(identity)
         assert hashlib.sha256(previous.encode()).hexdigest() == identity
         current = resolve_behavior().instructions(role, format).body
         old["response_schemas"][stage] = bind_schema(

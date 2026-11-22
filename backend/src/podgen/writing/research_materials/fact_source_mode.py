@@ -68,15 +68,15 @@ def schema(value):
     return result
 
 
-def request(body, mode):
+def request(body, mode, *, source_instruction_variant=None):
     if validate(mode) is None:
         return body
     if body["metadata"]["podgen_stage"] != "fact-review":
         raise ContractError("fact_source_only_requires_initial_fact_review")
-    from .fact_source_instructions import adapt
+    from .source_instruction_variant import resolve
 
     result = deepcopy(body)
-    result["instructions"] = adapt(result["instructions"])
+    result["instructions"] = resolve(source_instruction_variant, result["instructions"])
     result["tools"] = tools(result["tools"])
     result["text"]["format"]["schema"] = schema(result["text"]["format"]["schema"])
     for message in result["input"]:
