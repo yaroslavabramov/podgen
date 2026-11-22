@@ -22,6 +22,7 @@ from podgen.writing.planning_v9 import PlanningOutputV9
 from podgen.writing.projection_versions import V3, V8
 from podgen.writing.projections import creative_knowledge_view
 
+from tests import FIXTURES
 from tests.historical_preview import replay_preview as preview_request
 from tests.historical_revisions import historical_revision_manifest
 from tests.test_editorial_independence import invoke, payload, prepare
@@ -34,7 +35,7 @@ ROOT = Path(__file__).resolve().parents[2]
 
 
 def snow_plan():
-    return json.loads((ROOT / "evals/reports/2026-11-06-snow-investigation-opening/plan.json").read_text())
+    return json.loads((FIXTURES / "planning/snow-six-act.json").read_text())
 
 
 def test_new_and_legacy_plan_shapes_roundtrip_without_manufacturing_or_losing_fields(review_payload):
@@ -234,9 +235,7 @@ def test_ordinary_new_plan_review_revision_author_and_dual_revision_without_obli
     own["review_mode"] = "independent-readings/1"
     old = json.loads((ROOT / "evals/editorial-inputs/v1/snow-pump/fixed-plan.json").read_text())["plan"]
     initial = current_planner_reply(old)
-    script = json.loads(
-        (ROOT / "evals/reports/2026-11-05-planning/own-plan/snow-pump/draft.json").read_text()
-    )["output"]
+    script = json.loads((FIXTURES / "scripts/snow-draft.json").read_text())
     provider = CurrentPlanProvider(("revise", "keep"))
     provider.break_target = repair_target
     provider.upstream = QuestionFlowProvider(initial, script, "Как проверить основания решения?")

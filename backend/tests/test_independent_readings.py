@@ -6,7 +6,6 @@ from pathlib import Path
 from uuid import uuid4
 
 import pytest
-
 from podgen import writing_cli
 from podgen.domain.contracts.common import RuntimeRef
 from podgen.research_writing_cli import main as research_main
@@ -16,6 +15,8 @@ from podgen.runtime.evaluation.reading_outcome import read_outcome
 from podgen.runtime.evaluation.reading_workflow import VERSION
 from podgen.runtime.models.contracts import WireReply
 from podgen.writing.prompts import load_reading_instructions
+
+from tests import FIXTURES
 from tests.author_responses import author_response
 from tests.independent_planner_provider import IndependentPlannerProvider
 from tests.test_editorial_independence import invoke, payload, prepare
@@ -185,9 +186,7 @@ class ReadingProvider:
 def setup_review(dataset, directory, monkeypatch):
     prefix, common, _, _, _ = prepare(dataset, "snow-pump", directory, monkeypatch)
     common.pop("review_mode")  # Exercise the ordinary default, not a special review harness.
-    script = json.loads(
-        (ROOT / "evals/reports/2026-11-05-planning/own-plan/snow-pump/draft.json").read_text()
-    )["output"]
+    script = json.loads((FIXTURES / "scripts/snow-draft.json").read_text())
     source, ref = directory / "script.json", directory / "script-ref.json"
     source.write_text(json.dumps(script, ensure_ascii=False))
     assert invoke(prefix, "script-import", file=source, out=ref) == 0

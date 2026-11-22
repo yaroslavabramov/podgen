@@ -5,15 +5,15 @@ from copy import deepcopy
 from pathlib import Path
 
 import pytest
-from pydantic import ValidationError
-
 from podgen.runtime.evaluation.role_schema import response_schema
 from podgen.writing.anchor_selection import AnchorChoices, AnchorRepairPlan
 from podgen.writing.projections import actionable_feedback
 from podgen.writing.reader_feedback import ReaderFeedback
 from podgen.writing.reader_schema import V1, VERSION
 from podgen.writing.roles import WriteOutput
-from tests.test_script_handoff import wire_hash
+from pydantic import ValidationError
+
+from tests.schema_cases import wire_hash
 from tests.test_v5_role_wire import fixture
 
 

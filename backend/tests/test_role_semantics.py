@@ -2,7 +2,6 @@
 
 import hashlib
 import json
-from pathlib import Path
 from uuid import uuid4
 
 import pytest
@@ -15,45 +14,44 @@ from podgen.writing.editorial_contract import EditorialInput
 from podgen.writing.projection_versions import CURRENT, V1, V2, V3, V8, V9
 from podgen.writing.projections import role_payload
 
+from tests import FIXTURES
 from tests.historical_revisions import historical_revision_manifest
 from tests.independent_planner_provider import IndependentPlannerProvider
 from tests.test_editorial_independence import invoke, payload
 from tests.test_editorial_inputs import editorial as editorial
 
-ROOT = Path(__file__).resolve().parents[2]
-ARCHIVE = ROOT / "evals/reports/2026-11-06-gps-clean-run"
+GPS_CASE = FIXTURES / "role-projection/gps"
 
 
 def archived_materials():
-    packet = EditorialInput.model_validate_json((ARCHIVE / "research-input.json").read_bytes())
+    packet = EditorialInput.model_validate_json((GPS_CASE / "research-input.json").read_bytes())
     return EditorialMaterials(packet, RuntimeRef(record_kind="user_input", record_id=uuid4()), ())
 
 
 def test_v1_projection_and_schemas_reproduce_real_legacy_wire():
     materials = archived_materials()
-    plan = json.loads((ARCHIVE / "accepted-plan.json").read_text())["output"]
-    for stage, file in (("plan", "planner-request.json"), ("draft", "writer-request.json")):
-        request = json.loads((ARCHIVE / file).read_text())
-        before = role_payload(
+    plan = json.loads((GPS_CASE / "accepted-plan.json").read_text())
+    expected = json.loads((GPS_CASE / "v1-request-hashes.json").read_text())
+    for stage in ("plan", "draft"):
+        view = role_payload(
             stage, materials, approved_plan=plan if stage == "draft" else None, projection_version=V1
         )
+        payload = json.dumps(view, ensure_ascii=False, separators=(",", ":")).encode()
+        schema = response_schema(stage, "editorial-role-packets/1", projection_version=V1)
+        assert hashlib.sha256(payload).hexdigest() == expected[stage]["payload_sha256"]
         assert (
-            json.dumps(before, ensure_ascii=False, separators=(",", ":"))
-            == request["input"][0]["content"][0]["text"]
-        )
-        assert (
-            response_schema(stage, "editorial-role-packets/1", projection_version=V1)
-            == request["text"]["format"]["schema"]
+            hashlib.sha256(json.dumps(schema, sort_keys=True).encode()).hexdigest()
+            == expected[stage]["schema_sha256"]
         )
 
 
 @pytest.mark.parametrize("projection", [V8, V9])
 def test_legacy_plan_meaning_is_preserved_without_a_second_reference_script(projection):
     materials = archived_materials()
-    plan = json.loads((ARCHIVE / "accepted-plan.json").read_text())["output"]
+    plan = json.loads((GPS_CASE / "accepted-plan.json").read_text())
     original = json.dumps(plan, ensure_ascii=False)
-    draft = json.loads((ARCHIVE / "draft.json").read_text())["output"]
-    feedback = json.loads((ARCHIVE / "script-review.json").read_text())["output"]
+    draft = json.loads((GPS_CASE / "draft.json").read_text())
+    feedback = json.loads((GPS_CASE / "script-review.json").read_text())
     author = role_payload("draft", materials, approved_plan=plan, projection_version=projection)
     if projection == V8:
         assert author["story"]["conclusion"]["meaning"] == plan["plan"]["ending"]["answer_to_deliver"]
@@ -218,10 +216,10 @@ def test_older_manifest_resume_keeps_pinned_schema_and_request(
 
 
 def test_v2_payloads_and_schemas_keep_exact_pre_upgrade_serialization():
-    expected = json.loads((ROOT / "backend/tests/fixtures/role-projection-v2.hashes.json").read_text())
+    expected = json.loads((FIXTURES / "role-projection-v2.hashes.json").read_text())
 
     def read(name):
-        return json.loads((ARCHIVE / name).read_text())["output"]
+        return json.loads((GPS_CASE / name).read_text())
 
     initial = read("initial-plan.json")
     feedback = read("initial-plan-review.json")
@@ -258,11 +256,11 @@ def test_v3_payloads_and_schemas_keep_exact_pre_upgrade_serialization():
 
     from podgen.writing.reading_views import reading_payload
 
-    expected = json.loads((ROOT / "backend/tests/fixtures/role-projection-v3.hashes.json").read_text())
+    expected = json.loads((FIXTURES / "role-projection-v3.hashes.json").read_text())
     materials = archived_materials()
 
     def read(name):
-        return json.loads((ARCHIVE / name).read_text())["output"]
+        return json.loads((GPS_CASE / name).read_text())
 
     initial, accepted, draft, review = map(
         read, ("initial-plan.json", "accepted-plan.json", "draft.json", "script-review.json")

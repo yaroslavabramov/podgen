@@ -7,7 +7,6 @@ from pathlib import Path
 from uuid import NAMESPACE_URL, uuid5
 
 import pytest
-
 from podgen.domain.contracts.common import RuntimeRef
 from podgen.persistence.editorial_inputs import EditorialMaterials
 from podgen.runtime.evaluation.role_request import compile_reading_request, compile_role_request
@@ -16,6 +15,8 @@ from podgen.writing.editorial_contract import EditorialInput
 from podgen.writing.model_references import ModelReferences
 from podgen.writing.planning_descriptions import STORY_DESCRIPTIONS
 from podgen.writing.projection_versions import V5, V6
+
+from tests import FIXTURES
 from tests.test_editorial_independence import payload
 from tests.test_v5_role_wire import fixture
 
@@ -23,7 +24,7 @@ ROOT = Path(__file__).resolve().parents[2]
 
 
 def test_every_v1_to_v5_schema_retains_its_pre_change_hash():
-    before = json.loads((ROOT / "backend/tests/fixtures/role-schema-v1-v5.hashes.json").read_text())
+    before = json.loads((FIXTURES / "role-schema-v1-v5.hashes.json").read_text())
     for version, stages in before.items():
         for stage, expected in stages.items():
             schema = response_schema(stage, "editorial-role-packets/1", projection_version=version)
@@ -54,7 +55,9 @@ def test_actual_current_plan_and_revision_wires_change_only_field_descriptions(c
         ]
     else:
         plan = refs.translate(
-            json.loads((ROOT / "evals/reports/2026-11-07-snow-plan/03-planner-revision.json").read_text()),
+            json.loads(
+                (ROOT / "evals/operator/editorial-judgment/inputs/snow-revised-plan.json").read_text()
+            ),
             inbound=True,
         )
     _, _, _, profile, script, reader, fact, review = fixture()

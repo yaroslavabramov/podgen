@@ -12,6 +12,7 @@ from podgen.writing.planning_duration import VERSION as DURATION_VERSION
 from podgen.writing.projection_versions import V9
 from podgen.writing.prompts import load_instruction_set
 
+from tests import FIXTURES
 from tests.historical_preview import replay_preview as preview_request
 from tests.test_v5_role_wire import fixture
 
@@ -63,9 +64,9 @@ def test_archived_snow_plan_review_replays_including_its_former_solo_writer_inst
     from podgen.writing.editorial_contract import EditorialInput
 
     evals = Path(__file__).resolve().parents[2] / "evals"
-    archive = evals / "reports/2026-11-08-route-selection/snow"
-    old = json.loads((archive / "calls/02-plan-review/request.json").read_bytes())
-    candidate = json.loads((archive / "stages/plan.json").read_bytes())["output"]
+    archive = FIXTURES / "planning/legacy-solo-review"
+    old = json.loads((archive / "request.json").read_bytes())
+    candidate = json.loads((archive / "candidate.json").read_bytes())
     packet = EditorialInput.model_validate_json(
         (evals / "editorial-inputs/current/snow-pump/history/before-percolation-2026-11-08.json").read_bytes()
     )

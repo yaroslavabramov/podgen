@@ -6,7 +6,6 @@ from types import SimpleNamespace
 from uuid import uuid4
 
 import pytest
-
 from podgen.domain.contracts.common import ArtifactRef, RuntimeRef
 from podgen.runtime.evaluation.contracts import RunFailure, RunLimits, WritingRunCommand, command_payload
 from podgen.runtime.evaluation.input_budget_recovery import effective_limits
@@ -20,6 +19,8 @@ from podgen.runtime.models.contracts import WireReply
 from podgen.runtime.models.gateway import ModelGateway
 from podgen.writing.behavior import DEFAULT, PRODUCTION, resolve_behavior
 from podgen.writing_cli import parser
+
+from tests import FIXTURES
 
 
 def test_normal_cli_uses_production_own_plan_and_keeps_research_options_out_of_run_and_preview():
@@ -366,18 +367,14 @@ def test_ordinary_cli_run_and_historical_resume_build_the_expected_commands(monk
 
 
 def test_production_reader_adds_audit_and_preserves_the_verified_archive_format():
-    from pathlib import Path
 
     from podgen.runtime.evaluation.preview import preview_request
     from podgen.runtime.evaluation.role_schema import response_schema
-    from tests.schema_cases import without_descriptions
+
+    from tests.schema_cases import wire_hash, without_descriptions
     from tests.test_v5_role_wire import fixture
 
-    archive = (
-        Path(__file__).resolve().parents[2]
-        / "evals/reports/2026-11-08-snow-narrative-rebuild/calls/20-reader-review/podgen-request.json"
-    )
-    saved = json.loads(archive.read_bytes())
+    expected = (FIXTURES / "reader-v5-schema.sha256").read_text().strip()
     materials, _, _, template, script, *_ = fixture()
     profile = deepcopy(template)
     profile.provider, profile.api_family, profile.adapter_version = (
@@ -395,13 +392,13 @@ def test_production_reader_adds_audit_and_preserves_the_verified_archive_format(
     historical = response_schema(
         "reader-review", "editorial-role-packets/1", reader_schema_version="listener-experience/5"
     )
-    assert historical == saved["text"]["format"]["schema"]
-    assert current["text"]["format"] != saved["text"]["format"]
+    assert wire_hash(historical) == expected
+    assert current["text"]["format"]["schema"] != historical
     assert "audit" in current["text"]["format"]["schema"]["properties"]
     compact = response_schema(
         "reader-review", "editorial-role-packets/1", reader_schema_version="listener-experience/13"
     )
-    assert without_descriptions(compact) == without_descriptions(saved["text"]["format"]["schema"])
+    assert without_descriptions(compact) == without_descriptions(historical)
 
 
 def test_new_input_ceiling_has_headroom_and_preserves_explicit_and_frozen_limits():

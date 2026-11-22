@@ -17,6 +17,7 @@ from podgen.writing.planning_roles import PlanningOutput
 from podgen.writing.projection_versions import CURRENT
 from podgen.writing.projections import actionable_feedback
 
+from tests import FIXTURES
 from tests.historical_preview import replay_preview as preview_request
 from tests.test_editorial_independence import payload
 from tests.test_v5_role_wire import fixture
@@ -109,7 +110,9 @@ def test_no_fact_coverage_quota_or_automatic_caveat_insertion(selection):
 
 
 def test_requirements_reach_author_through_accepted_plan_without_semantic_filter():
-    review = json.loads((ROOT / "evals/reports/2026-11-07-snow-plan/02-editor.json").read_text())
+    review = json.loads(
+        (FIXTURES / "planning/snow-editor-review.json").read_text()
+    )
     guidance = actionable_feedback(review, planning=True)
     assert guidance["findings"] == review["findings"]
     assert guidance["research_requests"] == review["research_requests"]

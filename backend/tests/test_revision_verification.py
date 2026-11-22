@@ -6,7 +6,7 @@ from pathlib import Path
 from uuid import uuid4
 
 import pytest
-
+from podgen.domain.canonical import digest
 from podgen.persistence.editorial_inputs import EditorialMaterials
 from podgen.runtime.evaluation.role_request import compile_reading_request
 from podgen.runtime.evaluation.role_schema import response_schema
@@ -17,10 +17,13 @@ from podgen.writing.prompts import load_reading_instructions
 from podgen.writing.reader_schema import VERSION as READER_VERSION
 from podgen.writing.reader_schema import snapshot_model
 from podgen.writing.revision import verification as checks
+
+from tests import FIXTURES
 from tests.test_editorial_independence import payload
 from tests.test_v5_role_wire import fixture
 
-ARCHIVE = Path(__file__).resolve().parents[2] / "evals/reports/2026-11-08-editorial-revision"
+ROOT = Path(__file__).resolve().parents[2]
+REVISION_CASES = FIXTURES / "revision-verification"
 
 
 def reconstruct(comparison, current):
@@ -39,22 +42,18 @@ def reconstruct(comparison, current):
     [("control-c", 1), ("control-c", 2), ("fresh-snow", 1), ("fresh-snow", 2), ("release-candidate", 1)],
 )
 def test_native_snow_recheck_contains_a_reconstructable_script_and_actual_editorial_assignments(case, number):
-    root = ARCHIVE / case
+    root = REVISION_CASES / case
     stage = f"reader-review-{number}"
-    previous = json.loads((root / "scripts" / ("draft.json" if number == 1 else "revise-1.json")).read_text())
-    current = json.loads((root / f"scripts/revise-{number}.json").read_text())
-    writer = json.loads(next((root / "requests").glob(f"revise-{number}-*.json")).read_text())
-    sent = json.loads(writer["messages"][0]["content"][0]["text"])
+    previous = json.loads((root / ("draft.json" if number == 1 else "revise-1.json")).read_text())
+    current = json.loads((root / f"revise-{number}.json").read_text())
+    edit = json.loads((root / f"edit-{number}.json").read_bytes())
     packet = EditorialInput.model_validate_json(
         (
-            ARCHIVE.parents[1]
-            / "editorial-inputs/current/snow-pump/history/before-percolation-2026-11-08.json"
+            ROOT / "evals/editorial-inputs/current/snow-pump/history/before-percolation-2026-11-08.json"
         ).read_bytes()
     )
     materials, profile = EditorialMaterials(packet, None, ()), fixture()[3]
-    actual_reader = json.loads(next((root / "requests").glob(stage + "-*.json")).read_text())
-    archived_cold = payload(actual_reader)
-    comparison = checks.comparison(previous, current, sent["revision_guidance"])
+    comparison = checks.comparison(previous, current, edit["revision_guidance"])
     request = compile_reading_request(
         uuid4(),
         stage,
@@ -68,17 +67,17 @@ def test_native_snow_recheck_contains_a_reconstructable_script_and_actual_editor
             revision_verification_contract=checks.VERSION,
         ),
         script=current,
-        audience=archived_cold["audience"],
+        audience=edit["audience"],
         revision_comparison=comparison,
     )
     check_visible(request, CONTRACT)
     visible = payload(request)
     assert [r["text"] for r in visible["script"]["utterances"]] == [r["text"] for r in current["utterances"]]
     result = visible.pop("revision_check")
-    assert visible == archived_cold
+    assert digest(visible) == edit["cold_payload_sha256"]
     assert reconstruct(result, current) == previous
     orders = {row["id"]: row for row in result["assignments"]}
-    for review, prefix in zip(sent["revision_guidance"], ("R", "F"), strict=True):
+    for review, prefix in zip(edit["revision_guidance"], ("R", "F"), strict=True):
         for i, finding in enumerate(review["findings"], 1):
             order = orders[f"{prefix}{i}"]
             assert order["requested_change"] == finding["requested_change"]
@@ -106,7 +105,7 @@ def test_first_and_fact_reading_forms_are_unchanged_and_prior_assessment_can_be_
         assert response_schema(stage, CONTRACT, **kwargs) == response_schema(
             stage, CONTRACT, revision_verification_contract=checks.VERSION, **kwargs
         )
-    prior = json.loads((ARCHIVE / "control-c/reviews/reader-review-1.json").read_text())
+    prior = json.loads((REVISION_CASES / "prior-review.json").read_text())
     model = snapshot_model(prior)
     result = dict(
         prior,

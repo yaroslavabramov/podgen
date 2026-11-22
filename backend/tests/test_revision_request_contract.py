@@ -15,9 +15,9 @@ from podgen.writing.revision.contracts import FACT_VERSION
 
 from tests.historical_preview import replay_preview as preview_request
 from tests.revision_cases import actual_case
+from tests.schema_cases import wire_hash
 from tests.test_editorial_independence import payload
 from tests.test_model_wire_schema import assert_reference_nodes
-from tests.test_script_handoff import wire_hash
 from tests.test_v5_role_wire import fixture
 
 

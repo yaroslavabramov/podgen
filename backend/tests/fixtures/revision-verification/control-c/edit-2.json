@@ -1,0 +1,308 @@
+{
+  "revision_guidance": [
+    {
+      "origin": "reader",
+      "findings": [
+        {
+          "dimension": "ending",
+          "priority": "important",
+          "anchors": [
+            {
+              "utterance_index": 24,
+              "quote": "Не сам яд, а его дорога: чёрная мокрая земля между ямой и колодцем, по которой долго текло то, что потом качали из-под железной ручки."
+            }
+          ],
+          "observation": "После признания, что точное время и путь попадания опасной грязи восстановить не удастся, последняя часть фразы представляет содержимое колонки как доказанно прошедшее через эту землю. Из-за этого оговорка о возможном звене теряет силу именно на последнем ударе.",
+          "requested_change": "Переформулировать последнюю фразу так, чтобы найденная мокрая земля оставалась свидетельством длительного просачивания и возможного пути загрязнения, но не утверждала, что установлено, какая именно жидкость попала в колонку в конце августа. Сохранить осязаемую заключительную картину и связь с железной ручкой.",
+          "preserve": [
+            "Возвращение к первоначальному образу колонки",
+            "Чёрная мокрая земля как зримый результат расследования",
+            "Неопределённость вокруг роли девочки и конкретного момента загрязнения"
+          ]
+        }
+      ],
+      "research_requests": [],
+      "duration_note": "По предоставленной оценке 1556 слов при ориентире 110 слов в минуту дают около 849 секунд, или 14 минут 9 секунд. Это внутри заданного диапазона 780–1080 секунд и несколько ниже цели в 900 секунд. Запись не измерялась; фактическая длительность зависит от темпа и пауз.",
+      "recommendation": "revise",
+      "positive_observations": [
+        {
+          "anchors": [
+            {
+              "utterance_index": 3,
+              "quote": "Главная улика, если она есть, в воде не плавает. Значит, искать её надо там, где воду пили. У людей."
+            }
+          ],
+          "reason": "Неудачная проверка воды не останавливает рассказ: она задаёт следующий способ расследования и понятную слушателю причину идти по адресам."
+        },
+        {
+          "anchors": [
+            {
+              "utterance_index": 5,
+              "quote": "Но есть и неудобные адреса."
+            },
+            {
+              "utterance_index": 6,
+              "quote": "Только адрес ещё не говорит, откуда человек пил."
+            },
+            {
+              "utterance_index": 8,
+              "quote": "У пивоварни свой глубокий колодец и вода из водопровода компании New River."
+            }
+          ],
+          "reason": "Неудобные случаи и пивоварня дают два разных испытания версии. Слушатель может следить за рассуждением без специальной подготовки."
+        },
+        {
+          "anchors": [
+            {
+              "utterance_index": 11,
+              "quote": "Ручка тогда была ещё на месте."
+            },
+            {
+              "utterance_index": 12,
+              "quote": "Но отделить его действие от спада, который уже шёл, невозможно."
+            }
+          ],
+          "reason": "Проверка даты начала болезни сохраняет драму решения, но не выдаёт снятие ручки за доказанное окончание эпидемии."
+        },
+        {
+          "anchors": [
+            {
+              "utterance_index": 14,
+              "quote": "Из Брод-стрит в их края каждый день ходила повозка."
+            },
+            {
+              "utterance_index": 15,
+              "quote": "Пила воду и служанка. Она не заболела, или, по крайней мере, не заболела тяжело."
+            }
+          ],
+          "reason": "Далёкий адрес создаёт новую загадку, а бутыль даёт запоминающийся ответ. Случай служанки удерживает рассказ от представления, будто каждый выпивший обязательно заболевал."
+        },
+        {
+          "anchors": [
+            {
+              "utterance_index": 18,
+              "quote": "А когда ребёнок заболел, почему-то не спросил."
+            },
+            {
+              "utterance_index": 22,
+              "quote": "Земля там чёрная, насквозь пропитанная влагой, болотистая."
+            },
+            {
+              "utterance_index": 23,
+              "quote": "Комиссия отмечает это сомнение и добавляет: у маленьких детей холера может выглядеть неясно."
+            }
+          ],
+          "reason": "Позднее расследование получает собственное движение: упущенный вопрос ведёт к физическому следу, а затем врачебное свидетельство ограничивает вывод. Это удерживает детективное напряжение без искусственной разгадки."
+        }
+      ],
+      "revision_scope": {
+        "scale": "local",
+        "reason": "Порядок расследования и сама последняя сцена работают: открытие развивается от записи к осмотру грунта и врачебному сомнению. Нужна точечная правка заключительной формулировки, чтобы сильный образ не приписывал находке большей определённости, чем ей дал рассказ.",
+        "anchors": [
+          {
+            "utterance_index": 24,
+            "quote": "Не сам яд, а его дорога: чёрная мокрая земля между ямой и колодцем, по которой долго текло то, что потом качали из-под железной ручки."
+          }
+        ],
+        "dependent_passages": []
+      },
+      "listener_understanding": "История начинается с привычной колонки, а затем превращает её в подозреваемую. Невидимость возбудителя заставляет Сноу искать не саму улику в воде, а связи между водой и людьми. Дома ближе к другим колонкам создают первое затруднение; ответы родственников и независимый источник воды на пивоварне делают версию убедительнее, не превращая её в безупречную. Снятие ручки даёт действие, после которого рассказ вовремя отказывается от слишком красивой победы: спад начался раньше. Случай в Хэмпстеде снова оживляет расследование, показав, что вода могла добраться до заболевших без их поездки на Брод-стрит. Затем вопрос о пути загрязнения ведёт к пропущенной записи, пелёнкам и раскопкам. Финал правильно оставляет болезнь девочки возможным, а не доказанным звеном, но последняя фраза звучит определённее этого вывода: она утверждает, что по найденному пути текло именно то, что потом качали из колонки. Образ чёрной земли стоит сохранить, не закрывая только что оставленный открытым вопрос."
+    },
+    {
+      "origin": "fact",
+      "findings": [
+        {
+          "dimension": "structure",
+          "priority": "important",
+          "anchors": [
+            {
+              "utterance_index": 7,
+              "quote": "Теперь хороший сыщик задаёт обратный вопрос."
+            },
+            {
+              "utterance_index": 8,
+              "quote": "Хаггинс рассказывает: работников у него больше семидесяти."
+            },
+            {
+              "utterance_index": 10,
+              "quote": "Вечером в четверг, седьмого сентября, Сноу приходит к попечителям"
+            }
+          ],
+          "observation": "Последовательность подаёт посещение пивоварни как следующий шаг расследования Сноу до выступления 7 сентября и тем самым делает этот контраст частью уже собранного к заседанию материала. В книге Сноу есть рассказ о разговоре с Хаггинсом, но предоставленные свидетельства не устанавливают, когда он получил эти сведения или были ли они доступны попечителям.",
+          "requested_change": "Не представлять сведения о пивоварне как установленный этап подготовки к заседанию 7 сентября. Пример можно убрать либо сохранить так, чтобы порядок рассказа не создавал уверенности в неизвестной дате его получения; не следует утверждать и противоположное — будто разговор наверняка состоялся позже.",
+          "preserve": [
+            "Контраст между близостью к колонке и сообщением владельца о других источниках воды, если пример остаётся",
+            "Различие между уверенностью Хаггинса насчёт уличной колонки и его предположением, что рабочие вообще не пили воду"
+          ],
+          "evidence": [
+            {
+              "source": "John Snow. On the Mode of Communication of Cholera, 2-е издание, 1855",
+              "text": "I had an interview with the Board of Guardians of St.\nJames’s parish, on the evening of Thursday, 7th September,\nand represented the above circumstances to them. In\nconsequence of what I said, the handle of the pump was\nremoved on the following day."
+            },
+            {
+              "source": "John Snow. On the Mode of Communication of Cholera, 2-е издание, 1855",
+              "text": "On proceeding to the spot, I found that nearly all the\ndeaths had taken place within a short distance of the\npump. There were only ten deaths in houses situated\ndecidedly nearer to another street pump. In five of these\ncases the families of the deceased persons informed me\n40\nthat they always sent to the pump in Broad Street, as\nthey preferred the water to that of the pump which was\nnearer. In three other cases, the deceased were children\nwho went to school near the pump in Broad Street. Two\nof them were known to drink the water; and the parents\nof the third think it probable that it did so. The other\ntwo deaths, beyond the district which this pump supplies,\nrepresent only the amount of mortality from cholera that\nwas occurring before the irruption took place.\nWith regard to the deaths occurring in the locality belonging\nto the pump, there were sixty-one instances in\nwhich I was informed that the deceased persons used to\ndrink the pump-water from Broad Street, either constantly\nor occasionally. In six instances I could get no information,\nowing to the death or departure of every one connected\nwith the deceased individuals; and in six cases I\nwas informed that the deceased persons did not drink the\npump-water before their illness."
+            },
+            {
+              "source": "John Snow. On the Mode of Communication of Cholera, 2-е издание, 1855",
+              "text": "There is a Brewery in Broad Street, near to the pump,\nand on perceiving that no brewer’s men were registered\nas having died of cholera, I called on Mr. Huggins, the\nproprietor. He informed me that there were above seventy\nworkmen employed in the brewery, and that none of them\nhad suffered from cholera,—at least in a severe form,—only\ntwo having been indisposed, and that not seriously,\nat the time the disease prevailed. The men are allowed a\ncertain quantity of malt liquor, and Mr. Huggins believes\nthey do not drink water at all; and he is quite certain\nthat the workmen never obtained water from the pump in\nthe street. There is a deep well in the brewery, in addition\nto the New River water."
+            }
+          ]
+        },
+        {
+          "dimension": "factuality",
+          "priority": "important",
+          "anchors": [
+            {
+              "utterance_index": 24,
+              "quote": "по которой долго текло то, что потом качали из-под железной ручки"
+            }
+          ],
+          "observation": "Финал превращает возможный путь в установленное движение той самой жидкости из выгребной ямы в воду колонки. Осмотр Йорка обнаружил мокрый грунт и признаки длительного просачивания, но не определил, какая именно жидкость попала в колодец, когда это произошло и была ли она причиной вспышки. Категоричная заключительная фраза отменяет существенную неопределённость, только что признанную в рассказе.",
+          "requested_change": "Изменить или убрать утверждение о том, что именно жидкость, прошедшую через грунт, потом качали из колонки. Если физическая улика остаётся в финале, представить её как свидетельство возможного пути просачивания, а не как восстановленную цепочку движения конкретных отходов и воды.",
+          "preserve": [
+            "Наглядную улику Йорка — мокрый грунт и признаки просачивания",
+            "Вывод о том, что болезнь девочки и её роль в происхождении вспышки не доказаны",
+            "Различие между поиском возбудителя и поиском возможного пути загрязнения"
+          ],
+          "evidence": [
+            {
+              "source": "Приход Сент-Джеймс, Вестминстер. Report on the cholera outbreak; доклады комиссии, Уайтхеда, Йорка и письмо Роджерса, 1855",
+              "text": "which examination having been made at the\nclose of April 1855, the following were found to\nbe the results of his investigations :"
+            },
+            {
+              "source": "Приход Сент-Джеймс, Вестминстер. Report on the cholera outbreak; доклады комиссии, Уайтхеда, Йорка и письмо Роджерса, 1855",
+              "text": "the mortar joints of the old stone bottom were\nfound to be perished, as was also all the jointing\nof the brick sides, which brought the brick work\ninto the condition of a sieve, and through which\nthe house drainage water must have percolated for\na considerable period."
+            },
+            {
+              "source": "Приход Сент-Джеймс, Вестминстер. Report on the cholera outbreak; доклады комиссии, Уайтхеда, Йорка и письмо Роджерса, 1855",
+              "text": "Upon opening back the main drain, a cesspool\nintended for a trap, but misconstructed, wasfound in\nthe area 3ft. Sin. long,by 2ft. Gin. wide, and 3ft. deep,\nand upon, and over a part ofthis cesspool acommon\nopen privy (without water supply) for the use ofthe\nhouse was erected, the cesspool being fully charged\nwith soil."
+            },
+            {
+              "source": "Приход Сент-Джеймс, Вестминстер. Report on the cholera outbreak; доклады комиссии, Уайтхеда, Йорка и письмо Роджерса, 1855",
+              "text": "From the bottom of the house drain down to the\nwater line in the well, a vertical depth of 9 feet 2\ninches exists, and from the side of the drain\nhorizontally to the outer side of the brickwork\nof the well, there is only a space of 2 feet\n8 inches, whilst the side wall of the vault\nadjoining the cesspool actually abuts upon it ;"
+            },
+            {
+              "source": "Приход Сент-Джеймс, Вестминстер. Report on the cholera outbreak; доклады комиссии, Уайтхеда, Йорка и письмо Роджерса, 1855",
+              "text": "In addition thereto\nthe ground was dug out between the cesspool\nand the well to three feet below the bottom of\nthe former, and its black, saturated, swampy,\ncondition, clearly demonstrated the fact, as did\nalso the small furrowed appearance of the under-\nlying gravel, observed from the inside of the weU,\nfrom which the fine sand had been washed away\nduring the process of filtration."
+            },
+            {
+              "source": "Приход Сент-Джеймс, Вестминстер. Report on the cholera outbreak; доклады комиссии, Уайтхеда, Йорка и письмо Роджерса, 1855",
+              "text": "Being anxious to comply with your request, to give aU\nthe particulars I could remember of the illness of which\n^^\"^ale infant died last September, and nothaymg kept any notes of the case, I deemed it advisable, before\ndomg so, to see the mother, and clear up some points of whichmy memory retained but an uncertain recollection."
+            },
+            {
+              "source": "Приход Сент-Джеймс, Вестминстер. Report on the cholera outbreak; доклады комиссии, Уайтхеда, Йорка и письмо Роджерса, 1855",
+              "text": "It was born, I believe, inApnl 54, and was attacked with a DiarrhcBa in the Junefollowmg; .ts evacuations were pale and slimy, sour andoffensive; xt was under treatment for about five days; itcontinued pretty weU till the 14th of August, when it had asimilar attack, which however gave way to treatment in twoor three days,"
+            },
+            {
+              "source": "Приход Сент-Джеймс, Вестминстер. Report on the cholera outbreak; доклады комиссии, Уайтхеда, Йорка и письмо Роджерса, 1855",
+              "text": "but on the morning of Monday the 28th ofAugust I was sent for to see the infant, and found it again\n\n\n=== PDF PAGE 168 ===\n164\nsuffering from another attack of Diarrhoea, but now accompanied\n•with siclmess, so that but little medicine or food could be\nretained; its dejections were pale, slimy, and watery, smelt\nvery offensive ; the mother tells me they were now and then\nof a mixed greenish and cream colour; this state of purging\nand sickness continued till Wednesday (30th)."
+            },
+            {
+              "source": "Приход Сент-Джеймс, Вестминстер. Report on the cholera outbreak; доклады комиссии, Уайтхеда, Йорка и письмо Роджерса, 1855",
+              "text": "I never saw,\nthat I can remember, what might be taken for Cholera stools,\n—\nshe never looked bluish, had no cramps, there was no cold\nstage or collapse, nor subsequent fever, and she always passed\nher urine which stained.the napkins."
+            },
+            {
+              "source": "Приход Сент-Джеймс, Вестминстер. Report on the cholera outbreak; доклады комиссии, Уайтхеда, Йорка и письмо Роджерса, 1855",
+              "text": "The\nmother now tells me that the sickness was the only difference\nshe observed between the last and former illnesses."
+            },
+            {
+              "source": "Приход Сент-Джеймс, Вестминстер. Report on the cholera outbreak; доклады комиссии, Уайтхеда, Йорка и письмо Роджерса, 1855",
+              "text": "Although, singularly enough, this case is published by the\nEegistrar-General among the Cholera deaths, there is necessarily a doubt as\nto the real nature of the attack. On the one side, the previous history of the\nchild, the presence of only certain symptoms, and the opinion of Dr. Eogers,\nthe medical attendant, have great weight ; whilst, on the other, it must be\nnoted that Cholera symptoms are rarely well marked in the young, and that\nthe Diarrhoea which prevails during a Cholera epidemic is now generally\nadmitted to be choleraic, and due to the same cause as Cholera itself.\nThere was, moreover, some probability that a child already prone to\ninfantUe Diarrhoea might become the victim of a choleraic seizure."
+            },
+            {
+              "source": "Приход Сент-Джеймс, Вестминстер. Report on the cholera outbreak; доклады комиссии, Уайтхеда, Йорка и письмо Роджерса, 1855",
+              "text": "It is not for me to discuss the probable difference\nof opinion which may arise among medical men\nas to the nature of this child's illness. Whether\nor not they may choose to decide that \" the\n\" accompaniment of sickness\" in its third attack\n(August 28th), and \"the relapse of its mother,\n^' with spasms and cramps\" on that occasion'\nindicate the presence of choleraic symptoms, it is\nfor me only to call attention to the coincidence."
+            },
+            {
+              "source": "Приход Сент-Джеймс, Вестминстер. Report on the cholera outbreak; доклады комиссии, Уайтхеда, Йорка и письмо Роджерса, 1855",
+              "text": "if matter thrown off from the child and poured\ninto the cesspool in the front area, during the early\ndays of the week, percolated the ground and con-\ntaminated the well, why did the number of attacks\nso sensibly and rapidly diminish on Sunday, Sep-\ntember 3rd, when matter from two adult cholera\npatients had been poured down the same place\nduring the later days of the week? And why,\nmoreover, did the epidemic so nearly disappear\nfrom Broad Street on or after September 6th, when\nanother person was attacked in the same house\nSeptember 4th?"
+            },
+            {
+              "source": "Приход Сент-Джеймс, Вестминстер. Report on the cholera outbreak; доклады комиссии, Уайтхеда, Йорка и письмо Роджерса, 1855",
+              "text": "Or it might be urged that the un-\nusual drain upon the well, caused by the intense\nthirst of the sufferers, who, as I have said, were\ngenerally supplied with the pump water, might in\nsome measure account for the rapid change in its\nquality. But as these suggestions arenot conclusive\nto myself, 1 do not desire they should be so to any\none else. For my own part I cannot state, from\nthe facts before me, whether the water did actually\nget continually purer, or whether it first became\npurer and then got worse again."
+            },
+            {
+              "source": "Приход Сент-Джеймс, Вестминстер. Report on the cholera outbreak; доклады комиссии, Уайтхеда, Йорка и письмо Роджерса, 1855",
+              "text": "It is worth while however to state that, by\nrecent inquiry, I have ascertained that the dejec-\ntions of the patients in the third floor of No. 40,\nowing to great hurry and confusion, were so dis-\nposed of that but little could have found its way\ninto the cesspool at all.\nMy attention has also recently been called to\nthe cross drain from the bottom of the stack pipe\nof No. 39 (see Mr. York's diagram). There were\nthree deaths from Cholera in No. 39, the attacks\nbeing on the 1st, 2nd and 4th September, two of\n12 hours duration and one of 24 hours. The\npoint ofjunction of the two drains will be apparent\nfrom the Surveyor's diagram. Whether this fact\nbe considered to increase the difficulty which I have\nraised will depend upon the precise place and\nmanner of the supposed fatal communication. This\nis not easy to determine and, even if it could\nhave been ascertained by scientific experiments at\n"
+            },
+            {
+              "source": "Приход Сент-Джеймс, Вестминстер. Report on the cholera outbreak; доклады комиссии, Уайтхеда, Йорка и письмо Роджерса, 1855",
+              "text": "the time of the excavation, cannot now be dis-\ncovered, owing to the altered state of the drain."
+            }
+          ]
+        }
+      ],
+      "research_requests": [],
+      "recommendation": "revise",
+      "positive_observations": [
+        {
+          "anchors": [
+            {
+              "utterance_index": 3,
+              "quote": "Но это догадка. Главная улика, если она есть, в воде не плавает."
+            }
+          ],
+          "reason": "Осмотр воды работает как детективный поворот, не превращая видимые примеси или предположение о более раннем состоянии воды в обнаружение возбудителя."
+        },
+        {
+          "anchors": [
+            {
+              "utterance_index": 11,
+              "quote": "Для этого нужно различать две даты: когда человек заболел и когда умер."
+            },
+            {
+              "utterance_index": 12,
+              "quote": "Но отделить его действие от спада, который уже шёл, невозможно."
+            }
+          ],
+          "reason": "Рассказ понятно объясняет, почему снятие ручки нельзя просто приравнять к окончанию эпидемии, сохраняя значение принятого решения."
+        },
+        {
+          "anchors": [
+            {
+              "utterance_index": 23,
+              "quote": "Записей он не вёл, память освежал, заново расспросив ту же мать."
+            },
+            {
+              "utterance_index": 24,
+              "quote": "возможным звеном, а не доказанным первым больным"
+            }
+          ],
+          "reason": "Ограничения позднего медицинского свидетельства и спорность диагноза встроены в сюжет, а не спрятаны за уверенным выводом."
+        }
+      ],
+      "revision_scope": {
+        "scale": "local",
+        "reason": "Достаточно отдельно устранить неподтверждённую хронологию примера с пивоварней и избыточную определённость последней физической улики. Остальная детективная последовательность и оговорки об эффекте закрытия могут сохраниться.",
+        "anchors": [
+          {
+            "utterance_index": 7,
+            "quote": "Теперь хороший сыщик задаёт обратный вопрос."
+          },
+          {
+            "utterance_index": 8,
+            "quote": "Хаггинс рассказывает: работников у него больше семидесяти."
+          },
+          {
+            "utterance_index": 24,
+            "quote": "по которой долго текло то, что потом качали из-под железной ручки"
+          }
+        ],
+        "dependent_passages": [
+          {
+            "reason": "При изменении положения или подачи примера с пивоварней нужно сохранить ясную границу между установленными обстоятельствами выступления и сведениями, дата получения которых неизвестна.",
+            "anchors": [
+              {
+                "utterance_index": 10,
+                "quote": "Вечером в четверг, седьмого сентября, Сноу приходит к попечителям"
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ],
+  "audience": "Взрослый слушатель без специальных знаний, впервые слышит эту историю",
+  "cold_payload_sha256": "04c6d3f9a76d11af4013f9e5edb4571f70a10f7b0e1892d0914a3de586a666a4"
+}

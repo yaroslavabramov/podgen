@@ -17,6 +17,7 @@ from podgen.writing.model_references import CATALOG_KEY, preview_references
 from podgen.writing.planning_duration import KEY, VERSION, from_manifest
 from podgen.writing.projection_versions import V8, V9
 
+from tests import FIXTURES
 from tests.historical_preview import replay_preview as preview_request
 from tests.test_editorial_independence import payload
 from tests.test_v5_role_wire import fixture
@@ -34,9 +35,7 @@ def real_case(case, language=None):
             update=dict(assignment=packet.assignment.model_copy(update=dict(output_language=language)))
         )
     if case == "snow-pump":
-        plan = json.loads(
-            (ROOT / "evals/reports/2026-11-07-snow-full-episode/accepted-plan.json").read_text()
-        )
+        plan = json.loads((FIXTURES / "planning/snow-accepted.json").read_text())
     else:
         plan = json.loads((ROOT / "evals/editorial-inputs/current/gps-clock/fixed-plan.json").read_text())[
             "plan"

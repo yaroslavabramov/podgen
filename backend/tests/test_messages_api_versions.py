@@ -2,27 +2,22 @@
 
 import json
 from copy import deepcopy
-from pathlib import Path
 from types import SimpleNamespace
 
 import httpx
 import pytest
-
 from podgen.domain.errors import Conflict, ContractError
 from podgen.runtime.models.anthropic_provider import AnthropicProvider
 from podgen.runtime.models.messages_versions import CURRENT_API, LEGACY_API, validate_wire
 from podgen.runtime.models.messages_wire import messages_request
 from podgen.runtime.models.provider_contracts import contract, validate
 
-ARCHIVE = (
-    Path(__file__).resolve().parents[2]
-    / "evals/reports/2026-11-08-snow-narrative-rebuild/calls/05-draft/podgen-request.json"
-)
+from tests.messages_cases import author_request
 
 
 @pytest.mark.parametrize("version", [LEGACY_API, CURRENT_API])
 def test_count_transport_retains_body_and_pinned_header(version):
-    original = json.loads(ARCHIVE.read_text())
+    original = author_request()
     sent = []
 
     def handler(request):

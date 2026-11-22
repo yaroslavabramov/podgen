@@ -75,3 +75,9 @@
 Проверка без новых API-вызовов: `backend/.venv/bin/pytest backend/tests/test_reader_voice_controls.py backend/tests/test_reader_schema.py backend/tests/test_revision_request_contract.py` — **17 passed**. Отдельно пройден Ruff для всех Python-файлов отчёта и нового теста. `summarize_usage.py` пересчитывает только сохранённые receipts. `freeze_cases.py` — однократный исторический bootstrap до правки промпта; повторно запускать его поверх нового промпта не нужно.
 
 Независимое слепое чтение двух авторских открытий редакторским чатом сохранено отдельно в `author-reading-blind.md`. Ключ и чужие голоса не читались; эти тексты не участвовали ни в одном запросе данной матрицы. Критерии также зафиксированы редакторским чатом: слово `Human` в историческом `criteria.json` — неточная исходная подпись, а не указание на человеческую оценку; замороженный снимок сохранён.
+
+Проверку файлов этого эксперимента можно повторить из корня репозитория.
+
+```sh
+backend/.venv/bin/python -m pytest evals/reports/2026-11-08-reader-voice/verify_controls.py
+```

@@ -6,7 +6,7 @@
     "sha256": "6d9183ee5ff9d9fe8765778cdd4875c80f9152db5d229882cf90a475b67e2d1c"
   },
   "base_plan": {
-    "path": "evals/reports/2026-11-07-snow-plan/03-planner-revision.json",
+    "path": "evals/operator/editorial-judgment/inputs/snow-revised-plan.json",
     "sha256": "db752774026b59200eda0a1fd61efce85e0bf3637dcbb5cfa595e8e63e6dddef",
     "references": "V5 M aliases in the frozen current dossier order"
   },

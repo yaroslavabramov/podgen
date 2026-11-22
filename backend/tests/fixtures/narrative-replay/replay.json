@@ -1,0 +1,183 @@
+{
+  "calls": [
+    {
+      "stage": "plan",
+      "request_sha256": "2c572f27580f3880d8f5318e38406d8e42bfd65d83459c3dadf871ca5a86f0b3",
+      "response_file": "01-plan.txt",
+      "output_tokens": 6456
+    },
+    {
+      "stage": "plan-review",
+      "request_sha256": "3774577c120f7a2b84930e0b7cd65fd381c625ab7500ae8a3056610bee38c2e4",
+      "response_file": "02-plan-review.txt",
+      "output_tokens": 1599
+    },
+    {
+      "stage": "plan-revise",
+      "request_sha256": "03b75dcaf2fe0f2a3f41b8d6fc120664bef37b11b1595d153f61e54195328e79",
+      "response_file": "03-plan-revise.txt",
+      "output_tokens": 5942
+    },
+    {
+      "stage": "plan-review-revised",
+      "request_sha256": "0fe3fd28c190a500060d80634f481fd295e532edd182388637f52b3a534ff66c",
+      "response_file": "04-plan-review-revised.txt",
+      "output_tokens": 1702
+    },
+    {
+      "stage": "draft",
+      "request_sha256": "bd9a3e3cc2cc511409c53ced03bfd3e3b5c0d55643cb5cdb3d56feb53c1263a5",
+      "response_file": "05-draft.txt",
+      "output_tokens": 6501,
+      "messages_sha256": "5eab3c32b47918341bf6bcbef9d7c91216b1d0be210a672d49a3fabe664ba546",
+      "count_sha256": "cb842cf7ab27b2edb41b71e259113539e8a7343fd5678dd78971bd688e72da02"
+    },
+    {
+      "stage": "reader-review",
+      "request_sha256": "42b1cf6014069323b8be9ac9b07e99642452f316b038ae795bfd9396bbdbd1f6",
+      "response_file": "06-reader-review.txt",
+      "output_tokens": 2554
+    },
+    {
+      "stage": "fact-review",
+      "request_sha256": "236f8ca45590c45def5f604afcbd765e2cdede769ac72a38139c777b092bedff",
+      "response_file": "07-fact-review.txt",
+      "output_tokens": 3191
+    },
+    {
+      "stage": "revise-1",
+      "request_sha256": "949c3d076a661cc2cf97f3664f216db0973084e9c1fd3e6fc000d6914d35ff6a",
+      "response_file": "08-revise-1.txt",
+      "output_tokens": 2605,
+      "messages_sha256": "37c453939c132befa283bdfa735753b0b9b8ea63fba27c0dc9339ec749c258d1",
+      "count_sha256": "319fa8265973cb86d2d38f0327beebce1586dba44938b0b8e622dee6870f8c62"
+    },
+    {
+      "stage": "reader-review-1",
+      "request_sha256": "591c1850a9d92681f4b6d2a164246bdb0c29a06730069579ffc89b0a7fe5c88f",
+      "response_file": "09-reader-review-1.txt",
+      "output_tokens": 2742
+    },
+    {
+      "stage": "fact-review-1",
+      "request_sha256": "8ff2142e806aac36769b66a4c7f3149ad9d5e2d3738ef04d358cadf16198abdc",
+      "response_file": "10-fact-review-1.txt",
+      "output_tokens": 3014
+    },
+    {
+      "stage": "revise-2",
+      "request_sha256": "655f8075c7d65318711fb62825d2ca182f105a85a5aa7c293f7f269740b78c10",
+      "response_file": "11-revise-2.txt",
+      "output_tokens": 1728,
+      "messages_sha256": "58db05401b1e168d1696f5920da6839030da5ff0b3bf9128f213f7ccb07eaf5e",
+      "count_sha256": "0fc51c40ccb1041f310738a952ee79a2e87b1271a3f88a49df3b065a522becb2"
+    },
+    {
+      "stage": "reader-review-2",
+      "request_sha256": "37761b171f9e47095739c18ba184002bab87df00710534740547f72994689915",
+      "response_file": "12-reader-review-2.txt",
+      "output_tokens": 2567
+    },
+    {
+      "stage": "fact-review-2",
+      "request_sha256": "a58eab96726366d97ab3001bf6a187ee5a9204a795ba6e701178400245d5e88c",
+      "response_file": "13-fact-review-2.txt",
+      "output_tokens": 2072
+    },
+    {
+      "stage": "reader-review",
+      "request_sha256": "cdcc444c7db1ceada3819070077da7d9af3479067d221cd6425bb80d342d6ef1",
+      "response_file": "14-reader-review.txt",
+      "output_tokens": 3516
+    },
+    {
+      "stage": "fact-review",
+      "request_sha256": "90ea72d26a7e9d4d51f1145e3060251155a4606f39230fd912c99ed8856542ff",
+      "response_file": "15-fact-review.txt",
+      "output_tokens": 3350
+    },
+    {
+      "stage": "revise-1",
+      "request_sha256": "02fa23af98092417e0313eb76ba56f92841e330ebf08761a0c9d01c9f52a0b20",
+      "response_file": "16-revise-1.txt",
+      "output_tokens": 1956,
+      "messages_sha256": "93c1e25d46e93810998488d21c5adf2a29609691e7eda12c593964f3b118dac7",
+      "count_sha256": "b852cf091a9ab18396e1736c6e29e1083ef551d93bfd0fabd6b74450d6b8e30f"
+    },
+    {
+      "stage": "reader-review-1",
+      "request_sha256": "65eab067fb86c3f559e7ad6dc26c09fe8eb5fd451b170481f837560b8cb8c203",
+      "response_file": "17-reader-review-1.txt",
+      "output_tokens": 3116
+    },
+    {
+      "stage": "fact-review-1",
+      "request_sha256": "e7259bee6ce2b55bde09e442a1ac5ca67fe9b785d6dc0f22033e760ab492a61b",
+      "response_file": "18-fact-review-1.txt",
+      "output_tokens": 3070
+    },
+    {
+      "stage": "reader-review",
+      "request_sha256": "fb555571cc03fcf3178f13b5a05e6e5ef05ad8230c64e3f66a8dd095b8419b7d",
+      "response_file": "20-reader-review.txt",
+      "output_tokens": 4577
+    },
+    {
+      "stage": "fact-review",
+      "request_sha256": "c5304fb3094c80f48e446d44bbc43e5ad1481ff13848d674b24433a0145df2ac",
+      "response_file": "21-fact-review.txt",
+      "output_tokens": 3148
+    },
+    {
+      "stage": "revise-1",
+      "request_sha256": "550b88e5b1a31fc33b8ca95644bf1cbff4c701407c31655149f9b9ff30726e13",
+      "response_file": "22-revise-1.txt",
+      "output_tokens": 2777,
+      "messages_sha256": "0f91343bc90d81d4a4b571b6947ab72d7ba0b730e9760c1d68e984da64876f98",
+      "count_sha256": "03b7c160d872de81d9b641016ac00d980cf34bceab7e9c5162466c62862196a4"
+    },
+    {
+      "stage": "reader-review-1",
+      "request_sha256": "2bee0e977a5c63c4bbc2f5f0536136977485b09d6e850d2cdc9222dbcc911d65",
+      "response_file": "23-reader-review-1.txt",
+      "output_tokens": 3831
+    },
+    {
+      "stage": "fact-review-1",
+      "request_sha256": "7c6848aeb805110e6aabc4fde6ec251882a2e85304c63395f163498fea80314e",
+      "response_file": "24-fact-review-1.txt",
+      "output_tokens": 3126
+    },
+    {
+      "stage": "revise-2",
+      "request_sha256": "aad12f6d4e9bec9d22f5d5cc9e76c1613650e30ed2d410a8686a8df9fee29f70",
+      "response_file": "25-revise-2.txt",
+      "output_tokens": 2273,
+      "messages_sha256": "9501cfe033685992c7ddd950c250245b288835e03227c8ed135831a1bf6a5a1e",
+      "count_sha256": "22073eae6766fd208c6563a1ab6070d0cfe3ea9d08f5f5699f07623c32dbe930"
+    },
+    {
+      "stage": "reader-review-2",
+      "request_sha256": "07cb48fd202177b3fdcd1258e38040bd319b7323b21207f944603d67f36ad9ea",
+      "response_file": "26-reader-review-2.txt",
+      "output_tokens": 4481
+    },
+    {
+      "stage": "reader-review-2",
+      "request_sha256": "1be446b1ae94357daab7ee0c711be1f41fac218cebfb014e68108c602afd650b",
+      "response_file": "27-reader-review-2.txt",
+      "output_tokens": 127
+    },
+    {
+      "stage": "fact-review-2",
+      "request_sha256": "ac17206bf4b1b364e4cda08d0b2f2710cb06841e3ffbfb969f009835784a4904",
+      "response_file": "28-fact-review-2.txt",
+      "output_tokens": 3014
+    }
+  ],
+  "script_hashes": [
+    "09d28f35cd0d0279f9c4104dc0de0b7a5b9665c9fd2dde56ce165c76f8bf4956",
+    "fa7fca3ce1d5e8568f92fba300b2eeeba5539dd395611dea83199b3e8855caba",
+    "35a4f6a7007d724b2f1e3f2dc678689537ecb18802f6c1eecb2898b949a2a299"
+  ]
+}

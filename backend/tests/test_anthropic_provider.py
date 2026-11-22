@@ -1,30 +1,32 @@
 import json
-from pathlib import Path
 
 import httpx
 import pytest
-
 from podgen.runtime.models.anthropic_provider import AnthropicProvider
 from podgen.runtime.models.contracts import ProviderFault
 from podgen.runtime.models.messages_wire import messages_request
 
-ARCHIVE = Path(__file__).resolve().parents[2] / "evals/reports/2026-11-08-snow-narrative-rebuild/calls"
+from tests.messages_cases import author_request
 
 
-@pytest.mark.parametrize(
-    "directory", sorted(ARCHIVE.glob("*/messages-request.json")), ids=lambda p: p.parent.name
-)
-def test_messages_matches_actual_historical_author_request(directory):
-    original = json.loads((directory.parent / "podgen-request.json").read_bytes())
-    expected = json.loads(directory.read_bytes())
-    assert messages_request(original) == expected
-    assert messages_request(original, counting=True) == {
-        key: value for key, value in expected.items() if key not in ("stream", "max_tokens")
+def test_author_request_translates_to_native_generation_and_count():
+    request = author_request()
+    expected = {
+        "model": "claude-test",
+        "system": "Write the episode.",
+        "messages": [{"role": "user", "content": [{"type": "text", "text": "A short brief."}]}],
+        "thinking": {"type": "adaptive"},
+        "output_config": {
+            "effort": "medium",
+            "format": {"type": "json_schema", "schema": {"type": "object", "properties": {}}},
+        },
     }
+    assert messages_request(request, counting=True) == expected
+    assert messages_request(request) == dict(expected, max_tokens=256, stream=False)
 
 
 def test_messages_transport_preserves_receipt_and_handles_ambiguous_failure():
-    request = json.loads((ARCHIVE / "05-draft/podgen-request.json").read_bytes())
+    request = author_request()
 
     def server(req):
         if req.url.path.endswith("/count_tokens"):
@@ -72,7 +74,7 @@ def test_messages_transport_preserves_receipt_and_handles_ambiguous_failure():
 
 
 def test_cache_boundary_and_changing_tail_reach_both_native_messages_endpoints():
-    request = json.loads((ARCHIVE / "05-draft/podgen-request.json").read_bytes())
+    request = author_request()
     request["input"][0]["content"] = [
         {"type": "input_text", "text": "source passages", "prompt_cache_breakpoint": {"mode": "explicit"}},
         {"type": "input_text", "text": "current review"},

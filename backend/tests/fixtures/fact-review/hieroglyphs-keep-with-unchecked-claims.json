@@ -1,0 +1,155 @@
+{
+  "recommendation": "keep",
+  "findings": [],
+  "finding_links": [],
+  "audit": {
+    "claim_checks": [
+      {
+        "decision_id": "D1",
+        "verdict": "supported"
+      },
+      {
+        "decision_id": "D2",
+        "verdict": "supported"
+      },
+      {
+        "decision_id": "D3",
+        "verdict": "supported"
+      },
+      {
+        "decision_id": "D4",
+        "verdict": "unchecked"
+      },
+      {
+        "decision_id": "D5",
+        "verdict": "supported"
+      },
+      {
+        "decision_id": "D6",
+        "verdict": "supported"
+      },
+      {
+        "decision_id": "D7",
+        "verdict": "unchecked"
+      },
+      {
+        "decision_id": "D8",
+        "verdict": "supported"
+      },
+      {
+        "decision_id": "D9",
+        "verdict": "supported"
+      },
+      {
+        "decision_id": "D10",
+        "verdict": "supported"
+      },
+      {
+        "decision_id": "D11",
+        "verdict": "supported"
+      },
+      {
+        "decision_id": "D12",
+        "verdict": "unchecked"
+      },
+      {
+        "decision_id": "D13",
+        "verdict": "supported"
+      },
+      {
+        "decision_id": "D14",
+        "verdict": "supported"
+      },
+      {
+        "decision_id": "D15",
+        "verdict": "supported"
+      },
+      {
+        "decision_id": "D16",
+        "verdict": "supported"
+      },
+      {
+        "decision_id": "D17",
+        "verdict": "supported"
+      },
+      {
+        "decision_id": "D18",
+        "verdict": "supported"
+      },
+      {
+        "decision_id": "D19",
+        "verdict": "supported"
+      },
+      {
+        "decision_id": "D20",
+        "verdict": "supported"
+      },
+      {
+        "decision_id": "D21",
+        "verdict": "supported"
+      },
+      {
+        "decision_id": "D22",
+        "verdict": "supported"
+      },
+      {
+        "decision_id": "D23",
+        "verdict": "supported"
+      },
+      {
+        "decision_id": "D24",
+        "verdict": "supported"
+      },
+      {
+        "decision_id": "D25",
+        "verdict": "supported"
+      }
+    ],
+    "coverage": [
+      {
+        "status": "reviewed"
+      },
+      {
+        "status": "reviewed"
+      },
+      {
+        "status": "reviewed"
+      },
+      {
+        "status": "reviewed"
+      },
+      {
+        "status": "reviewed"
+      },
+      {
+        "status": "reviewed"
+      },
+      {
+        "status": "reviewed"
+      },
+      {
+        "status": "reviewed"
+      },
+      {
+        "status": "reviewed"
+      },
+      {
+        "status": "reviewed"
+      }
+    ],
+    "areas": [
+      {
+        "status": "reviewed"
+      },
+      {
+        "status": "reviewed"
+      },
+      {
+        "status": "reviewed"
+      },
+      {
+        "status": "reviewed"
+      }
+    ]
+  }
+}

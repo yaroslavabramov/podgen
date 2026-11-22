@@ -3,10 +3,10 @@
 from types import SimpleNamespace
 
 import pytest
-
 from podgen.domain.errors import ContractError
 from podgen.runtime.evaluation.source_tool_contract import create, from_manifest
 from podgen.writing.source_tools import SourceCorpus
+
 from tests.test_frozen_source_tools import materials as source_materials
 
 
@@ -49,20 +49,19 @@ def test_contract_v5_stays_valid_and_v6_default_cannot_be_changed_silently():
         )
 
 
-def test_saved_longitude_report_sections_take_five_v6_reads_instead_of_eleven():
-    from pathlib import Path
-
+def test_five_sections_fit_v6_and_need_eleven_v5_reads():
     from podgen.research.materials.sections import partition
     from podgen.writing.research_materials.tools import read
 
-    root = Path(__file__).resolve().parents[2]
-    text = (root / "evals/reports/2026-11-13-hosted-research/report.md").read_text()
+    text = "".join(
+        f"## Section {i}\n" + "ё" * length + "\n" for i, length in enumerate([5000, 3000, 3000, 3000, 3000])
+    )
     sections = {f"M{i}": section for i, section in enumerate(partition(text), 1)}
     corpus = SimpleNamespace(research_sections=sections, research_texts={"report": text}, research_sources={})
     counts = []
     for default in (2400, 9600):
         calls = 0
-        for alias in ("M6", "M5", "M7", "M8", "M3"):
+        for alias in sections:
             cursor, parts = 0, []
             while cursor is not None:
                 result = read(

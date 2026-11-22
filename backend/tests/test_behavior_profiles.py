@@ -5,7 +5,6 @@ from pathlib import Path
 from uuid import uuid4
 
 import pytest
-
 from podgen.domain.canonical import digest
 from podgen.domain.contracts.common import RuntimeRef
 from podgen.domain.errors import ContractError
@@ -18,10 +17,11 @@ from podgen.runtime.evaluation.reading_outcome import read_outcome
 from podgen.runtime.evaluation.reusable_plan import export_plan_ref
 from podgen.runtime.evaluation.service import WritingEvaluation
 from podgen.runtime.models.contracts import WireReply
+from podgen.runtime.models.messages_wire import messages_request
 from podgen.writing.behavior import DEFAULT, resolve_behavior
 
 ROOT = Path(__file__).resolve().parents[2] / "evals"
-HISTORY = ROOT / "reports/2026-11-08-snow-narrative-rebuild"
+FIXTURES = Path(__file__).with_name("fixtures") / "narrative-replay"
 
 
 def read(path):
@@ -43,47 +43,36 @@ def archived_input(repo, project):
 
 
 class ArchiveProvider:
-    def __init__(self):
-        self.calls = []
-        for path in sorted((HISTORY / "calls").glob("*/response.json")):
-            saved = read(path)
-            if saved.get("id"):
-                self.calls.append((read(path.with_name("podgen-request.json")), saved))
+    def __init__(self, calls):
+        self.calls = calls
         self.completed = 0
 
     def count(self, body):
         return WireReply(b'{"input_tokens":10000}')
 
     def submit(self, body, *, client_request_id):
-        expected, answer = self.calls[self.completed]
-        # The journal allocates real invocation and run IDs. Nothing behavioral may differ.
-        assert body["metadata"]["podgen_stage"] == expected["metadata"]["podgen_stage"]
-        assert {k: v for k, v in body.items() if k != "metadata"} == {
-            k: v for k, v in expected.items() if k != "metadata"
-        }
+        expected = self.calls[self.completed]
+        assert body["metadata"]["podgen_stage"] == expected["stage"]
+        assert digest({k: v for k, v in body.items() if k != "metadata"}) == expected["request_sha256"]
+        if "messages_sha256" in expected:
+            assert digest(messages_request(body)) == expected["messages_sha256"]
+            assert digest(messages_request(body, counting=True)) == expected["count_sha256"]
+        text = (FIXTURES / expected["response_file"]).read_bytes().decode()
         self.completed += 1
-        if "content" in answer:
-            output = [
+        receipt = dict(
+            id=f"resp_replay_{self.completed}",
+            model=body["model"],
+            metadata=body["metadata"],
+            status="completed",
+            output=[
                 dict(
                     type="message",
                     role="assistant",
                     status="completed",
-                    content=[
-                        dict(type="output_text", text=block["text"])
-                        for block in answer["content"]
-                        if block["type"] == "text"
-                    ],
+                    content=[dict(type="output_text", text=text)],
                 )
-            ]
-        else:
-            output = answer["output"]
-        receipt = dict(
-            id=("resp_" + answer["id"]) if "content" in answer else answer["id"],
-            model=body["model"],
-            metadata=body["metadata"],
-            status="completed",
-            output=output,
-            usage={"input_tokens": 10000, "output_tokens": answer["usage"]["output_tokens"]},
+            ],
+            usage={"input_tokens": 10000, "output_tokens": expected["output_tokens"]},
         )
         return WireReply(json.dumps(receipt).encode())
 
@@ -108,7 +97,8 @@ def test_recreate_three_historical_readings_with_identical_requests_and_final_te
     writer = profile("claude-opus-5-5", ["writer"])
     reviewer = profile("gpt-6.1-terra", ["editorial_reviewer", "plan_reviewer"])
     planner = profile("gpt-6.1-sol", ["planner"])
-    provider = ArchiveProvider()
+    replay = read(FIXTURES / "replay.json")
+    provider = ArchiveProvider(replay["calls"])
     app = WritingEvaluation(repo, lambda _: provider)
     common = dict(
         case_id="snow-pump",
@@ -138,9 +128,7 @@ def test_recreate_three_historical_readings_with_identical_requests_and_final_te
         outcome = read_outcome(journal, rid)
         assert outcome is not None, journal.run(rid)
         script = RuntimeRef.model_validate(outcome["script_ref"])
-        original = ("first-cycle", "second-cycle", "final-reading")[index - 1]
-        original_result = read(HISTORY / original / "review-outcome.json")
-        assert outcome["script_hash"] == original_result["script_hash"] == digest(outcome["output"])
+        assert outcome["script_hash"] == replay["script_hashes"][index - 1] == digest(outcome["output"])
         manifest = journal.manifest(rid)
         assert manifest["behavior_profile"] == "narrative-rebuild/1" and manifest["editorial_pass"] == index
         # New admissions hash their actual complete text; saved historical request

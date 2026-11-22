@@ -1,11 +1,9 @@
 """Complete speech coverage, including oversize utterances and more than two native parts."""
 
 import json
-from pathlib import Path
 from uuid import uuid4, uuid5
 
 import pytest
-
 from podgen.domain.contracts.common import RuntimeRef
 from podgen.domain.errors import ContractError
 from podgen.episodes.production.audio import partition
@@ -13,6 +11,7 @@ from podgen.episodes.production.prepare import prepare
 from podgen.runtime.evaluation.audio.assembly.coverage import coalesce
 from podgen.runtime.evaluation.audio.journal import AudioJournal
 from podgen.runtime.models.contracts import WireReply
+
 from tests.episode_production_support import setup_episode
 from tests.research_material_provider import ResearchProvider
 
@@ -31,16 +30,16 @@ def reconstruct(script, parts):
         assert "".join(chunk[2] for chunk in chunks) == script["utterances"][index]["text"]
 
 
-def test_saved_longitude_packs_whole_utterances_and_covers_every_character():
-    root = Path(__file__).resolve().parents[2]
-    text = (root / "evals/reports/2026-11-14-longitude-revision-resume/final.md").read_text()
+def test_partition_packs_whole_utterances_and_covers_every_character():
     script = dict(
         utterances=[
-            dict(speaker="РАССКАЗЧИК", text=paragraph.split(": ", 1)[1])
-            for paragraph in text.strip().split("\n\n")
+            dict(speaker="A", text="Первая реплика."),
+            dict(speaker="B", text="Вторая реплика."),
+            dict(speaker="A", text="Конец."),
         ]
     )
-    parts = partition(script, RuntimeRef(record_kind="tool_execution", record_id=uuid4()), 6000)
+    limit = sum(len(turn["text"]) for turn in script["utterances"][:2])
+    parts = partition(script, RuntimeRef(record_kind="tool_execution", record_id=uuid4()), limit)
     assert len(parts) == 2
     reconstruct(script, parts)
     assert all(

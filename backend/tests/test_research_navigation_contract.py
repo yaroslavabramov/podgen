@@ -9,7 +9,6 @@ from types import SimpleNamespace
 from uuid import UUID, uuid4
 
 import pytest
-
 from podgen.domain.contracts.common import ArtifactRef, RuntimeRef
 from podgen.domain.errors import ContractError
 from podgen.research.materials.contracts import ResearchPacket, ResearchSource
@@ -25,10 +24,12 @@ from podgen.sources.material_requests import MaterialResolution, SourceAdmission
 from podgen.writing.editorial_contract import Assignment, SourceDocument
 from podgen.writing.materials import AuthorDocument
 from podgen.writing.source_tools import SourceCorpus, attach_task_passages, resolve_review_reads
+
+from tests import FIXTURES
 from tests.own_plan_provider import proposal
 
 ROOT = Path(__file__).resolve().parents[2]
-BASELINE = ROOT / "evals/reports/2026-11-13-hosted-planning/runtime"
+BASELINE = FIXTURES / "research-navigation"
 INSTRUCTION_HASHES = {
     "plan": "c279a4c862ff2f93549e3500204eb63e679037a245eb2e3a08127282a6785d5a",
     "draft": "7fb9a9a074c709c39c58f3520f1bbd4cd89b85d3e38a6e37ec3c5afb79428ffb",
@@ -151,9 +152,9 @@ def _plan(materials):
 @pytest.mark.parametrize("stage", list(INSTRUCTION_HASHES))
 def test_historical_research_request_replay_keeps_full_instructions_and_wire(version, stage):
     """V6 changes the default read size, never the captured v5 instructions/payload."""
-    archived = json.loads((BASELINE / f"{stage}.preview.json").read_text())["request"]
+    archived = json.loads((BASELINE / f"{stage}.json").read_text())
     assert sha256(archived["instructions"].encode()).hexdigest() == INSTRUCTION_HASHES[stage]
-    source_tools = json.loads((BASELINE / "plan.preview.json").read_text())["request"]["tools"]
+    source_tools = json.loads((BASELINE / "plan.json").read_text())["tools"]
     contract = dict(
         version=version,
         definitions=deepcopy(source_tools),
@@ -191,7 +192,7 @@ def test_v7_plan_has_catalog_navigation_and_keeps_the_literary_instructions(rese
     for source in research_materials.packet.sources:
         assert source.reported_url not in json.dumps(payload)
     assert "RESEARCH_ONLY" not in json.dumps(payload)
-    old = json.loads((BASELINE / "plan.preview.json").read_text())["request"]["instructions"]
+    old = json.loads((BASELINE / "plan.json").read_text())["instructions"]
     marker = "# Reading the supplied research materials"
     assert body["instructions"].split(marker)[0] == old.split(marker)[0]
     names = {tool["name"] for tool in body["tools"]}
@@ -235,7 +236,7 @@ def test_research_navigation_respects_independent_reading_inputs(research_materi
             "audit_context",
         }
         assert body["tools"] == [] and body["tool_choice"] == "none"
-        archived = json.loads((BASELINE / "reader-review.preview.json").read_text())["request"]
+        archived = json.loads((BASELINE / "reader-review.json").read_text())
         assert body["instructions"] == archived["instructions"]
     else:
         assert payload["evidence"] == []

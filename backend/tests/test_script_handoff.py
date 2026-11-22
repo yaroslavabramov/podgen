@@ -1,6 +1,5 @@
 """Versioned writer route, cold duration-only context, and unabridged revision feedback."""
 
-import hashlib
 import json
 from copy import deepcopy
 from pathlib import Path
@@ -17,21 +16,19 @@ from podgen.writing.projection_versions import V6, V7, V8
 from podgen.writing.projections import actionable_feedback, role_payload
 from podgen.writing.reading_views import reading_payload
 
+from tests import FIXTURES
 from tests.historical_preview import replay_preview as preview_request
+from tests.schema_cases import wire_hash
 from tests.test_editorial_independence import payload
-from tests.test_role_semantics import ARCHIVE, archived_materials
+from tests.test_role_semantics import GPS_CASE, archived_materials
 from tests.test_v5_role_wire import fixture
 
 ROOT = Path(__file__).resolve().parents[2]
 
 
-def wire_hash(value):
-    return hashlib.sha256(json.dumps(value, ensure_ascii=False, separators=(",", ":")).encode()).hexdigest()
-
-
 def historical_views(version):
     def read(name):
-        return json.loads((ARCHIVE / name).read_text())["output"]
+        return json.loads((GPS_CASE / name).read_text())
 
     materials = archived_materials()
     plan, script, review = map(read, ("accepted-plan.json", "draft.json", "script-review.json"))
@@ -62,7 +59,7 @@ def historical_views(version):
 @pytest.mark.parametrize("version", [V6, V7])
 def test_pre_change_payload_and_schema_bytes_stay_reproducible(version):
     tag = version.rsplit("/", 1)[1]
-    expected = json.loads((ROOT / f"backend/tests/fixtures/role-projection-v{tag}.hashes.json").read_text())
+    expected = json.loads((FIXTURES / f"role-projection-v{tag}.hashes.json").read_text())
     views = historical_views(version)
     assert {stage: wire_hash(view) for stage, view in views.items()} == expected["payloads"]
     for stage, hash_value in expected["schemas"].items():
@@ -78,9 +75,7 @@ def test_real_current_previews_keep_exact_route_and_isolate_the_cold_reader(case
         (ROOT / "evals/editorial-inputs/current" / case / "shared.json").read_bytes()
     )
     if case == "snow-pump":
-        plan = json.loads(
-            (ROOT / "evals/reports/2026-11-07-snow-full-episode/accepted-plan.json").read_text()
-        )
+        plan = json.loads((FIXTURES / "planning/snow-accepted.json").read_text())
     else:
         plan = json.loads((ROOT / "evals/editorial-inputs/current/gps-clock/fixed-plan.json").read_text())[
             "plan"
@@ -169,8 +164,7 @@ def test_duration_reference_is_text_only_and_does_not_extend_to_other_languages(
 
 
 def test_all_five_archived_essential_acts_are_suggestions_without_new_client_requirements():
-    archive = json.loads((ROOT / "evals/reports/2026-11-07-snow-short-editorial/planning.json").read_text())
-    plan = archive["plan-revise"].get("output", archive["plan-revise"])
+    plan = json.loads((FIXTURES / "planning/snow-essential-acts.json").read_text())
     packet = EditorialInput.model_validate_json(
         (ROOT / "evals/editorial-inputs/current/snow-pump/shared.json").read_bytes()
     )

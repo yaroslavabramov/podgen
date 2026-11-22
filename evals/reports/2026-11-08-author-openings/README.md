@@ -13,7 +13,7 @@
 Из корня репозитория, без сети и ключей:
 
 ```sh
-PYTHONPATH=backend/src backend/.venv/bin/python evals/operator/author-openings/run.py replay
+PYTHONPATH=backend/src backend/.venv/bin/python evals/operator/author-openings/run.py replay --directory evals/reports/2026-11-08-author-openings
 PYTHONPATH=backend/src backend/.venv/bin/python -m pytest -q evals/operator/author-openings/test_eval.py
 ```
 

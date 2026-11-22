@@ -4,7 +4,7 @@
     "sha256": "6d9183ee5ff9d9fe8765778cdd4875c80f9152db5d229882cf90a475b67e2d1c"
   },
   "base_plan": {
-    "path": "evals/reports/2026-11-07-snow-standalone-plan/01-planner.json",
+    "path": "evals/operator/editorial-judgment/inputs/snow-initial-plan.json",
     "sha256": "7b5830855ad96b8dbc6e18fe6eea5055216dc23596b4ed49d912bd7da269c869"
   },
   "common_replacements": {
@@ -16,7 +16,7 @@
     "base": "Actual archived planner output; common replacements and all expectations are operator-authored controls.",
     "user_criterion": "Coordinator relayed user preference against unsolicited bans and refuting unasserted claims. No verbatim user rating or measured model outcome is asserted.",
     "C03_source": {
-      "path": "evals/reports/2026-11-07-snow-standalone-plan/01-planner.json",
+      "path": "evals/operator/editorial-judgment/inputs/snow-initial-plan.json",
       "pointer": "/plan/acts/1/intended_change_in_understanding",
       "exact_sentence": "Не превращать этот эпизод в утверждение о лечебном действии пива."
     }

@@ -9,8 +9,8 @@ import pytest
 from podgen.runtime.evaluation.request_payload import request_payload
 from podgen.writing.roles import WriteOutput
 
-ROOT = Path(__file__).resolve().parents[2]
-CONTROLS = ROOT / "evals/reports/2026-11-10-narration-alignment/controls"
+ROOT = Path(__file__).resolve().parents[3]
+CONTROLS = Path(__file__).resolve().parent / "controls"
 
 
 def read(path):

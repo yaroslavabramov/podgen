@@ -17,6 +17,7 @@ from podgen.writing.projection_versions import V7, V8
 from podgen.writing.projections import role_payload
 from podgen.writing.reading_views import reading_payload
 
+from tests import FIXTURES
 from tests.historical_preview import replay_preview as preview_request
 from tests.own_plan_provider import proposal
 from tests.test_card_ids import legacy
@@ -53,10 +54,8 @@ def test_v8_matches_the_experiment_exactly_and_keeps_all_evidence_and_aliases(st
         (root / "evals/editorial-inputs/current/snow-pump/shared.json").read_bytes()
     )
     refs = ModelReferences.create(packet)
-    archived = json.loads((root / "evals/reports/2026-11-07-snow-short-editorial/planning.json").read_text())[
-        "plan-revise"
-    ]
-    plan = refs.translate(archived.get("output", archived), inbound=True)
+    archived = json.loads((FIXTURES / "planning/snow-essential-acts.json").read_text())
+    plan = refs.translate(archived, inbound=True)
     materials = EditorialMaterials(packet, RuntimeRef(record_kind="user_input", record_id=uuid4()), ())
     old = role_payload(stage, materials, candidate=plan, projection_version=V7)
     creative = role_payload("plan", materials, projection_version=V8)["dossier"]

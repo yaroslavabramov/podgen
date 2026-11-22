@@ -16,14 +16,12 @@ from podgen.writing.editorial_contract import EditorialInput
 
 HERE = Path(__file__).resolve().parent
 PACKET = HERE.parents[1] / "editorial-inputs/current/snow-pump/shared.json"
-EPISODE = (
-    HERE.parents[1] / "reports/2026-11-07-snow-short-editorial/after-reader-fix.md"
-)
-WRIGHT = HERE.parents[1] / "reports/2026-11-08-story-editing/transfer"
+EPISODE = HERE / "inputs/snow.md"
+WRIGHT_INPUT = HERE.parents[1] / "editorial-inputs/experiments/wright-first-flight/input/shared.json"
 
 
 def wright_case():
-    speech = (WRIGHT / "script.md").read_bytes()
+    speech = (HERE / "inputs/wright.md").read_bytes()
     if (
         hashlib.sha256(speech).hexdigest()
         != "216e343a76f3ec926e3c596942e506db0cb5e2f641890fe71a45dd153caf3227"
@@ -31,7 +29,7 @@ def wright_case():
         raise ValueError(
             "Reassess the Wright positive control before changing its text"
         )
-    packet = (WRIGHT / "input/shared.json").read_bytes()
+    packet = WRIGHT_INPUT.read_bytes()
     assignment = json.loads(packet)["assignment"]
     return {
         "case": "Братья Райт — полный выпуск",

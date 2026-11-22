@@ -2,10 +2,8 @@
 
 import json
 from copy import deepcopy
-from pathlib import Path
 
 import pytest
-
 from podgen.domain.errors import ContractError
 from podgen.runtime.evaluation.reading_cycle import combine
 from podgen.writing.reading_audit.admissibility import carry_retained
@@ -17,6 +15,8 @@ from podgen.writing.reading_audit.consistency import (
 from podgen.writing.reading_audit.input import initial_context
 from podgen.writing.reading_audit.registry import model, schema
 from podgen.writing.reading_audit.validation import validate
+
+from tests import FIXTURES
 from tests.reading_audit_cases import SCRIPT, recheck_context, report
 from tests.revision_cases import scope
 from tests.schema_cases import without_descriptions
@@ -284,10 +284,8 @@ def test_only_the_new_pin_changes_fact_schema_descriptions():
 def test_retained_hieroglyphs_keep_with_explicit_gaps_remains_historical_only():
     from podgen.writing.reading_audit.consistency import validate as consistency
 
-    root = Path(__file__).resolve().parents[2]
-    saved = json.loads(
-        (root / "evals/reports/2026-11-15-hieroglyphs-script/fact-review-1-attempt-0.json").read_text()
-    )["output"]
+    # Only decision, coverage and priority fields feed the consistency check.
+    saved = json.loads((FIXTURES / "fact-review/hieroglyphs-keep-with-unchecked-claims.json").read_bytes())
     assert saved["recommendation"] == "keep"
     assert {
         row["decision_id"] for row in saved["audit"]["claim_checks"] if row["verdict"] == "unchecked"

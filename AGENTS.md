@@ -34,7 +34,11 @@ in `docs/podcast-production/`.
   Preserve unrelated changes. Report known defects instead of declaring readiness
   merely because tests pass.
 - Write full evaluation exports and raw provider responses to `tmp/`. Keep
-  conclusions and the fixtures needed to reproduce checks in `evals/`.
+  evaluation conclusions in `evals/reports/`. Automated tests must run from a
+  clean checkout with that directory absent. Put product regression inputs in
+  `backend/tests/fixtures/` and shared evaluation cases alongside their operator
+  or in `evals/editorial-inputs/`. Run checks of a past experiment explicitly
+  from its report directory.
 
 Run only one heavy Podgen test suite on this machine at a time. Coordinate the slot
 with other agents and chats. Do not resume paid generation unless the current user

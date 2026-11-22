@@ -5,8 +5,6 @@ from copy import deepcopy
 from pathlib import Path
 
 import pytest
-from pydantic import ValidationError
-
 from podgen.domain.canonical import digest
 from podgen.runtime.evaluation import script_revision
 from podgen.runtime.evaluation.role_schema import response_schema
@@ -22,9 +20,11 @@ from podgen.writing.planning_versions import planning_model, planning_snapshot
 from podgen.writing.projection_versions import V8, V9
 from podgen.writing.reading_views import reading_payload
 from podgen.writing.story_views import editorial_frame, narrative_decisions
+from pydantic import ValidationError
+
 from tests.revision_cases import composition
+from tests.schema_cases import wire_hash
 from tests.test_model_wire_schema import assert_reference_nodes
-from tests.test_script_handoff import wire_hash
 from tests.test_v5_role_wire import fixture
 
 

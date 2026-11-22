@@ -1,21 +1,19 @@
 """Real primary-source transfer packet: published schema, exact ranges and ordinary source admission."""
 
 import hashlib
-import importlib.util
 import json
-from copy import deepcopy
 from pathlib import Path, PurePosixPath
 
 import pytest
 from jsonschema import Draft202012Validator
-
 from podgen.domain.contracts.common import RuntimeRef
 from podgen.persistence.editorial_inputs import generation_repo, load_editorial_materials
 from podgen.writing.editorial_contract import EditorialInput
+
 from tests.test_editorial_independence import invoke
 
 ROOT = Path(__file__).resolve().parents[2]
-INPUT = ROOT / "evals/reports/2026-11-08-story-editing/transfer/input"
+INPUT = ROOT / "evals/editorial-inputs/experiments/wright-first-flight/input"
 CORRECTED = INPUT.parent / "input-corrected"
 FROZEN_SHA256 = "f92ace1fc2ed82b2bea34565f5ada718792a7406862caf1fae8cd04989a850d8"
 CORRECTED_SHA256 = "b2a35b11118e60576a2873e935fcb65b847ea86c3ba47e60fd21dd371773fd80"
@@ -95,55 +93,3 @@ def test_wright_sources_and_shared_packet_can_be_admitted_without_a_provider(
     assert materials.fixed is None
     for document, spec in zip(materials.documents, materials.packet.documents, strict=True):
         assert document.text == (input_dir / spec.source_path).read_text()
-
-
-def test_distance_correction_preserves_fact_identity_primary_bytes_and_the_entire_original_tree():
-    original = json.loads((INPUT / "shared.json").read_text())
-    corrected = json.loads((CORRECTED / "shared.json").read_text())
-    revision = json.loads((CORRECTED / "correction.json").read_text())
-    expected = deepcopy(original)
-    card = next(
-        card
-        for card in expected["dossier"]["knowledge_cards"]
-        if card["card_id"] == revision["changed_card_id"]
-    )
-    for field in ("claim", "story_facts"):
-        card[field] = card[field].replace(
-            "Орвилл записал 852 фута над землёй за 59 секунд",
-            "Орвилл записал пройденное за 59 секунд расстояние относительно земли — 852 фута",
-        )
-    next(document for document in expected["documents"] if document["key"] == "D1")["sha256"] = (
-        hashlib.sha256((CORRECTED / "dossier.md").read_bytes()).hexdigest()
-    )
-    assert corrected == expected
-    assert (CORRECTED / "dossier.md").read_text() == (INPUT / "dossier.md").read_text().replace(
-        "Орвилл записал 852 фута над землёй за 59 секунд",
-        "Орвилл записал пройденное за 59 секунд расстояние относительно земли — 852 фута",
-    )
-    for document in original["documents"]:
-        if document["purpose"] != "dossier":
-            assert (INPUT / document["source_path"]).read_bytes() == (
-                CORRECTED / document["source_path"]
-            ).read_bytes()
-    actual = {
-        str(path.relative_to(INPUT)): hashlib.sha256(path.read_bytes()).hexdigest()
-        for path in INPUT.rglob("*")
-        if path.is_file()
-    }
-    assert actual == revision["original_tree_sha256"]
-    assert not list(CORRECTED.rglob("*.pdf"))
-    provenance = json.loads((CORRECTED / "provenance.json").read_text())
-    source_pdf = ROOT / provenance["reproduction"]["repository_path"]
-    assert hashlib.sha256(source_pdf.read_bytes()).hexdigest() == provenance["reproduction"]["sha256"]
-
-
-def test_corrected_generator_reproduces_the_package_and_refuses_to_overwrite_the_experiment(tmp_path):
-    spec = importlib.util.spec_from_file_location("prepare_wright_transfer", INPUT.parent / "prepare_case.py")
-    builder = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(builder)
-    builder.main(tmp_path)
-    assert (tmp_path / "shared.json").read_bytes() == (CORRECTED / "shared.json").read_bytes()
-    assert (tmp_path / "dossier.md").read_bytes() == (CORRECTED / "dossier.md").read_bytes()
-    assert not list(tmp_path.rglob("*.pdf"))
-    with pytest.raises(ValueError, match="cannot_overwrite_frozen_wright_experiment"):
-        builder.main(INPUT)

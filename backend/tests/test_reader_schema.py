@@ -13,8 +13,8 @@ from podgen.writing.reader_schema import FIELDS, FINDING_FIELDS, VERSION
 from podgen.writing.reader_schema import V1 as READER_V1
 
 from tests.historical_preview import replay_preview as preview_request
+from tests.schema_cases import wire_hash
 from tests.test_planning_schema_versions import without_descriptions
-from tests.test_script_handoff import wire_hash
 from tests.test_v5_role_wire import fixture
 
 CONTRACT = "editorial-role-packets/1"

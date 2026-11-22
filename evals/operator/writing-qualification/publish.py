@@ -79,7 +79,7 @@ def classify_missing_usage(run, export):
 def publish(trial, destination):
     summary = read(trial / "terminal.json")
     destination.mkdir(parents=True, exist_ok=True)
-    pricing = ROOT / "evals/reports/2026-11-08-author-openings/pricing.json"
+    pricing = ROOT / "evals/operator/author-openings/pricing-2026-11-08.json"
     rates = read(pricing)["rates_per_million_usd"]
     calls, seen, observations = [], {}, []
     for number, identifier in enumerate(summary["sessions"], 1):

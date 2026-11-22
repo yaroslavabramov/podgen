@@ -1,0 +1,10 @@
+{
+  "plan": {
+    "payload_sha256": "79e4d3b73c1b2fd434dd0d297a0da627188612bdf489279d708fc894ae244aa0",
+    "schema_sha256": "36d0224cd42a137b52da6392e32abe9099b0e5d894b0252e813be59313f4ff79"
+  },
+  "draft": {
+    "payload_sha256": "0b96fda3f993b59f924bf9a18604492350e689cad24f07a1fb421f40b0d455e0",
+    "schema_sha256": "fbdd0f792bf1edf7a39dae39aa43f4c5d64de1cbc7809694eda6f3dd8b284bb5"
+  }
+}

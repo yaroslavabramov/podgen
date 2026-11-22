@@ -2,10 +2,8 @@
 
 import json
 from hashlib import sha256
-from pathlib import Path
 
 import pytest
-
 from podgen import writing_cli
 from podgen.domain.errors import Conflict
 from podgen.runtime.evaluation import service as service_module
@@ -20,6 +18,8 @@ from podgen.writing.reader_schema import V4 as READER_V4
 from podgen.writing.reader_schema import V5 as READER_V5
 from podgen.writing.reader_story import ORDER as STORY_ORDER
 from podgen.writing.reader_wording import FIELDS as WORDING_FIELDS
+
+from tests import FIXTURES
 from tests.historical_revisions import historical_revision_manifest
 from tests.test_editorial_independence import invoke, payload, prepare
 from tests.test_independent_readings import Paused, ReadingProvider, setup_review
@@ -37,9 +37,8 @@ def test_cli_reader_schema_preview_and_resume_keep_their_pinned_semantics(
         VERSION if not historical else {"v1": READER_V1, "v4": READER_V4, "v5": READER_V5}.get(historical)
     )
     if historical == "v5":
-        root = Path(__file__).resolve().parents[2]
-        old_wire = root / "evals/reports/2026-11-08-story-editing/controls/cases/a/request.json"
-        old_body = json.loads(old_wire.read_text())["instructions"]
+        instructions_path = FIXTURES / "writing-instructions/reader-schema-legacy.md"
+        old_body = instructions_path.read_text()
 
         released = BehaviorProfile.instructions
 
@@ -141,7 +140,8 @@ def test_cli_reader_schema_preview_and_resume_keep_their_pinned_semantics(
         assert len(provider.requests) == count
         monkeypatch.setattr(service_module, "response_schema", response_schema)
     monkeypatch.setattr(
-        BehaviorProfile, "instructions",
+        BehaviorProfile,
+        "instructions",
         lambda *a: pytest.fail("Resume must use pinned instructions"),
     )
     provider.pause = None

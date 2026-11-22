@@ -39,7 +39,7 @@
       "id": "03",
       "script": "inputs/03.json",
       "source": {
-        "path": "backend/src/podgen/writing/behavior/assets/7fe53f8ba3f362a5dfc931e6f3d2ae26c891519a6fbe0cce2208bd3df1cfc552.md",
+        "path": "backend/src/podgen/writing/prompts/history/releases/existing-1/style-reference-ru.md",
         "sha256": "7fe53f8ba3f362a5dfc931e6f3d2ae26c891519a6fbe0cce2208bd3df1cfc552",
         "start": 2021,
         "end": 2763
@@ -58,7 +58,7 @@
       "id": "04",
       "script": "inputs/04.json",
       "source": {
-        "path": "backend/src/podgen/writing/behavior/assets/7fe53f8ba3f362a5dfc931e6f3d2ae26c891519a6fbe0cce2208bd3df1cfc552.md",
+        "path": "backend/src/podgen/writing/prompts/history/releases/existing-1/style-reference-ru.md",
         "sha256": "7fe53f8ba3f362a5dfc931e6f3d2ae26c891519a6fbe0cce2208bd3df1cfc552",
         "start": 4600,
         "end": 5247

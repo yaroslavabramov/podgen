@@ -17,7 +17,7 @@ ROOT = Path(__file__).resolve().parents[3]
 CASES = {
     "snow-pump": "evals/editorial-inputs/current/snow-pump/shared.json",
     "gps-clock": "evals/editorial-inputs/current/gps-clock/shared.json",
-    "wright-first-flight": "evals/reports/2026-11-08-story-editing/transfer/input-corrected/shared.json",
+    "wright-first-flight": "evals/editorial-inputs/experiments/wright-first-flight/input-corrected/shared.json",
     "rain-soil": "evals/editorial-inputs/experiments/rain-soil/shared.json",
 }
 PROFILES = {

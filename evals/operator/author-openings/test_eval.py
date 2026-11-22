@@ -2,17 +2,14 @@
 
 import copy
 import json
-import shutil
-from pathlib import Path
+import sys
 
 import pytest
 from artifacts import read, save, send_once
 from conditions import TASK, author_request, payload, words
 from providers import probe, select
 from results import estimate, replay
-
-ROOT = Path(__file__).resolve().parents[3]
-REPORT = ROOT / "evals/reports/2026-11-08-author-openings"
+from run import main
 
 
 def envelope(provider, model, output):
@@ -42,23 +39,68 @@ def fake_transport(response, counter):
     return send
 
 
-def test_prepared_conditions_preserve_the_complete_original_and_plan():
-    original = read(REPORT / "source/request.json")
-    common = read(REPORT / "common/payload.json")
+@pytest.fixture
+def prepared(tmp_path, monkeypatch):
+    source = tmp_path / "inputs"
+    directory = tmp_path / "trial"
+    brief = dict(
+        output_language="ru",
+        assignment=dict(speakers=[dict(label="РАССКАЗЧИК")]),
+        story=dict(main_question="Кто пришёл первым?"),
+    )
+    schema = {"$defs": {"WriteUtterance": {"properties": {"text": {"type": "string", "minLength": 1}}}}}
+    request = dict(
+        instructions="Write the episode.",
+        model="example",
+        reasoning=dict(effort="medium"),
+        input=[dict(role="user", content=[dict(type="input_text", text=json.dumps(brief))])],
+        text=dict(format=dict(type="json_schema", name="draft", schema=schema)),
+    )
+    save(source / "request.json", request)
+    script = dict(utterances=[dict(speaker="РАССКАЗЧИК", text="Они вышли к реке. " * 80)])
+    save(source / "receipt.json", envelope("openai", "example", script))
+    save(source / "plan.json", dict(output=dict(status="ready")))
+    save(source / "rates.json", dict(rates_per_million_usd={}))
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "run.py",
+            "prepare",
+            "--directory",
+            str(directory),
+            "--draft-request",
+            str(source / "request.json"),
+            "--accepted-plan",
+            str(source / "plan.json"),
+            "--pricing",
+            str(source / "rates.json"),
+        ],
+    )
+    main()
+    return directory
+
+
+def test_prepared_conditions_preserve_the_complete_original_and_plan(prepared):
+    original = read(prepared / "source/request.json")
+    common = read(prepared / "common/payload.json")
     expected = payload(original)
     assert common.pop("opening_task") == TASK
     assert common == expected
-    assert (REPORT / "common/instructions.txt").read_text() == original["instructions"]
-    assert read(REPORT / "common/schema.json") == original["text"]["format"]["schema"]
-    assert read(REPORT / "source/accepted-plan.json")["output"]["status"] == "ready"
-    excerpt = (REPORT / "historical/opening.md").read_text().removesuffix("\n")
-    full = "\n\n".join(row["text"] for row in read(REPORT / "historical/full-script.json")["utterances"])
+    assert (prepared / "common/instructions.txt").read_text() == original["instructions"]
+    assert read(prepared / "common/schema.json") == original["text"]["format"]["schema"]
+    assert read(prepared / "source/accepted-plan.json")["output"]["status"] == "ready"
+    excerpt = (prepared / "historical/opening.md").read_text().removesuffix("\n")
+    full = "\n\n".join(row["text"] for row in read(prepared / "historical/full-script.json")["utterances"])
     assert full.startswith(excerpt)
     assert 220 <= words(excerpt) <= 270
 
 
-def test_both_wire_adapters_send_identical_full_author_content():
-    original, common = read(REPORT / "source/request.json"), read(REPORT / "common/payload.json")
+def test_both_wire_adapters_send_identical_full_author_content(prepared):
+    original, common = (
+        read(prepared / "source/request.json"),
+        read(prepared / "common/payload.json"),
+    )
     a = author_request(original, common, "openai", "gpt-6.1-sol")
     b = author_request(original, common, "anthropic", "claude-opus-5-5")
     assert a["instructions"] == b["system"] == original["instructions"]
@@ -110,44 +152,38 @@ def test_listing_alone_does_not_prove_generation_access(tmp_path):
     assert read(tmp_path / "transport.json")["status"] == 403
 
 
-def test_replay_is_offline_and_does_not_edit_or_filter_nonpreferred_length(tmp_path):
-    original, common = read(REPORT / "source/request.json"), read(REPORT / "common/payload.json")
-    for name in ("source", "conditions.json"):
-        source = REPORT / name
-        if source.is_dir():
-            shutil.copytree(source, tmp_path / name)
-        else:
-            shutil.copy2(source, tmp_path / name)
-    save(tmp_path / "common/payload.json", common)
-    (tmp_path / "common/instructions.txt").write_text(original["instructions"])
-    save(tmp_path / "pricing.json", read(REPORT / "pricing.json"))
+def test_replay_is_offline_and_does_not_edit_or_filter_nonpreferred_length(prepared):
+    original, common = (
+        read(prepared / "source/request.json"),
+        read(prepared / "common/payload.json"),
+    )
     identity = {
         "A": dict(slot="one", provider="openai", model="gpt-6.1-sol"),
         "B": dict(slot="two", provider="anthropic", model="claude-opus-5-5"),
     }
-    save(tmp_path / "sealed/identity.json", identity)
+    save(prepared / "sealed/identity.json", identity)
     calls = []
     for label, entry in identity.items():
         output = dict(utterances=[dict(speaker="РАССКАЗЧИК", text="Точный короткий текст " + label + ".")])
         request = author_request(original, common, entry["provider"], entry["model"])
         send_once(
-            tmp_path / "sealed/candidates" / entry["slot"],
+            prepared / "sealed/candidates" / entry["slot"],
             request,
             fake_transport(envelope(entry["provider"], entry["model"], output), calls),
         )
-    first = replay(tmp_path)
-    assert replay(tmp_path) == first
+    first = replay(prepared)
+    assert replay(prepared) == first
     assert len(calls) == 2
-    assert (tmp_path / "blind/A.md").read_text() == "Точный короткий текст A.\n"
-    assert not read(tmp_path / "blind/checks.json")["samples"][0]["within_guidance"]
+    assert (prepared / "blind/A.md").read_text() == "Точный короткий текст A.\n"
+    assert not read(prepared / "blind/checks.json")["samples"][0]["within_guidance"]
     changed = copy.deepcopy(common)
     changed["story"]["main_question"] = "tampered"
-    path = tmp_path / "sealed/candidates/one/request.json"
+    path = prepared / "sealed/candidates/one/request.json"
     value = read(path)
     value["input"][0]["content"][0]["text"] = json.dumps(changed)
     path.write_text(json.dumps(value))
     with pytest.raises(AssertionError):
-        replay(tmp_path)
+        replay(prepared)
 
 
 def test_cost_includes_cache_categories_and_unknown_models_are_not_guessed():

@@ -1,0 +1,937 @@
+{
+  "model": "gpt-6.1-terra",
+  "instructions": "# Read the episode as a finished telling\n\nDecide whether you would send this script to the assigned speakers to record. Read only its spoken words, genre, format and audience. Report `reading_mode=script_only`. Use `output_language` for prose and preserve speaker labels, quotations and keys exactly.\n\n## Judge the complete telling\n\nRead the whole script before commissioning repairs. Decide how the voice works across the episode and what the complete telling leaves the listener with. Ground these judgments in concrete words from the relevant passages. When considering a required repair, compare the passage as written with the proposed alternative and identify the defect the change resolves. A plot summary or a general description of the tone does not establish either readiness or a defect. Track what this listener can understand as the speech unfolds. When a sentence relies on a reference or inference, check whether the needed connection is available at that point. Do not silently supply knowledge from later in the script. A deliberate question or delayed reveal can leave its answer open while making clear what the listener is following.\n\nBefore approving a scene followed by explanatory commentary, establish what listeners can already understand at its last substantive action, result or reply. Compare hearing the scene and its next join with the commentary against hearing them without it. Make this comparison part of the readiness decision even when the scene itself works and deserves praise. When the longer version merely restates that understanding and weakens pace, voice or the pleasure of discovery, require the exact cut or shortening. Keep or repair an explanation that supplies a needed connection. A joke, aside or reflection may contribute through timing, attitude, relationship or pleasure without adding information.\n\nThe ending may complete the action, follow a consequence, express the narrator's response or reflection, return to an earlier moment, leave open a question central to the story, or briefly draw the whole account together. Its content should suit this episode and its voice; no new fact, twist or prescribed emotion is required.\n\nA brief overall conclusion gives a view of the episode's broad subject, outcome or takeaway, relying on details the audience has just heard. Going through the clues, reasoning, mechanism or stages again, or refuting a misconception the telling never raised, does not provide that overall conclusion.\n\nRead the entire ending with its setup, the understanding or change achieved and what remains open. Judge its actual words, rhythm and transition into the stopping point against what listeners have just heard. For a proposed cut, read the surviving ending: does it still complete the telling, or does removing the repeated explanation leave an abrupt stop, an unsupported conclusion or an unprepared correction? Use the actual stopping words and joins to establish the defect and the effect of the repair. Commission a complete ending with its transition when that is the coherent repair, without fixing the current last sentence as its destination. If the telling stops before a prepared answer, request completion within the available material or a change to what the story promises. An earlier possible stop alone is not a defect; keep the current ending when it works.\n\n## Record the complete editorial audit\n\nIn `listener_answer`, describe the understanding listeners develop as the speech unfolds. In `audit.judgments`, record the contextual meaning, scope, listening effect and rationale of decisions about acceptable passages as well as passages needing change. Cover story development, clarity, transitions, repetition, ending, voice and idiom. The same passage may bear on several aspects; the areas do not prescribe an episode structure or require a defect under each heading.\n\nIn `audit.coverage`, account for all current utterances through inclusive ranges and link the decisions recording the work. In `audit.areas`, account for each editorial aspect. Mark work `unchecked` when it was not assessed sufficiently, and explain what remains; use `not_applicable` only with a concrete reason. A range marked reviewed does not by itself establish that its judgments are correct. Empty findings do not establish complete coverage. In `audit.overall_judgment`, explain the recording decision by connecting the passage judgments to how the complete telling develops and how its voice, rhythm and perspective work for this audience.\n\nGive each decision a unique `decision_id`. Author `memory_summary` separately, within its 1600-character bound, while keeping complete contextual meanings and rationales in the full audit. Link every finding to the decisions establishing it in `finding_links`. Keep audit judgments and memory separate from spoken material and from the writer's repair assignments.\n\n## Initial decisions and revision work\n\nThis is the first audit of the supplied episode. Collect the demonstrated required work before commissioning its revision. Return empty `assignment_results`, `previous_dispositions` and `late_findings`, and null for `effect_on_episode`: there is no revision to compare. A complete audit includes justified positive decisions and explicit unchecked work; it does not promise infallibility or require a finding for every topic.\n\n## Commission the needed work\n\nLet the comparisons determine the findings. In `observation`, explain the current defect and its effect on this listener. In `requested_change`, commission a concrete change to the addressed telling: what the writer should develop, connect, reveal, select or replace, and what the resulting passage should achieve. Choose the smallest coherent repair that resolves the demonstrated defect. A word or sentence may restore an intelligible reference or transition; rebuild a connected passage when its development or dependencies need to change together. Keep your evidential and editorial analysis in the diagnosis; it is not itself speech to put on air. For a recurring manner or extended ending that needs connected revision, give one coherent passage assignment before independent line repairs. In `preserve`, state the supported meaning and useful effect to retain; a factual boundary constrains the repaired account without automatically becoming a spoken qualification. Use `important` or `blocking` and recommend `revise` for a demonstrated defect. An alternative with a comparable listening effect is `optional`. Use `keep` when no required repair remains.\n\nRead the entire surviving sequence after each proposed operation. Keep the necessary connection between observation, explanation and conclusion, and keep clear the subject, units and population of retained claims. If a comparison or explanation lacks a basis, decide whether it is needed for the commissioned question. An unclear branch may be removed when that question is already understandable without it. If the branch is needed, ask the writer to establish the missing basis from the sources or change the retained account or claim. Repairing the scope of the account does not automatically require a spoken explanation of methodology. Ask for methodological detail when this audience needs it to understand what remains. A statement of caution alone does not supply a missing basis. Judge a qualification with its whole paragraph and the words that will remain: retain it when those words still invite a specific mistaken understanding, naming both. Hear the actual grammar, idiom and cadence, and require repair of an objective language error. An intended mystery can leave an answer open while supplying the basis the listener needs to follow it. Do not invent a replacement account.\n\n## Authorize and return the review\n\nSet `revision_scope` from required work, using `none` when there is none. When a connected passage needs rebuilding, use `sequence` and authorize its complete inclusive range in `sequence_ranges`: two short exact quotes identify its first and last utterances, which may be the same utterance. Include the setup, support for dependent conclusions and handoff that need to change together. For an ending rewrite, check that the authorized range includes its entire needed development through the intended stopping point and any dependent setup. A self-contained wording correction within an ending may remain local. A move needs a connected range covering its original and intended positions and the intervening speech. Use `whole_episode` when the repair requires recomposing the complete telling. Local repairs change quoted wording only; quote an entire local deletion. Quotes of surviving join lines identify the join without authorizing deletion between them.\n\nAnchor each finding to exact nonempty quotations and supplied zero-based utterance indices. Address dependent passages with the underlying repair. Record useful contributions in strengths without treating them as approval of the whole voice or ending. Keep comparisons to the speech needed to explain the decision and operation. Use `duration_context` as an estimate, leave `research_requests` empty and return the requested structured review. External verification belongs to evidence reading; report no measured audio or human listening.\n",
+  "input": [
+    {
+      "role": "user",
+      "content": [
+        {
+          "type": "input_text",
+          "text": "{\"output_language\":\"ru\",\"audience\":\"General listeners; no prior topic knowledge is assumed.\",\"format\":\"solo\",\"genre\":\"podcast\"}",
+          "prompt_cache_breakpoint": {
+            "mode": "explicit"
+          }
+        },
+        {
+          "type": "input_text",
+          "text": "{\"script\":{\"utterances\":[{\"index\":0,\"speaker\":\"РАССКАЗЧИК\",\"text\":\"PREVIEW FIXTURE ONLY: это технический текст для проверки формы запроса.\"}]},\"duration_context\":{\"current_text\":{\"word_count\":10},\"audio_measured\":false,\"requested\":{\"target_seconds\":810,\"min_seconds\":720,\"max_seconds\":900},\"estimated_word_target\":1485,\"estimated_word_range\":{\"min\":1320,\"max\":1650},\"estimate_basis\":\"Russian solo reference reading at 110 words/minute\",\"estimated_current_seconds\":6},\"audit_context\":{\"phase\":\"first\",\"assignments\":[],\"previous_decisions\":[],\"previous_coverage\":[],\"previous_recommendation\":null,\"previous_overall_judgment\":null,\"revision_operation\":null,\"previous_script_in_order\":[]}}"
+        }
+      ]
+    }
+  ],
+  "max_output_tokens": 24576,
+  "text": {
+    "verbosity": "high",
+    "format": {
+      "type": "json_schema",
+      "name": "reader_review",
+      "schema": {
+        "$defs": {
+          "AssignmentResult": {
+            "additionalProperties": false,
+            "properties": {
+              "assignment_id": {
+                "minLength": 1,
+                "title": "Assignment Id",
+                "type": "string"
+              },
+              "outcome": {
+                "enum": [
+                  "achieved",
+                  "solved_differently",
+                  "no_longer_needed",
+                  "still_open"
+                ],
+                "title": "Outcome",
+                "type": "string"
+              },
+              "judgment": {
+                "description": "What the edit actually did here and how that reads now.",
+                "minLength": 1,
+                "title": "Judgment",
+                "type": "string"
+              },
+              "followup_finding": {
+                "anyOf": [
+                  {
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "Zero-based current finding for an outstanding issue; otherwise null.",
+                "title": "Followup Finding"
+              }
+            },
+            "required": [
+              "assignment_id",
+              "outcome",
+              "judgment",
+              "followup_finding"
+            ],
+            "title": "AssignmentResult",
+            "type": "object"
+          },
+          "CoverageRange": {
+            "additionalProperties": false,
+            "properties": {
+              "first_utterance_index": {
+                "minimum": 0,
+                "title": "First Utterance Index",
+                "type": "integer",
+                "description": "First current utterance in this inclusive range, indexed from zero."
+              },
+              "last_utterance_index": {
+                "minimum": 0,
+                "title": "Last Utterance Index",
+                "type": "integer",
+                "description": "Last current utterance in this inclusive range, indexed from zero."
+              },
+              "status": {
+                "enum": [
+                  "reviewed",
+                  "unchecked",
+                  "not_applicable"
+                ],
+                "title": "Status",
+                "type": "string",
+                "description": "Whether this range was reviewed, remains unchecked or contains no applicable material for this role."
+              },
+              "decision_ids": {
+                "items": {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "title": "Decision Ids",
+                "type": "array",
+                "description": "Current audit decisions recording the review of this range; at least one is required when status is reviewed."
+              },
+              "explanation": {
+                "minLength": 1,
+                "title": "Explanation",
+                "type": "string",
+                "description": "Work performed, work still unchecked or grounds for inapplicability in this range."
+              }
+            },
+            "required": [
+              "first_utterance_index",
+              "last_utterance_index",
+              "status",
+              "decision_ids",
+              "explanation"
+            ],
+            "title": "CoverageRange",
+            "type": "object"
+          },
+          "DecisionDisposition": {
+            "additionalProperties": false,
+            "properties": {
+              "previous_decision_id": {
+                "minLength": 1,
+                "title": "Previous Decision Id",
+                "type": "string",
+                "description": "Exact identifier of the supplied previous own-role decision."
+              },
+              "disposition": {
+                "enum": [
+                  "retained",
+                  "reassessed",
+                  "retired"
+                ],
+                "title": "Disposition",
+                "type": "string",
+                "description": "Whether that decision remains applicable, was reassessed or no longer applies."
+              },
+              "current_decision_ids": {
+                "items": {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "title": "Current Decision Ids",
+                "type": "array",
+                "description": "Current decisions carrying forward or reassessing the previous decision; empty when retired."
+              },
+              "context_assessment": {
+                "minLength": 1,
+                "title": "Context Assessment",
+                "type": "string",
+                "description": "Comparison of the previous and current meaning, surrounding context and applicable evidential basis."
+              },
+              "reason": {
+                "minLength": 1,
+                "title": "Reason",
+                "type": "string",
+                "description": "Why this previous decision is retained, reassessed or retired."
+              }
+            },
+            "required": [
+              "previous_decision_id",
+              "disposition",
+              "current_decision_ids",
+              "context_assessment",
+              "reason"
+            ],
+            "title": "DecisionDisposition",
+            "type": "object"
+          },
+          "DependentPassage": {
+            "additionalProperties": false,
+            "properties": {
+              "reason": {
+                "description": "Why this passage must change with the addressed repair.",
+                "minLength": 1,
+                "title": "Reason",
+                "type": "string"
+              },
+              "anchors": {
+                "items": {
+                  "$ref": "#/$defs/UtteranceAnchor"
+                },
+                "minItems": 1,
+                "title": "Anchors",
+                "type": "array"
+              }
+            },
+            "required": [
+              "reason",
+              "anchors"
+            ],
+            "title": "DependentPassage",
+            "type": "object"
+          },
+          "EditorialFinding": {
+            "additionalProperties": false,
+            "properties": {
+              "dimension": {
+                "enum": [
+                  "promise",
+                  "mechanism",
+                  "structure",
+                  "transition",
+                  "repetition",
+                  "oral_style",
+                  "speaker_contribution",
+                  "factuality",
+                  "attribution",
+                  "duration",
+                  "ending"
+                ],
+                "title": "Dimension",
+                "type": "string"
+              },
+              "priority": {
+                "enum": [
+                  "blocking",
+                  "important",
+                  "optional"
+                ],
+                "title": "Priority",
+                "type": "string"
+              },
+              "anchors": {
+                "items": {
+                  "$ref": "#/$defs/UtteranceAnchor"
+                },
+                "minItems": 1,
+                "title": "Anchors",
+                "type": "array"
+              },
+              "observation": {
+                "description": "Specific defect in the anchored words and its effect in listening order. For grammar, identify the faulty form or construction.",
+                "minLength": 1,
+                "title": "Observation",
+                "type": "string"
+              },
+              "requested_change": {
+                "description": "Concrete operation on the addressed words or passage, its intended listening effect and any dependent joins. Editorial diagnosis is not proposed spoken wording.",
+                "minLength": 1,
+                "title": "Requested Change",
+                "type": "string"
+              },
+              "preserve": {
+                "description": "Supported meaning, necessary factual conditions and useful listening effects to retain. May be empty.",
+                "items": {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "title": "Preserve",
+                "type": "array"
+              }
+            },
+            "required": [
+              "dimension",
+              "priority",
+              "anchors",
+              "observation",
+              "requested_change",
+              "preserve"
+            ],
+            "title": "EditorialFinding",
+            "type": "object"
+          },
+          "EditorialStrength": {
+            "additionalProperties": false,
+            "properties": {
+              "anchors": {
+                "items": {
+                  "$ref": "#/$defs/UtteranceAnchor"
+                },
+                "minItems": 1,
+                "title": "Anchors",
+                "type": "array"
+              },
+              "reason": {
+                "description": "What works for the listener and should survive revision.",
+                "minLength": 1,
+                "title": "Reason",
+                "type": "string"
+              }
+            },
+            "required": [
+              "anchors",
+              "reason"
+            ],
+            "title": "EditorialStrength",
+            "type": "object"
+          },
+          "FindingLink": {
+            "additionalProperties": false,
+            "properties": {
+              "finding_index": {
+                "minimum": 0,
+                "title": "Finding Index",
+                "type": "integer",
+                "description": "Zero-based index of the current finding."
+              },
+              "decision_ids": {
+                "items": {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "minItems": 1,
+                "title": "Decision Ids",
+                "type": "array",
+                "description": "Current contextual decisions that establish this finding."
+              }
+            },
+            "required": [
+              "finding_index",
+              "decision_ids"
+            ],
+            "title": "FindingLink",
+            "type": "object"
+          },
+          "LateFinding": {
+            "additionalProperties": false,
+            "properties": {
+              "finding_index": {
+                "minimum": 0,
+                "title": "Finding Index",
+                "type": "integer",
+                "description": "Zero-based index of the current mandatory finding."
+              },
+              "reason_kind": {
+                "enum": [
+                  "unresolved_assignment",
+                  "introduced_or_regression",
+                  "context_or_evidence_changed",
+                  "substantive_missed_issue"
+                ],
+                "title": "Reason Kind",
+                "type": "string",
+                "description": "Category of the concrete basis for requiring this repair now."
+              },
+              "previous_decision_ids": {
+                "items": {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "title": "Previous Decision Ids",
+                "type": "array",
+                "description": "Previous own-role decisions relevant to this finding and its reassessment."
+              },
+              "previous_coverage_indices": {
+                "items": {
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "title": "Previous Coverage Indices",
+                "type": "array",
+                "description": "Zero-based previous coverage entries locating work that was unchecked or omitted."
+              },
+              "assignment_ids": {
+                "items": {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "title": "Assignment Ids",
+                "type": "array",
+                "description": "Exact supplied writer assignments whose unresolved problems bear on this finding."
+              },
+              "current_decision_ids": {
+                "items": {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "minItems": 1,
+                "title": "Current Decision Ids",
+                "type": "array",
+                "description": "Current decisions demonstrating the problem and its present scope."
+              },
+              "grounds": {
+                "minLength": 1,
+                "title": "Grounds",
+                "type": "string",
+                "description": "Actual unresolved work, introduced error, contextual or evidence change, or substantive earlier omission; not a repetition of the category name."
+              },
+              "substantive_consequence": {
+                "minLength": 1,
+                "title": "Substantive Consequence",
+                "type": "string",
+                "description": "How the demonstrated problem would materially mislead or impair this episode if left unchanged."
+              }
+            },
+            "required": [
+              "finding_index",
+              "reason_kind",
+              "previous_decision_ids",
+              "previous_coverage_indices",
+              "assignment_ids",
+              "current_decision_ids",
+              "grounds",
+              "substantive_consequence"
+            ],
+            "title": "LateFinding",
+            "type": "object"
+          },
+          "PinpointAssessment": {
+            "additionalProperties": false,
+            "properties": {
+              "scale": {
+                "description": "Local includes multiple independent pinpoint repairs at any distance; whole_episode explicitly authorizes recomposing the complete telling.",
+                "enum": [
+                  "none",
+                  "local",
+                  "whole_episode"
+                ],
+                "title": "Scale",
+                "type": "string"
+              },
+              "reason": {
+                "description": "Concrete editorial reason for this scale and its intended effect on the listening experience; do not infer quality from counts.",
+                "minLength": 1,
+                "title": "Reason",
+                "type": "string"
+              },
+              "anchors": {
+                "description": "Exact passages supporting this choice. Required repair needs at least one; none may use an empty list.",
+                "items": {
+                  "$ref": "#/$defs/UtteranceAnchor"
+                },
+                "title": "Anchors",
+                "type": "array"
+              },
+              "dependent_passages": {
+                "description": "Explicitly addressed dependent passages; no automatic neighboring-text permission. Empty when none are needed.",
+                "items": {
+                  "$ref": "#/$defs/DependentPassage"
+                },
+                "title": "Dependent Passages",
+                "type": "array"
+              }
+            },
+            "required": [
+              "scale",
+              "reason",
+              "anchors",
+              "dependent_passages"
+            ],
+            "title": "PinpointAssessment",
+            "type": "object"
+          },
+          "ReaderArea": {
+            "additionalProperties": false,
+            "properties": {
+              "status": {
+                "enum": [
+                  "reviewed",
+                  "unchecked",
+                  "not_applicable"
+                ],
+                "title": "Status",
+                "type": "string",
+                "description": "Whether this area was reviewed, remains unchecked or does not apply to this account."
+              },
+              "decision_ids": {
+                "items": {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "title": "Decision Ids",
+                "type": "array",
+                "description": "Current decisions recording this area. For reviewed status, at least one linked decision must have a verdict other than unchecked and include this area's aspect in its aspects list."
+              },
+              "explanation": {
+                "minLength": 1,
+                "title": "Explanation",
+                "type": "string",
+                "description": "Assessment performed, remaining unchecked work or grounds for inapplicability."
+              },
+              "aspect": {
+                "enum": [
+                  "story_development",
+                  "clarity",
+                  "transitions",
+                  "repetition",
+                  "ending",
+                  "voice",
+                  "idiom"
+                ],
+                "title": "Aspect",
+                "type": "string",
+                "description": "Role-specific area of the complete audit."
+              }
+            },
+            "required": [
+              "status",
+              "decision_ids",
+              "explanation",
+              "aspect"
+            ],
+            "title": "ReaderArea",
+            "type": "object"
+          },
+          "ReaderAudit": {
+            "additionalProperties": false,
+            "properties": {
+              "coverage": {
+                "items": {
+                  "$ref": "#/$defs/CoverageRange"
+                },
+                "minItems": 1,
+                "title": "Coverage",
+                "type": "array",
+                "description": "Ordered, non-overlapping inclusive ranges covering every current utterance exactly once, from index 0 through the final utterance without gaps. Each range records its review status, linked decisions and unchecked work."
+              },
+              "areas": {
+                "items": {
+                  "$ref": "#/$defs/ReaderArea"
+                },
+                "title": "Areas",
+                "type": "array",
+                "description": "Exactly one entry for every role-specific audit area, with status, linked decisions and explanation. A reviewed area must link at least one decision whose verdict is not unchecked and whose claim type or aspect matches that area."
+              },
+              "judgments": {
+                "items": {
+                  "$ref": "#/$defs/ReaderJudgment"
+                },
+                "title": "Judgments",
+                "type": "array",
+                "description": "Decisions on actual passages and their contribution to the whole telling, including acceptable work."
+              },
+              "overall_judgment": {
+                "minLength": 1,
+                "title": "Overall Judgment",
+                "type": "string",
+                "description": "Rationale for the recording decision, connecting passage judgments with the whole telling's development, voice, rhythm and perspective for this audience."
+              }
+            },
+            "required": [
+              "coverage",
+              "areas",
+              "judgments",
+              "overall_judgment"
+            ],
+            "title": "ReaderAudit",
+            "type": "object",
+            "description": "Complete judgment of this telling, including its cumulative voice, successful passages, defects and unchecked work."
+          },
+          "ReaderJudgment": {
+            "additionalProperties": false,
+            "properties": {
+              "decision_id": {
+                "pattern": "^D[1-9][0-9]*$",
+                "title": "Decision Id",
+                "type": "string",
+                "description": "Unique local identifier for this current audit decision: D followed by a positive integer without leading zeros, such as D1 or D2."
+              },
+              "anchors": {
+                "items": {
+                  "$ref": "#/$defs/UtteranceAnchor"
+                },
+                "minItems": 1,
+                "title": "Anchors",
+                "type": "array",
+                "description": "Exact current spoken words locating the assessed passage."
+              },
+              "contextual_meaning": {
+                "minLength": 1,
+                "title": "Contextual Meaning",
+                "type": "string",
+                "description": "What the connected passage conveys to this audience in the surrounding account."
+              },
+              "context_scope": {
+                "minLength": 1,
+                "title": "Context Scope",
+                "type": "string",
+                "description": "The subject, time, extent, attribution and surrounding context to which this decision applies."
+              },
+              "rationale": {
+                "minLength": 1,
+                "title": "Rationale",
+                "type": "string",
+                "description": "Grounds for this decision at its recorded contextual scope."
+              },
+              "memory_summary": {
+                "maxLength": 1600,
+                "minLength": 1,
+                "title": "Memory Summary",
+                "type": "string",
+                "description": "Separately authored compact account of this decision for reviewer memory, at most 1600 characters. Full meaning and rationale remain in the complete audit."
+              },
+              "aspects": {
+                "items": {
+                  "enum": [
+                    "story_development",
+                    "clarity",
+                    "transitions",
+                    "repetition",
+                    "ending",
+                    "voice",
+                    "idiom"
+                  ],
+                  "type": "string"
+                },
+                "minItems": 1,
+                "title": "Aspects",
+                "type": "array",
+                "description": "Aspects of the listening experience assessed by this decision."
+              },
+              "verdict": {
+                "enum": [
+                  "acceptable",
+                  "needs_change",
+                  "unchecked"
+                ],
+                "title": "Verdict",
+                "type": "string",
+                "description": "Whether this passage is acceptable, needs a concrete change or remains unchecked."
+              }
+            },
+            "required": [
+              "decision_id",
+              "anchors",
+              "contextual_meaning",
+              "context_scope",
+              "rationale",
+              "memory_summary",
+              "aspects",
+              "verdict"
+            ],
+            "title": "ReaderJudgment",
+            "type": "object"
+          },
+          "ResearchNeed": {
+            "additionalProperties": false,
+            "properties": {
+              "anchors": {
+                "items": {
+                  "$ref": "#/$defs/UtteranceAnchor"
+                },
+                "minItems": 1,
+                "title": "Anchors",
+                "type": "array"
+              },
+              "question": {
+                "minLength": 1,
+                "title": "Question",
+                "type": "string"
+              },
+              "why_needed": {
+                "minLength": 1,
+                "title": "Why Needed",
+                "type": "string"
+              }
+            },
+            "required": [
+              "anchors",
+              "question",
+              "why_needed"
+            ],
+            "title": "ResearchNeed",
+            "type": "object"
+          },
+          "SequenceAssessment": {
+            "additionalProperties": false,
+            "properties": {
+              "scale": {
+                "const": "sequence",
+                "title": "Scale",
+                "type": "string"
+              },
+              "reason": {
+                "description": "Concrete editorial reason for this scale and its intended effect on the listening experience; do not infer quality from counts.",
+                "minLength": 1,
+                "title": "Reason",
+                "type": "string"
+              },
+              "anchors": {
+                "description": "Exact passages supporting this choice. Required repair needs at least one; none may use an empty list.",
+                "items": {
+                  "$ref": "#/$defs/UtteranceAnchor"
+                },
+                "title": "Anchors",
+                "type": "array"
+              },
+              "dependent_passages": {
+                "description": "Explicitly addressed dependent passages; no automatic neighboring-text permission. Empty when none are needed.",
+                "items": {
+                  "$ref": "#/$defs/DependentPassage"
+                },
+                "title": "Dependent Passages",
+                "type": "array"
+              },
+              "sequence_ranges": {
+                "description": "Explicit editable sequences; do not infer their boundaries from scattered findings. Text outside them remains protected except separately addressed local repairs.",
+                "items": {
+                  "$ref": "#/$defs/SequenceRange"
+                },
+                "minItems": 1,
+                "title": "Sequence Ranges",
+                "type": "array"
+              }
+            },
+            "required": [
+              "scale",
+              "reason",
+              "anchors",
+              "dependent_passages",
+              "sequence_ranges"
+            ],
+            "title": "SequenceAssessment",
+            "type": "object"
+          },
+          "SequenceRange": {
+            "additionalProperties": false,
+            "properties": {
+              "anchors": {
+                "description": "First and last editable utterances, in that order. Quotes identify the boundaries; the complete inclusive range is authorized.",
+                "items": {
+                  "$ref": "#/$defs/UtteranceAnchor"
+                },
+                "maxItems": 2,
+                "minItems": 2,
+                "title": "Anchors",
+                "type": "array"
+              },
+              "reason": {
+                "minLength": 1,
+                "title": "Reason",
+                "type": "string"
+              }
+            },
+            "required": [
+              "anchors",
+              "reason"
+            ],
+            "title": "SequenceRange",
+            "type": "object"
+          },
+          "UtteranceAnchor": {
+            "additionalProperties": false,
+            "properties": {
+              "utterance_index": {
+                "description": "Zero-based position in the exact supplied WriteOutput.utterances list.",
+                "minimum": 0,
+                "title": "Utterance Index",
+                "type": "integer"
+              },
+              "quote": {
+                "description": "Exact nonempty substring of that utterance's spoken text.",
+                "minLength": 1,
+                "title": "Quote",
+                "type": "string"
+              }
+            },
+            "required": [
+              "utterance_index",
+              "quote"
+            ],
+            "title": "UtteranceAnchor",
+            "type": "object"
+          }
+        },
+        "additionalProperties": false,
+        "properties": {
+          "finding_links": {
+            "items": {
+              "$ref": "#/$defs/FindingLink"
+            },
+            "title": "Finding Links",
+            "type": "array",
+            "description": "Links from every current finding index to the current decisions establishing it. Every current reader needs_change or fact contradicted or unsupported decision must be linked to an actual finding. Choose priority and recommendation using the existing rules of your role; optional may accompany keep; important or blocking findings require revision. An unchecked decision does not automatically require a finding or a mandatory repair."
+          },
+          "assignment_results": {
+            "items": {
+              "$ref": "#/$defs/AssignmentResult"
+            },
+            "title": "Assignment Results",
+            "type": "array",
+            "description": "Execution and effect of each supplied writer assignment; empty on the first audit.",
+            "minItems": 0,
+            "maxItems": 0
+          },
+          "previous_dispositions": {
+            "items": {
+              "$ref": "#/$defs/DecisionDisposition"
+            },
+            "title": "Previous Dispositions",
+            "type": "array",
+            "description": "Applicability of every supplied previous own-role decision to the current version; empty on the first audit."
+          },
+          "late_findings": {
+            "items": {
+              "$ref": "#/$defs/LateFinding"
+            },
+            "title": "Late Findings",
+            "type": "array",
+            "description": "Concrete basis and substantive consequence for every mandatory finding in a subsequent review; empty on the first audit."
+          },
+          "effect_on_episode": {
+            "anyOf": [
+              {
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Effect On Episode",
+            "description": "What the revision gained, preserved or lost across the episode; null on the first audit, which has no revision to compare."
+          },
+          "reading_mode": {
+            "enum": [
+              "script_only",
+              "informed"
+            ],
+            "title": "Reading Mode",
+            "type": "string",
+            "description": "Script-only for the initial cold reading; informed when previous review context is supplied."
+          },
+          "listener_answer": {
+            "description": "The understanding listeners develop as the spoken episode unfolds.",
+            "minLength": 1,
+            "title": "Listener Answer",
+            "type": "string"
+          },
+          "important_limits": {
+            "items": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "title": "Important Limits",
+            "type": "array",
+            "description": "Limits in the current speech that materially affect this listening experience."
+          },
+          "strengths": {
+            "items": {
+              "$ref": "#/$defs/EditorialStrength"
+            },
+            "title": "Strengths",
+            "type": "array",
+            "description": "Anchored wording or narrative contributions and useful listening effects to retain."
+          },
+          "findings": {
+            "items": {
+              "$ref": "#/$defs/EditorialFinding"
+            },
+            "title": "Findings",
+            "type": "array",
+            "description": "Anchored defects and optional improvements in the actual spoken text, at the required repair scale. May be empty."
+          },
+          "research_requests": {
+            "items": {
+              "$ref": "#/$defs/ResearchNeed"
+            },
+            "title": "Research Requests",
+            "type": "array"
+          },
+          "duration_note": {
+            "description": "Evidence and uncertainty about duration; never invented timing.",
+            "minLength": 1,
+            "title": "Duration Note",
+            "type": "string"
+          },
+          "recommendation": {
+            "enum": [
+              "keep",
+              "revise",
+              "needs_material"
+            ],
+            "title": "Recommendation",
+            "type": "string",
+            "description": "Recording readiness based on required repairs; keep when none remain."
+          },
+          "revision_scope": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/PinpointAssessment"
+              },
+              {
+                "$ref": "#/$defs/SequenceAssessment"
+              }
+            ],
+            "title": "Revision Scope",
+            "description": "Editable scale and ranges needed for the required changes, including dependent passages. Use none when no required repair remains."
+          },
+          "audit": {
+            "$ref": "#/$defs/ReaderAudit"
+          }
+        },
+        "required": [
+          "finding_links",
+          "assignment_results",
+          "previous_dispositions",
+          "late_findings",
+          "effect_on_episode",
+          "reading_mode",
+          "listener_answer",
+          "important_limits",
+          "strengths",
+          "findings",
+          "research_requests",
+          "duration_note",
+          "recommendation",
+          "revision_scope",
+          "audit"
+        ],
+        "title": "AuditedReader",
+        "type": "object"
+      },
+      "strict": true
+    }
+  },
+  "tools": [],
+  "tool_choice": "none",
+  "parallel_tool_calls": false,
+  "truncation": "disabled",
+  "stream": false,
+  "metadata": {
+    "podgen_run_id": "293c8b5a-53df-5483-92ec-80c9bd7f2258",
+    "podgen_invocation_id": "770aa68d-a435-532e-9a15-ef92fb5bfc22",
+    "podgen_stage": "reader-review",
+    "compiler_version": "whole-episode-baseline-a/1",
+    "podgen_prompt_cache_layout": "stable-role-prefix/1"
+  },
+  "reasoning": {
+    "effort": "medium"
+  },
+  "store": false,
+  "background": false,
+  "prompt_cache_options": {
+    "mode": "explicit"
+  }
+}

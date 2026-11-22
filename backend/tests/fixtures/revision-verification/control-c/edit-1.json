@@ -1,0 +1,410 @@
+{
+  "revision_guidance": [
+    {
+      "origin": "reader",
+      "findings": [
+        {
+          "dimension": "structure",
+          "priority": "important",
+          "anchors": [
+            {
+              "utterance_index": 17,
+              "quote": "Смотритель, осматривавший открытый колодец, не нашёл в кладке ни отверстий, ни трещин"
+            },
+            {
+              "utterance_index": 19,
+              "quote": "Воду из вёдер выливали частью в раковину на заднем дворе, а частью в выгребную яму перед домом."
+            },
+            {
+              "utterance_index": 20,
+              "quote": "Тридцатого мая врач, лечивший девочку, доктор Роджерс, пишет письмо."
+            },
+            {
+              "utterance_index": 23,
+              "quote": "Скажу заранее и честно: когда и каким именно путём опасная грязь попала в воду, восстановить так и не удалось."
+            },
+            {
+              "utterance_index": 24,
+              "quote": "Земля там чёрная, насквозь пропитанная влагой, как в болоте."
+            }
+          ],
+          "observation": "После находки Уайтхеда слушатель ждёт проверки пути к колодцу. Вместо неё рассказ надолго переносится к майскому письму, возвращается к апрелю и перед самой раскопкой заранее сообщает, чего установить не удалось. Из-за этого вещественное открытие приходит после двух объяснительных остановок.",
+          "requested_change": "Пересобрать финальный участок: открыть его препятствием при осмотре колодца, провести через записи Уайтхеда, рассказ матери и обследование участка, затем дать увидеть влажную землю и бороздки под кладкой до вывода Йорка. Сомнения Роджерса и пределы вывода сохранить, но встроить так, чтобы они не прерывали путь к раскопке и не создавали впечатления, будто диагноз ребёнка или точный путь заражения доказаны. Финальный переход сочинить из имеющегося материала: длительное просачивание установлено, происхождение опасного вещества остаётся вопросом.",
+          "preserve": [
+            "Первоначальное отсутствие видимых трещин в колодце.",
+            "Дату болезни ребёнка и рассказ матери о воде из пелёнок.",
+            "Образы разрушенной кладки, чёрной мокрой земли и вымытого песка.",
+            "Существенное сомнение Роджерса в диагнозе и то, что его память опиралась на повторный разговор с матерью.",
+            "Различие между доказательством длительного просачивания и недоказанным точным путём заражения."
+          ]
+        },
+        {
+          "dimension": "oral_style",
+          "priority": "important",
+          "anchors": [
+            {
+              "utterance_index": 0,
+              "quote": "её разводят в кружках"
+            }
+          ],
+          "observation": "Местоимение относится к воде, поэтому получается, что в кружках разводят саму воду; слушателю непонятно, что имеется в виду.",
+          "requested_change": "Убрать или исправить оборот, не добавляя неподтверждённого продукта, который якобы разводили водой. Сохранить ощущение привычного ежедневного пользования колонкой.",
+          "preserve": [
+            "Наглядное устройство колонки и её место в жизни семей."
+          ]
+        },
+        {
+          "dimension": "oral_style",
+          "priority": "important",
+          "anchors": [
+            {
+              "utterance_index": 6,
+              "quote": "пять семей из этих десяти"
+            }
+          ],
+          "observation": "Перед этим названы десять человек, а не десять семей, поэтому выражение звучит так, будто семьи выбирают из людей.",
+          "requested_change": "Уточнить связь пятерых умерших с семьями, сообщившими о воде с Брод-стрит; сохранить количество и сам результат опроса.",
+          "preserve": [
+            "Предпочтение воды с Брод-стрит ближайшим источникам.",
+            "Различие между подтверждённым и вероятным употреблением воды детьми."
+          ]
+        },
+        {
+          "dimension": "oral_style",
+          "priority": "important",
+          "anchors": [
+            {
+              "utterance_index": 22,
+              "quote": "Дыры в самом колодце для этого и не нужна"
+            }
+          ],
+          "observation": "Подлежащее «дыры» стоит во множественном числе, а сказуемое «не нужна» — в единственном; при прослушивании это явная грамматическая ошибка.",
+          "requested_change": "Согласовать число подлежащего и сказуемого, сохранив смысл: для просачивания через разрушенные швы и грунт видимое отверстие в колодце не обязательно.",
+          "preserve": [
+            "Объяснение, почему первоначальный осмотр без найденной трещины не исключал просачивания."
+          ]
+        },
+        {
+          "dimension": "repetition",
+          "priority": "optional",
+          "anchors": [
+            {
+              "utterance_index": 8,
+              "quote": "Пиво здесь — просто деталь распорядка. Важно другое: вода у этих людей была своя."
+            }
+          ],
+          "observation": "После слов хозяина о собственном колодце и водопроводе слушатель уже понимает, что рабочие не зависели от уличной колонки. Две заключительные фразы повторно объясняют этот вывод.",
+          "requested_change": "Можно убрать обе фразы и закончить эпизод пивоварни сведениями о собственных источниках воды: контраст останется понятным без дополнительного подведения итога.",
+          "preserve": [
+            "Порцию пива как живую деталь.",
+            "Осторожное различие между подозрением хозяина о воде вообще и его уверенностью насчёт уличной колонки."
+          ]
+        }
+      ],
+      "research_requests": [],
+      "duration_note": "По предоставленной оценке 1533 слова занимают около 837 секунд, или 13 минут 57 секунд, при темпе 110 слов в минуту. Это внутри заданного диапазона 13–18 минут, хотя примерно на минуту короче цели в 15 минут. Аудио не измерялось; фактическая длительность будет зависеть от подачи и пауз. Добавлять материал только ради хронометража не требуется.",
+      "recommendation": "revise",
+      "positive_observations": [
+        {
+          "anchors": [
+            {
+              "utterance_index": 3,
+              "quote": "Главная улика, если она есть, в воде не плавает. Значит, искать её надо там, где воду пили. У людей."
+            }
+          ],
+          "reason": "Переход превращает неубедительный осмотр воды в ясный следующий шаг расследования и поддерживает детективный ход."
+        },
+        {
+          "anchors": [
+            {
+              "utterance_index": 5,
+              "quote": "Десять человек жили в домах, которые явно ближе к другим колонкам."
+            },
+            {
+              "utterance_index": 6,
+              "quote": "Только адрес ещё не говорит, откуда человек пил."
+            }
+          ],
+          "reason": "Неудобные адреса сначала действительно ставят версию под вопрос, а опрос показывает, почему расстояния на карте недостаточно."
+        },
+        {
+          "anchors": [
+            {
+              "utterance_index": 11,
+              "quote": "Для этого нужно различать две даты: когда человек заболел и когда умер."
+            },
+            {
+              "utterance_index": 12,
+              "quote": "Но отделить его действие от спада, который уже шёл, невозможно."
+            }
+          ],
+          "reason": "Понятное неспециалисту различие дат делает коррекцию красивой легенды частью расследования, а не внешней лекцией."
+        },
+        {
+          "anchors": [
+            {
+              "utterance_index": 14,
+              "quote": "И было заведено привозить оттуда большую бутыль воды из колонки."
+            }
+          ],
+          "reason": "Бутыль неожиданно связывает далёкий адрес с прежним расследованием и даёт истории второй сильный поворот."
+        }
+      ],
+      "revision_scope": {
+        "scale": "sequence",
+        "reason": "Перестроить нужно связанный финальный этап расследования: расположить открытие, проверку и необходимые оговорки так, чтобы слушатель сначала захотел узнать результат раскопки, затем увидел её вещественные следы и понял, что именно они позволяют заключить. Остальной маршрут истории работает и не требует пересочинения.",
+        "anchors": [
+          {
+            "utterance_index": 17,
+            "quote": "Острая вспышка позади, а расследование продолжается."
+          },
+          {
+            "utterance_index": 20,
+            "quote": "Тут я забегу вперёд, в конец мая, чтобы не обещать лишнего."
+          },
+          {
+            "utterance_index": 23,
+            "quote": "Скажу заранее и честно: когда и каким именно путём опасная грязь попала в воду, восстановить так и не удалось."
+          },
+          {
+            "utterance_index": 24,
+            "quote": "просачивание шло здесь в течение долгого времени"
+          }
+        ],
+        "dependent_passages": [],
+        "sequence_ranges": [
+          {
+            "anchors": [
+              {
+                "utterance_index": 17,
+                "quote": "Острая вспышка позади, а расследование продолжается."
+              },
+              {
+                "utterance_index": 24,
+                "quote": "И Йорк записывает свой вывод: просачивание шло здесь в течение долгого времени."
+              }
+            ],
+            "reason": "Полный участок от возобновления расследования до заключения Йорка нужен для перестановки оговорок и создания финального перехода, не затрагивая предшествующую историю."
+          }
+        ]
+      },
+      "listener_understanding": "Колонка сначала выглядит частью повседневной жизни, а затем становится центром расследования. Версия Сноу понятна до того, как он начинает опрашивать семьи; неудобные адреса и пивоварня дают слушателю возможность самому проверять её вместе с врачом. Снятие ручки кажется развязкой, но различие между датами болезни и смерти убедительно не даёт принять красивую версию за доказанную. История женщины из Хэмпстеда затем расширяет дело за пределы квартала и естественно приводит к вопросу об источнике загрязнения. В последнем расследовании есть сильные находки — ребёнок, пелёнки, соседняя выгребная яма и следы воды в грунте, — но длинное забегание вперёд к сомнениям врача задерживает раскопку, а предупреждение перед ней заранее сообщает предел ответа. Финальная находка сама по себе сильна: вода долго просачивалась к колодцу, хотя точный путь заражения и роль ребёнка остаются недоказанными."
+    },
+    {
+      "origin": "fact",
+      "findings": [
+        {
+          "dimension": "factuality",
+          "priority": "important",
+          "anchors": [
+            {
+              "utterance_index": 4,
+              "quote": "список умерших от холеры за неделю, закончившуюся второго сентября. В нём восемьдесят девять смертей"
+            },
+            {
+              "utterance_index": 4,
+              "quote": "Эти восемьдесят три случая Сноу разбирает подробно"
+            }
+          ],
+          "observation": "Фраза представляет 89 как список всех умерших за неделю, тогда как у Сноу это смерти, зарегистрированные за ту неделю в трёх подрайонах. В выборку из 83 попали случаи, которые и произошли в последние три дня, и были зарегистрированы за эту неделю; позднее зарегистрированные смерти и смерти в больницах вошли не полностью. Различие важно, поскольку именно эта выборка становится основанием последующего разбора адресов, но не является полным итогом вспышки. Источник: John Snow, On the Mode of Communication of Cholera, 2-е изд., 1855; M3.",
+          "requested_change": "Уточнить рамку подсчёта так, чтобы 89 не звучало как полное число умерших за неделю: это регистрации за неделю в выбранных подрайонах, из которых Сноу подробно исследовал 83 смерти последних трёх дней. Если точные числа не нужны, их можно убрать вместе с зависимыми расчётами, сохранив понятную основу расследования.",
+          "preserve": [
+            "Переход от осмотра воды к проверке адресов и рассказов людей.",
+            "Связь между исследованной выборкой и последующим разбором случаев, если числа остаются."
+          ],
+          "evidence": [
+            {
+              "source": "John Snow. On the Mode of Communication of Cholera, 2-е издание, 1855",
+              "text": "I requested permission, therefore, to take a list, at the\nGeneral Register Office, of the deaths from cholera, registered\nduring the week ending 2nd September, in the sub-districts\nof Golden Square, Berwick Street, and St. Ann’s,\nSoho, which was kindly granted. Eighty-nine deaths\nfrom cholera were registered, during the week, in the three\nsub-districts. Of these, only six occurred in the four first\ndays of the week; four occurred on Thursday, the 31st\nAugust; and the remaining seventy-nine on Friday and\nSaturday. I considered, therefore, that the outbreak commenced\non the Thursday; and I made inquiry, in detail,\nrespecting the eighty-three deaths registered as having\ntaken place during the last three days of the week."
+            },
+            {
+              "source": "John Snow. On the Mode of Communication of Cholera, 2-е издание, 1855",
+              "text": "Besides the eighty-three deaths mentioned above as\noccurring on the three last days of the week ending September\n2nd, and being registered during that week in\nthe sub-districts in which the attacks occurred, a number\nof persons died in Middlesex and other hospitals,\nand a great number of deaths which took place in the\n41\nlocality during the last two days of the week, were not\nregistered till the week following. The deaths altogether,\non the 1st and 2nd of September, which have been ascertained\nto belong to this outbreak of cholera, were one\nhundred and ninety-seven; and many persons who were\nattacked about the same time as these, died afterwards."
+            }
+          ]
+        },
+        {
+          "dimension": "attribution",
+          "priority": "important",
+          "anchors": [
+            {
+              "utterance_index": 7,
+              "quote": "Он идёт к владельцу, мистеру Хаггинсу."
+            },
+            {
+              "utterance_index": 10,
+              "quote": "Сноу приходит к попечителям прихода Сент-Джеймс и излагает им всё, что выяснил."
+            }
+          ],
+          "observation": "Рассказ ставит посещение пивоварни до заседания и вслед за ним сообщает, что Сноу изложил попечителям всё выясненное. Так слушатель получает впечатление, что сведения Хаггинса уже были в распоряжении Сноу 7 сентября и вошли в его доводы. Сноу описал их в книге 1855 года, но предоставленные материалы не устанавливают дату получения этих сведений; это пробел в подтверждении хронологии, а не доказательство, что разговор состоялся позднее. Источники: John Snow, On the Mode of Communication of Cholera, 2-е изд., 1855; M1, M4, M6.",
+          "requested_change": "Сохранить пивоварню как пример из рассказа Сноу, но не создавать впечатления, что он обязательно знал этот контраст или представил его попечителям 7 сентября. Можно изменить хронологическую подачу эпизода или сузить описание того, что он изложил на заседании.",
+          "preserve": [
+            "Наблюдательный контраст с пивоварней и её собственными источниками воды.",
+            "Различие между уверенностью Хаггинса относительно уличной колонки и его предположением, что рабочие вообще не пили воду."
+          ],
+          "evidence": [
+            {
+              "source": "John Snow. On the Mode of Communication of Cholera, 2-е издание, 1855",
+              "text": "I had an interview with the Board of Guardians of St.\nJames’s parish, on the evening of Thursday, 7th September,\nand represented the above circumstances to them. In\nconsequence of what I said, the handle of the pump was\nremoved on the following day."
+            },
+            {
+              "source": "John Snow. On the Mode of Communication of Cholera, 2-е издание, 1855",
+              "text": "On proceeding to the spot, I found that nearly all the\ndeaths had taken place within a short distance of the\npump. There were only ten deaths in houses situated\ndecidedly nearer to another street pump. In five of these\ncases the families of the deceased persons informed me\n40\nthat they always sent to the pump in Broad Street, as\nthey preferred the water to that of the pump which was\nnearer. In three other cases, the deceased were children\nwho went to school near the pump in Broad Street. Two\nof them were known to drink the water; and the parents\nof the third think it probable that it did so. The other\ntwo deaths, beyond the district which this pump supplies,\nrepresent only the amount of mortality from cholera that\nwas occurring before the irruption took place.\nWith regard to the deaths occurring in the locality belonging\nto the pump, there were sixty-one instances in\nwhich I was informed that the deceased persons used to\ndrink the pump-water from Broad Street, either constantly\nor occasionally. In six instances I could get no information,\nowing to the death or departure of every one connected\nwith the deceased individuals; and in six cases I\nwas informed that the deceased persons did not drink the\npump-water before their illness."
+            },
+            {
+              "source": "John Snow. On the Mode of Communication of Cholera, 2-е издание, 1855",
+              "text": "There is a Brewery in Broad Street, near to the pump,\nand on perceiving that no brewer’s men were registered\nas having died of cholera, I called on Mr. Huggins, the\nproprietor. He informed me that there were above seventy\nworkmen employed in the brewery, and that none of them\nhad suffered from cholera,—at least in a severe form,—only\ntwo having been indisposed, and that not seriously,\nat the time the disease prevailed. The men are allowed a\ncertain quantity of malt liquor, and Mr. Huggins believes\nthey do not drink water at all; and he is quite certain\nthat the workmen never obtained water from the pump in\nthe street. There is a deep well in the brewery, in addition\nto the New River water."
+            }
+          ]
+        },
+        {
+          "dimension": "factuality",
+          "priority": "important",
+          "anchors": [
+            {
+              "utterance_index": 15,
+              "quote": "Воду набрали в четверг, тридцать первого августа, как раз в ту ночь, когда начался взрыв болезни."
+            }
+          ],
+          "observation": "У Сноу указано, что воду взяли в четверг 31 августа и женщина пила её вечером того же дня; время набора не указано. Слова «как раз в ту ночь» приписывают набору воды более точное время — ночь начала вспышки — которого свидетельство не устанавливает. Источник: John Snow, On the Mode of Communication of Cholera, 2-е изд., 1855; M2, M7.",
+          "requested_change": "Не датировать набор воды именно ночью. Достаточно сохранить четверг 31 августа и отдельно рассказать, когда женщина пила воду и заболела.",
+          "preserve": [
+            "Последовательность: вода была доставлена, женщина пила её в четверг и пятницу, заболела в пятницу вечером."
+          ],
+          "evidence": [
+            {
+              "source": "John Snow. On the Mode of Communication of Cholera, 2-е издание, 1855",
+              "text": "There were a few cases of cholera in the neighbourhood\nof Broad Street, Golden Square, in the latter part of\nAugust; and the so-called outbreak, which commenced in\nthe night between the 31st August and the 1st September,\nwas, as in all similar instances, only a violent increase of\nthe malady. As soon as I became acquainted with the\n39\nsituation and extent of this irruption of cholera, I suspected\nsome contamination of the water of the much-frequented\nstreet pump in Broad Street, near the end of\nCambridge Street; but on examining the water, on the\nevening of the 3rd September, I found so little impurity\nin it of an organic nature, that I hesitated to come to a\nconclusion. Further inquiry, however, showed me that\nthere was no other circumstance or agent common to the\ncircumscribed locality in which this sudden increase of\ncholera occurred, and not extending beyond it, except the\nwater of the above mentioned pump. I found, moreover,\nthat the water varied, during the next two days, in the\namount of organic impurity, visible to the naked eye, on\nclose inspection, in the form of small white, flocculent particles;\nand I concluded that, at the commencement of the\noutbreak, it might possibly have been still more impure."
+            },
+            {
+              "source": "John Snow. On the Mode of Communication of Cholera, 2-е издание, 1855",
+              "text": "Dr. Fraser also first called my attention to the following\ncircumstances, which are perhaps the most conclusive of\nall in proving the connexion between the Broad Street\npump and the outbreak of cholera. In the “Weekly\nReturn of Births and Deaths” of September 9th, the following\ndeath is recorded as occurring in the Hampstead\ndistrict: “At West End, on 2nd September, the widow\nof a percussion-cap maker, aged 59 years, diarrhœa two\nhours, cholera epidemica sixteen hours.”\nI was informed by this lady’s son that she had not been\nin the neighbourhood of Broad Street for many months.\nA cart went from Broad Street to West End every day,\nand it was the custom to take out a large bottle of the\nwater from the pump in Broad Street, as she preferred it.\nThe water was taken on Thursday, 31st August, and she\ndrank of it in the evening, and also on Friday. She was\nseized with cholera on the evening of the latter day, and\ndied on Saturday, as the above quotation from the register\nshows. A niece, who was on a visit to this lady, also\ndrank of the water; she returned to her residence, in a\nhigh and healthy part of Islington, was attacked with\ncholera, and died also. There was no cholera at the time,\neither at West End or in the neighbourhood where the\nniece died. Besides these two persons, only one servant\npartook of the water at Hampstead West End, and she\ndid not suffer, or, at least, not severely."
+            }
+          ]
+        },
+        {
+          "dimension": "factuality",
+          "priority": "important",
+          "anchors": [
+            {
+              "utterance_index": 15,
+              "quote": "ни в Хэмпстеде, ни в окрестностях дома племянницы холеры тогда не было"
+            }
+          ],
+          "observation": "Сноу писал об отсутствии холеры в то время в West End, то есть в указанной части Хэмпстеда, и в окрестностях дома племянницы. Сценарий расширяет первое утверждение на весь Хэмпстед. Это влияет на силу географического контраста, который подаётся как улика в пользу связи с доставленной водой. Источник: John Snow, On the Mode of Communication of Cholera, 2-е изд., 1855; M7.",
+          "requested_change": "Если контраст сохраняется, ограничить географическое утверждение местом, названным Сноу, например Уэст-Эндом Хэмпстеда; либо убрать неподтверждённое утверждение обо всём Хэмпстеде.",
+          "preserve": [
+            "Атрибуцию наблюдения Сноу.",
+            "Случай заболевания после доставки воды вдали от Брод-стрит без превращения его в исключающее все альтернативы доказательство."
+          ],
+          "evidence": [
+            {
+              "source": "John Snow. On the Mode of Communication of Cholera, 2-е издание, 1855",
+              "text": "Dr. Fraser also first called my attention to the following\ncircumstances, which are perhaps the most conclusive of\nall in proving the connexion between the Broad Street\npump and the outbreak of cholera. In the “Weekly\nReturn of Births and Deaths” of September 9th, the following\ndeath is recorded as occurring in the Hampstead\ndistrict: “At West End, on 2nd September, the widow\nof a percussion-cap maker, aged 59 years, diarrhœa two\nhours, cholera epidemica sixteen hours.”\nI was informed by this lady’s son that she had not been\nin the neighbourhood of Broad Street for many months.\nA cart went from Broad Street to West End every day,\nand it was the custom to take out a large bottle of the\nwater from the pump in Broad Street, as she preferred it.\nThe water was taken on Thursday, 31st August, and she\ndrank of it in the evening, and also on Friday. She was\nseized with cholera on the evening of the latter day, and\ndied on Saturday, as the above quotation from the register\nshows. A niece, who was on a visit to this lady, also\ndrank of the water; she returned to her residence, in a\nhigh and healthy part of Islington, was attacked with\ncholera, and died also. There was no cholera at the time,\neither at West End or in the neighbourhood where the\nniece died. Besides these two persons, only one servant\npartook of the water at Hampstead West End, and she\ndid not suffer, or, at least, not severely."
+            }
+          ]
+        }
+      ],
+      "research_requests": [],
+      "recommendation": "revise",
+      "positive_observations": [
+        {
+          "anchors": [
+            {
+              "utterance_index": 3,
+              "quote": "Сноу допускает, что в самом начале вспышки вода могла быть ещё грязнее. Но это догадка."
+            }
+          ],
+          "reason": "Отделяет наблюдавшиеся примеси от предположения о более раннем состоянии воды и не выдаёт осмотр за обнаружение возбудителя."
+        },
+        {
+          "anchors": [
+            {
+              "utterance_index": 9,
+              "quote": "А ещё в шести ему ответили, что до болезни воду не пили."
+            }
+          ],
+          "reason": "Сохраняет неудобные для гипотезы ответы вместо утверждения, что употребление воды было установлено для всех умерших."
+        },
+        {
+          "anchors": [
+            {
+              "utterance_index": 11,
+              "quote": "Для этого нужно различать две даты: когда человек заболел и когда умер."
+            },
+            {
+              "utterance_index": 12,
+              "quote": "отделить его действие от спада, который уже шёл, невозможно"
+            }
+          ],
+          "reason": "Проверяет распространённую историю о спасительном снятии ручки по подходящему ряду и не приписывает вмешательству измеренный эффект."
+        },
+        {
+          "anchors": [
+            {
+              "utterance_index": 20,
+              "quote": "Так что девочка из дома номер сорок — возможное звено. Не доказанный первый больной."
+            },
+            {
+              "utterance_index": 24,
+              "quote": "И Йорк записывает свой вывод: просачивание шло здесь в течение долгого времени."
+            }
+          ],
+          "reason": "Разделяет спорный диагноз ребёнка и физический вывод обследования, не собирая их в доказанную полную цепь заражения."
+        }
+      ],
+      "revision_scope": {
+        "scale": "local",
+        "reason": "Необходимые изменения сосредоточены в рамке выборки, временной подаче пивоварни и двух формулировках хэмпстедского случая. Детективная последовательность, проверка эффекта снятия ручки и позднее расследование могут остаться на месте.",
+        "anchors": [
+          {
+            "utterance_index": 4,
+            "quote": "список умерших от холеры за неделю, закончившуюся второго сентября"
+          },
+          {
+            "utterance_index": 7,
+            "quote": "Он идёт к владельцу, мистеру Хаггинсу."
+          },
+          {
+            "utterance_index": 10,
+            "quote": "излагает им всё, что выяснил"
+          },
+          {
+            "utterance_index": 15,
+            "quote": "как раз в ту ночь, когда начался взрыв болезни"
+          },
+          {
+            "utterance_index": 15,
+            "quote": "ни в Хэмпстеде, ни в окрестностях дома племянницы"
+          }
+        ],
+        "dependent_passages": [
+          {
+            "reason": "Если число 83 или основание выборки будут существенно изменены либо убраны, зависимые разборы десяти адресов и 73 смертей нужно согласовать с новой подачей.",
+            "anchors": [
+              {
+                "utterance_index": 5,
+                "quote": "Десять человек жили в домах, которые явно ближе к другим колонкам."
+              },
+              {
+                "utterance_index": 9,
+                "quote": "Из семидесяти трёх умерших в обычной округе колонки"
+              }
+            ]
+          },
+          {
+            "reason": "Если пример пивоварни будет перенесён или его временная подача изменена, сообщение Хаггинса должно оставаться связано с объяснением собственных источников воды и корректной атрибуцией.",
+            "anchors": [
+              {
+                "utterance_index": 8,
+                "quote": "Хаггинс рассказывает: работников у него больше семидесяти."
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ],
+  "audience": "Взрослый слушатель без специальных знаний, впервые слышит эту историю",
+  "cold_payload_sha256": "826e6cbf29278e23528cae3799e2eb5b49124f4ecba45c08bb356d73ddf890f1"
+}

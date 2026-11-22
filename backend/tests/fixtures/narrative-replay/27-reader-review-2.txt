@@ -1,0 +1,1 @@
+{"choices":[{"anchor_id":"strengths/3/anchors/1","selector_id":"u6:0-2135"}]}

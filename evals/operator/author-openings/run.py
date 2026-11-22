@@ -10,19 +10,27 @@ from providers import Transport, credentials, select
 from results import replay
 
 ROOT = Path(__file__).resolve().parents[3]
-DEFAULT = ROOT / "evals/reports/2026-11-08-author-openings"
-SOURCE = ROOT / "tmp/snow-edit-nov7/continued-native"
 
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("action", choices=["prepare", "live", "replay"])
-    parser.add_argument("--directory", type=Path, default=DEFAULT)
+    actions = parser.add_subparsers(dest="action", required=True)
+    preparation = actions.add_parser("prepare")
+    preparation.add_argument(
+        "--draft-request", type=Path, required=True, help="Saved request next to its receipt.json"
+    )
+    preparation.add_argument("--accepted-plan", type=Path, required=True)
+    preparation.add_argument("--pricing", type=Path, required=True, help="Rate snapshot used for the trial")
+    for action in (preparation, actions.add_parser("live"), actions.add_parser("replay")):
+        action.add_argument("--directory", type=Path, required=True)
     args = parser.parse_args()
     directory = args.directory.resolve()
     if args.action == "prepare":
-        request = next(SOURCE.glob("draft-*/request.json"))
-        prepare(request, request.with_name("receipt.json"), directory, SOURCE / "export/plan-revise.json")
+        rates = read(args.pricing)
+        prepare(
+            args.draft_request, args.draft_request.with_name("receipt.json"), directory, args.accepted_plan
+        )
+        save(directory / "pricing.json", rates)
         print("Prepared immutable common conditions; no generation calls.")
         return
     if args.action == "replay":

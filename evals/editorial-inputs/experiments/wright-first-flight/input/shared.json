@@ -1,0 +1,336 @@
+{
+  "contract": "editorial-input/2",
+  "assignment": {
+    "key": "wright-first-flight",
+    "title": "Первый полёт братьев Райт",
+    "question": "Расскажи, как братья Райт впервые поднялись в воздух.",
+    "audience": "Взрослый неспециалист, впервые слышащий эту историю.",
+    "listener_outcome": "Понятная история о том, как братья Райт впервые поднялись в воздух.",
+    "format": "solo",
+    "output_language": "ru",
+    "speakers": [
+      {
+        "label": "РАССКАЗЧИК",
+        "function": "Рассказывает историю слушателю.",
+        "speech_register": "Живая понятная устная речь."
+      }
+    ],
+    "duration": {
+      "target_seconds": 360,
+      "min_seconds": 300,
+      "max_seconds": 420
+    },
+    "knowledge_cutoff": "2026-11-08T00:00:00Z",
+    "required_topics": [],
+    "excluded_topics": [],
+    "style_guidance": [],
+    "listener_profile": "Взрослый неспециалист, впервые слышащий эту историю.",
+    "genre": "Короткая документальная история"
+  },
+  "documents": [
+    {
+      "key": "B1",
+      "title": "Запрос пользователя",
+      "source_path": "brief.md",
+      "sha256": "c1e3f69c3ec6181a07eb3384ff079197bfe9fd08ca611c716c7b1e8aeed68478",
+      "purpose": "brief"
+    },
+    {
+      "key": "D1",
+      "title": "Досье: полёты братьев Райт",
+      "source_path": "dossier.md",
+      "sha256": "6647d2974c1de72ecb2662816e043fd702f459e35d6b50706d92dd6ca9a97a7a",
+      "purpose": "dossier"
+    },
+    {
+      "key": "P1",
+      "title": "Orville Wright — diary, 17 December 1903; NASA SP-2003-4409, document 1-13(a), printed pp. 222–223",
+      "source_path": "sources/orville-diary-1903-12-17.txt",
+      "sha256": "95ce29bdcbdccfb604a4ad68c65a94d20534513d799a15eb36d0f03b259822a8",
+      "purpose": "primary"
+    },
+    {
+      "key": "P2",
+      "title": "Wilbur and Orville Wright — statement to the Associated Press, 5 January 1904; NASA SP-2003-4409, document 1-13(b), printed pp. 223–224",
+      "source_path": "sources/wright-statement-1904-01-05.txt",
+      "sha256": "296dc4810f48dfed758218ab48caff5f33edb5a4c8566b70d03364f30e637d19",
+      "purpose": "primary"
+    },
+    {
+      "key": "P3",
+      "title": "Orville Wright — telegram to Milton Wright, 17 December 1903; NASA SP-2003-4409, printed p. 1; Library of Congress mcc.061",
+      "source_path": "sources/orville-telegram-1903-12-17.txt",
+      "sha256": "dfbbc53443c60919bc636b4f10ed800fd8b719d01a9a4a69b3633dff6bd65988",
+      "purpose": "primary"
+    }
+  ],
+  "dossier": {
+    "summary": "Первичные документы участников о четырёх испытательных полётах 17 декабря 1903 года у Килл-Девил-Хилс, о наблюдениях управления, работе помощников и сообщениях об испытаниях.",
+    "summary_support_labels": [
+      "Ca5b751a29bd8",
+      "Cc6e52b433d9d"
+    ],
+    "throughline_constraints": [],
+    "threads": [],
+    "knowledge_cards": [
+      {
+        "card_id": "C96a7c3eae9e7",
+        "label": "Управление передним рулём",
+        "title": "Управление передним рулём",
+        "claim": "Орвилл описывает трудность управления передним рулём: по его оценке, тот был уравновешен слишком близко к центру и сам доворачивался после начала движения. Руль отклонялся чрезмерно то в одну сторону, то в другую; машина резко поднималась, затем ныряла к земле.",
+        "context": "Свидетельство участников; первичный текст и дата указаны у выдержки.",
+        "story_facts": "Орвилл описывает трудность управления передним рулём: по его оценке, тот был уравновешен слишком близко к центру и сам доворачивался после начала движения. Руль отклонялся чрезмерно то в одну сторону, то в другую; машина резко поднималась, затем ныряла к земле.",
+        "narrative_excerpt_indices": [
+          0
+        ],
+        "limitations": [],
+        "excerpts": [
+          {
+            "text": "I found the control of the\nfront rudder quite difficult on account of its being balanced too near the center\nand thus had a tendency to turn itself when started so that the rudder was turned\ntoo far on one side and then too far on the other. As a result the machine would\nrise suddenly to about 10 ft. and then as suddenly, on turning the rudder, dart for\nthe ground. A sudden dart when out about 100 feet from the end of the tracks\nended the flight.",
+            "document": "P1",
+            "start": 855,
+            "end": 1305
+          }
+        ]
+      },
+      {
+        "card_id": "Cbba5768a935f",
+        "label": "Сигнал и помощники",
+        "title": "Сигнал и помощники",
+        "claim": "Утром 17 декабря братья вынесли машину и подали сигнал людям со станции. Орвилл перечисляет прибывших: Джон Дэниелс, У. С. Доу, А. Д. Этеридж, У. К. Бринкли и Джонни Мур. Позднее присутствовавшие помогали переносить машину обратно к месту старта.",
+        "context": "Свидетельство участников; первичный текст и дата указаны у выдержки.",
+        "story_facts": "Утром 17 декабря братья вынесли машину и подали сигнал людям со станции. Орвилл перечисляет прибывших: Джон Дэниелс, У. С. Доу, А. Д. Этеридж, У. К. Бринкли и Джонни Мур. Позднее присутствовавшие помогали переносить машину обратно к месту старта.",
+        "limitations": [],
+        "excerpts": [
+          {
+            "text": "When we got up a wind of between 20 and 25 miles was blowing from the\nnorth. We got the machine out early and put out the signal for the men at the sta-\ntion. Before we were quite ready, John T. Daniels, W. S. Dough, A. D. Etheridge,\nW. C. Brinkley of Manteo, and Johnny Moore of Nags Head arrived.",
+            "document": "P1",
+            "start": 29,
+            "end": 327
+          },
+          {
+            "text": "With the aid of the station men pres-\nent, we picked the machine up and carried it back to the starting ways.",
+            "document": "P1",
+            "start": 1723,
+            "end": 1832
+          }
+        ]
+      },
+      {
+        "card_id": "C8f89ddfcb988",
+        "label": "Старт с ровного песка",
+        "title": "Старт с ровного песка",
+        "claim": "В публичном сообщении братья помещают старты на ровном песке к западу от лагеря, севернее песчаного холма Килл-Девил в округе Дэр, Северная Каролина. Машина разгонялась по монорельсовому пути и поднималась собственным двигателем, а не за счёт спуска с холма. Полёты шли против ветра.",
+        "context": "Свидетельство участников; первичный текст и дата указаны у выдержки.",
+        "story_facts": "В публичном сообщении братья помещают старты на ровном песке к западу от лагеря, севернее песчаного холма Килл-Девил в округе Дэр, Северная Каролина. Машина разгонялась по монорельсовому пути и поднималась собственным двигателем, а не за счёт спуска с холма. Полёты шли против ветра.",
+        "limitations": [],
+        "excerpts": [
+          {
+            "text": "The starts were all made from a point on the level sand about two hundred feet\nwest of our camp, which is located a quarter of a mile north of the Kill Devil sand\nhill, in Dare County, North Carolina.",
+            "document": "P2",
+            "start": 845,
+            "end": 1045
+          },
+          {
+            "text": "The flights were directly against the wind. Each time the machine started\nfrom the level ground by its own power alone no assistance from gravity, or any\nother source whatever. After a run of about 40 feet along a monorail track, which\nheld the machine eight inches from the ground, it rose from the track and under\nthe direction of the operator climbed upward on an inclined course till a height\nof eight or ten feet from the ground was reached, after which the course was kept\nas near horizontal as the wind gusts and the limited skill of the operator would\npermit.",
+            "document": "P2",
+            "start": 1489,
+            "end": 2056
+          }
+        ]
+      },
+      {
+        "card_id": "C3e1fe26524d1",
+        "label": "Разный ветер и разные скорости",
+        "title": "Разный ветер и разные скорости",
+        "claim": "В сообщении братья различают показания приборов на разной высоте: метеостанция измеряла ветер в тридцати футах над землёй, их ручной прибор — в четырёх. Они также различают движение относительно земли и воздуха: при сильном встречном ветре аппарат шёл над землёй заметно медленнее, чем сквозь воздух.",
+        "context": "Свидетельство участников; первичный текст и дата указаны у выдержки.",
+        "story_facts": "В сообщении братья различают показания приборов на разной высоте: метеостанция измеряла ветер в тридцати футах над землёй, их ручной прибор — в четырёх. Они также различают движение относительно земли и воздуха: при сильном встречном ветре аппарат шёл над землёй заметно медленнее, чем сквозь воздух.",
+        "limitations": [],
+        "excerpts": [
+          {
+            "text": "The wind at the time of the flights had a\nvelocity of 27 miles an hour at ten o’clock, and 24 miles an hour at noon, as\nrecorded by the anemometer at the Kitty Hawk Weather Bureau Station. This\nanemometer is thirty feet from the ground. Our own measurements, made with a\nhand anemometer at a height of four feet from the ground, showed a velocity of\nabout 22 miles when the first flight was made, and 20 1/2 miles at the time of the\nlast one.",
+            "document": "P2",
+            "start": 1046,
+            "end": 1488
+          },
+          {
+            "text": "Into the teeth of a December gale the “Flyer” made its way forward with\na speed of ten miles an hour over the ground and thirty to thirty-five miles an hour\nthrough the air.",
+            "document": "P2",
+            "start": 2057,
+            "end": 2230
+          }
+        ]
+      },
+      {
+        "card_id": "Ca5b751a29bd8",
+        "label": "Первая попытка этого дня",
+        "title": "Первая попытка этого дня",
+        "claim": "Орвилл записал, что сел на машину в 10:35 после прогрева двигателя и винтов. Когда отпустили удерживавшую верёвку, аппарат разогнался и сошёл с пути. Дэниелс сделал снимок в момент отрыва. Орвилл оценил полёт примерно в двенадцать секунд и отметил, что секундомер остановили не сразу.",
+        "context": "Свидетельство участников; первичный текст и дата указаны у выдержки.",
+        "story_facts": "Орвилл записал, что сел на машину в 10:35 после прогрева двигателя и винтов. Когда отпустили удерживавшую верёвку, аппарат разогнался и сошёл с пути. Дэниелс сделал снимок в момент отрыва. Орвилл оценил полёт примерно в двенадцать секунд и отметил, что секундомер остановили не сразу.",
+        "limitations": [],
+        "excerpts": [
+          {
+            "text": "After run-\nning the engine and propellors a few minutes to get them in working order, I got\non the machine at 10:35 for the first trial. The wind, according to our anemome-\nters at this time, was blowing a little over 20 miles (corrected) 27 miles according\nto the Government anemometer at Kitty Hawk. On slipping the rope the machine\nstarted off increasing in speed to probably 7 or 8 miles. The machine lifted from\nthe track just as it was entering on the fourth rail. \nMr. Daniels took a picture just as it left the tracks.",
+            "document": "P1",
+            "start": 328,
+            "end": 854
+          },
+          {
+            "text": "Time about 12 seconds (not known exactly as watch was not\npromptly stopped).",
+            "document": "P1",
+            "start": 1306,
+            "end": 1382
+          }
+        ]
+      },
+      {
+        "card_id": "C682efd649f78",
+        "label": "Ремонт и смена пилотов",
+        "title": "Ремонт и смена пилотов",
+        "claim": "После первого полёта были сломаны рычаг выключения двигателя и полоз под рулём. Братья отремонтировали машину; около 11:20 второй полёт выполнил Уилбур. Орвилл описывает такое же движение вверх-вниз, несколько большую дальность и примерно прежнее время. Затем около 11:40 снова полетел Орвилл.",
+        "context": "Свидетельство участников; первичный текст и дата указаны у выдержки.",
+        "story_facts": "После первого полёта были сломаны рычаг выключения двигателя и полоз под рулём. Братья отремонтировали машину; около 11:20 второй полёт выполнил Уилбур. Орвилл описывает такое же движение вверх-вниз, несколько большую дальность и примерно прежнее время. Затем около 11:40 снова полетел Орвилл.",
+        "limitations": [],
+        "excerpts": [
+          {
+            "text": "The lever for throwing off the engine was broken, and the\nskid under the rudder cracked. After repairs, at 20 min. after 11 o’clock Will\nmade the second trial. The course was about like mine, up and down but a little\nlonger over the ground though about the same in time. Dist. not measured but\nabout 175 ft. Wind speed not quite so strong. With the aid of the station men pres-\nent, we picked the machine up and carried it back to the starting ways. At about\n20 minutes till 12 o’clock I made the third trial.",
+            "document": "P1",
+            "start": 1383,
+            "end": 1892
+          }
+        ]
+      },
+      {
+        "card_id": "Cdee9b3855b44",
+        "label": "Боковой порыв",
+        "title": "Боковой порыв",
+        "claim": "На третьем полёте, по дневнику Орвилла, порыв слева приподнял левое крыло и сдвинул машину вправо. Он стал работать рулями; при посадке первым коснулось земли левое крыло. Орвилл связал этот неожиданный результат с большей эффективностью бокового управления по сравнению с прежними машинами.",
+        "context": "Свидетельство участников; первичный текст и дата указаны у выдержки.",
+        "story_facts": "На третьем полёте, по дневнику Орвилла, порыв слева приподнял левое крыло и сдвинул машину вправо. Он стал работать рулями; при посадке первым коснулось земли левое крыло. Орвилл связал этот неожиданный результат с большей эффективностью бокового управления по сравнению с прежними машинами.",
+        "limitations": [],
+        "excerpts": [
+          {
+            "text": "When out about the same dis-\ntance as Will’s, I met with a strong gust from the left which raised the left wing\nand sidled the machine off to the right in a lively manner. I immediately turned\nthe rudder to bring the machine down and then worked the end control. Much\nto our surprise, on reaching the ground the left wing struck first showing the lat-\neral control of this machine much more effective than on any of our former ones.\nAt the time of its sidling it had raised to a height of probably 12 to 14 feet.",
+            "document": "P1",
+            "start": 1893,
+            "end": 2405
+          }
+        ]
+      },
+      {
+        "card_id": "Cea7608fa00af",
+        "label": "Четвёртый полёт",
+        "title": "Четвёртый полёт",
+        "claim": "В полдень Уилбур начал четвёртый полёт. По дневнику, после первых колебаний он добился более ровного движения. У песчаного бугорка аппарат снова закачался и резко коснулся земли. Орвилл записал 852 фута над землёй за 59 секунд; передняя рама руля была сильно повреждена, основная рама осталась целой.",
+        "context": "Свидетельство участников; первичный текст и дата указаны у выдержки.",
+        "story_facts": "В полдень Уилбур начал четвёртый полёт. По дневнику, после первых колебаний он добился более ровного движения. У песчаного бугорка аппарат снова закачался и резко коснулся земли. Орвилл записал 852 фута над землёй за 59 секунд; передняя рама руля была сильно повреждена, основная рама осталась целой.",
+        "narrative_excerpt_indices": [
+          0
+        ],
+        "limitations": [],
+        "excerpts": [
+          {
+            "text": "At just\n12 o’clock Will started on the fourth and last trip. The machine started off with\nits ups and downs as it had before, but by the time he had gone three or four hun-\ndred feet he had it under much better control, and was traveling on a fairly even\ncourse. It proceeded in this manner till it reached a small hummock out about\n800 feet from the starting ways, when it began its pitching again and suddenly\ndarted into the ground. The front rudder frame was badly broken up, but the\nmain frame suffered none at all. The distance over the ground was 852 feet in 59\nseconds.",
+            "document": "P1",
+            "start": 2406,
+            "end": 2983
+          }
+        ]
+      },
+      {
+        "card_id": "Cc58209868be1",
+        "label": "Почему держались низко",
+        "title": "Почему держались низко",
+        "claim": "Братья объяснили, что ради собственной безопасности решили делать первые испытания близко к земле. Небольшая высота при порывистом ветре оставляла мало пространства для манёвра. Они хотели до возвращения домой проверить мощность двигателя, прочность при посадках и достаточность управления как в ветреную, так и в спокойную погоду.",
+        "context": "Свидетельство участников; первичный текст и дата указаны у выдержки.",
+        "story_facts": "Братья объяснили, что ради собственной безопасности решили делать первые испытания близко к земле. Небольшая высота при порывистом ветре оставляла мало пространства для манёвра. Они хотели до возвращения домой проверить мощность двигателя, прочность при посадках и достаточность управления как в ветреную, так и в спокойную погоду.",
+        "limitations": [],
+        "excerpts": [
+          {
+            "text": "It had previously been decided that for reasons of personal safety\nthese first trials should be made as close to the ground as possible. The height chosen\nwas scarcely sufficient for maneuvering in so gusty a wind and with no previous\nacquaintance with the conduct of the machine and its controlling mechanisms.\nConsequently the first flight was short.",
+            "document": "P2",
+            "start": 2231,
+            "end": 2583
+          },
+          {
+            "text": "Only those who are acquainted with practical aeronautics can appreciate the\ndifficulties of attempting the first trials of a flying machine in a twenty-five mile\ngale. As winter was already well set in, we should have postponed our trials to a\nmore favorable season, but for the fact that we were determined, before returning\nhome, to know whether the machine possessed sufficient power to fly, sufficient\nstrength to withstand the shocks of landings, and sufficient capacity of control to\nmake flight safe in boisterous winds, as well as in calm air.",
+            "document": "P2",
+            "start": 3345,
+            "end": 3896
+          }
+        ]
+      },
+      {
+        "card_id": "Cd511f2d48d78",
+        "label": "Порыв уже на земле",
+        "title": "Порыв уже на земле",
+        "claim": "Сняв передний руль, участники перенесли машину к лагерю. Пока они обсуждали последний полёт, порыв стал переворачивать аппарат. Все бросились удерживать его; Дэниелс повис внутри и его прокатило вместе с машиной. Орвилл описывает, как тот выбрался из пространства двигателя и цепей, и перечисляет многочисленные повреждения.",
+        "context": "Свидетельство участников; первичный текст и дата указаны у выдержки.",
+        "story_facts": "Сняв передний руль, участники перенесли машину к лагерю. Пока они обсуждали последний полёт, порыв стал переворачивать аппарат. Все бросились удерживать его; Дэниелс повис внутри и его прокатило вместе с машиной. Орвилл описывает, как тот выбрался из пространства двигателя и цепей, и перечисляет многочисленные повреждения.",
+        "narrative_excerpt_indices": [
+          0
+        ],
+        "limitations": [],
+        "excerpts": [
+          {
+            "text": "After removing the front rudder, we carried the machine back to camp. We set\nthe machine down a few feet west of the building, and while standing about discussing\nthe last flight, a sudden gust of wind struck the machine and started to turn it over.\nAll rushed to stop it. Will who was near the end ran to the front, but too late to do\nany good. Mr. Daniels and myself seized spars at the rear, but to no purpose. The\nmachine gradually turned over on us. Mr. Daniels, having had no experience in\nhandling a machine of this kind, hung on to it from the inside, and as a result was\nknocked down and turned over and over with it as it went. His escape was miraculous,\nas he was in with the engine and chains. The engine legs were all broken off, the chain\nguides badly bent, a number of uprights, and nearly all the rear ends of the ribs\nwere broken. One spar only was broken.",
+            "document": "P1",
+            "start": 3423,
+            "end": 4296
+          }
+        ]
+      },
+      {
+        "card_id": "Cc6e52b433d9d",
+        "label": "Телеграмма домой",
+        "title": "Телеграмма домой",
+        "claim": "После обеда Орвилл и Уилбур отправились в Китти-Хок послать телеграмму отцу Милтону. Переданный текст объявлял четыре полёта с ровного места на собственной тяге, просил сообщить прессе и обещал возвращение к Рождеству. В телеграмме стоит 57 секунд; в дневнике и последующем сообщении братьев для самого длинного полёта указаны 59 секунд.",
+        "context": "Текст телеграммы воспроизведён NASA; существование оригинала и расхождение 57/59 подтверждены каталогом Library of Congress и NPS. Это разные документы одной семьи, не независимые свидетельства.",
+        "story_facts": "После обеда Орвилл и Уилбур отправились в Китти-Хок послать телеграмму отцу Милтону. Переданный текст объявлял четыре полёта с ровного места на собственной тяге, просил сообщить прессе и обещал возвращение к Рождеству. В телеграмме стоит 57 секунд; в дневнике и последующем сообщении братьев для самого длинного полёта указаны 59 секунд.",
+        "narrative_excerpt_indices": [
+          0
+        ],
+        "limitations": [],
+        "excerpts": [
+          {
+            "text": "Success four flights Thursday morning all against twenty-one mile wind\nstarted from level with engine power alone average speed through air\nthirty-one miles longest 57 seconds inform press home Christmas.",
+            "document": "P3",
+            "start": 0,
+            "end": 204
+          },
+          {
+            "text": "After dinner we went to Kitty Hawk to send off telegram to M. W. While there\nwe called on Capt. and Mrs. Hobbs, Dr. Cogswell and the station men.",
+            "document": "P1",
+            "start": 4297,
+            "end": 4442
+          }
+        ]
+      },
+      {
+        "card_id": "Cb3bfe698ec69",
+        "label": "Публичное объяснение",
+        "title": "Публичное объяснение",
+        "claim": "5 января 1904 года братья составили сообщение для Associated Press. Они объясняли публикацию тем, что после утечки семейной телеграммы распространились выдуманные истории людей, не видевших полётов. В конце они писали о собственных расходах на опыты и о том, что пока не готовы выдавать фотографии или подробное описание аппарата.",
+        "context": "Публичное сообщение участников от 5 января 1904 года; их оценка газетных сообщений атрибутирована им, а не выдана за отдельный аудит прессы.",
+        "story_facts": "5 января 1904 года братья составили сообщение для Associated Press. Они объясняли публикацию тем, что после утечки семейной телеграммы распространились выдуманные истории людей, не видевших полётов. В конце они писали о собственных расходах на опыты и о том, что пока не готовы выдавать фотографии или подробное описание аппарата.",
+        "limitations": [],
+        "excerpts": [
+          {
+            "text": "It had not been our intention to make any detailed public statement concerning\nthe private trials of our power “Flyer” on the 17th of December last; but since the\ncontents of a private telegram, announcing to our folks at home the success of our\ntrials, was dishonestly communicated to the newspapermen at the Norfolk office,\nand led to the imposition upon the public, by persons who never saw the “Flyer”\nor its flights, of a fictitious story incorrect in almost every detail; and since this\nstory together with several pretended interviews or statements, which were fakes\npure and simple, have been very widely disseminated we feel impelled to make\ncorrection. The real facts were as follows:",
+            "document": "P2",
+            "start": 0,
+            "end": 694
+          },
+          {
+            "text": "From the beginning we have employed entirely new principles of control; and\nas all the experiments have been conducted at our own expense without assis-\ntance from any individual or institution, we do not feel ready at present to give\nout any pictures or detailed description of the machine.",
+            "document": "P2",
+            "start": 4053,
+            "end": 4344
+          }
+        ]
+      }
+    ]
+  }
+}

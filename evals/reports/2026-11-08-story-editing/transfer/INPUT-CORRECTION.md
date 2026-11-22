@@ -22,4 +22,10 @@ uv run --project backend python evals/reports/2026-11-08-story-editing/transfer/
 
 [`input/shared.json`](input/shared.json) и весь каталог `input/` оставлены **байт-в-байт** для воспроизведения уже проведённого опыта. Их файлы, включая прежний README, не переписываются. Исходный SHA-256: `f92ace1fc2ed82b2bea34565f5ada718792a7406862caf1fae8cd04989a850d8`. Старый генератор находится в коммите `50e7609`; воспроизводить его следует только в отдельном checkout, а не поверх этого архива.
 
-`input-corrected/correction.json` фиксирует всю исходную файловую ведомость и точную связь версий; `validation.json` — хеши допущенных документов, схему и 19 цитатных диапазонов. Проверки в `backend/tests/test_wright_transfer_input.py` валидируют оба пакета, их штатный импорт PostgreSQL, неизменность исходного дерева и воспроизведение исправления. Платных вызовов нет.
+`input-corrected/correction.json` фиксирует всю исходную файловую ведомость и точную связь версий; `validation.json` — хеши допущенных документов, схему и 19 цитатных диапазонов. Тесты в `backend/tests/test_wright_transfer_input.py` проверяют оба пакета и их импорт в PostgreSQL. Целостность исходного дерева и воспроизведение исправления проверяет `verify_acquisition.py`. Платных вызовов нет.
+
+Проверку файлов этого эксперимента можно повторить из корня репозитория.
+
+```sh
+backend/.venv/bin/python -m pytest evals/reports/2026-11-08-story-editing/transfer/verify_acquisition.py
+```

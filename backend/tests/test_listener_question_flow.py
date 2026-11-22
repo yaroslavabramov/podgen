@@ -5,11 +5,12 @@ from copy import deepcopy
 from pathlib import Path
 
 import pytest
-
 from podgen import writing_cli
 from podgen.runtime.models.contracts import WireReply
 from podgen.writing.plan_views import candidate_view
 from podgen.writing.projection_versions import CURRENT
+
+from tests import FIXTURES
 from tests.author_responses import author_response
 from tests.planning_choice_cases import answer_requested_selection
 from tests.test_editorial_independence import invoke, payload, prepare
@@ -121,14 +122,12 @@ def test_accepted_listener_question_reaches_author_and_review_without_replacing_
 ):
     prefix, _, own, _, _ = prepare(own_dataset, case, tmp_path, monkeypatch)
     if case == "gps-clock":
-        folder = ROOT / "evals/reports/2026-11-06-gps-clean-run"
-        initial = json.loads((folder / "accepted-plan.json").read_text())["output"]
-        draft = json.loads((folder / "draft.json").read_text())["output"]
+        folder = FIXTURES / "role-projection/gps"
+        initial = json.loads((folder / "accepted-plan.json").read_text())
+        draft = json.loads((folder / "draft.json").read_text())
     else:
         initial = json.loads((ROOT / f"evals/editorial-inputs/v1/{case}/fixed-plan.json").read_text())["plan"]
-        draft = json.loads(
-            (ROOT / "evals/reports/2026-11-05-planning/own-plan/snow-pump/draft.json").read_text()
-        )["output"]
+        draft = json.loads((FIXTURES / "scripts/snow-draft.json").read_text())
     before = json.dumps(initial, ensure_ascii=False)
     proposed = current_planner_reply(initial)
     provider = QuestionFlowProvider(proposed, draft, question)
