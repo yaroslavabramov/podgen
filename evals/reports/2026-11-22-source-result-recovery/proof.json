@@ -1,0 +1,107 @@
+{
+  "run_id": "0d0c1d0b-8e00-4f88-9676-54aad5ec6e9f",
+  "policy": "local-source-result-recovery/1",
+  "outcome": {
+    "contract": "local-source-result-recovery/1",
+    "run_id": "0d0c1d0b-8e00-4f88-9676-54aad5ec6e9f",
+    "invocation_id": "c6c21e0f-7eb8-5d57-be7d-d27e5cc249dd",
+    "call_id": "call_5x7zbJoHgoIk2y2E6qY2Umwe",
+    "next_turn": 87,
+    "status": "prepared",
+    "stop_reason": "before_external_count",
+    "request_hash": "610113a2bdc4d555d8fccccb2e64b297696c7759abe4ae09db688a2b9895b3ac",
+    "next_request_ref": {
+      "record_kind": "tool_execution",
+      "record_id": "1dfb314f-3fac-5c33-af23-1c631280cc9f"
+    },
+    "tool_result_ref": {
+      "record_kind": "tool_execution",
+      "record_id": "14dd9e18-4ea4-589a-b131-6db9db64a5f5"
+    },
+    "export_directory": "/Users/yaroslavabramov/side/podgen/tmp/source-result-recovery-2026-11-22/prepared/1dfb314f-3fac-5c33-af23-1c631280cc9f"
+  },
+  "external_http_calls": 0,
+  "external_counts": 0,
+  "external_generations": 0,
+  "new_provider_cost_usd": 0,
+  "first_recovery_completed": true,
+  "idempotent_repeat": true,
+  "wrong_call_and_stage_rejected": true,
+  "unauthorized_actor_rejected": true,
+  "accounting_unchanged": true,
+  "manifests_and_original_draft_unchanged": true,
+  "next_turn_not_dispatched": true,
+  "before_head_revision": 384,
+  "after_head_revision": 385,
+  "before_and_after_paid_accounting": {
+    "count_calls": 94,
+    "count_reuses": 87,
+    "input_tokens": 2874617,
+    "output_tokens": 29676,
+    "output_reserved": 0,
+    "uncertain_calls": 0,
+    "generation_calls": 88,
+    "cached_input_tokens": 2540147
+  },
+  "first_pass_metrics": {
+    "baseline_unbound_publication": {
+      "sql_calls": 27,
+      "object_reads": 0,
+      "object_read_bytes": 0,
+      "object_publishes": 0,
+      "object_publish_bytes": 0,
+      "seconds": 0.09961029200349003,
+      "peak_python_bytes": 582870
+    },
+    "recover_and_export": {
+      "sql_calls": 351,
+      "object_reads": 7,
+      "object_read_bytes": 915033,
+      "object_publishes": 2,
+      "object_publish_bytes": 291005,
+      "seconds": 3.82878287503263,
+      "peak_python_bytes": 12373847
+    },
+    "repeat_and_export": {
+      "sql_calls": 172,
+      "object_reads": 5,
+      "object_read_bytes": 624028,
+      "object_publishes": 0,
+      "object_publish_bytes": 0,
+      "seconds": 0.5464546250295825,
+      "peak_python_bytes": 4971650
+    }
+  },
+  "final_repeat_metrics": {
+    "recover_only": {
+      "sql_calls": 37,
+      "object_reads": 0,
+      "object_read_bytes": 0,
+      "object_publishes": 0,
+      "object_publish_bytes": 0,
+      "seconds": 0.06697583402274176,
+      "peak_python_bytes": 230191
+    },
+    "recover_only_repeat": {
+      "sql_calls": 37,
+      "object_reads": 0,
+      "object_read_bytes": 0,
+      "object_publishes": 0,
+      "object_publish_bytes": 0,
+      "seconds": 0.054475916957017034,
+      "peak_python_bytes": 98689
+    },
+    "export_only": {
+      "sql_calls": 21,
+      "object_reads": 2,
+      "object_read_bytes": 291005,
+      "object_publishes": 0,
+      "object_publish_bytes": 0,
+      "seconds": 0.027658917009830475,
+      "peak_python_bytes": 335454
+    }
+  },
+  "repeat_opens_old_bodies": false,
+  "measurement_limit": "The historical first successful recovery was measured together with export, before the idempotent fast path. It is not a measurement of recovery alone. Current idempotent API and optional export were measured separately. Original first-publication eligibility was subsequently generalized to trust the exact immutable server operation rather than HTTP status; covered by addressed unit cases.",
+  "full_evidence_directory": "/Users/yaroslavabramov/side/podgen/tmp/source-result-recovery-2026-11-22"
+}

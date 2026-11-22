@@ -125,6 +125,9 @@ def parser(*, research=False):
         default="strict" if research else "bounded-selection-v1",
     )
     run.add_argument("--export-dir", type=Path, required=True)
+    from podgen.runtime.evaluation.source_result_recovery_cli import add_command as add_source_recovery
+
+    add_source_recovery(sub)
     for command in ["resume", "inspect"]:
         command_parser = sub.add_parser(command)
         command_parser.add_argument("--run-id", type=UUID, required=True)
@@ -189,6 +192,11 @@ def main(argv=None, *, research=False):
         purpose="evaluation",
     )
     try:
+        if args.command == "recover-source-result":
+            from podgen.runtime.evaluation.source_result_recovery_cli import execute
+
+            print(json.dumps(execute(args, repo), ensure_ascii=False))
+            return 0
         if args.command in (
             "research-materials-prepare",
             "editorial-source-import",

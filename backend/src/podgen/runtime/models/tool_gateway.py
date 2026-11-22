@@ -178,11 +178,11 @@ def _execute(journal, root, corpus, contract, call, index, turn, guard, history)
         and result.get("status") == "pending"
         and call["name"] in ("request_source", "request_research")
     ):
-        from podgen.domain.references import walk_values
+        from .tool_result_publication import bind_material_result
 
         # A prepared handoff introduces immutable child refs. Bind them before
         # its private checkpoint; capture never depends on dispatch permission.
-        journal.execution.prepare(root["run_id"], evaluation=[ref for _, _, ref in walk_values(result)])
+        bind_material_result(journal, root, call["name"], result)
         journal.event(root, "source_material_pending", data=dict(data, result=result))
         raise RunFailure(
             "source_material_handoff_pending", run_id=root["run_id"], invocation_id=root["invocation_id"]
@@ -202,13 +202,18 @@ def _execute(journal, root, corpus, contract, call, index, turn, guard, history)
     ):
         raise ContractError("material_tool_read_binding_mismatch")
     diagnostics = getattr(corpus, "last_search_diagnostics", None)
-    phase = journal.publication(root)
-    if call["name"] == "search_sources" and diagnostics is not None:
-        phase.event("source_search_diagnostics", data=dict(call_index=index, **diagnostics))
     json.dumps(result, ensure_ascii=False, allow_nan=False)
-    if not durable_intent and not intents:
-        phase.event("source_tool_call", data=data, history=history)
-    phase.event("source_tool_result", data=dict(data, result=result), history=history)
+    from .tool_result_publication import prepare_result
+
+    phase, _ = prepare_result(
+        journal,
+        root,
+        data,
+        result,
+        history=history,
+        diagnostics=diagnostics,
+        record_call=not durable_intent and not intents,
+    )
     phase.commit()
     return result
 

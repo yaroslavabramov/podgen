@@ -56,3 +56,29 @@ Newly prepared `/8` runs also pin `source_tool_contract.search_argument_policy=r
 New writing manifests pin `research_request_contract=bound-research-orders/1`. Direct factual tools, structured requests and terminal episode `needs_material` use one binding to the immutable originating script and neighbors. The original material scope owns the reusable research order; a writing run owns its local interpretation and S/X names. Reordered/duplicate anchors and changed caller rationale do not create another paid order. Each call retains complete original arguments and a reference to its local shared result, with fresh authorization before reuse.
 
 Terminal questions remain separate. Progress preserves processed questions and the remaining unresolved question; incomplete research prevents continuation. Restart reuses the prepared/completed child and saved interpretation. Local parser upgrades are append-only and do not resubmit paid work. Saved manifests without the pin keep their prior behavior. Complete research remains synthesis, not an editorial keep or an E source-reading receipt.
+
+## Local unavailable-source recovery
+
+Material results, including `unavailable`, admit their server-produced references
+before publication through the existing input and private checkpoint authorization.
+An unavailable document is an acquisition result; recovery does not reclassify it
+from HTTP status or fetch it again.
+
+`writing recover-source-result --run-id RUN --stage fact-review --invocation-id INVOCATION --call-id CALL --export-dir DIR`
+is an explicit local action. It only reconciles a current unfinished `request_source`
+whose exact paid response and immutable material operation result are retained after
+`unbound_private_checkpoint_source`. Run/stage/attempt/call, full original arguments,
+operation identity and current permissions are checked. Successful, pending,
+unrelated and uncertain provider outcomes are not eligible.
+
+One atomic checkpoint publishes the tool result and a versioned
+`local-source-result-recovery/1` next-request candidate built by the normal turn
+assembler. The action stops before input counting or generation, creates no new
+physical turn and returns `stop_reason=before_external_count`. Saved requests and
+paid receipts remain unchanged. The run projection becomes `prepared`; this is not
+an editorial decision or permission to dispatch.
+
+A repeat reads the exact existing checkpoint and reauthorizes its admitted closure
+without reopening original request/response or acquisition bodies. Export is a
+separate optional local read of the prepared application/native wire requests.
+Ordinary `run`/`resume` still authorizes any subsequent external action separately.
