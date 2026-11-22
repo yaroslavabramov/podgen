@@ -429,10 +429,13 @@ def test_resume_uses_archived_prompts_after_editor_publishes_new_version(
     from podgen.writing import prompts
 
     resources = tmp_path / "new-resources"
-    shutil.copytree(prompts.files("podgen.writing.prompts"), resources)
-    revise_file = resources / "current/revise.md"
-    revise_file.write_bytes(revise_file.read_bytes() + b"\nSYNTHETIC newly edited revision instructions.\n")
-    monkeypatch.setattr(prompts, "files", lambda _: resources)
+    shutil.copytree(prompts.composition.files("podgen.writing.prompts"), resources)
+    revise_file = resources / "current/script-revision.md"
+    current_instructions = prompts.role_instructions("revise", "dialogue")
+    addition = "\nSYNTHETIC newly edited revision instructions.\n"
+    revise_file.write_bytes(revise_file.read_bytes() + addition.encode())
+    monkeypatch.setattr(prompts.composition, "files", lambda _: resources)
+    assert prompts.role_instructions("revise", "dialogue") == current_instructions + addition
     assert prompts.role_instructions("revise", "dialogue") != saved_revise_body
     monkeypatch.setattr(
         __import__("podgen.runtime.evaluation.manifest", fromlist=["resolve_behavior"]),

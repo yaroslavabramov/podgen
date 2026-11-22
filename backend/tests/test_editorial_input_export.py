@@ -6,12 +6,12 @@ from uuid import uuid4
 
 from podgen.domain.canonical import digest
 from podgen.domain.contracts.common import BlobRef
+from podgen.persistence.repository import timestamp
 from podgen.runtime.evaluation.contracts import WritingRunCommand, command_payload
 from podgen.runtime.evaluation.export import export_run
 from podgen.runtime.evaluation.journal import EvaluationJournal
 from podgen.runtime.evaluation.planning import clearance_ref
 from podgen.runtime.evaluation.profiles import create_profile
-
 from tests.test_editorial_inputs import editorial as editorial
 
 
@@ -45,6 +45,7 @@ def test_fixed_plan_export_preserves_imported_bytes_and_verified_journal_origin(
     def manifest(cmd):
         return dict(
             command=command_payload(cmd),
+            created_at=timestamp(),
             author_ref=shared.model_dump(mode="json"),
             input_contract=cmd.input_contract,
             plan_mode=cmd.plan_mode,
@@ -61,15 +62,28 @@ def test_fixed_plan_export_preserves_imported_bytes_and_verified_journal_origin(
     assert (first / "fixed-editorial-input-original.json").read_bytes() == fixed_bytes
     assert not (first / "fixed-plan-origin.json").exists()
 
-    source = command.model_copy(update=dict(run_id=uuid4(), plan_mode="own-plan", fixed_plan_input_ref=None))
-    source_manifest = manifest(source)
+    source = command.model_copy(
+        update=dict(
+            run_id=uuid4(),
+            plan_mode="own-plan",
+            fixed_plan_input_ref=None,
+            planner_profile_ref=profile.ref,
+            plan_reviewer_profile_ref=profile.ref,
+        )
+    )
+    source_manifest = dict(manifest(source), stages=["plan", "plan-review"])
     journal.create_run(source, source_manifest)
     plan = deepcopy(original_fixed["content"]["plan"])
     plan["plan"]["route_summary"] = "Complete retained account.\n" * 3000
     candidate = dict(
         contract="writing-evaluation-output-v1", run_id=str(source.run_id), stage="plan", output=plan
     )
-    candidate_ref = journal.record(candidate)
+
+    def save_output(record):
+        journal.prepare(source.run_id, record["stage"], {"model": "synthetic-export-only"}, {})
+        return journal.record(record)
+
+    candidate_ref = save_output(candidate)
     review = dict(
         contract="writing-evaluation-output-v1",
         run_id=str(source.run_id),
@@ -78,7 +92,7 @@ def test_fixed_plan_export_preserves_imported_bytes_and_verified_journal_origin(
         candidate_plan_hash=digest(plan),
         output=dict(decision="accept", research_requests=[]),
     )
-    review_ref = journal.record(review)
+    review_ref = save_output(review)
     proof = dict(
         contract="writing-planning-clearance-v1",
         run_id=str(source.run_id),

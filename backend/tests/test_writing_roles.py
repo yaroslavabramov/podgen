@@ -6,6 +6,7 @@ from importlib.resources import files
 import pytest
 from pydantic import ValidationError
 
+from podgen.writing.prompts import composition
 from podgen.writing.roles import (
     EditorialFeedback,
     WriteOutput,
@@ -14,9 +15,15 @@ from podgen.writing.roles import (
 )
 
 
-@pytest.mark.parametrize("stage", ["draft", "review", "revise"])
+@pytest.mark.parametrize(
+    "stage,resource",
+    [("draft", "author.md"), ("review", "script-editor.md"), ("revise", "script-revision.md")],
+    ids=["draft", "review", "revise"],
+)
 @pytest.mark.parametrize("format", ["solo", "dialogue"])
-def test_all_role_instructions_use_complete_packaged_resources(stage, format, tmp_path, monkeypatch):
+def test_all_role_instructions_use_complete_packaged_resources(
+    stage, resource, format, tmp_path, monkeypatch
+):
     monkeypatch.chdir(tmp_path)
     root = files("podgen.writing.prompts").joinpath("current")
     result = role_instructions(stage, format)
@@ -24,18 +31,23 @@ def test_all_role_instructions_use_complete_packaged_resources(stage, format, tm
     assert not re.search(r"\b[0-9a-f]{64}\b", result)
     assert not re.search(r"[А-Яа-яЁё]", result)
     assert "output_language" in result
-    assert result == "\n\n".join(
-        root.joinpath(name).read_bytes().decode("utf-8")
-        for name in ("common.md", f"{format}.md", f"{stage}.md")
-    )
-    for name in ("common.md", f"{format}.md", f"{stage}.md"):
+    assert result == composition.render(resource, format=format)
+    assert "{{" not in result
+    for name in ("common.md", f"{format}.md"):
         assert root.joinpath(name).read_bytes().decode("utf-8") in result
-    assert result.endswith(root.joinpath(f"{stage}.md").read_bytes().decode("utf-8"))
 
 
-@pytest.mark.parametrize("stage,format", [("other", "solo"), ("draft", "other"), (None, "solo")])
-def test_unknown_instruction_selection_fails_explicitly(stage, format):
-    with pytest.raises(ValueError, match="unknown_writing_"):
+@pytest.mark.parametrize(
+    "stage,format,reason",
+    [
+        ("other", "solo", "unknown_writing_prompt_role"),
+        ("draft", "other", "unsupported_writing_prompt_context"),
+        (None, "solo", "unknown_writing_prompt_role"),
+    ],
+    ids=["other-solo", "draft-other", "None-solo"],
+)
+def test_unknown_instruction_selection_fails_explicitly(stage, format, reason):
+    with pytest.raises(ValueError, match=reason):
         role_instructions(stage, format)
 
 

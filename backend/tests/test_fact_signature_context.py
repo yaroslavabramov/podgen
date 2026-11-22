@@ -14,13 +14,13 @@ from podgen.runtime.evaluation.request_payload import request_payload
 from podgen.writing import fact_context
 from podgen.writing.source_signatures import signature_evidence
 from tests.signature_cases import materials_for
-from tests.source_excerpt_cases import release
+from tests.source_excerpt_cases import release_before_reading_audit
 
 
 @pytest.mark.parametrize("case", ["snow-pump", "rain-soil"])
 def test_v1_bytes_stay_identical_and_v2_supports_only_the_cited_cards(monkeypatch, case):
     materials, profile = materials_for(case)
-    _, _, _, current = release(monkeypatch, materials, profile)
+    _, _, _, current = release_before_reading_audit(monkeypatch, materials, profile)
     assert current[fact_context.KEY] == fact_context.SIGNATURE_VERSION
     # Reconstruct the released pre-tools pair. Hash fixtures represent those exact historical requests.
     from podgen.runtime.evaluation.role_schema import response_schema

@@ -63,6 +63,7 @@ class Journal:
             invocation_id=uuid4(),
             request_record_id=uuid4(),
             attempt_index=0,
+            attempt_kind="role",
             status="prepared",
             operation_kind="role",
         )

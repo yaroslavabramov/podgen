@@ -3,6 +3,7 @@
 from copy import deepcopy
 
 import pytest
+
 from podgen.domain.canonical import digest
 from podgen.domain.errors import ContractError
 from podgen.runtime.evaluation import reading_stage, script_revision
@@ -12,9 +13,14 @@ from podgen.runtime.evaluation.reading_cycle import combine
 from podgen.runtime.evaluation.request_payload import request_payload
 from podgen.writing.revision.assignment import tasks
 from podgen.writing.revision.context import COMPACT_VERSION, KEY, REQUIRED_VERSION, from_manifest
-
 from tests.revision_cases import composition, scope
-from tests.source_excerpt_cases import Captured, CaptureGateway, data_and_profile, release
+from tests.source_excerpt_cases import (
+    Captured,
+    CaptureGateway,
+    data_and_profile,
+    release,
+    release_before_reading_audit,
+)
 
 
 def case(scale):
@@ -194,7 +200,7 @@ def test_both_real_rewrites_share_exact_tasks_permissions_and_existing_sources(m
 
 def test_old_snapshot_preserves_full_reviews_optional_permissions_and_craft(monkeypatch):
     materials, plan, script, readings, profile = case("local")
-    _, _, command, old = release(monkeypatch, materials, profile)
+    _, _, command, old = release_before_reading_audit(monkeypatch, materials, profile)
     old.pop(KEY)
     frozen = deepcopy(old)
     snapshot = PreviewSnapshot(old, "Pinned historical writer instructions.")

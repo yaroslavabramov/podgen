@@ -5,7 +5,7 @@ from copy import deepcopy
 
 from podgen import writing_cli
 from podgen.domain.canonical import digest
-from podgen.writing.prompts import load_reading_instructions
+from podgen.writing.behavior import resolve_behavior
 from tests.revision_cases import composition, scope
 from tests.revision_providers import reply
 from tests.test_editorial_independence import invoke, payload, prepare
@@ -88,7 +88,8 @@ def test_compiled_final_range_materializes_new_words_and_both_readers_receive_th
     monkeypatch.setattr(writing_cli, "OpenAIProvider", lambda *_, **kwargs: provider)
     assert invoke(prefix, "run", **options) == 0
     stages = {body["metadata"]["podgen_stage"]: body for body in provider.requests}
-    assert stages["revise-1"]["instructions"] == load_reading_instructions("dual-revise").body
+    selected = resolve_behavior(options["behavior_profile"])
+    assert stages["revise-1"]["instructions"] == selected.instructions("dual-revise", "solo").body
     record = json.loads((tmp_path / "export/revise-1.json").read_text())
     expected = dict(utterances=SOURCE[:2] + NEW_ENDING)
     assert record["output"] == expected and digest(dict(utterances=SOURCE)) == record["script_hash"]

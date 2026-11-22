@@ -7,6 +7,7 @@ from pathlib import Path
 from uuid import UUID
 
 import pytest
+
 from podgen.domain.canonical import digest
 from podgen.domain.contracts.common import RuntimeRef
 from podgen.runtime.evaluation import reading_stage
@@ -18,9 +19,8 @@ from podgen.writing import author_plan
 from podgen.writing.revision.context import COMPACT_VERSION, KEY, REQUIRED_VERSION
 from podgen.writing.revision.frame import FIELDS
 from podgen.writing.story_views import selected_labels
-
 from tests.revision_cases import composition
-from tests.source_excerpt_cases import Captured, CaptureGateway, release
+from tests.source_excerpt_cases import Captured, CaptureGateway, release, release_before_reading_audit
 from tests.test_required_revision_assignment import case
 
 
@@ -131,7 +131,10 @@ def test_every_v2_rewrite_reproduces_the_complete_pre_change_request_bytes(monke
     expected = json.loads((Path(__file__).parent / "fixtures/revision-context-v2.hashes.json").read_text())
     for scale in ("local", "sequence", "whole_episode"):
         materials, plan, script, readings, profile = case(scale)
-        _, _, _, manifest = release(monkeypatch, materials, profile)
+        _, _, _, manifest = release_before_reading_audit(monkeypatch, materials, profile)
+        # These hashes were recorded at 1e1badf8, before source navigation and provider tool policies.
+        manifest.pop("source_tool_contract", None)
+        manifest.pop("provider_contracts", None)
         manifest[KEY] = REQUIRED_VERSION
         for number in (1, 2):
             stage = f"revise-{number}"
