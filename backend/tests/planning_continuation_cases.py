@@ -4,28 +4,23 @@ import json
 from copy import deepcopy
 
 import pytest
+
 from podgen.domain.contracts.common import RuntimeRef
 from podgen.runtime.evaluation.contracts import RunFailure, WritingRunCommand
 from podgen.runtime.evaluation.journal import EvaluationJournal
 from podgen.runtime.evaluation.service import WritingEvaluation
 from podgen.runtime.models.contracts import WireReply
-
 from tests.own_plan_provider import proposal, question
 from tests.planning_choice_cases import answer_requested_selection
 from tests.test_editorial_independence import payload, prepare
-from tests.test_independent_readings import Paused, ReadingProvider
+from tests.test_independent_readings import ReadingProvider
 
 
 class ContinuationProvider(ReadingProvider):
-    def __init__(self, decision="revise", *, research=False, pause=None, on_plan=None):
+    def __init__(self, decision="revise", *, research=False, on_plan=None):
         super().__init__(("keep",))
         self.plan_decision, self.research = decision, research
-        self.pause_planning, self.on_plan = pause, on_plan
-
-    def count(self, body):
-        if self.pause_planning and body["text"]["format"]["name"] == self.pause_planning.replace("-", "_"):
-            raise Paused()
-        return super().count(body)
+        self.on_plan = on_plan
 
     def submit(self, body, *, client_request_id):
         stage = body["metadata"]["podgen_stage"]

@@ -6,6 +6,7 @@ from threading import Event, Thread
 from uuid import uuid4
 
 import pytest
+
 from podgen import writing_cli
 from podgen.domain.canonical import digest
 from podgen.domain.errors import Conflict, ContractError
@@ -16,10 +17,9 @@ from podgen.runtime.evaluation.planning import verify_clearance
 from podgen.runtime.evaluation.planning_continuation.cli import prepare
 from podgen.runtime.evaluation.planning_continuation.source import build_command, continuation_id
 from podgen.runtime.evaluation.service import WritingEvaluation
-
 from tests.planning_continuation_cases import ContinuationProvider, failed_source
+from tests.stage_pause import pause_before_count
 from tests.test_editorial_independence import payload
-from tests.test_independent_readings import Paused
 from tests.test_own_plan import own_dataset as own_dataset
 
 
@@ -100,12 +100,12 @@ def test_research_is_a_honest_terminal_result(own_dataset, tmp_path, monkeypatch
 def test_resume_keeps_completed_revision_and_pinned_request(own_dataset, tmp_path, monkeypatch):
     source, journal, _ = failed_source(own_dataset, tmp_path, monkeypatch)
     child = build_command(journal, source.run_id, limit=2)
-    provider = ContinuationProvider("accept", pause="plan-review-revised")
+    provider = ContinuationProvider("accept")
     service = WritingEvaluation(own_dataset[0], lambda _: provider)
-    with pytest.raises(Paused):
+    with pause_before_count(child.run_id, "plan-review-revised"):
         service.run(child)
     pending = journal.request(journal.invocation(child.run_id, "plan-review-revised"))
-    provider.pause_planning = None
+
     assert service.run(child)["status"] == "completed_unaccepted"
     assert provider.requests[1] == pending
     assert [r["metadata"]["podgen_stage"] for r in provider.requests].count("plan-revise") == 1

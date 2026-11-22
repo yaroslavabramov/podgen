@@ -6,6 +6,7 @@ from pathlib import Path
 from uuid import uuid4
 
 import pytest
+
 from podgen import writing_cli
 from podgen.domain.contracts.common import RuntimeRef
 from podgen.research_writing_cli import main as research_main
@@ -14,31 +15,25 @@ from podgen.runtime.evaluation.journal import EvaluationJournal
 from podgen.runtime.evaluation.reading_outcome import read_outcome
 from podgen.runtime.evaluation.reading_workflow import VERSION
 from podgen.runtime.models.contracts import WireReply
-from podgen.writing.prompts import load_reading_instructions
-
+from podgen.writing.behavior import resolve_behavior
 from tests import FIXTURES
 from tests.author_responses import author_response
 from tests.independent_planner_provider import IndependentPlannerProvider
+from tests.stage_pause import pause_before_count
 from tests.test_editorial_independence import invoke, payload, prepare
 from tests.test_own_plan import own_dataset as own_dataset
 
 ROOT = Path(__file__).resolve().parents[2]
 
 
-class Paused(Exception):
-    pass
-
-
 class ReadingProvider:
-    def __init__(self, decisions=("keep",), *, invalid=None, pause=None, fact_need=False):
+    def __init__(self, decisions=("keep",), *, invalid=None, fact_need=False):
         self.decisions = decisions
-        self.invalid, self.pause, self.fact_need = invalid, pause, fact_need
+        self.invalid, self.fact_need = invalid, fact_need
         self.requests, self.counts = [], []
         self.upstream = IndependentPlannerProvider()
 
     def count(self, body):
-        if self.pause and body["text"]["format"]["name"] == self.pause.replace("-", "_"):
-            raise Paused()
         self.counts.append(deepcopy(body))
         return WireReply(b'{"input_tokens":100}')
 
@@ -237,7 +232,8 @@ def test_default_saved_snow_two_isolated_readings_and_repeated_final(own_dataset
     assert (
         "source_excerpts" not in rewrite["support"][0]
     )  # No explicit narrative selection in this old packet.
-    assert provider.requests[0]["instructions"] == load_reading_instructions("reader-review").body
+    profile = resolve_behavior(options["behavior_profile"])
+    assert provider.requests[0]["instructions"] == profile.instructions("reader-review", first["format"]).body
     out = tmp_path / "export"
     assert (out / "final.txt").exists() and "Фактологическая проверка · версия 2" in (
         out / "review-result.md"
@@ -292,13 +288,13 @@ def test_pending_final_reading_resumes_pinned_request_without_repeating_earlier_
     own_dataset, tmp_path, monkeypatch
 ):
     prefix, options, _ = setup_review(own_dataset, tmp_path, monkeypatch)
-    provider = ReadingProvider(("revise", "keep"), pause="fact-review-1")
+    provider = ReadingProvider(("revise", "keep"))
     monkeypatch.setattr(writing_cli, "OpenAIProvider", lambda *a, **k: provider)
-    with pytest.raises(Paused):
+    with pause_before_count(options["run_id"], "fact-review-1"):
         invoke(prefix, "run", **options)
     journal = EvaluationJournal(own_dataset[0], own_dataset[1])
     pending = journal.request(journal.invocation(options["run_id"], "fact-review-1"))
-    provider.pause = None
+
     monkeypatch.setattr(
         "podgen.writing.prompts.load_reading_instructions",
         lambda *a: (_ for _ in ()).throw(AssertionError("Must use pinned instructions")),
@@ -473,9 +469,9 @@ def test_saved_reading_cannot_be_rebound_to_changed_spoken_words(own_dataset, tm
     from podgen.runtime.evaluation.reading_stage import execute_reading_stage
 
     prefix, options, script = setup_review(own_dataset, tmp_path, monkeypatch)
-    provider = ReadingProvider(pause="fact-review")
+    provider = ReadingProvider()
     monkeypatch.setattr(writing_cli, "OpenAIProvider", lambda *a, **k: provider)
-    with pytest.raises(Paused):
+    with pause_before_count(options["run_id"], "fact-review"):
         invoke(prefix, "run", **options)
     repo, project = own_dataset[:2]
     journal = EvaluationJournal(repo, project)

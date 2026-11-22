@@ -13,9 +13,9 @@ from podgen.writing.editorial_contract import EditorialInput
 from podgen.writing.model_references import ModelReferences
 from tests.revision_cases import actual_case
 from tests.revision_providers import Actual83Provider, ContinuingProvider
+from tests.stage_pause import pause_before_count
 from tests.test_current_snow_input import source_file
 from tests.test_editorial_independence import invoke, payload, prepare
-from tests.test_independent_readings import Paused
 from tests.test_own_plan import own_dataset as own_dataset
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -67,7 +67,7 @@ def test_real_83_ordinary_run_persists_only_three_edits_and_rechecks_the_complet
     references = ModelReferences.create(EditorialInput.model_validate_json(packet.read_bytes()))
     provider = Actual83Provider(references)
     monkeypatch.setattr(writing_cli, "OpenAIProvider", lambda *a, **k: provider)
-    with pytest.raises(Paused):
+    with pause_before_count(options["run_id"], "revise-1"):
         invoke(prefix, "run", **options)
     journal = EvaluationJournal(own_dataset[0], own_dataset[1])
     manifest = journal.manifest(options["run_id"])
@@ -116,7 +116,7 @@ def test_real_83_ordinary_run_persists_only_three_edits_and_rechecks_the_complet
         )
         == 2
     )
-    provider.pause = None
+
     assert invoke(prefix, "resume", run_id=options["run_id"], export_dir=tmp_path / "export") == 0
     record = journal.output(journal.invocation(options["run_id"], "revise-1"))
     assert set(record["output"]) == {"utterances"}
@@ -155,7 +155,7 @@ def test_next_local_revision_uses_the_selected_composition_without_losing_open_r
     options["review_mode"] = "independent-readings/1"
     provider = ContinuingProvider(first_mode)
     monkeypatch.setattr(writing_cli, "OpenAIProvider", lambda *a, **k: provider)
-    with pytest.raises(Paused):
+    with pause_before_count(options["run_id"], "revise-2"):
         invoke(prefix, "run", **options)
     journal = EvaluationJournal(own_dataset[0], own_dataset[1])
     manifest = journal.manifest(options["run_id"])
@@ -202,7 +202,7 @@ def test_next_local_revision_uses_the_selected_composition_without_losing_open_r
         == 0
     )
     assert json.loads(preview.read_text())["request"] == second
-    provider.pause = None
+
     assert invoke(prefix, "resume", run_id=options["run_id"], export_dir=tmp_path / "export") == 0
     final = journal.output(journal.invocation(options["run_id"], "revise-2"))
     assert final["composition"] == first["composition"]

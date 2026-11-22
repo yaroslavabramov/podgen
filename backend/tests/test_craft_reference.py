@@ -6,10 +6,10 @@ from hashlib import sha256
 from uuid import uuid4
 
 import pytest
+
 from podgen.domain.errors import ContractError
 from podgen.writing import craft_reference
 from podgen.writing.behavior import BehaviorProfile
-
 from tests.historical_preview import replay_preview as preview_request
 from tests.test_editorial_independence import payload
 from tests.test_prompt_resources import deployed_python
@@ -18,9 +18,9 @@ from tests.test_v5_role_wire import fixture
 
 
 def reference_resource(tmp_path, monkeypatch):
-    directory = tmp_path / "examples"
+    directory = tmp_path / "current"
     directory.mkdir()
-    resource = directory / "ru.md"
+    resource = directory / "style-reference-ru.md"
     raw = "Source material\r\nДословный русский образец.\r\n".encode()
     resource.write_bytes(raw)
     monkeypatch.setattr(craft_reference, "files", lambda _: tmp_path)
@@ -108,7 +108,7 @@ def test_installed_wheel_contains_and_reads_the_exact_russian_reference(installe
 import hashlib, json
 from importlib.resources import files
 from podgen.writing.craft_reference import load_reference
-raw = files('podgen.writing.prompts').joinpath('examples', 'ru.md').read_bytes()
+raw = files('podgen.writing.prompts').joinpath('current', 'style-reference-ru.md').read_bytes()
 reference = load_reference('ru-RU')
 assert reference['text'].encode() == raw
 assert reference['sha256'] == hashlib.sha256(raw).hexdigest()
@@ -118,5 +118,5 @@ print(json.dumps(dict(sha256=reference['sha256'], bytes=len(raw))))
     )
     from importlib.resources import files
 
-    raw = files("podgen.writing.prompts").joinpath("examples", "ru.md").read_bytes()
+    raw = files("podgen.writing.prompts").joinpath("current", "style-reference-ru.md").read_bytes()
     assert result == dict(sha256=sha256(raw).hexdigest(), bytes=len(raw))

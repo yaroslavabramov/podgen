@@ -3,22 +3,22 @@
 from uuid import uuid4
 
 import pytest
+
 from podgen.runtime.evaluation.preview_snapshot import PreviewSnapshot
 from podgen.writing.author_reply import contract_pin
+from podgen.writing.behavior import resolve_behavior
 from podgen.writing.model_references import CATALOG_KEY, preview_references
 from podgen.writing.planning_choice import KEY, VERSION
 from podgen.writing.planning_duration import KEY as DURATION_KEY
 from podgen.writing.planning_duration import VERSION as DURATION_VERSION
 from podgen.writing.projection_versions import V9
-from podgen.writing.prompts import load_instruction_set
-
 from tests import FIXTURES
 from tests.historical_preview import replay_preview as preview_request
 from tests.test_v5_role_wire import fixture
 
 
 @pytest.mark.parametrize("stage", ["plan", "plan-revise", "plan-review", "plan-review-revised"])
-def test_current_planning_and_revision_requests_use_new_instructions_but_saved_requests_keep_their_pin(stage):
+def test_existing_profile_uses_its_released_planning_instructions_and_replays_the_saved_pin(stage):
     materials, _, candidate, profile, _, _, _, review = fixture()
     inputs = {} if stage == "plan" else dict(candidate=candidate)
     if stage == "plan-revise":
@@ -26,8 +26,8 @@ def test_current_planning_and_revision_requests_use_new_instructions_but_saved_r
     run_id = uuid4()
     fresh = preview_request(run_id, stage, profile, materials, **inputs)
     prompt_stage = "plan-review" if stage == "plan-review-revised" else stage
-    instructions = load_instruction_set(materials.format, include_planning=True)
-    assert fresh["instructions"] == instructions[prompt_stage].body
+    expected = resolve_behavior("existing/1").instructions(prompt_stage, materials.format)
+    assert fresh["instructions"] == expected.body
     for task in ("ordinary inferences", "why_end_here", "moral or emotional effect"):
         assert task in fresh["instructions"]
     if stage in ("plan", "plan-revise"):

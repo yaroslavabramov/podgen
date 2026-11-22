@@ -6,6 +6,7 @@ from types import SimpleNamespace
 from uuid import uuid4
 
 import pytest
+
 from podgen.domain.contracts.common import ArtifactRef, RuntimeRef
 from podgen.runtime.evaluation.contracts import RunFailure, RunLimits, WritingRunCommand, command_payload
 from podgen.runtime.evaluation.input_budget_recovery import effective_limits
@@ -19,8 +20,8 @@ from podgen.runtime.models.contracts import WireReply
 from podgen.runtime.models.gateway import ModelGateway
 from podgen.writing.behavior import DEFAULT, PRODUCTION, resolve_behavior
 from podgen.writing_cli import parser
-
 from tests import FIXTURES
+from tests.source_tool_runtime_support import MemoryJournal
 
 
 def test_normal_cli_uses_production_own_plan_and_keeps_research_options_out_of_run_and_preview():
@@ -123,39 +124,6 @@ def test_released_production_is_one_catalog_and_old_missing_command_fields_keep_
         assert validate_manifest_budget(manifest) == input_budget_for_profile(name)
 
 
-class BudgetJournal:
-    def __init__(self, body, budget):
-        self.body, self.budget = deepcopy(body), budget
-        self.events = []
-
-    def request(self, row):
-        return self.body
-
-    def manifest(self, run_id):
-        return dict(
-            input_contract="editorial-role-packets/1",
-            role_projection_version="editorial-role-projections/9",
-            role_input_budget=self.budget,
-        )
-
-    def read(self, ref):
-        return dict(
-            context=dict(
-                role_input_contract="editorial-role-packets/1",
-                role_projection_version="editorial-role-projections/9",
-            )
-        )
-
-    def blob(self, raw):
-        return SimpleNamespace(model_dump=lambda **kw: dict(sha256="synthetic"))
-
-    def event(self, row, kind, **data):
-        self.events.append(kind)
-
-    def transition(self, row, status, **updates):
-        return dict(row, status=status, **updates)
-
-
 class CountedProvider:
     def __init__(self):
         self.counts, self.submits = 0, 0
@@ -183,9 +151,6 @@ class CountedProvider:
 
 
 def test_regular_production_counts_35737_without_manual_retry_and_keeps_context_and_total_reservations():
-    row = dict(
-        run_id=uuid4(), invocation_id=uuid4(), request_record_id=uuid4(), status="prepared", attempt_index=0
-    )
     body = dict(
         model="synthetic",
         instructions="Exact retained instructions.",
@@ -194,12 +159,13 @@ def test_regular_production_counts_35737_without_manual_retry_and_keeps_context_
         metadata={},
     )
     profile = SimpleNamespace(
+        provider="openai",
         output_limit=24576,
         context_limit=200000,
         generation_parameters=dict(store=False),
         timeout_policy=dict(poll_deadline_seconds=10),
     )
-    for code, budget, context, limits in [
+    for code, budget, context_limit, limits in [
         (None, PRODUCTION_INPUT_BUDGET, 200000, RunLimits(**PRODUCTION_RUN_LIMITS)),
         (
             "role_visible_byte_budget_exceeded",
@@ -221,8 +187,18 @@ def test_regular_production_counts_35737_without_manual_retry_and_keeps_context_
             RunLimits(max_total_output_tokens=24575),
         ),
     ]:
-        journal, provider = BudgetJournal(body, budget), CountedProvider()
-        profile.context_limit = context
+        context = dict(
+            role_input_contract="editorial-role-packets/1",
+            role_projection_version="editorial-role-projections/9",
+        )
+        manifest = dict(
+            input_contract=context["role_input_contract"],
+            role_projection_version=context["role_projection_version"],
+            role_input_budget=budget,
+        )
+        journal, provider = MemoryJournal(manifest, body, context=context), CountedProvider()
+        row = journal.root
+        profile.context_limit = context_limit
         gateway = ModelGateway(journal, lambda _, current=provider: current)
         assert effective_limits(journal, row) == budget
         if code:
@@ -239,7 +215,13 @@ def test_regular_production_counts_35737_without_manual_retry_and_keeps_context_
                 == "{}"
             )
             assert provider.counts == provider.submits == 1
-            assert "count_intent" in journal.events and "submit_intent" in journal.events
+            events = [event["event_kind"] for event in journal.events(row)]
+            assert (
+                events.count("count_intent")
+                == events.count("count_response")
+                == events.count("submit_intent")
+                == 1
+            )
 
 
 def test_ordinary_cli_run_and_historical_resume_build_the_expected_commands(monkeypatch):
@@ -370,7 +352,6 @@ def test_production_reader_adds_audit_and_preserves_the_verified_archive_format(
 
     from podgen.runtime.evaluation.preview import preview_request
     from podgen.runtime.evaluation.role_schema import response_schema
-
     from tests.schema_cases import wire_hash, without_descriptions
     from tests.test_v5_role_wire import fixture
 

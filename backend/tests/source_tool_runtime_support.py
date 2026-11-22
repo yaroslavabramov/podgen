@@ -11,7 +11,7 @@ from podgen.runtime.evaluation.publication import Publication
 
 
 class MemoryJournal:
-    def __init__(self, manifest, body):
+    def __init__(self, manifest, body, *, context=None):
         self.snapshot = manifest
         self.project = uuid4()
         self.records, self.blobs, self.receipts, self.turns = {}, {}, [], []
@@ -31,7 +31,7 @@ class MemoryJournal:
             provider_response_id=None,
             output_record_id=None,
         )
-        self.root["request_record_id"] = self.store_request(body)
+        self.root["request_record_id"] = self.store_request(body, context=context)
         self.roots = {self.root["invocation_id"]: self.root}
         self.repo = SimpleNamespace(actor_id=uuid4())
         self.execution = SimpleNamespace(
@@ -66,12 +66,12 @@ class MemoryJournal:
             storage_key=digest, sha256=digest, byte_length=len(data), media_type="application/json"
         )
 
-    def store_request(self, body):
+    def store_request(self, body, *, context=None):
         import json
 
         ref = uuid4()
         self.records[ref] = dict(
-            request_blob=self.blob(json.dumps(body).encode()).model_dump(mode="json"), context={}
+            request_blob=self.blob(json.dumps(body).encode()).model_dump(mode="json"), context=deepcopy(context or {})
         )
         return ref
 

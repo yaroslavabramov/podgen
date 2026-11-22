@@ -34,7 +34,7 @@ def reply(body, output):
 
 class Actual83Provider(ReadingProvider):
     def __init__(self, references):
-        super().__init__(pause="revise-1")
+        super().__init__()
         self.references = references
 
     def submit(self, body, *, client_request_id):
@@ -74,7 +74,7 @@ class Actual83Provider(ReadingProvider):
 
 class ContinuingProvider(ReadingProvider):
     def __init__(self, first_mode):
-        super().__init__(("revise", "revise", "keep"), pause="revise-2")
+        super().__init__(("revise", "revise", "keep"))
         self.first_mode = first_mode
 
     def submit(self, body, *, client_request_id):

@@ -4,6 +4,7 @@ import json
 from hashlib import sha256
 
 import pytest
+
 from podgen import writing_cli
 from podgen.domain.errors import Conflict
 from podgen.runtime.evaluation import service as service_module
@@ -18,11 +19,11 @@ from podgen.writing.reader_schema import V4 as READER_V4
 from podgen.writing.reader_schema import V5 as READER_V5
 from podgen.writing.reader_story import ORDER as STORY_ORDER
 from podgen.writing.reader_wording import FIELDS as WORDING_FIELDS
-
 from tests import FIXTURES
 from tests.historical_revisions import historical_revision_manifest
+from tests.stage_pause import pause_before_count
 from tests.test_editorial_independence import invoke, payload, prepare
-from tests.test_independent_readings import Paused, ReadingProvider, setup_review
+from tests.test_independent_readings import ReadingProvider, setup_review
 from tests.test_own_plan import own_dataset as own_dataset
 
 
@@ -76,9 +77,9 @@ def test_cli_reader_schema_preview_and_resume_keep_their_pinned_semantics(
             return original(journal, command, manifest)
 
         monkeypatch.setattr(EvaluationJournal, "create_run", old_manifest)
-    provider = ReadingProvider(pause="reader-review")
+    provider = ReadingProvider()
     monkeypatch.setattr(writing_cli, "OpenAIProvider", lambda *a, **k: provider)
-    with pytest.raises(Paused):
+    with pause_before_count(options["run_id"], "reader-review"):
         invoke(prefix, "run", **options)
     journal = EvaluationJournal(own_dataset[0], own_dataset[1])
     manifest = journal.manifest(options["run_id"])
@@ -144,7 +145,7 @@ def test_cli_reader_schema_preview_and_resume_keep_their_pinned_semantics(
         "instructions",
         lambda *a: pytest.fail("Resume must use pinned instructions"),
     )
-    provider.pause = None
+
     assert invoke(prefix, "resume", run_id=options["run_id"], export_dir=tmp_path / "export") == 0
     assert (
         next(body for body in provider.requests if body["metadata"]["podgen_stage"] == "reader-review")

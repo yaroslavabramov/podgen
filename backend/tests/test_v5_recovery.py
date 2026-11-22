@@ -14,9 +14,9 @@ from podgen.writing.projection_versions import V5
 from tests.credit_provider import CreditProvider
 from tests.historical_revisions import historical_revision_manifest
 from tests.own_plan_provider import proposal
+from tests.stage_pause import pause_before_count
 from tests.test_card_ids import admitted, legacy
 from tests.test_editorial_independence import invoke, payload
-from tests.test_independent_readings import Paused
 from tests.test_listener_question_flow import QuestionFlowProvider
 from tests.test_own_plan import own_dataset as own_dataset
 from tests.test_plan_author_contract import CurrentPlanProvider
@@ -27,7 +27,6 @@ class RecoveryProvider(CurrentPlanProvider):
         super().__init__(
             ("revise", "keep"),
             invalid="fact-review" if mode == "anchor" else None,
-            pause="plan-revise" if mode == "pending" else None,
         )
         initial = proposal(
             dict(
@@ -85,10 +84,9 @@ def test_exact_v5_wire_survives_every_recovery_boundary(own_dataset, tmp_path, m
     journal = EvaluationJournal(own_dataset[0], own_dataset[1])
     pending = None
     if mode == "pending":
-        with pytest.raises(Paused):
+        with pause_before_count(options["run_id"], "plan-revise"):
             invoke(prefix, "run", **options)
         pending = journal.request(journal.invocation(options["run_id"], "plan-revise"))
-        inner.pause = None
     else:
         assert invoke(prefix, "run", **options) == (2 if mode in ("target", "credit") else 0)
     saved_manifest = deepcopy(journal.manifest(options["run_id"]))
@@ -170,9 +168,9 @@ def test_v4_pending_run_keeps_native_ids_and_exact_saved_request(own_dataset, tm
 
     monkeypatch.setattr(EvaluationJournal, "create_run", pinned)
     provider = CardProvider(chosen, correction)
-    provider.pause = "fact-review"
+
     monkeypatch.setattr(writing_cli, "OpenAIProvider", lambda *a, **k: provider)
-    with pytest.raises(Paused):
+    with pause_before_count(options["run_id"], "fact-review"):
         invoke(prefix, "run", **options)
     journal = EvaluationJournal(own_dataset[0], own_dataset[1])
     pending = journal.request(journal.invocation(options["run_id"], "fact-review"))
@@ -180,7 +178,7 @@ def test_v4_pending_run_keeps_native_ids_and_exact_saved_request(own_dataset, tm
     assert CATALOG_KEY not in manifest
     assert "reader_review_schema_version" not in manifest
     assert "threads" in payload(provider.requests[0])["dossier"]
-    provider.pause = None
+
     assert invoke(prefix, "resume", run_id=options["run_id"], export_dir=tmp_path / "export") == 0
     assert (
         next(body for body in provider.requests if body["metadata"]["podgen_stage"] == "fact-review")

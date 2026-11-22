@@ -16,6 +16,37 @@ from podgen.runtime.models.gateway import ModelGateway
 from tests.test_model_step_publication import run, setup
 
 
+def test_crash_during_count_blocks_ordinary_replay_before_another_provider_call(repo, scope):
+    _, root, tj, turn, phase, snapshot, manifest, profile, limits, _ = setup(repo, scope)
+    counts = []
+
+    def interrupted(body):
+        counts.append(body)
+        raise RuntimeError("worker stopped during count")
+
+    provider = SimpleNamespace(count=interrupted, submit=lambda *a, **kw: pytest.fail("unexpected submit"))
+    with pytest.raises(RuntimeError, match="worker stopped during count"):
+        run(
+            ModelGateway(tj, lambda _: provider),
+            turn,
+            profile,
+            limits,
+            prepared_phase=phase,
+            request_snapshot=snapshot,
+            manifest_snapshot=manifest,
+        )
+
+    fresh = EvaluationJournal(repo, scope[0])
+    parent = fresh.invocation(root["run_id"], "draft")
+    resumed = TurnJournal(fresh, parent, 0)
+    with pytest.raises(Conflict, match="private_unknown_count_requires_authorized_recovery"):
+        run(ModelGateway(resumed, lambda _: provider), resumed._row(), profile, limits)
+    assert len(counts) == 1
+    kinds = [event["event_kind"] for event in fresh.events(parent)]
+    assert kinds.count("count_intent") == 1
+    assert "count_response" not in kinds and "submit_intent" not in kinds
+
+
 @pytest.mark.parametrize("changed", [None, "input", "output_limit", "adapter_version"])
 def test_direct_count_cold_resume_reuses_only_exact_request_and_configuration(repo, scope, changed):
     journal, root, tj, turn, phase, snapshot, manifest, profile, limits, _ = setup(repo, scope)

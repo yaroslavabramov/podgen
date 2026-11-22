@@ -16,8 +16,9 @@ from podgen.writing.planning_choice import VERSION as PLANNING_VERSION
 from podgen.writing.planning_duration import KEY as DURATION_KEY
 from podgen.writing.planning_duration import VERSION as DURATION_VERSION
 from podgen.writing.projection_versions import V8, V9
+from tests.stage_pause import pause_before_count
 from tests.test_editorial_independence import invoke, payload, prepare
-from tests.test_independent_readings import Paused, ReadingProvider
+from tests.test_independent_readings import ReadingProvider
 from tests.test_own_plan import own_dataset as own_dataset
 
 
@@ -50,9 +51,9 @@ def test_native_planning_snapshot_and_resume_keep_the_exact_wire(
             return original(journal, command, manifest)
 
         monkeypatch.setattr(EvaluationJournal, "create_run", pinned)
-    provider = ReadingProvider(pause="plan-review")
+    provider = ReadingProvider()
     monkeypatch.setattr(writing_cli, "OpenAIProvider", lambda *args, **kwargs: provider)
-    with pytest.raises(Paused):
+    with pause_before_count(options["run_id"], "plan-review"):
         invoke(prefix, "run", **options)
     journal = EvaluationJournal(own_dataset[0], own_dataset[1])
     manifest = journal.manifest(options["run_id"])
@@ -86,9 +87,8 @@ def test_native_planning_snapshot_and_resume_keep_the_exact_wire(
         payload(pending)["candidate_plan"]["plan"]["ending"]
         == candidate_view(candidate, projection_version=version)["plan"]["ending"]
     )
-    provider.pause = "episode-script"
-    # The existing provider pauses by the counted format name, before author generation.
-    with pytest.raises(Paused):
+
+    with pause_before_count(options["run_id"], "draft"):
         invoke(prefix, "resume", run_id=options["run_id"], export_dir=tmp_path / "export")
     assert len([body for body in provider.requests if body["metadata"]["podgen_stage"] == "plan"]) == 1
     assert journal.manifest(options["run_id"]) == manifest

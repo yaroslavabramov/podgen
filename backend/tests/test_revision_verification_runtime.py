@@ -3,6 +3,7 @@
 import json
 
 import pytest
+
 from podgen import writing_cli
 from podgen.domain.errors import Conflict
 from podgen.runtime.evaluation import recheck_source
@@ -11,25 +12,15 @@ from podgen.runtime.evaluation.profiles import create_profile
 from podgen.runtime.evaluation.reading_outcome import read_outcome
 from podgen.runtime.models.contracts import WireReply
 from podgen.writing.revision import verification
-
 from tests.source_excerpt_cases import pin_before_reading_audit
+from tests.stage_pause import pause_before_count
 from tests.test_editorial_independence import invoke, payload
-from tests.test_independent_readings import Paused, ReadingProvider, setup_review
+from tests.test_independent_readings import ReadingProvider, setup_review
 from tests.test_own_plan import own_dataset as own_dataset
 from tests.test_revision_verification import reconstruct
 
 
 class CheckingProvider(ReadingProvider):
-    def count(self, body):
-        # Production shares a stable response-format name across reading rounds.
-        # Count requests omit cache-layout metadata, so use the bound recheck form.
-        if (
-            self.pause == "reader-review-1"
-            and "assignment_results" in body["text"]["format"]["schema"]["properties"]
-        ):
-            raise Paused()
-        return super().count(body)
-
     def submit(self, body, *, client_request_id):
         reply = super().submit(body, client_request_id=client_request_id)
         stage = body["metadata"]["podgen_stage"]
@@ -97,12 +88,12 @@ def test_pinned_second_editorial_reading_is_bound_to_each_real_revision_and_repl
         ).ref
         options[role + "_profile"] = ref.model_dump_json()
     options["behavior_profile"] = profile_name
-    provider = CheckingProvider(("revise", "revise", "keep"), pause="reader-review-1")
+    provider = CheckingProvider(("revise", "revise", "keep"))
     monkeypatch.setattr(writing_cli, "OpenAIProvider", lambda *args, **kwargs: provider)
     monkeypatch.setattr(
         "podgen.runtime.models.anthropic_provider.AnthropicProvider", lambda *args, **kwargs: provider
     )
-    with pytest.raises(Paused):
+    with pause_before_count(options["run_id"], "reader-review-1"):
         invoke(prefix, "run", **options)
     journal = EvaluationJournal(repo, project)
     run = options["run_id"]
@@ -149,7 +140,7 @@ def test_pinned_second_editorial_reading_is_bound_to_each_real_revision_and_repl
     if candidate:
         with pytest.raises(Conflict, match="revision_verification_source_mismatch"):
             recheck_source.load(journal, run, "reader-review-1", version=pin, script=initial)
-    provider.pause = None
+
     assert invoke(prefix, "resume", run_id=run, export_dir=tmp_path / "export") == 0
     for number in (1, 2):
         stage = f"reader-review-{number}"

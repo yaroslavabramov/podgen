@@ -6,6 +6,7 @@ from pathlib import Path
 from uuid import uuid4
 
 import pytest
+
 from podgen import writing_cli
 from podgen.domain.contracts.common import RuntimeRef
 from podgen.domain.contracts.writing import ActPlan, Ending
@@ -21,12 +22,12 @@ from podgen.writing.planning_roles import PlanningOutput, PlanReviewOutput
 from podgen.writing.planning_v9 import PlanningOutputV9
 from podgen.writing.projection_versions import V3, V8
 from podgen.writing.projections import creative_knowledge_view
-
 from tests import FIXTURES
 from tests.historical_preview import replay_preview as preview_request
 from tests.historical_revisions import historical_revision_manifest
+from tests.stage_pause import pause_before_count
 from tests.test_editorial_independence import invoke, payload, prepare
-from tests.test_independent_readings import Paused, ReadingProvider, setup_review
+from tests.test_independent_readings import ReadingProvider, setup_review
 from tests.test_listener_question_flow import QuestionFlowProvider, current_planner_reply
 from tests.test_own_plan import own_dataset as own_dataset
 from tests.test_planning_roles import review_payload as review_payload
@@ -284,15 +285,15 @@ def test_v3_pending_dual_rewrite_resumes_exact_saved_request(own_dataset, tmp_pa
         return original(journal, command, historical_revision_manifest(manifest, projection_version=V3))
 
     monkeypatch.setattr(EvaluationJournal, "create_run", pinned)
-    provider = ReadingProvider(("revise", "keep"), pause="revise-1")
+    provider = ReadingProvider(("revise", "keep"))
     monkeypatch.setattr(writing_cli, "OpenAIProvider", lambda *a, **k: provider)
-    with pytest.raises(Paused):
+    with pause_before_count(options["run_id"], "revise-1"):
         invoke(prefix, "run", **options)
     journal = EvaluationJournal(own_dataset[0], own_dataset[1])
     request = journal.request(journal.invocation(options["run_id"], "revise-1"))
     assert "necessary_limits" in payload(request)
     assert all("important_limits" in row for row in payload(request)["revision_guidance"])
-    provider.pause = None
+
     assert invoke(prefix, "resume", run_id=options["run_id"], export_dir=tmp_path / "export") == 0
     assert provider.requests[2] == request
     assert len(provider.requests) == 5

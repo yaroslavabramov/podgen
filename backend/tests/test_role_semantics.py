@@ -5,6 +5,7 @@ import json
 from uuid import uuid4
 
 import pytest
+
 from podgen import writing_cli
 from podgen.domain.contracts.common import RuntimeRef
 from podgen.persistence.editorial_inputs import EditorialMaterials
@@ -13,10 +14,10 @@ from podgen.runtime.evaluation.role_schema import response_schema
 from podgen.writing.editorial_contract import EditorialInput
 from podgen.writing.projection_versions import CURRENT, V1, V2, V3, V8, V9
 from podgen.writing.projections import role_payload
-
 from tests import FIXTURES
 from tests.historical_revisions import historical_revision_manifest
 from tests.independent_planner_provider import IndependentPlannerProvider
+from tests.stage_pause import pause_before_count
 from tests.test_editorial_independence import invoke, payload
 from tests.test_editorial_inputs import editorial as editorial
 
@@ -187,22 +188,13 @@ def test_older_manifest_resume_keeps_pinned_schema_and_request(
 
     monkeypatch.setattr(EvaluationJournal, "create_run", historical)
     provider = IndependentPlannerProvider()
-    count = provider.count
-
-    def interrupted(body):
-        if body["text"]["format"]["name"] == "editorial_feedback":
-            raise KeyboardInterrupt()
-        return count(body)
-
-    monkeypatch.setattr(provider, "count", interrupted)
     service = WritingEvaluation(repo, lambda _: provider)
-    with pytest.raises(KeyboardInterrupt):
+    with pause_before_count(command.run_id, "review"):
         service.run(command)
     journal = EvaluationJournal(repo, project)
     saved = journal.request(journal.invocation(command.run_id, "review"))
     assert ("story_intent" in payload(saved)) == (version == V1)
     assert ("main_question" in payload(saved).get("editorial_frame", {})) == (version == V3)
-    monkeypatch.setattr(provider, "count", count)
     monkeypatch.setattr(
         manifest,
         "resolve_behavior",

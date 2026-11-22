@@ -9,9 +9,9 @@ from podgen.runtime.evaluation.journal import EvaluationJournal
 from podgen.runtime.models.contracts import WireReply
 from podgen.writing.reader_schema import VERSION
 from tests.author_responses import author_response, read_work
+from tests.stage_pause import pause_before_count
 from tests.test_craft_reference import reference_resource
 from tests.test_editorial_independence import invoke, payload, prepare
-from tests.test_independent_readings import Paused
 from tests.test_own_plan import own_dataset as own_dataset
 from tests.test_script_handoff_runtime import EditingProvider
 
@@ -67,7 +67,7 @@ def test_native_whole_episode_scope_survives_preview_persistence_and_resume(
     if repair:
         options["review_anchor_policy"] = "bounded-selection-v1"
     monkeypatch.setattr(writing_cli, "OpenAIProvider", lambda *a, **k: provider)
-    with pytest.raises(Paused):
+    with pause_before_count(options["run_id"], "revise-1"):
         invoke(prefix, "run", **options)
     journal = EvaluationJournal(own_dataset[0], own_dataset[1])
     manifest = journal.manifest(options["run_id"])
@@ -113,7 +113,7 @@ def test_native_whole_episode_scope_survives_preview_persistence_and_resume(
         == 0
     )
     assert json.loads(preview.read_text())["request"] == pending
-    provider.pause = None
+
     assert invoke(prefix, "resume", run_id=options["run_id"], export_dir=tmp_path / "export") == 0
     assert (
         next(body for body in provider.requests if body["metadata"]["podgen_stage"] == "revise-1") == pending

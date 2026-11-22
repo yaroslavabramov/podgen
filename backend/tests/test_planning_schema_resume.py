@@ -13,9 +13,9 @@ from podgen.writing.editorial_contract import EditorialInput
 from podgen.writing.model_references import ModelReferences, bind_schema
 from podgen.writing.projection_versions import CURRENT, V5, V6, V7
 from tests.historical_revisions import historical_revision_manifest
+from tests.stage_pause import pause_before_count
 from tests.test_card_ids import admitted, legacy
 from tests.test_editorial_independence import invoke
-from tests.test_independent_readings import Paused
 from tests.test_own_plan import own_dataset as own_dataset
 from tests.test_v5_recovery import RecoveryProvider
 
@@ -54,7 +54,7 @@ def test_pending_planning_schema_is_pinned_and_drift_still_blocks_resume(
     monkeypatch.setattr(EvaluationJournal, "create_run", frozen)
     provider = RecoveryProvider(refs, EditorialInput.model_validate(data), "pending")
     monkeypatch.setattr(writing_cli, "OpenAIProvider", lambda *a, **k: provider)
-    with pytest.raises(Paused):
+    with pause_before_count(options["run_id"], "plan-revise"):
         invoke(prefix, "run", **options)
     journal = EvaluationJournal(own_dataset[0], own_dataset[1])
     saved_manifest = journal.manifest(options["run_id"])
@@ -80,7 +80,7 @@ def test_pending_planning_schema_is_pinned_and_drift_still_blocks_resume(
     monkeypatch.setattr(
         manifest_module, "resolve_behavior", lambda *a, **k: pytest.fail("Resume must use pinned prompts")
     )
-    provider.pause = None
+
     assert invoke(prefix, "resume", run_id=options["run_id"], export_dir=tmp_path / "export") == 0
     assert (
         next(body for body in provider.requests if body["metadata"]["podgen_stage"] == "plan-revise")

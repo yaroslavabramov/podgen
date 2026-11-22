@@ -15,14 +15,15 @@ from podgen.runtime.evaluation.journal import EvaluationJournal
 from podgen.runtime.evaluation.reading_stage import execute_reading_stage
 from podgen.runtime.models.contracts import WireReply
 from tests.author_responses import author_response
+from tests.stage_pause import pause_before_count
 from tests.test_editorial_independence import invoke, payload, prepare
-from tests.test_independent_readings import Paused, ReadingProvider, setup_review
+from tests.test_independent_readings import ReadingProvider, setup_review
 from tests.test_own_plan import own_dataset as own_dataset
 
 
 class EditingProvider(ReadingProvider):
     def __init__(self):
-        super().__init__(("revise", "keep"), pause="revise-1")
+        super().__init__(("revise", "keep"))
         self.original = None
 
     def submit(self, body, *, client_request_id):
@@ -109,7 +110,7 @@ def test_runtime_previews_and_revisions_preserve_required_advice_without_freezin
         ref = tmp_path / "shared-ref.json"
     provider = EditingProvider()
     monkeypatch.setattr(writing_cli, "OpenAIProvider", lambda *a, **k: provider)
-    with pytest.raises(Paused):
+    with pause_before_count(options["run_id"], "revise-1"):
         invoke(prefix, "run", **options)
     script = script or provider.original
     journal = EvaluationJournal(own_dataset[0], own_dataset[1])
@@ -197,7 +198,7 @@ def test_runtime_previews_and_revisions_preserve_required_advice_without_freezin
                 },
                 approved_plan=changed_plan,
             )
-    provider.pause = None
+
     assert invoke(prefix, "resume", run_id=options["run_id"], export_dir=tmp_path / "export") == 0
     assert (
         next(body for body in provider.requests if body["metadata"]["podgen_stage"] == "revise-1") == rewrite

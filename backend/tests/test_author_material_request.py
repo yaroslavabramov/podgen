@@ -17,8 +17,9 @@ from podgen.writing import author_reply
 from podgen.writing.projection_versions import V8, V9
 from podgen.writing.roles import WriteOutput
 from tests.revision_providers import reply
+from tests.stage_pause import pause_before_count
 from tests.test_editorial_independence import invoke, prepare
-from tests.test_independent_readings import Paused, ReadingProvider, setup_review
+from tests.test_independent_readings import ReadingProvider, setup_review
 from tests.test_own_plan import own_dataset as own_dataset
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -67,16 +68,19 @@ def test_request_is_an_idempotent_stop_bound_to_actual_script_and_can_restart(
     monkeypatch.setattr(writing_cli, "OpenAIProvider", lambda *a, **k: provider)
     exported = tmp_path / "export"
     if stage == "revise-1":
+        class PublicationInterrupted(Exception):
+            pass
+
         save_status = EvaluationJournal.status
 
         def interrupt_publication(journal, run_id, status, failure=None):
             if failure == "writer_needs_material":
-                raise Paused()
+                raise PublicationInterrupted()
             return save_status(journal, run_id, status, failure)
 
         with monkeypatch.context() as pause:
             pause.setattr(EvaluationJournal, "status", interrupt_publication)
-            with pytest.raises(Paused):
+            with pytest.raises(PublicationInterrupted):
                 invoke(prefix, "run", **options)
         paid_calls = len(provider.requests)
         assert invoke(prefix, "resume", run_id=options["run_id"], export_dir=exported) == 2
@@ -135,9 +139,9 @@ def test_request_is_an_idempotent_stop_bound_to_actual_script_and_can_restart(
 
 def test_changed_reply_form_blocks_resume_before_the_first_writer_request(own_dataset, tmp_path, monkeypatch):
     prefix, _, options, _, _ = prepare(own_dataset, "snow-pump", tmp_path, monkeypatch)
-    provider = ReadingProvider(pause="plan")
+    provider = ReadingProvider()
     monkeypatch.setattr(writing_cli, "OpenAIProvider", lambda *a, **k: provider)
-    with pytest.raises(Paused):
+    with pause_before_count(options["run_id"], "plan"):
         invoke(prefix, "run", **options)
     repo, project = own_dataset[:2]
     manifest = EvaluationJournal(repo, project).manifest(options["run_id"])
