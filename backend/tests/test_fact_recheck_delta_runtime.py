@@ -47,7 +47,7 @@ class DeltaProvider(AuditProvider):
                 ],
                 contextual_meaning="An unchanged final contextual claim.",
                 verdict="supported",
-                rationale="The final claim is supported at the stated scope by the source read E1 and packet excerpt B1.",
+                rationale="The final claim is supported at the stated scope by the source read E1 and packet excerpt B1. H99 was not offered.",
                 memory_summary="E1 and B1 support the final claim at this scope.",
             )
             value["audit"]["claim_checks"].append(stable)
@@ -118,6 +118,11 @@ def test_complete_delta_cycle_persists_full_audit_and_replays_without_provider(
         saved = journal.output(row)
         assert len(saved["wire_output"]["audit"]["claim_checks"]) == 1
         assert len(saved["output"]["audit"]["claim_checks"]) == 2
+        sent = journal.read(RuntimeRef(record_kind="tool_execution", record_id=row["request_record_id"]))[
+            "context"
+        ]["reading_audit"]
+        assert saved["reading_audit"]["binding"] == sent
+        assert sent["evidence_reference_max"] == 1
         kept = next(item for item in saved["output"]["audit"]["claim_checks"] if item["decision_id"] == "D2")
         assert kept["contextual_meaning"] == stable["contextual_meaning"]
         assert kept["rationale"] == stable["rationale"].replace("E1", "H1")
