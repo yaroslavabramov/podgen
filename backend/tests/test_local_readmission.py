@@ -6,7 +6,7 @@ from podgen import writing_cli
 from podgen.domain.contracts.common import RuntimeRef
 from podgen.runtime.evaluation.journal import EvaluationJournal
 from podgen.runtime.evaluation.profiles import create_profile
-from podgen.runtime.evaluation.usage import attempt_usage
+from podgen.runtime.evaluation.usage import attempt_usage, unsent_without_generation
 from tests.reading_audit_provider import AuditProvider
 from tests.test_editorial_independence import invoke
 from tests.test_independent_readings import setup_review
@@ -136,3 +136,15 @@ def test_saved_rejection_is_readmitted_once_without_a_model_call(own_dataset, tm
     assert len(journal.attempts(run_id, "fact-review-1")) == 2
     exported = json.loads((tmp_path / "export/run.json").read_text())
     assert exported["status"] != "needs_attention"
+    assert exported["unknown_usage_invocations"] == []
+
+
+def test_a_readmitted_selection_repair_has_no_generation_or_unknown_usage():
+    row = dict(
+        attempt_kind="local_readmission",
+        operation_kind="anchor_repair",
+        input_tokens=None,
+        output_tokens=None,
+    )
+    assert unsent_without_generation(None, row)
+    assert attempt_usage(None, row, 24576) == dict(input=0, output=0)

@@ -23,7 +23,10 @@ def refused_without_generation(journal, row):
 def unsent_without_generation(journal, row):
     from .count_failure_evidence import count_failure_evidence
     from .input_budget_evidence import unsent_evidence
+    from .local_readmission import KIND
 
+    if row.get("attempt_kind") == KIND:
+        return True
     if count_failure_evidence(journal, row) is not None:
         return True
     if row["status"] == "validation_failed":
