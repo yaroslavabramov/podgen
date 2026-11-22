@@ -108,6 +108,11 @@ passes the already loaded manifest to `WritingEvaluation.material_resolver`;
 material restoration alone does not reread the manifest. Saved manifests without
 this key retain their original resolution and model-facing behavior.
 
+When a completed fact review requests more material, the episode resolves each
+question under that same writing manifest. The next reading can open the
+retained report. A structured answer with no usable original-source excerpt
+leaves the terminal question unresolved and preserves its report for inspection.
+
 A completed targeted report is admitted byte-for-byte as X context regardless of
 its text format. Delivery includes the original question, an exact bounded report
 window and selectable citation leads. `read_research_result` still pages the full

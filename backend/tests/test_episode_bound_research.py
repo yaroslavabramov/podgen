@@ -164,6 +164,8 @@ def test_episode_shares_bound_orders_preserves_remaining_question_and_recovers(
     assert manifest[KEY] == VERSION
     results = progress["material_question_results"][str(run)]
     assert results["0"]["status"] == "resolved" and results["1"]["status"] == "unresolved"
+    assert results["1"]["report_id"].startswith("X")
+    assert results["1"]["limitations"] == "The required original record is missing."
     assert results["0"]["research_order_id"] != results["1"]["research_order_id"]
     for child_id, request in zip(progress["research_jobs"][1:], questions(), strict=True):
         child = ResearchJournal(repo, scope[0], UUID(child_id))
@@ -203,7 +205,11 @@ def test_complete_terminal_materials_resume_the_same_script_before_author_revisi
     )
     models = BoundProvider("terminal")
     runner.writer.provider_factory = lambda _: models
-    hosted = Provider(completed(), completed(targeted=True), completed(targeted=True))
+    plain = "The original gives the comparison in its discussion of the inscription."
+    plain_response = response(
+        "completed", steps=[dict(type="model_output", content=[dict(type="text", text=plain)])]
+    )
+    hosted = Provider(completed(), completed(targeted=True), plain_response)
     runner.research_provider = hosted
     monkeypatch.setattr("podgen.runtime.models.research_tool_gateway.structured_requests", lambda *a: [])
     prepare(repo, scope[0], config)
@@ -215,10 +221,10 @@ def test_complete_terminal_materials_resume_the_same_script_before_author_revisi
     journal = EvaluationJournal(repo, scope[0])
     command = journal.manifest(UUID(progress["writing_run_id"]))["command"]
     assert command["initial_script_ref"] == progress["continuation_script_ref"]
-    assert all(
-        value["status"] == "resolved"
-        for value in progress["material_question_results"][progress["writing_runs"][0]].values()
-    )
+    results = progress["material_question_results"][progress["writing_runs"][0]]
+    assert all(value["status"] == "resolved" for value in results.values())
+    assert results["1"]["report_excerpt"]["text"] == plain
+    assert results["1"]["read_report"]["result_id"] == results["1"]["report_id"]
     calls = len(hosted.calls), len(models.requests)
     assert runner.run()["status"] == "assembled"
     assert calls == (len(hosted.calls), len(models.requests))

@@ -69,6 +69,13 @@ def _structured(resolver, store, text, guard):
     return dict(excerpts=excerpts, rejected_evidence=rejected, limitations=answer.limitations)
 
 
+def terminal_result(delivery):
+    """A delivered report remains readable even if its structured answer supplied no usable evidence."""
+    if delivery.get(KEY) == VERSION and "limitations" in delivery and not delivery.get("excerpts"):
+        return dict(delivery, status="unresolved")
+    return delivery
+
+
 def recover_saved(resolver, run_id, key, guard):
     """Explicit local upgrade, without invoking commission(), prepare() or hosted research.
 

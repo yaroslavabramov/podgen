@@ -8,6 +8,7 @@ from podgen.domain.contracts.common import RuntimeRef
 from podgen.domain.errors import ContractError
 from podgen.research.materials.orders import VERSION as ORDER_VERSION
 from podgen.research.materials.orders import policy
+from podgen.research.materials.report_delivery import terminal_result
 from podgen.runtime.evaluation.journal import EvaluationJournal
 from podgen.runtime.models.research_binding import bind, request_arguments
 
@@ -48,10 +49,11 @@ def resolve(parent, writing_runner, progress, question, guard):
     ref = RuntimeRef.model_validate(question["reading_ref"])
     record = journal.read(ref)
     run_id = UUID(progress["writing_run_id"])
+    manifest = journal.manifest(run_id)
     if (
         record["run_id"] != str(run_id)
         or not record["stage"].startswith("fact-review")
-        or policy(journal.manifest(run_id)) != ORDER_VERSION
+        or policy(manifest) != ORDER_VERSION
         or question["request"] not in record["output"].get("research_requests", [])
         or record["script_ref"] != progress["continuation_script_ref"]
     ):
@@ -70,8 +72,11 @@ def resolve(parent, writing_runner, progress, question, guard):
     if arguments["script_context"]["script_hash"] != record["script_hash"]:
         raise ContractError("episode_material_question_script_mismatch")
     command = saved_command(parent.repo, parent.project, run_id)
-    resolver = writing_runner.material_resolver(command, writing_runner._materials(command))
+    resolver = writing_runner.material_resolver(
+        command, writing_runner._materials(command), manifest=manifest
+    )
     operation = uuid5(parent.run_id, "terminal-material/2:" + digest(question))
-    return resolver.resolve(
+    result = resolver.resolve(
         "request_research", arguments, operation_id=operation, run_id=run_id, guard=guard
     ).result
+    return terminal_result(result)
