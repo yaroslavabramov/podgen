@@ -205,7 +205,7 @@ def test_complete_terminal_materials_resume_the_same_script_before_author_revisi
     )
     models = BoundProvider("terminal")
     runner.writer.provider_factory = lambda _: models
-    plain = "The original gives the comparison in its discussion of the inscription."
+    plain = "The original discusses the inscription. [Original record](https://example.com/original)"
     plain_response = response(
         "completed", steps=[dict(type="model_output", content=[dict(type="text", text=plain)])]
     )

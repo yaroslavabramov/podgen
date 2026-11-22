@@ -5,6 +5,7 @@ from copy import deepcopy
 from podgen.domain.errors import ContractError
 from podgen.research.materials.report_navigation import KEY as REPORT_DELIVERY_KEY
 from podgen.research.materials.report_navigation import VERSION as REPORT_DELIVERY_VERSION
+from podgen.research.materials.report_navigation import VERSIONS as REPORT_DELIVERY_VERSIONS
 from podgen.runtime.models import research_window, web_search
 from podgen.runtime.models.search_argument_errors import KEY as SEARCH_ARGUMENT_KEY
 from podgen.runtime.models.search_argument_errors import PAGING as SEARCH_PAGING
@@ -209,7 +210,7 @@ def validate_durable(manifest, value):
     if REPORT_DELIVERY_KEY in value:
         if (
             value["version"] != CURRENT_RESEARCH_VERSION
-            or value[REPORT_DELIVERY_KEY] != REPORT_DELIVERY_VERSION
+            or value[REPORT_DELIVERY_KEY] not in REPORT_DELIVERY_VERSIONS
         ):
             raise ContractError("unsupported_targeted_report_delivery")
         fields.add(REPORT_DELIVERY_KEY)

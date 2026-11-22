@@ -103,15 +103,18 @@ Ordinary `run`/`resume` still authorizes any subsequent external action separate
 ## Format-independent targeted report delivery
 
 New `frozen-corpus-tools/8` manifests pin
-`targeted_report_delivery=retained-report-navigation/1`. The ordinary stage entry
+`targeted_report_delivery=retained-report-navigation/2`. The ordinary stage entry
 passes the already loaded manifest to `WritingEvaluation.material_resolver`;
 material restoration alone does not reread the manifest. Saved manifests without
 this key retain their original resolution and model-facing behavior.
 
 When a completed fact review requests more material, the episode resolves each
-question under that same writing manifest. The next reading can open the
-retained report. A structured answer with no usable original-source excerpt
-leaves the terminal question unresolved and preserves its report for inspection.
+question under that same writing manifest. Under /2, a validated passage or a
+reported source URL gives the reviewer an original to examine. The rule applies
+equally to structured responses and prose. With neither, the terminal question
+stays open and the report stays available. A link alone never supports a factual
+verdict. Saved /1 runs keep the earlier terminal decision. The model sees the
+same report-reading controls in both versions.
 
 A completed targeted report is admitted byte-for-byte as X context regardless of
 its text format. Delivery includes the original question, an exact bounded report

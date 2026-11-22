@@ -86,9 +86,9 @@ def citation_page(corpus, args):
     mapping = catalog.get("reported_source_map", [])
     if isinstance(mapping, dict):
         mapping = [dict(reported_reference=key, source_id=value) for key, value in mapping.items()]
-    from podgen.research.materials.report_navigation import KEY, VERSION, source_links
+    from podgen.research.materials.report_navigation import KEY, VERSIONS, source_links
 
-    if catalog.get(KEY) == VERSION:
+    if catalog.get(KEY) in VERSIONS:
         mapping = source_links(mapping, corpus._materials)
     return dict(
         versioned_page(mapping, args, digest(mapping), "sources"),

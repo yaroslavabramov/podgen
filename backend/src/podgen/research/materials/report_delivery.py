@@ -6,7 +6,9 @@ from podgen.sources.material_requests import MaterialResolution
 from .admissions import admit_report
 from .report_navigation import (
     KEY,
+    LEGACY,
     VERSION,
+    VERSIONS,
     excerpt_range,
     passage_sources,
     reading_links,
@@ -25,7 +27,12 @@ def resolve(resolver, store, child, arguments, guard):
     mapping = reported_links(text, result.get("material", {}))
     guard()
     report = admit_report(
-        store, resolver.materials, child, arguments["question"], mapping, delivery_contract=VERSION
+        store,
+        resolver.materials,
+        child,
+        arguments["question"],
+        mapping,
+        delivery_contract=resolver.report_delivery,
     )
     structured = _structured(resolver, store, text, guard)
     admissions = resolver.restore(run_id=store.run_id, guard=guard)
@@ -40,7 +47,8 @@ def resolve(resolver, store, child, arguments, guard):
     return MaterialResolution(
         dict(
             status="resolved",
-            **{KEY: VERSION},
+            **{KEY: resolver.report_delivery},
+            **(dict(reported_source_count=len(mapping)) if resolver.report_delivery == VERSION else {}),
             report_id=report.source_id,
             title=report.title,
             report_excerpt=dict(text=text[start:end], start=start, end=end),
@@ -70,8 +78,14 @@ def _structured(resolver, store, text, guard):
 
 
 def terminal_result(delivery):
-    """A delivered report remains readable even if its structured answer supplied no usable evidence."""
-    if delivery.get(KEY) == VERSION and "limitations" in delivery and not delivery.get("excerpts"):
+    """Return material for another reading when the reviewer can inspect an original."""
+    if delivery.get(KEY) == VERSION:
+        source_count = delivery.get("reported_source_count")
+        if type(source_count) is not int or source_count < 0:
+            raise ContractError("invalid_research_report_source_count")
+        if not (source_count or delivery.get("excerpts")):
+            return dict(delivery, status="unresolved")
+    if delivery.get(KEY) == LEGACY and "limitations" in delivery and not delivery.get("excerpts"):
         return dict(delivery, status="unresolved")
     return delivery
 
@@ -85,7 +99,7 @@ def recover_saved(resolver, run_id, key, guard):
     """
     from .targeted_reparse import cached_result, resolve_saved, save_result
 
-    if resolver.report_delivery != VERSION:
+    if resolver.report_delivery not in VERSIONS:
         raise ContractError("research_report_delivery_opt_in_required")
     guard()
     store = resolver.store(run_id)
@@ -94,7 +108,9 @@ def recover_saved(resolver, run_id, key, guard):
         if not handoff or store.get(key + ":result") is None:
             raise ContractError("research_report_delivery_saved_result_missing")
         arguments = dict(research_contract="targeted-script-context/1", question=handoff["question"])
-        result_key, saved = cached_result(store, key, "request_research", arguments, delivery=VERSION)
+        result_key, saved = cached_result(
+            store, key, "request_research", arguments, delivery=resolver.report_delivery
+        )
         if saved is not None:
             guard()
             return MaterialResolution(saved, resolver.restore(run_id=run_id, guard=guard))

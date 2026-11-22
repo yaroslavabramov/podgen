@@ -24,10 +24,10 @@ def read(corpus, args, read_id, text_page):
             tool="list_research_sources", result_id=args["result_id"], offset=0, version=None
         ),
     )
-    from podgen.research.materials.report_navigation import KEY, VERSION, passage_sources, source_links
+    from podgen.research.materials.report_navigation import KEY, VERSIONS, passage_sources, source_links
 
     catalog = corpus.admission_catalog.get(args["result_id"], {})
-    if catalog.get(KEY) == VERSION:
+    if catalog.get(KEY) in VERSIONS:
         result["sources"] = passage_sources(
             page["text"], source_links(catalog["reported_source_map"], corpus._materials)
         )

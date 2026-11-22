@@ -7,25 +7,27 @@ from podgen.research.hosted.material import http_url, links
 from .sections import CITATION, source_mapping
 
 KEY = "targeted_report_delivery"
-VERSION = "retained-report-navigation/1"
+LEGACY = "retained-report-navigation/1"
+VERSION = "retained-report-navigation/2"
+VERSIONS = (LEGACY, VERSION)
 EXCERPT_CHARS = 2400
 
 
 def validate(value):
     from podgen.domain.errors import ContractError
 
-    if value not in (None, VERSION):
+    if value not in (None, *VERSIONS):
         raise ContractError("unsupported_targeted_report_delivery")
     return value
 
 
 def model_result(result):
-    if result.get(KEY) != VERSION:
+    if result.get(KEY) not in VERSIONS:
         return result
     return {
         key: value
         for key, value in result.items()
-        if key not in {KEY, "research_order_id", "validation_contract"}
+        if key not in {KEY, "research_order_id", "validation_contract", "reported_source_count"}
     }
 
 

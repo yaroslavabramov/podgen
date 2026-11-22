@@ -79,6 +79,8 @@ def load_fake(store, row):
         '{"answer":"first", "answer":"second"}',
         '```json\n{"answer":"a report, not validated evidence"}\n```',
         "<p>Another textual format.</p>",
+        "The date is unknown because the original is missing.",
+        '{"answer":"The date is unknown.","evidence":[],"limitations":"The original is missing."}',
     ],
 )
 def test_any_text_delivered_exactly_without_source_acquisition(monkeypatch, text):
@@ -100,6 +102,11 @@ def test_any_text_delivered_exactly_without_source_acquisition(monkeypatch, text
     assert first.result["report_id"] == "X1" and first.result[KEY] == VERSION
     assert first.result["relationship"] == "research_context_not_primary_source_evidence"
     assert "excerpts" not in first.result and "answer" not in first.result
+    from podgen.research.materials.report_delivery import terminal_result
+
+    terminal = terminal_result(first.result)
+    assert terminal["report_id"] == "X1"
+    assert terminal["status"] == ("resolved" if "https://example.com/original" in text else "unresolved")
     excerpt = first.result["report_excerpt"]
     assert text[excerpt["start"] : excerpt["end"]] == excerpt["text"]
     again = targeted_resolution.resolve(resolver, store, "request", saved, args, lambda: None)
@@ -369,3 +376,12 @@ def test_model_view_keeps_order_identity_only_in_technical_result(monkeypatch):
     assert raw["research_order_id"] == "a" * 64
     raw.pop(KEY)
     assert tools.model_result("request_research", raw) is raw
+
+
+def test_saved_v1_terminal_decisions_reproduce_their_original_outcome():
+    from podgen.research.materials.report_delivery import terminal_result
+    from podgen.research.materials.report_navigation import LEGACY
+
+    archive = {KEY: LEGACY, "status": "resolved", "report_id": "X1"}
+    assert terminal_result(archive)["status"] == "resolved"
+    assert terminal_result(dict(archive, limitations="Missing original"))["status"] == "unresolved"

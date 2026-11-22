@@ -12,7 +12,6 @@ REPARSE_ERRORS = {
 
 def cached_result(store, key, name, arguments, *, delivery=None):
     from .report_navigation import KEY, validate
-    from .report_navigation import VERSION as DELIVERY
 
     validate(delivery)
     result_key = key + ":result"
@@ -22,7 +21,7 @@ def cached_result(store, key, name, arguments, *, delivery=None):
     )
     if targeted and delivery is not None and saved and saved.get(KEY) != delivery:
         result_key = key + ":delivery:" + delivery + ":result"
-        return result_key, _derived(store, key, result_key, DELIVERY)
+        return result_key, _derived(store, key, result_key, delivery)
     if (
         name == "request_research"
         and arguments.get("research_contract") == "targeted-script-context/1"
