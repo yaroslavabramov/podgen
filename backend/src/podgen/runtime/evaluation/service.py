@@ -46,7 +46,7 @@ class WritingEvaluation:
         self.materials_loader, self.gateway_options = materials_loader, gateway_options or {}
         self.generation = Repository(repo.database, repo.objects, repo.actor_id, purpose="generation")
 
-    def material_resolver(self, command, materials):
+    def material_resolver(self, command, materials, *, manifest=None):
         from podgen.research.materials.resolver import ResearchMaterialResolver
 
         parents = tuple(
@@ -59,9 +59,15 @@ class WritingEvaluation:
             if parent is not None
         )
         options = dict(acquire=self.material_acquirer) if self.material_acquirer is not None else {}
-        return ResearchMaterialResolver(
-            EvaluationJournal(self.repo, command.project_id), materials, parent_run_ids=parents, **options
-        )
+        journal = EvaluationJournal(self.repo, command.project_id)
+        if manifest is not None:
+            from podgen.research.materials.report_navigation import KEY
+
+            from .source_tool_contract import from_manifest
+
+            contract = from_manifest(manifest)
+            options["report_delivery"] = contract.get(KEY) if contract else None
+        return ResearchMaterialResolver(journal, materials, parent_run_ids=parents, **options)
 
     def _materials(self, command):
         if command.input_contract == "editorial-role-packets/1":
@@ -365,8 +371,13 @@ class WritingEvaluation:
                     if index is not None and guard.supports_publication_snapshot:
                         index.access.run_id = command.run_id
                     corpus = SourceCorpus(materials, retrieval=retrieval, index=index)
-                    if source_contract(manifest)["version"] in ("frozen-corpus-tools/7", "frozen-corpus-tools/8"):
-                        corpus.material_resolver = self.material_resolver(command, materials)
+                    if source_contract(manifest)["version"] in (
+                        "frozen-corpus-tools/7",
+                        "frozen-corpus-tools/8",
+                    ):
+                        corpus.material_resolver = self.material_resolver(
+                            command, materials, manifest=manifest
+                        )
                 except ImportError:
                     journal.status(command.run_id, "needs_attention", "source_search_dependencies_missing")
                     raise RunFailure("source_search_dependencies_missing", run_id=command.run_id) from None

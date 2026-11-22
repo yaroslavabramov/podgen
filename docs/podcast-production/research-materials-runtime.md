@@ -99,3 +99,38 @@ A repeat reads the exact existing checkpoint and reauthorizes its admitted closu
 without reopening original request/response or acquisition bodies. Export is a
 separate optional local read of the prepared application/native wire requests.
 Ordinary `run`/`resume` still authorizes any subsequent external action separately.
+
+## Format-independent targeted report delivery
+
+New `frozen-corpus-tools/8` manifests pin
+`targeted_report_delivery=retained-report-navigation/1`. The ordinary stage entry
+passes the already loaded manifest to `WritingEvaluation.material_resolver`;
+material restoration alone does not reread the manifest. Saved manifests without
+this key retain their original resolution and model-facing behavior.
+
+A completed targeted report is admitted byte-for-byte as X context regardless of
+its text format. Delivery includes the original question, an exact bounded report
+window and selectable citation leads. `read_research_result` still pages the full
+report with R receipts. New admissions also expose the current page's citation
+leads, and `list_research_sources` pages the complete bibliography. Reading a
+report or listing its links never acquires that bibliography. Source identities
+require an exact reported/resolved URL association within the active materials;
+a redirect token or matching domain alone does not establish one.
+
+Strict structured answers retain their useful path: only their explicit evidence
+URLs are resolved, literal quotations are checked against retained originals, and
+matching S/start/end locations are returned. Rejected quotations remain separate.
+Neither the report nor a located quotation is an E receipt; the reviewer must
+call `read_source` on the original. Unstructured, malformed and incomplete answers
+remain readable X context without becoming verified assertions.
+
+`research.materials.report_delivery.recover_saved(resolver, run_id, key, guard)`
+explicitly upgrades a saved targeted result locally. The resolver must opt into
+the new delivery contract; `key` is its existing `material-research-order:…` or
+`material-request:…` key. The operation reads the original completed child's
+handoff directly and appends a versioned delivery plus admission. It does not call
+commission, prepare or hosted research, and does not change historical requests,
+reviews, original result or paid report. Provenance and result share one atomic
+record; a replay or concurrent recovery reuses it. The new X admission is available
+to subsequent unsent stages through ordinary material restoration. Technical
+order identities stay in archived results rather than the model-facing message.

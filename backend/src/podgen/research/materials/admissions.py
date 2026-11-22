@@ -85,10 +85,19 @@ def admit_outcome(journal, materials, url, outcome):
     return load_admission(journal, journal.get(record_key))
 
 
-def admit_report(journal, materials, child, title, source_map):
+def admit_report(journal, materials, child, title, source_map, *, delivery_contract=None):
     prior = list(entries(journal))
     ref = child.ref("result").model_dump(mode="json")
-    existing = next((row for row in prior if row["source"].get("report_ref") == ref), None)
+    from .report_navigation import KEY
+
+    existing = next(
+        (
+            row
+            for row in prior
+            if row["source"].get("report_ref") == ref and row["source"].get(KEY) == delivery_contract
+        ),
+        None,
+    )
     if existing:
         return load_admission(journal, existing)
     index = 1 + max(
@@ -107,6 +116,10 @@ def admit_report(journal, materials, child, title, source_map):
         report_ref=ref,
         reported_source_map=source_map,
     )
+    if delivery_contract is not None:
+        from .report_navigation import KEY, validate
+
+        source[KEY] = validate(delivery_contract)
     journal.put(
         record_key,
         dict(

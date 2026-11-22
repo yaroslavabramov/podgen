@@ -17,7 +17,9 @@ def resolve(resolver, store, call_key, arguments, guard):
         call_key + ":order",
         dict(contract=VERSION, research_order_id=order["identity"], operation_id=order["operation_id"]),
     )
-    result_key, saved = cached_result(store, key, "request_research", order["arguments"])
+    result_key, saved = cached_result(
+        store, key, "request_research", order["arguments"], delivery=resolver.report_delivery
+    )
     if saved is None:
         if result_key != key + ":result":
             resolution = resolve_saved(resolver, store, key, order["arguments"], guard)

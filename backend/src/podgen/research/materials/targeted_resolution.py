@@ -8,6 +8,10 @@ from .targeted_reparse import VERSION
 
 
 def resolve(resolver, store, key, child, arguments, guard):
+    if getattr(resolver, "report_delivery", None) is not None:
+        from .report_delivery import resolve as deliver_report
+
+        return deliver_report(resolver, store, child, arguments, guard)
     from .targeted import handoff, parse, validated_excerpts
 
     report = child.bytes("result", child.get("result")["report_text_blob"]).decode("utf-8")
@@ -38,50 +42,10 @@ def resolve(resolver, store, key, child, arguments, guard):
                 next_action="No original-source excerpt was supplied. Continue verification; no completed answer was admitted.",
             ),
         )
-    sources, source_map, resolved = [], [], []
-    for url in dict.fromkeys(row.url for row in answer.evidence):
-        guard()
-        resolution = resolver.document(store, url, guard)
-        source_id = resolution.result.get("source_id")
-        resolved.append((url, source_id))
-        source_map.append(
-            dict(
-                reported_url=url,
-                report_numbers=[],
-                source_id=source_id,
-                availability=resolution.result.get(
-                    "availability", resolution.result.get("status", "unavailable")
-                ),
-            )
-        )
-    unavailable = [row for row in source_map if row["source_id"] is None]
-    admissions = {a.source_id: a for a in resolver.restore(run_id=store.run_id, guard=guard)}
-    by_path = {d.path: d for d in resolver.materials.documents}
-    if len(by_path) != len(resolver.materials.documents):
-        raise ContractError("targeted_research_document_binding_mismatch")
-    documents = {}
-    for spec in resolver.materials.packet.documents:
-        document = by_path.get(spec.source_path)
-        if document is None or document.sha256 != spec.sha256:
-            raise ContractError("targeted_research_document_binding_mismatch")
-        documents[spec.key] = document
-    for url, source_id in resolved:
-        admission = admissions.get(source_id)
-        if admission is None and source_id is not None:
-            from podgen.sources.material_requests import SourceAdmission
+    from .targeted_sources import originals
 
-            known = next(s for s in resolver.materials.packet.sources if s.source_id == source_id)
-            document = documents[known.document]
-            admission = SourceAdmission(
-                source_id,
-                known.title,
-                document.text,
-                document.sha256,
-                document.ref,
-                known.model_dump(mode="json"),
-            )
-        if admission is not None:
-            sources.append((url, admission))
+    sources, source_map = originals(resolver, store, answer, guard)
+    unavailable = [row for row in source_map if row["source_id"] is None]
     excerpts, rejected = validated_excerpts(answer, sources)
     if rejected:
         return _unfinished(

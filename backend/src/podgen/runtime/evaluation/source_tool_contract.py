@@ -3,6 +3,8 @@
 from copy import deepcopy
 
 from podgen.domain.errors import ContractError
+from podgen.research.materials.report_navigation import KEY as REPORT_DELIVERY_KEY
+from podgen.research.materials.report_navigation import VERSION as REPORT_DELIVERY_VERSION
 from podgen.runtime.models import research_window, web_search
 from podgen.runtime.models.search_argument_errors import KEY as SEARCH_ARGUMENT_KEY
 from podgen.runtime.models.search_argument_errors import PAGING as SEARCH_PAGING
@@ -62,6 +64,7 @@ def create(behavior, materials=None):
             version=CURRENT_RESEARCH_VERSION,
             **{SEARCH_ARGUMENT_KEY: SEARCH_ARGUMENT_VERSION, web_search.KEY: web_search.CURRENT},
             **{NAVIGATION_KEY: NAVIGATION_VERSION},
+            **{REPORT_DELIVERY_KEY: REPORT_DELIVERY_VERSION},
             **{research_window.FACT_KEY: research_window.MEASURED},
             fact_request_research=targeted_definition(history_view),
             web_search_definition=dict(type="web_search", search_context_size="low"),
@@ -199,13 +202,17 @@ def validate_durable(manifest, value):
             raise ContractError("unsupported_search_argument_policy")
         fields.add(SEARCH_ARGUMENT_KEY)
     if NAVIGATION_KEY in value:
-        if (
-            value["version"] != CURRENT_RESEARCH_VERSION
-            or value[NAVIGATION_KEY] != NAVIGATION_VERSION
-        ):
+        if value["version"] != CURRENT_RESEARCH_VERSION or value[NAVIGATION_KEY] != NAVIGATION_VERSION:
             raise ContractError("unsupported_fact_research_navigation")
         fields.add(NAVIGATION_KEY)
     mode = value.get(KEY)
+    if REPORT_DELIVERY_KEY in value:
+        if (
+            value["version"] != CURRENT_RESEARCH_VERSION
+            or value[REPORT_DELIVERY_KEY] != REPORT_DELIVERY_VERSION
+        ):
+            raise ContractError("unsupported_targeted_report_delivery")
+        fields.add(REPORT_DELIVERY_KEY)
     if KEY in value:
         if mode != VERSION or manifest.get(KEY) != mode or manifest.get("stages") != ["fact-review"]:
             raise ContractError("invalid_fact_review_input_mode")

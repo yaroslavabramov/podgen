@@ -10,9 +10,19 @@ REPARSE_ERRORS = {
 }
 
 
-def cached_result(store, key, name, arguments):
+def cached_result(store, key, name, arguments, *, delivery=None):
+    from .report_navigation import KEY, validate
+    from .report_navigation import VERSION as DELIVERY
+
+    validate(delivery)
     result_key = key + ":result"
     saved = store.get(result_key)
+    targeted = (
+        name == "request_research" and arguments.get("research_contract") == "targeted-script-context/1"
+    )
+    if targeted and delivery is not None and saved and saved.get(KEY) != delivery:
+        result_key = key + ":delivery:" + delivery + ":result"
+        return result_key, _derived(store, key, result_key, DELIVERY)
     if (
         name == "request_research"
         and arguments.get("research_contract") == "targeted-script-context/1"
@@ -22,26 +32,33 @@ def cached_result(store, key, name, arguments):
         and saved.get("validation_contract") != VERSION
     ):
         result_key = key + ":validation:" + VERSION + ":result"
-        saved = store.get(result_key)
-        if saved is not None:
-            from podgen.domain.errors import ContractError
-
-            if (
-                saved.get("contract") != VERSION
-                or saved.get("original_result_ref") != store.ref(key + ":result").model_dump(mode="json")
-                or not isinstance(saved.get("result"), dict)
-            ):
-                raise ContractError("targeted_research_reparse_provenance_mismatch")
-            saved = saved["result"]
+        saved = _derived(store, key, result_key, VERSION)
     return result_key, saved
 
 
+def _derived(store, key, result_key, contract):
+    from podgen.domain.errors import ContractError
+
+    saved = store.get(result_key)
+    if saved is None:
+        return None
+    if (
+        saved.get("contract") != contract
+        or saved.get("original_result_ref") != store.ref(key + ":result").model_dump(mode="json")
+        or not isinstance(saved.get("result"), dict)
+    ):
+        raise ContractError("targeted_research_reparse_provenance_mismatch")
+    return saved["result"]
+
+
 def save_result(store, key, result_key, result):
+    from .report_navigation import KEY
+
     if result_key != key + ":result":
         store.put(
             result_key,
             dict(
-                contract=VERSION,
+                contract=result.get(KEY, VERSION),
                 original_result_ref=store.ref(key + ":result").model_dump(mode="json"),
                 result=result,
                 operation="local_reparse_of_retained_research",

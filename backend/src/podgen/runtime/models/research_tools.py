@@ -59,6 +59,10 @@ class ResearchTools:
         return self.corpus.last_search_diagnostics
 
     def model_result(self, name, result):
+        if name == "request_research":
+            from podgen.research.materials.report_navigation import model_result
+
+            return model_result(result)
         if self.fact_navigation and name == "request_source":
             from .fact_navigation import source_result
 
@@ -177,28 +181,9 @@ class ResearchTools:
             page = (history_page if self.fact_navigation else text_page)(text, args["start"], args["end"])
             return dict(kind=args["kind"], index=args["index"], **page)
         if name == "read_research_result":
-            source = self.corpus.supplemental_reports.get(args["result_id"])
-            if source is None:
-                return dict(error="unknown_research_result")
-            page = text_page(source.text, args["start"], args["end"])
-            if "error" in page:
-                return page
-            return dict(
-                material_passage=dict(
-                    read_id="R" + read_id[1:],
-                    material_id=args["result_id"],
-                    title=source.title,
-                    text=page["text"],
-                    start=page["start"],
-                    end=page["end"],
-                ),
-                next_start=page["next_start"],
-                length=page["length"],
-                kind="research_synthesis_not_source_evidence",
-                source_mapping=dict(
-                    tool="list_research_sources", result_id=args["result_id"], offset=0, version=None
-                ),
-            )
+            from podgen.writing.research_materials.report_reading import read
+
+            return read(self.corpus, args, read_id, text_page)
         try:
             result = self.corpus.execute(name, args, read_id=read_id, **options)
             if name == "search_sources" and self.fact_navigation:

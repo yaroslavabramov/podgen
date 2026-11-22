@@ -22,7 +22,18 @@ def same_document(reported_url, canonical):
 
 
 class ResearchMaterialResolver:
-    def __init__(self, journal, materials, *, acquire=acquire_source, parent_run_ids=()):
+    def __init__(
+        self,
+        journal,
+        materials,
+        *,
+        acquire=acquire_source,
+        parent_run_ids=(),
+        report_delivery=None,
+    ):
+        from .report_navigation import validate
+
+        self.report_delivery = validate(report_delivery)
         self.journal, self.materials, self.acquire = journal, materials, acquire
         self.parent_run_ids = tuple(parent_run_ids)
         self.preparation = journal.repo.get_runtime(journal.project, materials.shared_ref)["preparation"]
@@ -78,7 +89,7 @@ class ResearchMaterialResolver:
                 from .order_resolution import resolve
 
                 return resolve(self, store, key, arguments, guard)
-            result_key, saved = cached_result(store, key, name, arguments)
+            result_key, saved = cached_result(store, key, name, arguments, delivery=self.report_delivery)
             if saved:
                 return MaterialResolution(saved, self.restore(run_id=run_id, guard=guard))
             if result_key != key + ":result":
@@ -118,7 +129,12 @@ class ResearchMaterialResolver:
         except (ValueError, ContractError):
             return MaterialResolution(dict(error="invalid_source_url"))
         for source in self.materials.packet.sources:
-            if source.document and same_document(source.reported_url, canonical):
+            if source.document and (
+                same_document(source.reported_url, canonical)
+                or self.report_delivery
+                and source.resolved_url
+                and same_document(source.resolved_url, canonical)
+            ):
                 return MaterialResolution(
                     dict(
                         status="resolved",
@@ -129,7 +145,11 @@ class ResearchMaterialResolver:
                     )
                 )
         for row in entries(store):
-            if row["url"] == canonical:
+            if row["url"] == canonical or (
+                self.report_delivery
+                and row["source"].get("resolved_url")
+                and same_document(row["source"]["resolved_url"], canonical)
+            ):
                 admission = load_admission(store, row)
                 return MaterialResolution(
                     dict(
