@@ -107,6 +107,7 @@ class WritingEvaluation:
         max_input_tokens=None,
         retry_total_input_budget=None,
         max_total_input_tokens=None,
+        readmit_reading=None,
         max_elapsed_seconds=None,
         stop_after_plan=False,
     ):
@@ -184,6 +185,7 @@ class WritingEvaluation:
                         max_input_tokens=max_input_tokens,
                         total_input_target=retry_total_input_budget,
                         max_total_input_tokens=max_total_input_tokens,
+                        readmission_target=readmit_reading,
                         guard=lambda: None,
                         allow_create=False,
                     )
@@ -210,6 +212,7 @@ class WritingEvaluation:
                         max_input_tokens=max_input_tokens,
                         total_input_target=retry_total_input_budget,
                         max_total_input_tokens=max_total_input_tokens,
+                        readmission_target=readmit_reading,
                         guard=lambda: None,
                         allow_create=False,
                     )
@@ -234,6 +237,7 @@ class WritingEvaluation:
                         max_input_tokens,
                         retry_total_input_budget,
                         max_total_input_tokens,
+                        readmit_reading,
                     )
                 ):
                     raise RunFailure("credit_refusal_retry_not_eligible", run_id=command.run_id)
@@ -404,6 +408,7 @@ class WritingEvaluation:
                 max_input_tokens=max_input_tokens,
                 total_input_target=retry_total_input_budget,
                 max_total_input_tokens=max_total_input_tokens,
+                readmission_target=readmit_reading,
                 guard=guard,
             )
             if existing and not any(
@@ -413,6 +418,7 @@ class WritingEvaluation:
                     repair_plan_targets,
                     retry_input_budget,
                     retry_total_input_budget,
+                    readmit_reading,
                 )
             ):
                 from .profiles import load_profile

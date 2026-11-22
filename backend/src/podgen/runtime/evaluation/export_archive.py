@@ -23,7 +23,7 @@ def export_attempt(journal, invocation, base, write_json, directory, *, recover_
     with journal.read_operation():
         request = journal.read(request_ref)
         raw = journal.read_blob(request_ref, BlobRef.model_validate(request["request_blob"]))
-        if invocation["attempt_kind"] in ("total_input_retry", "technical_retry"):
+        if invocation["attempt_kind"] in ("total_input_retry", "technical_retry", "local_readmission"):
             write_json(base / "request-record.json", request)
         write(directory / base / "request.json", raw)
     with TemporaryDirectory(prefix=".turn-events-", dir=directory) as spool:

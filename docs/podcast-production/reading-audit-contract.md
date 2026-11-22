@@ -96,6 +96,49 @@ Local tests cover admission contradictions, preserving evidence across recheck,
 bounded contextual admission and frozen `/1` compatibility. They do not establish
 that a model will find every real error or avoid every false claim.
 
+### Retained evidence carried by admission: decision-findings/3
+
+New production manifests pin `decision-findings/3`. The model-facing schema,
+descriptions, prompts and response fields are exactly those of `/2`; only factual
+admission changes. Before validation, the server carries every frozen evidence
+reference of a `retained` previous decision that the reviewer did not cite again.
+A successor keeping the previous decision ID receives it; when a retained decision
+is split without such a successor, every successor receives it. Unknown IDs remain
+validation errors. A changed retained verdict is still rejected, and `reassessed`
+remains the way to replace an evidential basis. The persisted output contains the
+carried references and therefore resolves and binds them like cited evidence. The
+raw `wire_output` keeps the reviewer's own citations, and
+`reading_audit.retained_evidence_carried` lists each carried reference. Replay
+repeats the same deterministic normalization. Under `/2` a retained decision that
+omits frozen evidence is rejected with `audit_retained_evidence_missing`.
+
+#### Local readmission of a saved `/2` rejection
+
+`resume --readmit-reading INVOCATION_UUID` admits the rejected current reading
+again under its successor contract without a provider call. It is eligible only
+for the latest attempt of a reading stage, in `validation_failed`, with a complete
+saved provider response and exactly one `output_validation_error` whose code and
+the run's pin have a declared successor. The only one declared is
+`audit_retained_evidence_missing` under `decision-findings/2`, readmitted under
+`decision-findings/3`. Another reported error, a missing or incomplete response,
+or a non-current attempt is refused with `local_readmission_not_eligible` or
+`local_readmission_not_current`.
+
+The grant is a new attempt `local_readmission` (`local-readmission/1`) of the
+parent's operation kind. Its request record repeats the parent's request and
+context with new identity metadata and stores the actor, target, failure event,
+pinned and successor contracts, and a single-use limit. The parent attempt, its
+paid usage and its rejection stay unchanged, as does the manifest pin. The
+readmission reuses the parent's exact saved response text; an anchor-selection
+parent replays its saved choices against the original rejected review. Its own
+usage is zero. Commission, current evidence and source reads belong to the
+parent lineage. The completed report records `reading_audit.admission_contract`.
+Every replay re-derives the grant from the parent before trusting the report. A
+second readmission or another failure of the readmitted response is not retried.
+
+Offline checks: `backend/tests/test_fact_admissibility.py` and the PostgreSQL run
+`backend/tests/test_local_readmission.py`.
+
 ## Shared packet memory projection
 
 New runs pin `reading_audit_memory_projection=shared-packet-evidence/1`. A previous packet-evidence reference is projected to `from_review=current` and the matching current `B` alias only when full canonical content (including supports), its hash, and all frozen source selectors (document identity, ref, hash and exact ranges) match. Evidence numbering alone or equal text alone is insufficient. A shared packet excerpt is not repeated in model-facing `previous_evidence`. The complete previous report, evidence and original provenance remain immutable; the new binding records the prior-report hash, exact old-reference-to-current-B mapping, and current packet fingerprint. Actual delivered packet evidence is checked against that fingerprint before persistence and on replay.

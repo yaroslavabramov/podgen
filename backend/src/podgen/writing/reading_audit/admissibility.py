@@ -1,8 +1,10 @@
 """Consistency of factual admission, not server-side interpretation of the speech.
 
-Only decision-findings/2 applies these rules. The reviewer owns the contextual
+decision-findings/2 and /3 apply these rules. The reviewer owns the contextual
 claim and evidential judgment; archived reports keep their original semantics.
 """
+
+from copy import deepcopy
 
 from podgen.domain.errors import ContractError
 
@@ -27,6 +29,44 @@ def validate(output):
             raise ContractError("audit_fact_keep_incomplete")
         if any(row["status"] == "unchecked" for row in (*audit["coverage"], *audit["areas"])):
             raise ContractError("audit_fact_keep_incomplete")
+
+
+def carry_retained(output, context):
+    """decision-findings/3: the server, not the reviewer, carries a retained decision's frozen evidence.
+
+    Missing previous references join the successor that keeps the previous ID; without one,
+    every successor retains the previous verdict and receives them. Unknown IDs are left to
+    validation. Returns the carried references for the audit report.
+    """
+    previous = {row["decision_id"]: row for row in context.get("previous_decisions", [])}
+    current = {row["decision_id"]: row for row in output["audit"]["claim_checks"]}
+    carried = []
+    for disposition in output["previous_dispositions"]:
+        prior = previous.get(disposition["previous_decision_id"])
+        successors = [key for key in disposition["current_decision_ids"] if key in current]
+        if disposition["disposition"] != "retained" or prior is None or not successors:
+            continue
+        cited = {
+            (ref["from_review"], ref["evidence_id"])
+            for key in successors
+            for ref in current[key]["source_refs"]
+        }
+        missing = [
+            ref for ref in prior["source_refs"] if (ref["from_review"], ref["evidence_id"]) not in cited
+        ]
+        if not missing:
+            continue
+        targets = [prior["decision_id"]] if prior["decision_id"] in successors else successors
+        for key in targets:
+            current[key]["source_refs"].extend(deepcopy(missing))
+        carried.append(
+            dict(
+                previous_decision_id=prior["decision_id"],
+                current_decision_ids=targets,
+                source_refs=deepcopy(missing),
+            )
+        )
+    return carried
 
 
 def validate_retained(output, context):

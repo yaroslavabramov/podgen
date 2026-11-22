@@ -10,7 +10,7 @@ from .technical_recovery_policy import MAX_STAGE_REPLACEMENTS, STATES
 
 def validate_lineage(rows, stage):
     previous = {}
-    repairs = 0
+    repairs = readmissions = 0
     for row in rows:
         parent = previous.get(row["parent_invocation_id"])
         if row["attempt_index"] == 0:
@@ -51,6 +51,15 @@ def validate_lineage(rows, stage):
                 )
             elif row["attempt_kind"] == "credit_retry":
                 valid = valid and parent["operation_kind"] == row["operation_kind"]
+            elif row["attempt_kind"] == "local_readmission":
+                readmissions += 1
+                valid = (
+                    valid
+                    and is_reading(stage)
+                    and parent["operation_kind"] == row["operation_kind"]
+                    and parent["status"] == "validation_failed"
+                    and readmissions == 1
+                )
             elif row["attempt_kind"] == "technical_retry":
                 valid = (
                     valid
@@ -77,6 +86,8 @@ def attempt_identity(run_id, stage, index, kind, parent):
         return uuid5(parent["invocation_id"], "input-budget-retry:1")
     if kind == "technical_retry":
         return uuid5(parent["invocation_id"], "technical-recovery:1")
+    if kind == "local_readmission":
+        return uuid5(parent["invocation_id"], "local-readmission:1")
     return uuid5(
         parent["invocation_id"],
         "plan-target-repair:1" if kind == "plan_target_repair" else "credit-refusal-retry:1",
@@ -113,6 +124,13 @@ def validate_preparation(rows, stage, index, kind, operation, parent_id):
                 operation == parent["operation_kind"]
                 and parent["status"] in STATES
                 and sum(row["attempt_kind"] == "technical_retry" for row in rows) < MAX_STAGE_REPLACEMENTS
+            )
+        elif kind == "local_readmission":
+            valid = (
+                is_reading(stage)
+                and operation == parent["operation_kind"]
+                and parent["status"] == "validation_failed"
+                and not any(row["attempt_kind"] == "local_readmission" for row in rows)
             )
         else:
             valid = (

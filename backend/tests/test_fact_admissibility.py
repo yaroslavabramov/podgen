@@ -8,7 +8,13 @@ import pytest
 
 from podgen.domain.errors import ContractError
 from podgen.runtime.evaluation.reading_cycle import combine
-from podgen.writing.reading_audit.consistency import ADMISSIBILITY_VERSION, VERSION
+from podgen.writing.reading_audit.admissibility import carry_retained
+from podgen.writing.reading_audit.consistency import (
+    ADMISSIBILITY_VERSION,
+    CURRENT,
+    RETAINED_EVIDENCE_VERSION,
+    VERSION,
+)
 from podgen.writing.reading_audit.input import initial_context
 from podgen.writing.reading_audit.registry import model, schema
 from podgen.writing.reading_audit.validation import validate
@@ -139,6 +145,80 @@ def test_retained_cannot_silently_replace_its_evidential_basis():
     assert check(value, context)["recommendation"] == "keep"
 
 
+def carried(value, context):
+    result = carry_retained(value, context)
+    return result, check(value, context, version=RETAINED_EVIDENCE_VERSION)
+
+
+def test_new_contract_carries_frozen_evidence_instead_of_rejecting_its_omission():
+    assert CURRENT == RETAINED_EVIDENCE_VERSION
+    value, context = retained()
+    value["audit"]["claim_checks"][0]["source_refs"] = [dict(from_review="current", evidence_id="E1")]
+    with pytest.raises(ContractError, match="audit_retained_evidence_missing"):
+        check(deepcopy(value), context)
+    result, outcome = carried(value, context)
+    assert outcome["recommendation"] == "keep"
+    assert value["audit"]["claim_checks"][0]["source_refs"] == [
+        dict(from_review="current", evidence_id="E1"),
+        dict(from_review="previous", evidence_id="H1"),
+    ]
+    assert result == [
+        dict(
+            previous_decision_id="D1",
+            current_decision_ids=["D1"],
+            source_refs=[dict(from_review="previous", evidence_id="H1")],
+        )
+    ]
+    assert carry_retained(value, context) == []
+
+
+def split(value, successor_id):
+    second = deepcopy(value["audit"]["claim_checks"][0])
+    second.update(decision_id="D2", source_refs=[dict(from_review="current", evidence_id="E1")])
+    value["audit"]["claim_checks"][0].update(
+        decision_id=successor_id, source_refs=[dict(from_review="current", evidence_id="E1")]
+    )
+    value["audit"]["claim_checks"].append(second)
+    value["audit"]["coverage"][0]["decision_ids"] = [successor_id, "D2"]
+    for area in value["audit"]["areas"]:
+        if area["decision_ids"]:
+            area["decision_ids"] = [successor_id]
+    value["previous_dispositions"][0]["current_decision_ids"] = [successor_id, "D2"]
+    return value
+
+
+def test_split_retained_decision_carries_evidence_to_the_one_keeping_its_id():
+    value, context = retained()
+    split(value, "D1")
+    result, _ = carried(value, context)
+    refs = {row["decision_id"]: row["source_refs"] for row in value["audit"]["claim_checks"]}
+    assert dict(from_review="previous", evidence_id="H1") in refs["D1"]
+    assert dict(from_review="previous", evidence_id="H1") not in refs["D2"]
+    assert result[0]["current_decision_ids"] == ["D1"]
+
+
+def test_split_without_a_continuing_id_carries_evidence_to_every_successor():
+    value, context = retained()
+    split(value, "D3")
+    result, _ = carried(value, context)
+    assert all(
+        dict(from_review="previous", evidence_id="H1") in row["source_refs"]
+        for row in value["audit"]["claim_checks"]
+    )
+    assert result[0]["current_decision_ids"] == ["D3", "D2"]
+
+
+def test_new_contract_still_rejects_a_changed_retained_verdict():
+    value, context = retained()
+    value["audit"]["claim_checks"][0]["verdict"] = "unchecked"
+    value["recommendation"] = "needs_material"
+    for area in value["audit"]["areas"]:
+        area.update(status="unchecked")
+    carry_retained(value, context)
+    with pytest.raises(ContractError, match="audit_retained_verdict_changed"):
+        check(value, context, version=RETAINED_EVIDENCE_VERSION)
+
+
 def test_real_missed_error_can_reopen_with_its_existing_late_finding_basis():
     context = recheck_context(fact=True)
     value = factual(context=context, required=True)
@@ -183,6 +263,8 @@ def test_only_the_new_pin_changes_fact_schema_descriptions():
     assert schema("reader-review", consistency_contract=ADMISSIBILITY_VERSION) == schema(
         "reader-review", consistency_contract=VERSION
     )
+    # The retained-evidence successor changes admission only, not the model-facing request.
+    assert schema("fact-review", consistency_contract=RETAINED_EVIDENCE_VERSION) == current
 
 
 def test_retained_hieroglyphs_keep_with_explicit_gaps_remains_historical_only():

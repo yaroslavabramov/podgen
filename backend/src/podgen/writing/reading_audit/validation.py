@@ -140,9 +140,9 @@ def validate(output, script, context, *, fact, consistency_contract=None):
                 row["verdict"] not in ("supported", "contradicted") or row["source_refs"],
                 "audit_verdict_evidence_missing",
             )
-        from .consistency import ADMISSIBILITY_VERSION
+        from .consistency import ADMISSIBLE
 
-        if consistency_contract == ADMISSIBILITY_VERSION:
+        if consistency_contract in ADMISSIBLE:
             from .admissibility import validate_retained
 
             validate_retained(output, context)

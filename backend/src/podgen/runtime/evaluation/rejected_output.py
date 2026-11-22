@@ -6,10 +6,11 @@ from .contracts import RunFailure
 from .validation import load_unique_json
 
 
-def rejected_output(journal, original, model, *, code):
+def saved_text(journal, original, *, code):
+    """The exact output text of a completed, rejected role or anchor-selection response."""
     if (
         original["status"] != "validation_failed"
-        or original["operation_kind"] != "role"
+        or original["operation_kind"] not in ("role", "anchor_repair")
         or not original["provider_response_id"]
     ):
         raise RunFailure(code)
@@ -45,6 +46,16 @@ def rejected_output(journal, original, model, *, code):
                 parts.append(content["text"])
         text = "".join(parts)
         load_unique_json(text)
-        return model.model_validate_json(text), request, ref
+        return text, request, ref
     except (ValueError, TypeError, KeyError):
+        raise RunFailure(code) from None
+
+
+def rejected_output(journal, original, model, *, code):
+    if original["operation_kind"] != "role":
+        raise RunFailure(code)
+    text, request, ref = saved_text(journal, original, code=code)
+    try:
+        return model.model_validate_json(text), request, ref
+    except ValueError:
         raise RunFailure(code) from None

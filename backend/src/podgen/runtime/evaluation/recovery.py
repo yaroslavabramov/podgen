@@ -19,6 +19,7 @@ def authorize_recovery(
     max_input_tokens=None,
     total_input_target=None,
     max_total_input_tokens=None,
+    readmission_target=None,
     guard,
     allow_create=True,
 ):
@@ -26,12 +27,17 @@ def authorize_recovery(
         raise ContractError("input_budget_target_and_allowance_required")
     if (total_input_target is None) != (max_total_input_tokens is None):
         raise ContractError("total_input_target_and_allowance_required")
-    if (
-        sum(value is not None for value in (credit_target, plan_target, budget_target, total_input_target))
-        > 1
-    ):
+    targets = (credit_target, plan_target, budget_target, total_input_target, readmission_target)
+    if sum(value is not None for value in targets) > 1:
         raise ContractError("one_recovery_action_required")
-    if total_input_target is not None:
+    if readmission_target is not None:
+        from .local_readmission import authorize as authorize_readmission
+
+        row = authorize_readmission(
+            journal, command, readmission_target, guard=guard, allow_create=allow_create
+        )
+        prefix = "local_readmission"
+    elif total_input_target is not None:
         from .total_input_recovery import authorize_total_input_retry
 
         row = authorize_total_input_retry(

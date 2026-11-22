@@ -42,7 +42,11 @@ def unsent_without_generation(journal, row):
 
 
 def attempt_usage(journal, row, output_reservation):
+    from .local_readmission import KIND
     from .source_tool_contract import applies, from_manifest
+
+    if row.get("attempt_kind") == KIND:
+        return dict(input=0, output=0)
 
     if row["operation_kind"] == "role" and applies(
         row["stage"], from_manifest(journal.manifest(row["run_id"]))

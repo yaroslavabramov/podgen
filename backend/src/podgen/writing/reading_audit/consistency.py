@@ -8,8 +8,11 @@ from . import VERSION as AUDIT_VERSION
 KEY = "reading_audit_consistency_contract"
 VERSION = "decision-findings/1"
 ADMISSIBILITY_VERSION = "decision-findings/2"
-CURRENT = ADMISSIBILITY_VERSION
-VERSIONS = (VERSION, ADMISSIBILITY_VERSION)
+# The /2 model-facing schema; admission itself carries retained evidence forward.
+RETAINED_EVIDENCE_VERSION = "decision-findings/3"
+CURRENT = RETAINED_EVIDENCE_VERSION
+VERSIONS = (VERSION, ADMISSIBILITY_VERSION, RETAINED_EVIDENCE_VERSION)
+ADMISSIBLE = (ADMISSIBILITY_VERSION, RETAINED_EVIDENCE_VERSION)
 
 
 def from_manifest(manifest):
@@ -42,7 +45,7 @@ def validate(output, version):
     }
     if not negative <= linked:
         raise ContractError("audit_negative_decision_unlinked")
-    if version == ADMISSIBILITY_VERSION and "claim_checks" in audit:
+    if version in ADMISSIBLE and "claim_checks" in audit:
         from .admissibility import validate
 
         validate(output)
@@ -59,7 +62,7 @@ def describe(schema, version):
         " important or blocking findings require revision. An unchecked decision"
         " does not automatically require a finding or a mandatory repair."
     )
-    if version == ADMISSIBILITY_VERSION:
+    if version in ADMISSIBLE:
         from .admissibility import describe
 
         describe(schema)

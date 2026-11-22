@@ -144,6 +144,12 @@ def parser(*, research=False):
             action.add_argument("--repair-plan-targets", type=UUID, metavar="INVOCATION_UUID")
             action.add_argument("--retry-input-budget", type=UUID, metavar="INVOCATION_UUID")
             action.add_argument("--retry-total-input-budget", type=UUID, metavar="INVOCATION_UUID")
+            action.add_argument(
+                "--readmit-reading",
+                type=UUID,
+                metavar="INVOCATION_UUID",
+                help="Admit a rejected saved reading again under its successor admission contract; no model call",
+            )
             command_parser.add_argument(
                 "--max-total-input-tokens",
                 type=int,
@@ -350,6 +356,7 @@ def main(argv=None, *, research=False):
                 max_visible_bytes=getattr(args, "max_visible_bytes", None),
                 max_input_tokens=getattr(args, "max_input_tokens", None),
                 retry_total_input_budget=getattr(args, "retry_total_input_budget", None),
+                readmit_reading=getattr(args, "readmit_reading", None),
                 max_total_input_tokens=getattr(args, "max_total_input_tokens", None)
                 if args.command == "resume"
                 else None,

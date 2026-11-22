@@ -7,10 +7,13 @@ from podgen.domain.errors import Conflict, ContractError
 from podgen.persistence.source_reading import read_sources
 from podgen.writing.model_references import context_references
 from podgen.writing.reading_audit import VERSION
+from podgen.writing.reading_audit.admissibility import carry_retained
+from podgen.writing.reading_audit.consistency import RETAINED_EVIDENCE_VERSION
 from podgen.writing.reading_audit.validation import validate
 from podgen.writing.roles import WriteOutput
 from podgen.writing.source_tools import SourceCorpus
 
+from ..local_readmission import admission_contract
 from ..reading_workflow import base_stage
 from ..recheck_request import semantic_request
 from ..request_payload import request_payload
@@ -49,7 +52,11 @@ def _finalize(journal, invocation, parsed, audit, materials, script):
     fact = base_stage(invocation["stage"]) == "fact-review"
     parsed.validate_against(WriteOutput.model_validate(script))
     output = parsed.model_dump(mode="json")
-    validate(output, script, audit.view, fact=fact, consistency_contract=audit.consistency_contract)
+    contract = admission_contract(journal, invocation, audit.consistency_contract)
+    carried = (
+        carry_retained(output, audit.view) if fact and contract == RETAINED_EVIDENCE_VERSION else None
+    )
+    validate(output, script, audit.view, fact=fact, consistency_contract=contract)
     retained = {}
     if fact:
         corpus = SourceCorpus(materials)
@@ -74,7 +81,12 @@ def _finalize(journal, invocation, parsed, audit, materials, script):
                 locators.append(_locator(value, materials, audit.snapshot_index, corpus))
                 retained[("previous:" if old else "current:") + alias] = deepcopy(value)
             finding["source_read_ids"] = locators
-    return output, dict(contract=VERSION, binding=deepcopy(audit.binding), resolved_evidence=retained)
+    report = dict(contract=VERSION, binding=deepcopy(audit.binding), resolved_evidence=retained)
+    if carried is not None:
+        report["retained_evidence_carried"] = carried
+    if contract != audit.consistency_contract:
+        report["admission_contract"] = contract
+    return output, report
 
 
 def verify_saved(

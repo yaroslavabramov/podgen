@@ -18,7 +18,7 @@ from podgen.writing.revision import verification
 from podgen.writing.revision.context import from_manifest as revision_context_from_manifest
 from podgen.writing.roles import WriteOutput
 
-from . import author_material, source_tool_contract
+from . import author_material, local_readmission, source_tool_contract
 from .contracts import RunFailure
 from .profiles import load_profile
 from .reading_workflow import VERSION, base_stage
@@ -168,13 +168,16 @@ def execute_reading_stage(
         prior = prior_attempt_usage(journal, invocation, profile)
         if invocation["status"] == "completed":
             break
-        raw = gateway.invoke(
-            invocation,
-            profile,
-            limits=command.limits,
-            totals={key: totals[key] + prior[key] for key in totals},
-            guard=guard,
-        )
+        if invocation["attempt_kind"] == local_readmission.KIND:
+            raw = local_readmission.saved_output(journal, invocation)
+        else:
+            raw = gateway.invoke(
+                invocation,
+                profile,
+                limits=command.limits,
+                totals={key: totals[key] + prior[key] for key in totals},
+                guard=guard,
+            )
         try:
             raw = author_material.unwrap(raw, stage, manifest.get("role_projection_version"))
             if isinstance(raw, author_material.MaterialRequest):

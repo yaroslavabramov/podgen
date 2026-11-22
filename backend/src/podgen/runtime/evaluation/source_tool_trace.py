@@ -8,7 +8,8 @@ from .model_turns import events
 def original_invocation(journal, invocation):
     current = invocation
     seen = set()
-    while current["operation_kind"] != "role":
+    # A local readmission reuses its parent's response; the parent lineage owns the work.
+    while current["operation_kind"] != "role" or current.get("attempt_kind") == "local_readmission":
         if current["invocation_id"] in seen or current.get("parent_invocation_id") is None:
             raise Conflict("source_tool_origin_missing")
         seen.add(current["invocation_id"])
