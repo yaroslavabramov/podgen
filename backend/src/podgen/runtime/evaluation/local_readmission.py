@@ -17,7 +17,8 @@ from .reading_workflow import is_reading
 from .rejected_output import saved_text
 
 KIND = "local_readmission"
-AUTHORIZATION = "local-readmission/1"
+LEGACY_AUTHORIZATION = "local-readmission/1"
+AUTHORIZATION = "local-readmission/2"
 # A rejection is readmissible only under the successor contract that owns its repair.
 SUCCESSORS = {("audit_retained_evidence_missing", ADMISSIBILITY_VERSION): RETAINED_EVIDENCE_VERSION}
 
@@ -34,7 +35,7 @@ class RejectedReading:
     authorization: dict
 
 
-def _rejected(journal, target):
+def _rejected(journal, target, grant_version=AUTHORIZATION):
     def refuse():
         raise RunFailure(
             "local_readmission_not_eligible", run_id=target["run_id"], invocation_id=target["invocation_id"]
@@ -62,7 +63,7 @@ def _rejected(journal, target):
         refuse()
     text, request, _ = saved_text(journal, target, code="local_readmission_not_eligible", events=events)
     authorization = dict(
-        kind=AUTHORIZATION,
+        kind=grant_version,
         actor_id=str(journal.repo.actor_id),
         target_invocation_id=str(target["invocation_id"]),
         failure_event_ref=failure_ref.model_dump(mode="json"),
@@ -86,8 +87,11 @@ def _metadata(original, child_id, index, parent_id):
 def _verified(journal, child, parent):
     if parent is None:
         raise Conflict("local_readmission_origin_missing")
-    source = _rejected(journal, parent)
     record = _request_record(journal, child)
+    grant_version = (record.get("authorization") or {}).get("kind")
+    if grant_version not in (LEGACY_AUTHORIZATION, AUTHORIZATION):
+        raise Conflict("local_readmission_authorization_mismatch")
+    source = _rejected(journal, parent, grant_version)
     if (
         record.get("authorization") != source.authorization
         or record["context"] != source.context
@@ -163,8 +167,9 @@ def saved_output(journal, invocation):
     return source.text
 
 
-def admission_contract(journal, invocation, pinned):
+def admission_policy(journal, invocation, pinned):
+    """Return the stamped validator and whether this grant restricts automatic transfers."""
     if invocation["attempt_kind"] != KIND:
-        return pinned
+        return pinned, False
     _, source = _verify_parent(journal, invocation)
-    return source.authorization["admission_contract"]
+    return source.authorization["admission_contract"], source.authorization["kind"] == AUTHORIZATION

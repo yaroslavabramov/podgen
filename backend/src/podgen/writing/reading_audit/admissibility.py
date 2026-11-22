@@ -4,6 +4,7 @@ decision-findings/2 and /3 apply these rules. The reviewer owns the contextual
 claim and evidential judgment; archived reports keep their original semantics.
 """
 
+from collections import Counter
 from copy import deepcopy
 
 from podgen.domain.errors import ContractError
@@ -31,15 +32,25 @@ def validate(output):
             raise ContractError("audit_fact_keep_incomplete")
 
 
-def carry_retained(output, context):
+def carry_retained(output, context, *, require_unique_transfer=False):
     """decision-findings/3: the server, not the reviewer, carries a retained decision's frozen evidence.
 
     Missing previous references join the successor that keeps the previous ID; without one,
     every successor retains the previous verdict and receives them. Unknown IDs are left to
-    validation. Returns the carried references for the audit report.
+    validation. New local readmission grants allow automatic transfer only
+    between a single predecessor and a single successor.
     """
     previous = {row["decision_id"]: row for row in context.get("previous_decisions", [])}
     current = {row["decision_id"]: row for row in output["audit"]["claim_checks"]}
+    predecessors = (
+        Counter(
+            key
+            for disposition in output["previous_dispositions"]
+            for key in disposition["current_decision_ids"]
+        )
+        if require_unique_transfer
+        else None
+    )
     carried = []
     for disposition in output["previous_dispositions"]:
         prior = previous.get(disposition["previous_decision_id"])
@@ -56,6 +67,8 @@ def carry_retained(output, context):
         ]
         if not missing:
             continue
+        if predecessors is not None and (len(successors) != 1 or predecessors[successors[0]] != 1):
+            raise ContractError("audit_ambiguous_retained_evidence")
         targets = [prior["decision_id"]] if prior["decision_id"] in successors else successors
         for key in targets:
             current[key]["source_refs"].extend(deepcopy(missing))

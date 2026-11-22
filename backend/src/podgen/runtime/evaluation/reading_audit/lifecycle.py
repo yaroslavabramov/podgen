@@ -13,7 +13,7 @@ from podgen.writing.reading_audit.validation import validate
 from podgen.writing.roles import WriteOutput
 from podgen.writing.source_tools import SourceCorpus
 
-from ..local_readmission import admission_contract
+from ..local_readmission import admission_policy
 from ..reading_workflow import base_stage
 from ..recheck_request import semantic_request
 from ..request_payload import request_payload
@@ -52,7 +52,7 @@ def _finalize(journal, invocation, parsed, audit, materials, script):
     fact = base_stage(invocation["stage"]) == "fact-review"
     parsed.validate_against(WriteOutput.model_validate(script))
     output = parsed.model_dump(mode="json")
-    contract = admission_contract(journal, invocation, audit.consistency_contract)
+    contract, require_unique_transfer = admission_policy(journal, invocation, audit.consistency_contract)
     carried = (
         carry_retained(output, audit.view) if fact and contract == RETAINED_EVIDENCE_VERSION else None
     )

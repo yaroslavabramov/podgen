@@ -124,7 +124,7 @@ def test_saved_rejection_is_readmitted_once_without_a_model_call(own_dataset, tm
     authorization = journal.read(
         RuntimeRef(record_kind="tool_execution", record_id=row["request_record_id"])
     )["authorization"]
-    assert authorization["kind"] == "local-readmission/1"
+    assert authorization["kind"] == "local-readmission/2"
     assert authorization["failure_code"] == "audit_retained_evidence_missing"
     assert authorization["target_invocation_id"] == str(rejected["invocation_id"])
 

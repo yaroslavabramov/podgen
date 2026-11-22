@@ -208,6 +208,22 @@ def test_split_without_a_continuing_id_carries_evidence_to_every_successor():
     assert result[0]["current_decision_ids"] == ["D3", "D2"]
 
 
+@pytest.mark.parametrize("mapping", ["split", "merge"])
+def test_new_readmission_rejects_an_ambiguous_evidence_transfer(mapping):
+    value, context = retained()
+    if mapping == "split":
+        split(value, "D3")
+        value["audit"]["claim_checks"][1]["source_refs"] = []
+    else:
+        value["audit"]["claim_checks"][0]["source_refs"] = []
+        value["previous_dispositions"].append(
+            dict(value["previous_dispositions"][0], previous_decision_id="D2")
+        )
+        context["previous_decisions"].append(dict(context["previous_decisions"][0], decision_id="D2"))
+    with pytest.raises(ContractError, match="audit_ambiguous_retained_evidence"):
+        carry_retained(value, context, require_unique_transfer=True)
+
+
 def test_new_contract_still_rejects_a_changed_retained_verdict():
     value, context = retained()
     value["audit"]["claim_checks"][0]["verdict"] = "unchecked"
