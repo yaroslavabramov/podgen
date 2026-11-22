@@ -1,5 +1,6 @@
 """Address one stage's attempt headers and fold only its compact state facts."""
 
+from podgen.domain.errors import Conflict
 from podgen.persistence.database import query
 from podgen.persistence.execution.reads import current_inputs
 from podgen.persistence.read_authorization import _read_connection
@@ -9,6 +10,31 @@ from .state import identity_row
 
 BATCH = 64
 BLOCKED = frozenset({"failed", "validation_failed", "outcome_unknown"})
+
+
+def stage_for_attempt(journal, run_id, attempt_id):
+    """Find a stage by its actual attempt header in either storage generation."""
+    with _read_connection(journal.repo) as tx:
+        access.run_access(journal.repo, tx, journal.project, run_id)
+        rows = (
+            query(
+                tx,
+                """SELECT stage,NULL::uuid AS entry_id,NULL::uuid AS input_set_id FROM evaluation_model_invocations
+               WHERE project_id=:p AND run_id=:r AND invocation_id=:a
+               UNION ALL SELECT data->'attempt'->>'stage',entry_id,input_set_id FROM execution_entries
+               WHERE project_id=:p AND run_id=:r AND attempt_id=:a AND data->'attempt' IS NOT NULL""",
+                p=journal.project,
+                r=run_id,
+                a=attempt_id,
+            )
+            .mappings()
+            .all()
+        )
+        _authorize(journal.repo, tx, journal.project, run_id, [r for r in rows if r["entry_id"]])
+        stages = {r["stage"] for r in rows}
+        if len(stages) > 1:
+            raise Conflict("attempt_stage_binding_mismatch")
+        return next(iter(stages), None)
 
 
 def _authorize(repo, tx, project, run_id, rows):

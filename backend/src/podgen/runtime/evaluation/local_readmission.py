@@ -4,11 +4,12 @@ The parent's exact paid response is admitted again without a provider call. The 
 attempt, its cost and its rejection remain unchanged; the run manifest keeps its pin.
 """
 
-from copy import deepcopy
+from dataclasses import dataclass
 from uuid import uuid5
 
 from podgen.domain.contracts.common import RuntimeRef
 from podgen.domain.errors import Conflict
+from podgen.persistence.private_journal.attempt_projection import stage_for_attempt
 from podgen.writing.reading_audit.consistency import ADMISSIBILITY_VERSION, KEY, RETAINED_EVIDENCE_VERSION
 
 from .contracts import RunFailure
@@ -25,7 +26,15 @@ def _request_record(journal, row):
     return journal.read(RuntimeRef(record_kind="tool_execution", record_id=row["request_record_id"]))
 
 
-def _authorization(journal, target):
+@dataclass(frozen=True)
+class RejectedReading:
+    request: dict
+    context: dict
+    text: str
+    authorization: dict
+
+
+def _rejected(journal, target):
     def refuse():
         raise RunFailure(
             "local_readmission_not_eligible", run_id=target["run_id"], invocation_id=target["invocation_id"]
@@ -38,17 +47,21 @@ def _authorization(journal, target):
         or target["operation_kind"] not in ("role", "anchor_repair")
     ):
         refuse()
-    failures = [event for event in journal.events(target) if event["event_kind"] == "output_validation_error"]
+    events = journal.events(target)
+    failures = [event for event in events if event["event_kind"] == "output_validation_error"]
     if len(failures) != 1:
         refuse()
     failure_ref = RuntimeRef(record_kind="tool_execution", record_id=failures[0]["record_id"])
     code = journal.read(failure_ref)["data"].get("code")
-    pinned = journal.manifest(target["run_id"]).get(KEY)
+    manifest = journal.manifest(target["run_id"])
+    if target["stage"] not in manifest["stages"]:
+        refuse()
+    pinned = manifest.get(KEY)
     successor = SUCCESSORS.get((code, pinned))
     if successor is None:
         refuse()
-    saved_text(journal, target, code="local_readmission_not_eligible")
-    return dict(
+    text, request, _ = saved_text(journal, target, code="local_readmission_not_eligible", events=events)
+    authorization = dict(
         kind=AUTHORIZATION,
         actor_id=str(journal.repo.actor_id),
         target_invocation_id=str(target["invocation_id"]),
@@ -58,6 +71,7 @@ def _authorization(journal, target):
         admission_contract=successor,
         maximum_new_attempts=1,
     )
+    return RejectedReading(request, _request_record(journal, target)["context"], text, authorization)
 
 
 def _metadata(original, child_id, index, parent_id):
@@ -69,71 +83,71 @@ def _metadata(original, child_id, index, parent_id):
     )
 
 
-def validate(journal, child):
-    """Re-derive the grant from the immutable parent; return that parent."""
-    parent = next(
-        (
-            row
-            for row in journal.attempts(child["run_id"], child["stage"])
-            if row["invocation_id"] == child["parent_invocation_id"]
-        ),
-        None,
-    )
+def _verified(journal, child, parent):
     if parent is None:
         raise Conflict("local_readmission_origin_missing")
-    record, original = _request_record(journal, child), journal.request(parent)
+    source = _rejected(journal, parent)
+    record = _request_record(journal, child)
     if (
-        record.get("authorization") != _authorization(journal, parent)
-        or record["context"] != _request_record(journal, parent)["context"]
+        record.get("authorization") != source.authorization
+        or record["context"] != source.context
         or child["invocation_id"] != uuid5(parent["invocation_id"], "local-readmission:1")
         or child["operation_kind"] != parent["operation_kind"]
         or journal.request(child)
         != dict(
-            original,
+            source.request,
             metadata=_metadata(
-                original, child["invocation_id"], child["attempt_index"], parent["invocation_id"]
+                source.request, child["invocation_id"], child["attempt_index"], parent["invocation_id"]
             ),
         )
     ):
         raise Conflict("local_readmission_authorization_mismatch")
+    return source
+
+
+def _verify_parent(journal, child):
+    with journal.read_operation():
+        rows = journal.attempts(child["run_id"], child["stage"])
+        parent = next((r for r in rows if r["invocation_id"] == child["parent_invocation_id"]), None)
+        return parent, _verified(journal, child, parent)
+
+
+def validate(journal, child):
+    """Re-derive the grant from the immutable parent; return that parent."""
+    parent, _ = _verify_parent(journal, child)
     return parent
 
 
 def authorize(journal, command, target_id, *, guard, allow_create=True):
-    found = [
-        (rows, row)
-        for stage in journal.manifest(command.run_id)["stages"]
-        if (rows := journal.attempts(command.run_id, stage))
-        for row in rows
-        if row["invocation_id"] == target_id
-    ]
-    if not found:
-        raise RunFailure("local_readmission_not_eligible", run_id=command.run_id)
-    rows, target = found[0]
-    child = next(
-        (row for row in rows if row["attempt_kind"] == KIND and row["parent_invocation_id"] == target_id),
-        None,
-    )
-    if child is not None:
-        validate(journal, child)
-        return child
-    authorization = _authorization(journal, target)
-    if not allow_create or rows[-1]["invocation_id"] != target_id:
-        raise RunFailure("local_readmission_not_current", run_id=command.run_id, invocation_id=target_id)
+    with journal.read_operation():
+        stage = stage_for_attempt(journal, command.run_id, target_id)
+        rows = journal.attempts(command.run_id, stage) if stage else ()
+        target = next((row for row in rows if row["invocation_id"] == target_id), None)
+        if target is None:
+            raise RunFailure("local_readmission_not_eligible", run_id=command.run_id)
+        child = next(
+            (row for row in rows if row["attempt_kind"] == KIND and row["parent_invocation_id"] == target_id),
+            None,
+        )
+        if child is not None:
+            _verified(journal, child, target)
+            return child
+        if not allow_create or rows[-1]["invocation_id"] != target_id:
+            raise RunFailure("local_readmission_not_current", run_id=command.run_id, invocation_id=target_id)
+        source = _rejected(journal, target)
     guard()
     identity = uuid5(target_id, "local-readmission:1")
     index = target["attempt_index"] + 1
-    original = journal.request(target)
     return journal.prepare(
         command.run_id,
         target["stage"],
-        dict(deepcopy(original), metadata=_metadata(original, identity, index, target_id)),
-        deepcopy(_request_record(journal, target)["context"]),
+        dict(source.request, metadata=_metadata(source.request, identity, index, target_id)),
+        source.context,
         attempt_index=index,
         parent_invocation_id=target_id,
         attempt_kind=KIND,
         operation_kind=target["operation_kind"],
-        authorization=authorization,
+        authorization=source.authorization,
     )
 
 
@@ -145,12 +159,12 @@ def saved_output(journal, invocation):
             run_id=invocation["run_id"],
             invocation_id=invocation["invocation_id"],
         )
-    text, _, _ = saved_text(journal, validate(journal, invocation), code="local_readmission_not_eligible")
-    return text
+    _, source = _verify_parent(journal, invocation)
+    return source.text
 
 
 def admission_contract(journal, invocation, pinned):
     if invocation["attempt_kind"] != KIND:
         return pinned
-    validate(journal, invocation)
-    return _request_record(journal, invocation)["authorization"]["admission_contract"]
+    _, source = _verify_parent(journal, invocation)
+    return source.authorization["admission_contract"]

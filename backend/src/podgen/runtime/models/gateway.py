@@ -4,9 +4,11 @@ import json
 import re
 import time
 
+from podgen.domain.errors import ContractError
 from podgen.runtime.evaluation.contracts import RunFailure
 
 from .contracts import ProviderFault
+from .response_content import binding_error, output_text
 
 
 class ModelGateway:
@@ -93,9 +95,9 @@ class ModelGateway:
                 self._fail(invocation, "provider_malformed_response", status="outcome_unknown")
             if not isinstance(response, dict):
                 self._fail(invocation, "provider_malformed_response", status="outcome_unknown")
-            binding_error = self._binding_error(response, body, invocation.get("provider_response_id"))
-            if binding_error:
-                self._fail(invocation, binding_error)
+            mismatch = binding_error(response, body, invocation.get("provider_response_id"))
+            if mismatch:
+                self._fail(invocation, mismatch)
             status = response.get("status")
             response_id = response.get("id")
             if not isinstance(response_id, str) or not re.fullmatch(r"resp_[A-Za-z0-9_-]+", response_id):
@@ -160,7 +162,7 @@ class ModelGateway:
             if (
                 isinstance(candidate, str)
                 and re.fullmatch(r"resp_[A-Za-z0-9_-]+", candidate)
-                and not self._binding_error(value, body, expected_id)
+                and not binding_error(value, body, expected_id)
             ):
                 provider_id = candidate
         except ValueError:
@@ -189,45 +191,8 @@ class ModelGateway:
         invocation.update(phase.commit())
         return reply.body
 
-    def _binding_error(self, response, request, expected_id):
-        if response.get("model") != request["model"]:
-            return "provider_model_revision_mismatch"
-        if expected_id is not None and response.get("id") != expected_id:
-            return "provider_response_id_mismatch"
-        metadata = response.get("metadata")
-        if not isinstance(metadata, dict) or any(
-            metadata.get(k) != v for k, v in request["metadata"].items()
-        ):
-            return "provider_response_metadata_mismatch"
-        return None
-
     def _output_text(self, invocation, response, *, web_search=False):
-        output = response.get("output")
-        if not isinstance(output, list):
-            self._fail(invocation, "provider_output_missing")
-        parts = []
-        for item in output:
-            if not isinstance(item, dict):
-                self._fail(invocation, "provider_malformed_output")
-            if item.get("type") == "web_search_call" and web_search:
-                continue
-            if item.get("type") == "reasoning":
-                continue
-            if item.get("type") != "message" or item.get("role") != "assistant":
-                self._fail(invocation, "unexpected_provider_tool_or_output")
-            if item.get("status") not in (None, "completed"):
-                self._fail(invocation, "provider_message_incomplete")
-            contents = item.get("content")
-            if not isinstance(contents, list):
-                self._fail(invocation, "provider_malformed_content")
-            for content in contents:
-                if not isinstance(content, dict):
-                    self._fail(invocation, "provider_malformed_content")
-                if content.get("type") == "refusal":
-                    self._fail(invocation, "provider_refused")
-                if content.get("type") != "output_text" or not isinstance(content.get("text"), str):
-                    self._fail(invocation, "provider_output_missing")
-                parts.append(content["text"])
-        if not parts:
-            self._fail(invocation, "provider_output_missing")
-        return "".join(parts)
+        try:
+            return output_text(response, web_search=web_search)
+        except ContractError as error:
+            self._fail(invocation, error.code)

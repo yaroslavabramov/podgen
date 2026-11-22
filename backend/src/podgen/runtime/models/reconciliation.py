@@ -5,6 +5,7 @@ import json
 from podgen.runtime.evaluation.contracts import RunFailure
 
 from .contracts import ProviderFault, WireReply
+from .response_content import binding_error
 
 
 def _archived_completion(journal, invocation):
@@ -47,7 +48,7 @@ def retrieve(gateway, invocation, profile, *, guard, full_response=False):
     try:
         response = json.loads(reply.body)
         error = (
-            gateway._binding_error(response, body, identity)
+            binding_error(response, body, identity)
             if isinstance(response, dict)
             else "provider_malformed_response"
         )
