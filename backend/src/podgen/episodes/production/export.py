@@ -74,7 +74,9 @@ def export(journal, folder):
         audio = AudioJournal(journal.repo, journal.project, render.run_id)
         from podgen.runtime.evaluation.audio.assembly.contracts import prefix
 
-        assembly_id = uuid5(journal.run_id, "audio-assembly/1")
+        rounds = (progress.get("audio_verification") or {}).get("repair_rounds", 0)
+        # A verified render that re-synthesized parts ends with its last repair assembly.
+        assembly_id = uuid5(journal.run_id, "audio-assembly/1" + (f":repair:{rounds}" if rounds else ""))
         manifest = audio.get(prefix(assembly_id) + ":manifest")
         assembly = AssemblyConfig.model_validate(manifest["configuration"])
         exported = export_assembly(audio, assembly, folder / "audio")
