@@ -126,11 +126,33 @@ def test_full_native_render_has_more_than_two_parts_and_exact_assembly_coverage(
     assert runner.run() == result and len(speech.calls) == len(assembled["frame_map"])
 
 
+def texts(value):
+    """Every spoken text field of a provider request body, in order."""
+    if isinstance(value, dict):
+        return [
+            v
+            for k, item in value.items()
+            for v in ([item] if k == "text" and isinstance(item, str) else texts(item))
+        ]
+    if isinstance(value, list):
+        return [v for item in value for v in texts(item)]
+    return []
+
+
 class Recognizer:
     """Hears the accepted script; the first master also carries invented sentences."""
 
-    def __init__(self, repo, project, runner):
-        self.repo, self.project, self.runner, self.calls = repo, project, runner, []
+    def __init__(self, repo, project, runner, audio):
+        self.repo, self.project, self.runner, self.audio, self.calls = repo, project, runner, audio, []
+
+    def retake_request(self):
+        from podgen.runtime.evaluation.audio.attempts import prefix as take_prefix
+
+        journal = self.audio()
+        for cell in journal.get("manifest")["cells"]:
+            if journal.get(take_prefix(cell["cell_id"], 2) + ":prepared"):
+                return cell["request"]["body"]
+        raise AssertionError("no re-synthesized part")
 
     def submit(self, request, body, credential):
         from uuid import UUID
@@ -140,12 +162,15 @@ class Recognizer:
         from podgen.runtime.evaluation.reading_validation import read_descriptor
 
         self.calls.append(request)
-        writing = UUID(self.runner.progress["writing_run_id"])
-        script = read_descriptor(EvaluationJournal(self.repo, self.project), writing).outcome["output"]
-        words = " ".join(u["text"] for u in script["utterances"]).split()
         if len(self.calls) == 1:
+            writing = UUID(self.runner.progress["writing_run_id"])
+            script = read_descriptor(EvaluationJournal(self.repo, self.project), writing).outcome["output"]
+            words = " ".join(u["text"] for u in script["utterances"]).split()
             middle = len(words) // 2
             words[middle:middle] = "Всё осложняется тем что крюка надо два".split()
+        else:
+            # Only the re-synthesized part is recognized again: it says exactly its request text.
+            words = " ".join(texts(self.retake_request())).split()
         text = " ".join(words)
         segments = [dict(text=word, start=i * 0.01, end=i * 0.01 + 0.008) for i, word in enumerate(words)]
         body = dict(text=text, duration=len(words) * 0.01, segments=segments, request_id="fixture")
@@ -163,13 +188,16 @@ def test_invented_content_is_resynthesized_once_and_verified_again(repo, scope, 
     config = config.model_copy(update=dict(settings=settings))
     runner.writer.provider_factory = lambda _: LongScriptProvider()
     monkeypatch.setenv("FISH_API_KEY", "fixture")
-    recognizer = Recognizer(repo, scope[0], runner)
+    recognizer = Recognizer(
+        repo, scope[0], runner, lambda: AudioJournal(repo, scope[0], uuid5(config.run_id, "audio-render/2"))
+    )
     runner.recognition_transport = recognizer
     prepare(repo, scope[0], config)
     result = runner.run()
     assert result["status"] == "assembled"
     verification = result["progress"]["audio_verification"]
-    assert verification["repair_round"] == 1 and verification["automatic_repair"] == 0
+    assert verification["repair_rounds"] == 1 and verification["automatic_repair"] == 0
+    assert len(verification["audits"]) == 2
     assembled = repo.get_runtime(scope[0], RuntimeRef.model_validate(result["progress"]["assembly_ref"]))
     parts = len(assembled["frame_map"])
     assert len(speech.calls) == parts + 1 and len(recognizer.calls) == 2

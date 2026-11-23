@@ -119,47 +119,49 @@ def render(parent, config, progress, transport, recognition_transport=None):
             refs.append(RuntimeRef.model_validate(result.result_ref))
             samples.append(result)
     verification = config.settings.audio_verification
-    for round_index in range(verification.max_repair_rounds + 1 if verification else 1):
-        assembly = AssemblyConfig(
-            assembly_id=uuid5(
-                config.run_id, "audio-assembly/1" + (f":repair:{round_index}" if round_index else "")
-            ),
-            comparison_run_id=audio.run_id,
-            part_result_refs=refs,
+    assembly = AssemblyConfig(
+        assembly_id=uuid5(config.run_id, "audio-assembly/1"),
+        comparison_run_id=audio.run_id,
+        part_result_refs=refs,
+    )
+    ref = build(audio, assembly, samples=samples, outcomes=[validated])
+    if verification is None:
+        return audio, assembly, ref, None
+    # The whole master is recognized once; afterwards only re-synthesized parts are.
+    audit, report = _verify(
+        audio,
+        config,
+        verification,
+        dict(kind="assembly", ref=ref),
+        "audio-verification/1:0",
+        recognition_transport,
+    )
+    frame_map = audio.repo.get_runtime(audio.project, RuntimeRef.model_validate(ref))["frame_map"]
+    findings = [[] for _ in frame_map]
+    for candidate in report["candidates"]:
+        middle = (candidate["audio_range"]["start_frame"] + candidate["audio_range"]["end_frame"]) // 2
+        position = next(
+            (i for i, part in enumerate(frame_map) if middle < part["master_end_frame"]), len(frame_map) - 1
         )
-        ref = build(audio, assembly, samples=samples, outcomes=[validated])
-        if verification is None:
-            return audio, assembly, ref, None
-        audit, report = _verify(audio, config, verification, ref, round_index, recognition_transport)
-        routes = [candidate["review_route"] for candidate in report["candidates"]]
-        summary = dict(
-            contract="episode-audio-verification/1",
-            audit_id=str(audit),
-            repair_round=round_index,
-            **{
-                route: routes.count(route)
-                for route in ("automatic_repair", "user_confirmation", "recognition_variant")
-            },
-        )
-        repairs = [c for c in report["candidates"] if c["review_route"] == "automatic_repair"]
-        if not repairs:
-            return audio, assembly, ref, summary
-        if round_index == verification.max_repair_rounds:
+        findings[position].append(candidate)
+    # A repair candidate retakes every part it overlaps, even when its middle lies in a neighbour.
+    affected = {
+        position
+        for candidate in report["candidates"]
+        if candidate["review_route"] == "automatic_repair"
+        for position, part in enumerate(frame_map)
+        if part["master_start_frame"] < candidate["audio_range"]["end_frame"]
+        and candidate["audio_range"]["start_frame"] < part["master_end_frame"]
+    }
+    found_by, audits, repaired = dict.fromkeys(affected, audit), [str(audit)], 0
+    for round_index in range(1, verification.max_repair_rounds + 1):
+        if not affected:
             break
-        frame_map = audio.repo.get_runtime(audio.project, RuntimeRef.model_validate(ref))["frame_map"]
-        affected = sorted(
-            {
-                position
-                for candidate in repairs
-                for position, part in enumerate(frame_map)
-                if part["master_start_frame"] < candidate["audio_range"]["end_frame"]
-                and candidate["audio_range"]["start_frame"] < part["master_end_frame"]
-            }
-        )
-        reason = f"fidelity_automatic_repair:{audit}"
+        repaired = round_index
         with audio.lock():
-            for position in affected:
+            for position in sorted(affected):
                 cell = manifest["cells"][position]
+                reason = f"fidelity_automatic_repair:{found_by[position]}"
                 retaken = any(row["prepared"].get("reason") == reason for row in ledger.rows[cell["cell_id"]])
                 _sample(audio, manifest, cell, render_config, transport, ledger, None if retaken else reason)
                 # The sample descriptor names the baseline take; the new master uses the repair take.
@@ -172,7 +174,41 @@ def render(parent, config, progress, transport, recognition_transport=None):
                 if result.result_ref is None:
                     raise ContractError("episode_audio_repair_take_unusable")
                 refs[position], samples[position] = RuntimeRef.model_validate(result.result_ref), result
-    raise ContractError("episode_audio_repair_exhausted")
+        remaining = set()
+        for position in sorted(affected):
+            part_audit, part_report = _verify(
+                audio,
+                config,
+                verification,
+                dict(kind="comparison_result", ref=refs[position]),
+                f"audio-verification/1:{round_index}:part:{position}",
+                recognition_transport,
+            )
+            findings[position], found_by[position] = part_report["candidates"], part_audit
+            audits.append(str(part_audit))
+            if any(c["review_route"] == "automatic_repair" for c in part_report["candidates"]):
+                remaining.add(position)
+        affected = remaining
+    if affected:
+        raise ContractError("episode_audio_repair_exhausted")
+    if repaired:
+        assembly = AssemblyConfig(
+            assembly_id=uuid5(config.run_id, f"audio-assembly/1:repair:{repaired}"),
+            comparison_run_id=audio.run_id,
+            part_result_refs=refs,
+        )
+        ref = build(audio, assembly, samples=samples, outcomes=[validated])
+    routes = [candidate["review_route"] for items in findings for candidate in items]
+    summary = dict(
+        contract="episode-audio-verification/2",
+        audits=audits,
+        repair_rounds=repaired,
+        **{
+            route: routes.count(route)
+            for route in ("automatic_repair", "user_confirmation", "recognition_variant")
+        },
+    )
+    return audio, assembly, ref, summary
 
 
 def _sample(audio, manifest, cell, config, transport, ledger, retake_reason=None):
@@ -184,8 +220,8 @@ def _sample(audio, manifest, cell, config, transport, ledger, retake_reason=None
     return result
 
 
-def _verify(audio, config, settings, assembly_ref, round_index, transport):
-    """One recognition of this assembled master; resume reuses its saved result."""
+def _verify(audio, config, settings, subject, name, transport):
+    """One recognition of this master or part; resume reuses its saved result."""
     from podgen.audio.http import RawAudioTransport
     from podgen.runtime.evaluation.audio.fidelity.contracts import FidelityConfigV2
     from podgen.runtime.evaluation.audio.fidelity.prepare import prepare as prepare_audit
@@ -194,14 +230,14 @@ def _verify(audio, config, settings, assembly_ref, round_index, transport):
     from podgen.runtime.evaluation.audio.subject_contracts import AudioSubject
 
     audit = FidelityConfigV2(
-        audit_id=uuid5(config.run_id, f"audio-verification/1:{round_index}"),
+        audit_id=uuid5(config.run_id, name),
         comparison_run_id=audio.run_id,
         recognition=settings.recognition,
         credential_env=settings.credential_env,
         price=settings.price,
         max_cost_usd=settings.max_cost_usd,
         reservation_usd=settings.reservation_usd,
-        subject=AudioSubject(kind="assembly", ref=RuntimeRef.model_validate(assembly_ref)),
+        subject=AudioSubject.model_validate(subject),
     )
     with audio.lock():
         prepare_audit(audio, audit)
