@@ -4,10 +4,12 @@ from podgen.domain.canonical import digest
 
 from .alignment import align, provenance
 from .context import expected_range, source_context
+from .routing import RULE as ROUTING_RULE
+from .routing import assign
 from .timing import clip_range, map_timing
 from .tokens import VERSION, expected_tokens, tokens
 
-VERSION_CANDIDATES = "literal-fidelity-candidates/6"
+VERSION_CANDIDATES = "literal-fidelity-candidates/7"
 
 
 def generate(audit_id, utterances, recognition, rate, frames, *, margin_seconds=1.5, max_clip_seconds=45):
@@ -62,8 +64,10 @@ def generate(audit_id, utterances, recognition, rate, frames, *, margin_seconds=
             clip_status="ready_for_extraction" if usable else "range_exceeds_review_limit",
             conclusion="candidate_only_not_confirmed_tts_error",
         )
+    assign(candidates)
     return dict(
         contract=VERSION_CANDIDATES,
+        review_routing=ROUTING_RULE,
         normalization_contract=VERSION,
         alignment=provenance(),
         normalization_equivalences=equivalences,

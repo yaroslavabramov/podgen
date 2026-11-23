@@ -70,14 +70,30 @@ class AlignmentProvenance(Contract):
 
 
 class CandidateReportV5(CandidateReport):
-    contract: Literal["literal-fidelity-candidates/5", "literal-fidelity-candidates/6"]
+    contract: Literal[
+        "literal-fidelity-candidates/5", "literal-fidelity-candidates/6", "literal-fidelity-candidates/7"
+    ]
+    review_routing: Literal["fidelity-review-routing/1"] | None = None
     alignment: AlignmentProvenance
 
 
+class CandidateV7(Candidate):
+    review_route: Literal["automatic_repair", "recognition_variant", "user_confirmation"]
+
+
+class CandidateReportV7(CandidateReportV5):
+    contract: Literal["literal-fidelity-candidates/7"]
+    review_routing: Literal["fidelity-review-routing/1"]
+    candidates: list[CandidateV7]
+
+
 def validate_report(value):
+    contract = value.get("contract")
+    if contract == "literal-fidelity-candidates/7":
+        return CandidateReportV7.model_validate(value)
     model = (
         CandidateReportV5
-        if value.get("contract") in ("literal-fidelity-candidates/5", "literal-fidelity-candidates/6")
+        if contract in ("literal-fidelity-candidates/5", "literal-fidelity-candidates/6")
         else CandidateReport
     )
     return model.model_validate(value)

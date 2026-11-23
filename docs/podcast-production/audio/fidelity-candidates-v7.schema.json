@@ -1,0 +1,478 @@
+{
+  "$defs": {
+    "AlignmentProvenance": {
+      "additionalProperties": false,
+      "properties": {
+        "contract": {
+          "const": "kaldialign-text-alignment/1",
+          "title": "Contract",
+          "type": "string"
+        },
+        "engine": {
+          "const": "kaldialign",
+          "title": "Engine",
+          "type": "string"
+        },
+        "engine_version": {
+          "const": "0.12.0",
+          "title": "Engine Version",
+          "type": "string"
+        },
+        "merge_compounds": {
+          "const": "alphabetic_literal_units_only",
+          "title": "Merge Compounds",
+          "type": "string"
+        },
+        "sclite_mode": {
+          "const": false,
+          "title": "Sclite Mode",
+          "type": "boolean"
+        },
+        "integer_rule": {
+          "enum": [
+            "literal-ru-integer-surface-equivalence/1",
+            "num2words-ru-integer-forms/1"
+          ],
+          "title": "Integer Rule",
+          "type": "string"
+        },
+        "compound_rule": {
+          "const": "literal-alphabetic-compound-equivalence/1",
+          "title": "Compound Rule",
+          "type": "string"
+        }
+      },
+      "required": [
+        "contract",
+        "engine",
+        "engine_version",
+        "merge_compounds",
+        "sclite_mode",
+        "integer_rule",
+        "compound_rule"
+      ],
+      "title": "AlignmentProvenance",
+      "type": "object"
+    },
+    "BlobRef": {
+      "additionalProperties": false,
+      "properties": {
+        "storage_key": {
+          "minLength": 1,
+          "title": "Storage Key",
+          "type": "string"
+        },
+        "sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Sha256",
+          "type": "string"
+        },
+        "byte_length": {
+          "minimum": 0,
+          "title": "Byte Length",
+          "type": "integer"
+        },
+        "media_type": {
+          "minLength": 1,
+          "title": "Media Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "storage_key",
+        "sha256",
+        "byte_length",
+        "media_type"
+      ],
+      "title": "BlobRef",
+      "type": "object"
+    },
+    "CandidateV7": {
+      "additionalProperties": false,
+      "properties": {
+        "candidate_id": {
+          "format": "uuid",
+          "title": "Candidate Id",
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "script_discrepancy",
+            "recognition_uncertainty"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "recognized_token_range": {
+          "items": {
+            "type": "integer"
+          },
+          "maxItems": 2,
+          "minItems": 2,
+          "title": "Recognized Token Range",
+          "type": "array"
+        },
+        "script_selectors": {
+          "items": {
+            "additionalProperties": {
+              "$ref": "#/$defs/JsonValue"
+            },
+            "type": "object"
+          },
+          "title": "Script Selectors",
+          "type": "array"
+        },
+        "audio_range": {
+          "$ref": "#/$defs/ReviewRange"
+        },
+        "status": {
+          "enum": [
+            "pending_audio_adjudication",
+            "inconclusive"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "clip_status": {
+          "enum": [
+            "ready_for_extraction",
+            "extracted",
+            "range_exceeds_review_limit"
+          ],
+          "title": "Clip Status",
+          "type": "string"
+        },
+        "conclusion": {
+          "const": "candidate_only_not_confirmed_tts_error",
+          "title": "Conclusion",
+          "type": "string"
+        },
+        "operation": {
+          "anyOf": [
+            {
+              "enum": [
+                "replace",
+                "insert",
+                "delete"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Operation"
+        },
+        "expected_token_range": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "integer"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Expected Token Range"
+        },
+        "expected_tokens": {
+          "anyOf": [
+            {
+              "items": {
+                "additionalProperties": {
+                  "$ref": "#/$defs/JsonValue"
+                },
+                "type": "object"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Expected Tokens"
+        },
+        "recognized_tokens": {
+          "anyOf": [
+            {
+              "items": {
+                "additionalProperties": {
+                  "$ref": "#/$defs/JsonValue"
+                },
+                "type": "object"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Recognized Tokens"
+        },
+        "expected_context": {
+          "anyOf": [
+            {
+              "items": {
+                "additionalProperties": {
+                  "$ref": "#/$defs/JsonValue"
+                },
+                "type": "object"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Expected Context"
+        },
+        "issue": {
+          "anyOf": [
+            {
+              "additionalProperties": {
+                "$ref": "#/$defs/JsonValue"
+              },
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Issue"
+        },
+        "timing_uncertainties": {
+          "items": {
+            "additionalProperties": {
+              "$ref": "#/$defs/JsonValue"
+            },
+            "type": "object"
+          },
+          "title": "Timing Uncertainties",
+          "type": "array"
+        },
+        "clip_blob": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/BlobRef"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "extraction": {
+          "anyOf": [
+            {
+              "additionalProperties": {
+                "$ref": "#/$defs/JsonValue"
+              },
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Extraction"
+        },
+        "review_route": {
+          "enum": [
+            "automatic_repair",
+            "recognition_variant",
+            "user_confirmation"
+          ],
+          "title": "Review Route",
+          "type": "string"
+        }
+      },
+      "required": [
+        "candidate_id",
+        "kind",
+        "recognized_token_range",
+        "script_selectors",
+        "audio_range",
+        "status",
+        "clip_status",
+        "conclusion",
+        "review_route"
+      ],
+      "title": "CandidateV7",
+      "type": "object"
+    },
+    "JsonValue": {},
+    "ReviewRange": {
+      "additionalProperties": false,
+      "properties": {
+        "start_frame": {
+          "minimum": 0,
+          "title": "Start Frame",
+          "type": "integer"
+        },
+        "end_frame": {
+          "exclusiveMinimum": 0,
+          "title": "End Frame",
+          "type": "integer"
+        },
+        "basis": {
+          "enum": [
+            "matched_segment_timestamps",
+            "neighbor_anchors_or_full_audio_edges"
+          ],
+          "title": "Basis",
+          "type": "string"
+        },
+        "margin_frames": {
+          "minimum": 0,
+          "title": "Margin Frames",
+          "type": "integer"
+        },
+        "boundary_precision": {
+          "const": "recognizer_hypothesis",
+          "title": "Boundary Precision",
+          "type": "string"
+        }
+      },
+      "required": [
+        "start_frame",
+        "end_frame",
+        "basis",
+        "margin_frames",
+        "boundary_precision"
+      ],
+      "title": "ReviewRange",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "contract": {
+      "const": "literal-fidelity-candidates/7",
+      "title": "Contract",
+      "type": "string"
+    },
+    "normalization_contract": {
+      "enum": [
+        "literal-ru-case-punctuation-yo/1",
+        "literal-ru-case-punctuation-yo/2",
+        "literal-ru-case-punctuation-yo/3"
+      ],
+      "title": "Normalization Contract",
+      "type": "string"
+    },
+    "normalization_equivalences": {
+      "items": {
+        "additionalProperties": {
+          "$ref": "#/$defs/JsonValue"
+        },
+        "type": "object"
+      },
+      "title": "Normalization Equivalences",
+      "type": "array"
+    },
+    "expected_tokens": {
+      "items": {
+        "additionalProperties": {
+          "$ref": "#/$defs/JsonValue"
+        },
+        "type": "object"
+      },
+      "title": "Expected Tokens",
+      "type": "array"
+    },
+    "recognized_tokens": {
+      "items": {
+        "additionalProperties": {
+          "$ref": "#/$defs/JsonValue"
+        },
+        "type": "object"
+      },
+      "title": "Recognized Tokens",
+      "type": "array"
+    },
+    "candidates": {
+      "items": {
+        "$ref": "#/$defs/CandidateV7"
+      },
+      "title": "Candidates",
+      "type": "array"
+    },
+    "recognition_uncertainties": {
+      "items": {
+        "additionalProperties": {
+          "$ref": "#/$defs/JsonValue"
+        },
+        "type": "object"
+      },
+      "title": "Recognition Uncertainties",
+      "type": "array"
+    },
+    "localization_status": {
+      "default": "uncertain",
+      "enum": [
+        "uncertain",
+        "mapped"
+      ],
+      "title": "Localization Status",
+      "type": "string"
+    },
+    "edit_distance_diagnostic": {
+      "minimum": 0,
+      "title": "Edit Distance Diagnostic",
+      "type": "integer"
+    },
+    "expected_token_count": {
+      "minimum": 0,
+      "title": "Expected Token Count",
+      "type": "integer"
+    },
+    "audio_review_status": {
+      "const": "pending",
+      "title": "Audio Review Status",
+      "type": "string"
+    },
+    "production_ready": {
+      "const": false,
+      "title": "Production Ready",
+      "type": "boolean"
+    },
+    "decision": {
+      "const": "candidates_generated",
+      "title": "Decision",
+      "type": "string"
+    },
+    "review_routing": {
+      "const": "fidelity-review-routing/1",
+      "title": "Review Routing",
+      "type": "string"
+    },
+    "alignment": {
+      "$ref": "#/$defs/AlignmentProvenance"
+    }
+  },
+  "required": [
+    "contract",
+    "normalization_contract",
+    "expected_tokens",
+    "recognized_tokens",
+    "candidates",
+    "recognition_uncertainties",
+    "edit_distance_diagnostic",
+    "expected_token_count",
+    "audio_review_status",
+    "production_ready",
+    "decision",
+    "review_routing",
+    "alignment"
+  ],
+  "title": "CandidateReportV7",
+  "type": "object"
+}

@@ -59,7 +59,7 @@ def test_values_symbols_negation_and_name_changes_remain_candidates(left, right)
     result = report(left, recognition(right))
     assert any(c["kind"] == "script_discrepancy" for c in result["candidates"])
     assert result["alignment"] == provenance()
-    CandidateReportV5.model_validate(result)
+    validate_report(result)
 
 
 def test_compound_offsets_preserve_neighboring_deletion_and_numeric_equivalence():
@@ -104,6 +104,9 @@ def test_historical_schema_and_report_shape_are_unchanged():
     current = report("слово", recognition("слово"))
     legacy = deepcopy(current)
     legacy.pop("alignment")
+    legacy.pop("review_routing")
+    for candidate in legacy["candidates"]:
+        candidate.pop("review_route")
     legacy["contract"] = "literal-fidelity-candidates/4"
     assert validate_report(legacy).model_dump(mode="json") == CandidateReport.model_validate(
         legacy
@@ -120,6 +123,9 @@ def test_resume_preserves_historical_result_and_reprocess_versions_new_engine(mo
     # Simulate an already-persisted pre-upgrade report, without rebuilding its request.
     legacy = journal.records[legacy_key]["report"]
     legacy.pop("alignment")
+    legacy.pop("review_routing")
+    for candidate in legacy["candidates"]:
+        candidate.pop("review_route")
     legacy["contract"] = "literal-fidelity-candidates/4"
     frozen = deepcopy(journal.records)
     assert run(journal, config, transport) == "candidates_generated" and len(transport.calls) == 1
@@ -128,5 +134,5 @@ def test_resume_preserves_historical_result_and_reprocess_versions_new_engine(mo
     assert all(journal.records[key] == value for key, value in frozen.items())
     newest = revisions(journal, config.audit_id)[-1]
     assert newest["prepared"]["alignment"] == provenance()
-    assert newest["result"]["report"]["contract"] == "literal-fidelity-candidates/6"
+    assert newest["result"]["report"]["contract"] == "literal-fidelity-candidates/7"
     assert len(transport.calls) == 1

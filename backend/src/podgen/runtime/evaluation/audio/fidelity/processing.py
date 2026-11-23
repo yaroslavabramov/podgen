@@ -2,7 +2,7 @@ from pydantic import ValidationError
 
 from podgen.audio.fidelity.alignment import provenance
 from podgen.audio.fidelity.candidates import VERSION_CANDIDATES, generate
-from podgen.audio.fidelity.contracts import CandidateReportV5
+from podgen.audio.fidelity.contracts import CandidateReportV7
 from podgen.audio.fidelity.tokens import VERSION as NORMALIZATION
 from podgen.audio.media.recognition import clip
 from podgen.audio.recognition.contracts import VERSION, Recognition
@@ -49,7 +49,7 @@ def process(journal, config, manifest, *, reason=None):
             normalization_contract=NORMALIZATION,
             alignment=provenance(),
             recognition_schema_blob=schema_blob(journal, Recognition),
-            candidates_schema_blob=schema_blob(journal, CandidateReportV5),
+            candidates_schema_blob=schema_blob(journal, CandidateReportV7),
         ),
     )
     try:
@@ -85,7 +85,7 @@ def process(journal, config, manifest, *, reason=None):
             candidate.update(
                 clip_blob=journal.blob(body, "audio/wav"), extraction=extraction, clip_status="extracted"
             )
-        CandidateReportV5.model_validate(report)
+        CandidateReportV7.model_validate(report)
         journal.put(
             output_key + ":result",
             dict(

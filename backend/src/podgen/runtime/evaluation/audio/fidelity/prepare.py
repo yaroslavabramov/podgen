@@ -1,7 +1,7 @@
 from decimal import Decimal
 
 from podgen.audio.fidelity.candidates import VERSION_CANDIDATES
-from podgen.audio.fidelity.contracts import CandidateReportV5
+from podgen.audio.fidelity.contracts import CandidateReportV7
 from podgen.audio.media.processing import tools
 from podgen.audio.media.recognition import lossless_flac
 from podgen.audio.recognition.contracts import VERSION, Recognition
@@ -57,7 +57,7 @@ def prepare(journal, config):
         expected_text_sent_to_recognizer=False,
         config_schema_blob=schema_blob(journal, type(config)),
         recognition_schema_blob=schema_blob(journal, Recognition),
-        candidates_schema_blob=schema_blob(journal, CandidateReportV5),
+        candidates_schema_blob=schema_blob(journal, CandidateReportV7),
         recognition_contract=VERSION,
         candidates_contract=VERSION_CANDIDATES,
         tool_versions=tools(),
