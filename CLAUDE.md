@@ -1,5 +1,3 @@
-# Podgen
+# Repository guidance
 
-Инструкции репозитория находятся в [AGENTS.md](AGENTS.md). Используйте [целевую спецификацию](docs/podcast-production/README.md) и [план реализации](docs/podcast-production/07-implementation-plan.md).
-
-Команды и правила исторического приложения доступны в [архивном снимке](docs/history/README.md).
+Follow the [working agreement](AGENTS.md). The [production guide](docs/podcast-production/README.md) describes the design, and the [implementation plan](docs/podcast-production/07-implementation-plan.md) records the work order.

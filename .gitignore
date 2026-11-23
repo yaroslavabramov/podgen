@@ -22,8 +22,9 @@ out/
 
 # Environment
 .env
-.env.local
-.env.*.local
+.env.*
+!.env.example
+!.env.*.example
 .claude/settings.local.json
 
 # IDE

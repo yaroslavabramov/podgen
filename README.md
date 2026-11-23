@@ -1,40 +1,44 @@
 # Podgen
 
-Цель Podgen — выпуск подкаста по теме пользователя. Сценарный путь использует подготовленное досье и готовый план либо предложение планировщика.
+Podgen turns a topic into a researched podcast. A planner chooses the story, a writer drafts the script, and two reviewers read the same version for different reasons: one follows the story as a listener, the other checks claims against source passages. Once both accept a version, the episode coordinator can send it to speech synthesis and assemble the recording.
 
-## Что работает
+The project is under active development. Its current interface is a Python CLI. A short Russian documentary about Egyptian hieroglyphs reached a 12-minute assembled recording. A longer experiment about the Atlantic telegraph cable reached an approved script and exposed a gap between editorial approval and the requested duration. [Read the evaluation results and the cable script](evals/reports/README.md).
 
-В режиме оценки Podgen загружает материалы кейса из хранилища. Источник плана выбирается явно:
+## Try an offline example
 
-- `fixed-plan`: готовый план из материалов кейса; отдельной проверки плана в этом режиме нет.
-- `own-plan`: планировщик строит план по брифу, досье и разрешённому корпусу, без готового плана. Отдельный редактор проверяет конкретного кандидата. После правки новый кандидат проходит новую проверку; автор получает только явно принятый план.
+From the repository root, with Python 3.12+ and [uv](https://docs.astral.sh/uv/) installed:
 
-В `own-plan` блокирующий вопрос о недостающих материалах сохраняется и останавливает путь до автора. Исследователь пока не реализован, поэтому вопрос не закрывается автоматически.
+```sh
+uv sync --locked --project backend
+uv run --locked --project backend python -m podgen.package_cli validate contracts/examples/research-note-package.json
+```
 
-Для новых запусков редакционные входы разделены по ролям: автор получает принятые решения истории и выбранные смысловые карточки; редактор — весь текст и необходимые выдержки. При однозначном `keep` черновик становится финалом без повторного вызова автора; при `revise` автор возвращает полную редакцию, при нехватке материала цепочка останавливается. Запуск сохраняет фактические запросы, ответы, замечания и версии текста. Два доступных кейса — диалог про GPS и документальный рассказ о колонке на Брод-стрит.
+This validates a research-note package and its artifact dependencies locally. To inspect the episode commands, run:
 
-Архив 5 ноября содержит реальные fixed/own-запуски с прежними полными входами и отдельные offline-preview. В реальном own-plan GPS 6 ноября на очищенном входе получен сценарий 16:36,4; редактор модели дал `keep`, независимая текстовая читка потребовала правки разговорной подачи и повторных развязок. Это запуск **до текущих исправлений**.
+```sh
+uv run --locked --project backend python -m podgen.episode_cli --help
+```
 
-После него уточнены границы замысла и речи, критерии редактора и задача правщика. Подготовлена отдельная ручная редакторская версия GPS 13:10,7. Проверены сборка и ручное применение критериев к исходному и исправленному GPS, позитивным solo/dialogue-контролям; нового платного результата обновлённого Podgen нет.
+A live episode needs PostgreSQL, an object store, a provisioned project with model and voice profiles, and provider credentials. The [backend guide](backend/README.md) covers local setup and tests. The [episode guide](docs/podcast-production/episode-production.md) explains how to prepare, start, pause, resume and export a run.
 
-- [Текущие редакционные критерии и offline-проверка](evals/reports/2026-11-06-editorial-criteria/README.md)
-- [Реальный GPS 6 ноября до исправлений: текст, план и разбор](evals/reports/2026-11-06-gps-clean-run/README.md)
-- [Архив входов и offline-preview 5 ноября](evals/reports/2026-11-05-editorial-inputs/README.md)
-- [Редакционные входы по ролям](docs/podcast-production/08-editorial-inputs.md)
-- [Как запустить сценариста и получить тексты](backend/WRITING-EVALUATION.md)
-- [Готовый и собственный план: четыре сценария по двум темам](evals/reports/2026-11-05-planning/README.md)
-- [Полученные сценарии, сравнение версий и результаты проверки](evals/reports/2026-11-05-writing/README.md)
-- [Входные материалы двух кейсов](evals/cases/development/wp02-batch-01/README.md)
+## How it works
 
-Для пути от произвольной темы до опубликованного аудио ещё требуются самостоятельное исследование, независимый фактчек и аудиопроизводство.
+| Step | Result |
+| --- | --- |
+| Research | A report, a catalog of cited sources and locally retained passages. The catalog records which documents could be retrieved. |
+| Plan | A proposed story and a separate editorial review. The approved plan is pinned for the writer. |
+| Write and review | A draft, a listener's reading and a factual review. The author can revise the script twice within a standard episode. |
+| Record | Speech in script order, an assembly manifest and a WAV master. Acoustic review remains a separate decision. |
 
-## Спецификация
+PostgreSQL records the exact inputs, decisions and provider receipts behind a run. Larger source documents and audio live in object storage. This lets an operator inspect what a model saw and resume interrupted work without automatically repeating a paid request with an uncertain outcome.
 
-- [Оглавление спецификации](docs/podcast-production/README.md)
-- [План реализации и критерии перехода](docs/podcast-production/07-implementation-plan.md)
-- [Практика сценариста и редактора](docs/podcast-production/03-editorial-practice.md)
-- [Пять архивных примеров для испытаний сценариста](evals/fixtures/development/legacy-writing.json)
-- [Журнал ревью](docs/podcast-production/REVIEW.md)
-- [История v1/v2 и восстановление прежнего приложения](docs/history/README.md)
+## Explore the repository
 
-`evals/fixtures/development/legacy-writing.json` содержит исходную и отредактированную речь, вопросы редактору и контрольные суммы исходных трасс. Это открытая разработческая выборка из одного выпуска. Новые сравнительные испытания потребуют независимых тем и отдельной закрытой выборки по WP-02.
+- [Production architecture and implementation plan](docs/podcast-production/README.md)
+- [Working prompts for the editorial roles](backend/src/podgen/writing/prompts/current/)
+- [Writing evaluations and recovery](backend/WRITING-EVALUATION.md)
+- [Data contracts and cross-language validation](contracts/README.md)
+- [Evaluation cases, listening materials and operator tools](evals/README.md)
+- [Design history and lessons from earlier versions](docs/history/README.md)
+
+The documentation is in English. Recorded scripts, editorial evidence and source quotations retain their original languages and wording so they can be replayed and compared.
