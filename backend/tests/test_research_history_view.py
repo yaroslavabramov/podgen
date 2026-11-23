@@ -61,6 +61,7 @@ def test_checkpoint_history_is_semantic_for_new_runs_and_exact_for_existing_runs
         contract.pop("search_argument_policy", None)
         contract.pop("web_search_definition")
         contract.pop("history_view")
+        contract.pop("tool_call_batching")
         replacements = {item["name"]: item for item in definitions()}
         contract["definitions"] = [replacements.get(item["name"], item) for item in contract["definitions"]]
         original = journal.request(journal.root)

@@ -74,6 +74,7 @@ def create(behavior, materials=None):
             **{REPORT_DELIVERY_KEY: REPORT_DELIVERY_VERSION},
             **{ROLE_TOOL_KEY: ROLE_TOOL_VERSION},
             **{research_window.FACT_KEY: research_window.MEASURED},
+            **{BATCH_KEY: BATCH_VERSION},
             fact_request_research=targeted_definition(history_view),
             web_search_definition=dict(type="web_search", search_context_size="low"),
             definitions=source_definitions(declarations, retrieval_policy=retrieval.get("retrieval_policy"))
@@ -158,6 +159,15 @@ def from_manifest(manifest):
     return value
 
 
+# Several independent tool calls may share one physical turn instead of one turn per call.
+BATCH_KEY = "tool_call_batching"
+BATCH_VERSION = "batched-tool-calls/1"
+
+
+def batched(contract):
+    return bool(contract) and contract.get(BATCH_KEY) == BATCH_VERSION
+
+
 def applies(stage, contract):
     if contract is None:
         return False
@@ -170,7 +180,7 @@ def bind(body, stage, profile, contract):
         body.update(
             tools=role_definitions(contract, stage, profile.provider),
             tool_choice="auto",
-            parallel_tool_calls=False,
+            parallel_tool_calls=batched(contract),
         )
         if contract["version"] in DURABLE_VERSIONS:
             body["metadata"]["podgen_context_policy"] = window_policy(contract, stage)
@@ -218,6 +228,10 @@ def validate_durable(manifest, value):
         if value["version"] != CURRENT_RESEARCH_VERSION or value[ROLE_TOOL_KEY] != ROLE_TOOL_VERSION:
             raise ContractError("unsupported_role_tool_scope")
         fields.add(ROLE_TOOL_KEY)
+    if BATCH_KEY in value:
+        if value["version"] != CURRENT_RESEARCH_VERSION or value[BATCH_KEY] != BATCH_VERSION:
+            raise ContractError("unsupported_tool_call_batching")
+        fields.add(BATCH_KEY)
     if REPORT_DELIVERY_KEY in value:
         if (
             value["version"] != CURRENT_RESEARCH_VERSION

@@ -169,3 +169,9 @@ not affect report-off preparation or resume. Hosted web search and its include
 remain available in the comparison. New scoped source-off runs retain source
 search/history navigation without exposing the X report catalog; older scoped
 choices and saved requests keep their archived behavior.
+
+## Batched tool calls: batched-tool-calls/1
+
+New durable research contracts pin `tool_call_batching=batched-tool-calls/1`. Their requests set `parallel_tool_calls=true` (OpenAI) or `disable_parallel_tool_use=false` (Anthropic), so independent searches and reads can share one physical turn instead of resending the whole conversation once per call. The gateway executes the returned calls in order with the existing per-call intents, results and receipts. `save_working_state` may stand alone or close a batch as its last call; any other placement, or two state saves, is rejected as before. Saved contracts without the pin keep one call per turn and their original instruction bodies. The current durable tool instruction says the same.
+
+Offline: `backend/tests/test_tool_call_batching.py`; PostgreSQL: the production run in `backend/tests/test_run_cost_budget_runtime.py` asserts the flag on every tool request.

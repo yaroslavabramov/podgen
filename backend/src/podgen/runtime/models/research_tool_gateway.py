@@ -34,6 +34,8 @@ def invoke(gateway, root, profile, contract, *, limits, totals, guard):
 
 
 def _invoke(gateway, root, profile, contract, *, limits, totals, guard):
+    from podgen.runtime.evaluation.source_tool_contract import batched
+
     journal = gateway.journal
     if root["status"] in {"failed", "validation_failed", "outcome_unknown"}:
         gateway._fail(root, "invocation_requires_new_attempt_or_reconciliation", status=root["status"])
@@ -254,7 +256,9 @@ def _invoke(gateway, root, profile, contract, *, limits, totals, guard):
             phase.commit()
             return text
         checkpoints = [call for call in calls if call["name"] == "save_working_state"]
-        if checkpoints and len(calls) != 1 or checkpoint_requested and not checkpoints:
+        # A batch may close with one state save after its reads; otherwise the save stands alone.
+        alone = len(calls) == 1 or batched(execution_contract) and calls[-1] in checkpoints
+        if checkpoints and (len(checkpoints) != 1 or not alone) or checkpoint_requested and not checkpoints:
             raise ContractError("research_checkpoint_requires_one_state_call")
         if checkpoint_requested:
             # Archive the complete exchange even when the state-saving request

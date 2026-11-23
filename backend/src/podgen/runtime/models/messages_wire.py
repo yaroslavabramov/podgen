@@ -100,7 +100,7 @@ def messages_request(body, *, counting=False):
         ),
     )
     if body.get("tools"):
-        if body["tool_choice"] not in ("auto", "none") or body.get("parallel_tool_calls"):
+        if body["tool_choice"] not in ("auto", "none"):
             raise ProviderFault("unsupported_anthropic_tool_configuration")
         result["tools"] = [
             dict(
@@ -115,7 +115,7 @@ def messages_request(body, *, counting=False):
 
         result["tools"] = apply_tool_policy(result["tools"], body.get("metadata", {}))
         result["tool_choice"] = (
-            dict(type="auto", disable_parallel_tool_use=True)
+            dict(type="auto", disable_parallel_tool_use=not body.get("parallel_tool_calls"))
             if body["tool_choice"] == "auto"
             else dict(type="none")
         )

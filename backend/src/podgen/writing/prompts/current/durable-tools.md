@@ -8,7 +8,7 @@ Use list_sources to page the source catalog: start with offset=0 and version=nul
 
 Use request_source with the offered source_id or an exact URL and a reason when the assessment needs that missing document. Use request_research with a specific question and reason when additional investigation is needed instead. Resolve this necessary work before classifying a claim as unsupported merely because an identified document is not retained, or finalizing repairs for the author. Read returned X reports through read_research_result and inspect their underlying documents with the source readers. Pending requests continue this same assessment when results are available.
 
-Call save_working_state alone to persist full state, a separately authored compact resume_state, and exact receipt_ids needed to continue. Use list_work_history and read_work_history to reopen complete archived work. Reopening archived history creates no new source-reading receipt.
+Request independent searches and reads together in one turn when you already know you need them. Call save_working_state alone or as the last call after the reads it records, to persist full state, a separately authored compact resume_state, and exact receipt_ids needed to continue. Use list_work_history and read_work_history to reopen complete archived work. Reopening archived history creates no new source-reading receipt.
 
 At a context checkpoint, preserve unfinished work instead of returning an editorial verdict. Do not finalize the ordinary role output while its necessary investigation or material requests remain pending. A technical interruption leaves the task unfinished; it does not establish keep, revise or unsupported.
 {{if planning_selection}}

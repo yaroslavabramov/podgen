@@ -76,6 +76,8 @@ def test_receipts_charge_the_pinned_usd_budget_instead_of_tokens(repo, scope, pr
     assert set(budget["rates"]) == {"claude-opus-5-5", "gpt-6.1-sol", "gpt-6.1-terra"}
     assert result["status"] != "needs_attention"
     assert spent(journal, command.run_id) == expected_cost(provider)
+    tool_requests = [body for body in provider.requests if body.get("tools")]
+    assert tool_requests and all(body["parallel_tool_calls"] is True for body in tool_requests)
     count = len(provider.requests)
     evaluation.run(command)
     assert len(provider.requests) == count
