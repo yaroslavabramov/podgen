@@ -1,0 +1,11 @@
+{
+  "count_calls": 58,
+  "count_reuses": 54,
+  "input_tokens": 2552231,
+  "cost_microusd": 2391449,
+  "output_tokens": 94397,
+  "output_reserved": 0,
+  "uncertain_calls": 0,
+  "generation_calls": 57,
+  "cached_input_tokens": 1769850
+}
