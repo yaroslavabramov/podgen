@@ -14,7 +14,6 @@
     "X-RateLimit-Reset": "1793875996",
     "last-modified": "Thu, 06 Aug 2020 21:38:28 GMT",
     "etag": "\"b7f72cbbe16abc67892b85a8809febcf\"",
-    "Set-Cookie": "connect.sid=s%3AhkwCiq-VYStM0_g55NQev7-ubreDDPin.BXL1U4JibcY8MtU1IGvz8UE4lsjPriEG8OVg%2BkTnxlQ; Path=/; Expires=Thu, 05 Nov 2026 11:15:44 GMT; HttpOnly; Secure",
     "Strict-Transport-Security": "max-age=31536000; includeSubDomains; preload",
     "Referrer-Policy": "strict-origin-when-cross-origin",
     "X-Content-Type-Options": "nosniff",
