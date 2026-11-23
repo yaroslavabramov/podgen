@@ -490,3 +490,26 @@ def test_invalid_targeted_answer_returns_explicit_unresolved_result_without_repe
         == result
     )
     assert len(fetcher.calls) == calls
+
+
+def test_maintenance_refusal_is_retried_by_a_later_request(repo, scope, producer, monkeypatch):
+    materials, _, acquire, fetcher = fixture(repo, scope, producer, monkeypatch)
+    url = "https://example.com/new"
+    maintenance = "Project Gutenberg is temporarily unavailable while we perform maintenance."
+    fetcher.documents[url] = document(maintenance, url=url, status=503)
+    resolver = ResearchMaterialResolver(EvaluationJournal(repo, scope[0]), materials, acquire=acquire)
+    run_id, args = uuid4(), dict(url=url, reason="Read the account.")
+
+    def request(index):
+        return resolver.resolve(
+            "request_source", args, operation_id=uuid4(), run_id=run_id, guard=lambda: None
+        )
+
+    assert request(0).result["status"] == "unavailable"
+    fetched = len(fetcher.calls)
+    fetcher.documents[url] = document("Ёжик и точные часы. " * 100, url=url)
+    assert request(1).result["status"] == "resolved"
+    assert len(fetcher.calls) > fetched
+    fetched = len(fetcher.calls)
+    assert request(2).result["status"] == "resolved"
+    assert len(fetcher.calls) == fetched

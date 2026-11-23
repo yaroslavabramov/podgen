@@ -21,6 +21,17 @@ def same_document(reported_url, canonical):
         return False
 
 
+TEMPORARY_RETRIES = 2
+TEMPORARY = {"http_status_429", "http_status_503", "maintenance_page"}
+
+
+def temporary(outcome):
+    """Rate limiting and maintenance refuse now, not the document itself."""
+    if outcome["status"] == "available" or not outcome["sources"]:
+        return False
+    return any(TEMPORARY & set(source["diagnostics"]) for source in outcome["sources"])
+
+
 class ResearchMaterialResolver:
     def __init__(
         self,
@@ -166,6 +177,17 @@ class ResearchMaterialResolver:
         )
         key = "material-document:" + scope
         outcome = store.get(key)
+        # A temporary refusal is answered once; a later request for the same URL tries again.
+        for attempt in range(1, TEMPORARY_RETRIES + 1):
+            if outcome is None or not temporary(outcome):
+                break
+            following = f"{key}:retry:{attempt}"
+            saved = store.get(following)
+            key = following
+            if saved is None:
+                outcome = None
+                break
+            outcome = saved
         if outcome is None:
             guard()
             request = AcquisitionRequest(
