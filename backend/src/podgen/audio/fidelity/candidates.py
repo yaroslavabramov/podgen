@@ -7,7 +7,7 @@ from .context import expected_range, source_context
 from .timing import clip_range, map_timing
 from .tokens import VERSION, expected_tokens, tokens
 
-VERSION_CANDIDATES = "literal-fidelity-candidates/5"
+VERSION_CANDIDATES = "literal-fidelity-candidates/6"
 
 
 def generate(audit_id, utterances, recognition, rate, frames, *, margin_seconds=1.5, max_clip_seconds=45):

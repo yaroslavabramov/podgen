@@ -65,15 +65,19 @@ class AlignmentProvenance(Contract):
     engine_version: Literal["0.12.0"]
     merge_compounds: Literal["alphabetic_literal_units_only"]
     sclite_mode: Literal[False]
-    integer_rule: Literal["literal-ru-integer-surface-equivalence/1"]
+    integer_rule: Literal["literal-ru-integer-surface-equivalence/1", "num2words-ru-integer-forms/1"]
     compound_rule: Literal["literal-alphabetic-compound-equivalence/1"]
 
 
 class CandidateReportV5(CandidateReport):
-    contract: Literal["literal-fidelity-candidates/5"]
+    contract: Literal["literal-fidelity-candidates/5", "literal-fidelity-candidates/6"]
     alignment: AlignmentProvenance
 
 
 def validate_report(value):
-    model = CandidateReportV5 if value.get("contract") == "literal-fidelity-candidates/5" else CandidateReport
+    model = (
+        CandidateReportV5
+        if value.get("contract") in ("literal-fidelity-candidates/5", "literal-fidelity-candidates/6")
+        else CandidateReport
+    )
     return model.model_validate(value)

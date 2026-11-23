@@ -6,10 +6,10 @@ import kaldialign
 
 from podgen.domain.errors import ContractError
 
-from .integers import units
+from . import numbers
 
 VERSION = "kaldialign-text-alignment/1"
-INTEGER_RULE = "literal-ru-integer-surface-equivalence/1"
+INTEGER_RULE = numbers.RULE
 COMPOUND_RULE = "literal-alphabetic-compound-equivalence/1"
 EPSILON = "\x00"
 
@@ -26,12 +26,11 @@ def provenance():
     )
 
 
-def label(unit, tokens):
-    raw = tokens[unit["start"] : unit["end"]]
-    if unit["value"] is None and len(raw) == 1 and raw[0]["normalized"].isalpha():
-        return raw[0]["normalized"]
-    # Delimited nonalphabetic units cannot concatenate into another single unit.
-    return "\x01" + unit["key"].encode("utf-8").hex() + "\x02"
+def label(token):
+    if token["normalized"].isalpha():
+        return token["normalized"]
+    # Delimited nonalphabetic tokens cannot concatenate into another single token.
+    return "\x01" + token["normalized"].encode("utf-8").hex() + "\x02"
 
 
 def consume(text, labels, offset):
@@ -45,29 +44,16 @@ def consume(text, labels, offset):
 
 
 def align(expected, actual):
-    left, right = units(expected), units(actual)
-    left_labels = [label(unit, expected) for unit in left]
-    right_labels = [label(unit, actual) for unit in right]
+    left_labels = [label(token) for token in expected]
+    right_labels = [label(token) for token in actual]
     opcodes, equivalences = [], []
     a = c = 0
-
-    def boundary(items, index, total):
-        return items[index]["start"] if index < len(items) else total
-
     for lhs, rhs in kaldialign.align(
         left_labels, right_labels, EPSILON, sclite_mode=False, merge_compounds=True
     ):
         b, d = consume(lhs, left_labels, a), consume(rhs, right_labels, c)
-        i1, i2 = boundary(left, a, len(expected)), boundary(left, b, len(expected))
-        j1, j2 = boundary(right, c, len(actual)), boundary(right, d, len(actual))
-        x, y = expected[i1:i2], actual[j1:j2]
+        x, y = expected[a:b], actual[c:d]
         literal = [t["normalized"] for t in x] == [t["normalized"] for t in y]
-        numeric = (
-            b - a == d - c == 1
-            and left[a]["value"] is not None
-            and left[a]["key"] == right[c]["key"]
-            and {left[a]["form"], right[c]["form"]} == {"digits", "words"}
-        )
         compound = (
             bool(x and y)
             and (b - a > 1 or d - c > 1)
@@ -82,9 +68,10 @@ def align(expected, actual):
             else "equal"
             if literal
             else "equivalent"
-            if numeric or compound
+            if compound
             else "replace"
         )
+        i1, i2, j1, j2 = a, b, c, d
         # Preserve contiguous mismatch hunks for downstream source context/localization.
         if (
             kind in ("insert", "delete", "replace")
@@ -96,19 +83,36 @@ def align(expected, actual):
             i1, j1 = p, q
         opcodes.append((kind, i1, i2, j1, j2))
         if kind == "equivalent":
-            item = dict(
-                rule=INTEGER_RULE if numeric else COMPOUND_RULE,
-                expected_token_range=[i1, i2],
-                recognized_token_range=[j1, j2],
-                expected_tokens=x,
-                recognized_tokens=y,
+            equivalences.append(
+                dict(
+                    rule=COMPOUND_RULE,
+                    expected_token_range=[i1, i2],
+                    recognized_token_range=[j1, j2],
+                    expected_tokens=x,
+                    recognized_tokens=y,
+                    joined_form=lhs.replace(" ", ""),
+                )
             )
-            if numeric:
-                item["value"] = left[a]["value"]
-            else:
-                item["joined_form"] = lhs.replace(" ", "")
-            equivalences.append(item)
         a, c = b, d
-    if a != len(left) or c != len(right):
+    if a != len(expected) or c != len(actual):
         raise ContractError("fidelity_alignment_incomplete_unit_coverage")
+    # A whole mismatch hunk that is a number written once as digits and once as words.
+    known = {}
+    for index, (kind, i1, i2, j1, j2) in enumerate(opcodes):
+        if kind != "replace":
+            continue
+        value = numbers.equivalent(expected[i1:i2], actual[j1:j2], known)
+        if value is not None:
+            opcodes[index] = ("equivalent", i1, i2, j1, j2)
+            equivalences.append(
+                dict(
+                    rule=INTEGER_RULE,
+                    expected_token_range=[i1, i2],
+                    recognized_token_range=[j1, j2],
+                    expected_tokens=expected[i1:i2],
+                    recognized_tokens=actual[j1:j2],
+                    value=value,
+                )
+            )
+    equivalences.sort(key=lambda item: item["expected_token_range"])
     return opcodes, equivalences

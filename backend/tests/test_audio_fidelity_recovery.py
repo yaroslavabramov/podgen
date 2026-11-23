@@ -80,6 +80,15 @@ def test_failed_reprocess_exposes_current_failure_and_immutable_last_success(mon
         ("одна тысяча двести сорок два", "1242"),
         ("два миллиона триста тысяч пятьсот", "2300500"),
         ("два человека", "2 человека"),
+        ("девятнадцатого", "19"),
+        ("тридцать", "30"),
+        ("восемнадцать", "18"),
+        ("семьсот", "700"),
+        ("сорок", "40"),
+        ("один сказал", "1 сказал"),
+        ("первого человека", "1 человека"),
+        ("тысяча восемьсот шестьдесят шестого года", "1866 года"),
+        ("тысяча восемьсот пятьдесят четвертом", "1850 четвертом"),
     ],
 )
 def test_unambiguous_integer_surfaces_preserve_raw_spans(words, digits):
@@ -94,7 +103,6 @@ def test_unambiguous_integer_surfaces_preserve_raw_spans(words, digits):
 @pytest.mark.parametrize(
     "words,digits",
     [
-        ("один сказал", "1 сказал"),
         ("сто, двадцать", "120"),
         ("один два", "12"),
         ("три целых пять десятых", "35"),
@@ -112,7 +120,6 @@ def test_ambiguous_and_changed_values_units_negation_remain_candidates(words, di
     "words,digits",
     [
         ("двадцать ноль", "20"),
-        ("тысяча восемьсот пятьдесят четвертом", "1850 четвертом"),
         ("сто\nдвадцать", "120"),
         ("два тысяч", "2000"),
     ],
@@ -143,7 +150,6 @@ def test_explicit_genitive_counts_and_calendar_days(words, digits):
         ("сто ноль", "100"),
         ("пятьсот тридцати пяти", "535"),
         ("двадцати первого августа", "21 августа"),
-        ("первого человека", "1 человека"),
     ],
 )
 def test_ambiguous_scale_or_ordinal_context_stays_literal(words, digits):

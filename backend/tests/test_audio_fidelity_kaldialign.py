@@ -128,5 +128,5 @@ def test_resume_preserves_historical_result_and_reprocess_versions_new_engine(mo
     assert all(journal.records[key] == value for key, value in frozen.items())
     newest = revisions(journal, config.audit_id)[-1]
     assert newest["prepared"]["alignment"] == provenance()
-    assert newest["result"]["report"]["contract"] == "literal-fidelity-candidates/5"
+    assert newest["result"]["report"]["contract"] == "literal-fidelity-candidates/6"
     assert len(transport.calls) == 1
