@@ -173,5 +173,16 @@ def test_invented_content_is_resynthesized_once_and_verified_again(repo, scope, 
     assembled = repo.get_runtime(scope[0], RuntimeRef.model_validate(result["progress"]["assembly_ref"]))
     parts = len(assembled["frame_map"])
     assert len(speech.calls) == parts + 1 and len(recognizer.calls) == 2
+    from podgen.runtime.evaluation.audio.attempts import prefix as take_prefix
+
+    audio = AudioJournal(repo, scope[0], uuid5(config.run_id, "audio-render/2"))
+    used = {part["source_result_ref"]["record_id"] for part in assembled["frame_map"]}
+    retakes = [
+        cell["cell_id"]
+        for cell in audio.get("manifest")["cells"]
+        if audio.get(take_prefix(cell["cell_id"], 2) + ":prepared")
+    ]
+    assert len(retakes) == 1
+    assert str(audio.ref(take_prefix(retakes[0], 2) + ":result").record_id) in used
     assert runner.run() == result
     assert len(speech.calls) == parts + 1 and len(recognizer.calls) == 2

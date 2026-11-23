@@ -233,11 +233,15 @@ def _execute(journal, manifest, cell, config, transport, operation, retake_reaso
     )
 
 
+def usable(row):
+    """This take with its latest successful processing, or None."""
+    successful = [revision for revision in row["processing"] if revision["result"]]
+    if successful:
+        selected = successful[-1]
+        return dict(row, result=selected["result"], processing_key=selected["key"])
+    return None
+
+
 def baseline(rows):
     """Earliest usable take; explicit artistic retakes never replace this baseline."""
-    for row in rows:
-        successful = [revision for revision in row["processing"] if revision["result"]]
-        if successful:
-            selected = successful[-1]
-            return dict(row, result=selected["result"], processing_key=selected["key"])
-    return None
+    return next((selected for selected in map(usable, rows) if selected), None)

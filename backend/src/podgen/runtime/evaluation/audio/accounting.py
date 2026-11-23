@@ -77,11 +77,17 @@ class OperationLedger:
                 self.refresh(cell)
         return self.attempts, self.committed
 
-    def result(self, cell, status):
-        from .attempts import baseline
+    def result(self, cell, status, *, take=None):
+        """The baseline take, or the named take (a repair retake chosen for a new assembly)."""
+        from .attempts import baseline, usable
 
         self.totals(self.journal, self.manifest)
-        selected = baseline(self.rows[cell["cell_id"]])
+        rows = self.rows[cell["cell_id"]]
+        selected = (
+            baseline(rows)
+            if take is None
+            else next((usable(row) for row in rows if row["take"] == take), None)
+        )
         reference = (
             self.journal.ref(selected["processing_key"] + ":result").model_dump(mode="json")
             if selected

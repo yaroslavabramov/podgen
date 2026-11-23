@@ -161,9 +161,16 @@ def render(parent, config, progress, transport, recognition_transport=None):
             for position in affected:
                 cell = manifest["cells"][position]
                 retaken = any(row["prepared"].get("reason") == reason for row in ledger.rows[cell["cell_id"]])
-                result = _sample(
-                    audio, manifest, cell, render_config, transport, ledger, None if retaken else reason
+                _sample(audio, manifest, cell, render_config, transport, ledger, None if retaken else reason)
+                # The sample descriptor names the baseline take; the new master uses the repair take.
+                take = next(
+                    row["take"]
+                    for row in ledger.rows[cell["cell_id"]]
+                    if row["prepared"].get("reason") == reason
                 )
+                result = ledger.result(cell, "completed", take=take)
+                if result.result_ref is None:
+                    raise ContractError("episode_audio_repair_take_unusable")
                 refs[position], samples[position] = RuntimeRef.model_validate(result.result_ref), result
     raise ContractError("episode_audio_repair_exhausted")
 
