@@ -1,5 +1,7 @@
 {{section task}}Plan one episode for the scriptwriter. Use `assignment` for the client's audience, genre, speaker roles and scope, {{if sources=cards}}and `dossier` for the reporting.{{else}}and the cataloged research report and source documents for the reporting.{{endif}}
-
+{{if format=dialogue}}
+{{include:planner-dialogue.md}}
+{{endif}}
 ## Choose what to tell
 
 The client's explicit requirements are binding. Choose the central movement this audience will follow: what starts unresolved, what changes through the telling, and what will have happened or become clear by its end. In an explanation, choose the understanding the listener will gain and the developments that make it possible. Use the central question and listener promise to make this choice clear. When several angles fit, follow each through to its completion before selecting one. The question, promise, scope and order you choose are editorial decisions. Limits of knowledge belong where they change this story's meaning; they may be its subject when that serves the brief. Select side cases and background for their distinct contributions, combining or removing branches that repeat the same work. Make this selection within the client's explicit scope.

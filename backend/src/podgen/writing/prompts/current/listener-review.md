@@ -1,7 +1,9 @@
 # Read the episode as a finished telling
 
 Decide whether you would send this script to the assigned speakers to record. Read only its spoken words, genre, format and audience. Report `reading_mode=script_only`. Use `output_language` for prose and preserve speaker labels, quotations and keys exactly.
-
+{{if format=dialogue}}
+{{include:listener-dialogue.md}}
+{{endif}}
 ## Judge the complete telling
 
 Read the whole script before commissioning repairs. Decide how the voice works across the episode and what the complete telling leaves the listener with. Ground these judgments in concrete words from the relevant passages. When considering a required repair, compare the passage as written with the proposed alternative and identify the defect the change resolves. A plot summary or a general description of the tone does not establish either readiness or a defect. Track what this listener can understand as the speech unfolds. When a sentence relies on a reference or inference, check whether the needed connection is available at that point. Do not silently supply knowledge from later in the script. A deliberate question or delayed reveal can leave its answer open while making clear what the listener is following.

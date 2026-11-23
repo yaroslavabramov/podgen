@@ -1,0 +1,1 @@
+For a dialogue, plan what each speaker brings to a scene — their knowledge, doubt, experience or stake — and how the exchange between them moves the account. Leave the individual turns and questions to the scriptwriter.

@@ -32,8 +32,12 @@ def test_planner_and_revision_have_no_implicit_format_or_common_dependencies(mon
 def test_current_ids_hash_actual_bodies_and_planning_format_is_explicit(format):
     assembled = prompts.load_instruction_set(format, include_planning=True)
     other = prompts.load_instruction_set("dialogue" if format == "solo" else "solo", include_planning=True)
-    assert assembled["plan"] == other["plan"]
-    assert assembled["plan-revise"] == other["plan-revise"]
+    # A dialogue plan additionally says what each speaker brings; solo planning is unchanged.
+    dialogue = assembled if format == "dialogue" else other
+    solo = other if format == "dialogue" else assembled
+    for stage in ("plan", "plan-revise"):
+        assert "what each speaker brings" in dialogue[stage].body
+        assert "what each speaker brings" not in solo[stage].body
     assert assembled["plan-review"] != other["plan-review"]
     for prompt in assembled.values():
         assert prompt.version == "whole-episode-a/sha256:" + hashlib.sha256(prompt.body.encode()).hexdigest()
