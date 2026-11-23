@@ -1,44 +1,43 @@
-# Идентичность карточек
+# Card identity and material references
 
-`editorial-input/2` хранит обязательный `card_id` рядом с коротким отображаемым `label` и развёрнутым `title`. Оба имени могут меняться и повторяться. ID уникален внутри досье и задаётся один раз при создании; чтение, импорт, переименование и перестановка никогда его не вычисляют. Нельзя подменять ID названием. Обычный импорт отклоняет пропущенные/null/повторные ID и неизвестные ссылки до записи. В `/1` прежний label остаётся историческим ключом; новое поле card_id, включая null, запрещено.
+Every `editorial-input/2` card has a `card_id`, a short `label` and a descriptive `title`. Only the ID must be unique in the dossier. Assign it once when creating the card. Both names can be edited, repeated or reordered. The importer rejects missing, null, duplicate and unrecognized IDs. A v1 input still uses its label as its key and does not accept `card_id`.
 
-Названия полей `summary_support_labels`, `support_labels` и `material_refs` сохранены для совместимости. В `/2` их значения — только card_id. Карточки у планировщика, планового редактора и фактчекера содержат ID рядом с именами и смыслом; каталог и серверная валидация принимают только предложенные ID. Документ `key`, его source ref/hash и точная цитата `{document,start,end,text}` — отдельные привязки, не зависящие от ID или имени карточки.
+The names `summary_support_labels`, `support_labels` and `material_refs` are retained for compatibility. Their values in v2 are card IDs. A document key, authorized source reference, source digest and exact `{document,start,end,text}` quotation identify the underlying evidence separately. The writer sees selected material with its attribution. The persisted review keeps the exact card and document bindings.
 
-Автор получает выбранные утверждения, контекст, условия и названия источников без ID карточек и координат файлов. При переписывании каждая фактическая находка получает именно её атрибутированные цитаты в `findings[].evidence`; исходные ID-связи остаются в полном сохранённом отзыве. Переименование и одинаковые имена не меняют отбор. Читаемые план и отзывы разрешают ссылки через замороженный пакет данного запуска: короткое имя, а при совпадениях — имя с ID. JSON сохраняет точные ID.
+## Create, upgrade or rebind
 
-## Явное создание и перевод
-
-Локальный инструмент не использует БД, модель или сеть; существующие файлы не перезаписывает:
+The local tool writes new files and refuses to overwrite existing ones. It works without a database or provider. From the repository root:
 
 ```sh
+export CARD_DIR="$(pwd)/tmp/card-upgrade"
+mkdir -p "$CARD_DIR"
 uv run --directory backend python -m podgen.editorial_tools upgrade \
-  --input /ABS/shared-v1.json --out /ABS/shared-v2.json --map-out /ABS/card-map.json
+  --input ../evals/editorial-inputs/v1/gps-clock/shared.json \
+  --out "$CARD_DIR/shared-v2.json" --map-out "$CARD_DIR/card-map.json"
 uv run --directory backend python -m podgen.editorial_tools upgrade-fixed \
-  --input /ABS/fixed-v1.json --shared /ABS/shared-v2.json --out /ABS/fixed-v2.json
-uv run --directory backend python -m podgen.editorial_tools add-card \
-  --input /ABS/shared-v2.json --card /ABS/new-card.json --out /ABS/shared-next.json
+  --input ../evals/editorial-inputs/v1/gps-clock/fixed-plan.json \
+  --shared "$CARD_DIR/shared-v2.json" --out "$CARD_DIR/fixed-v2.json"
 ```
 
-`upgrade` сохраняет оба имени и цитаты, один раз создаёт ID, переписывает структурные ссылки и сохраняет соответствие старых ключей новым ID, исходный SHA и canonical digests. `new-card.json` содержит оба имени и полный материал с цитатами, но не card_id; `add-card` назначает новый ID только добавленной карточке. Новый пакет с заранее назначенными ID можно также собрать по опубликованной схеме: импорт не назначает пропущенные значения.
+`upgrade` preserves names, claims and quotations, assigns IDs, rewrites structured references and records the original key mapping and input digests. `upgrade-fixed` checks that the reconstructed v1 dossier matches the fixed plan's original digest before writing the v2 plan.
 
-`upgrade-fixed` берёт соответствие имён и ID из переведённого досье. Перед записью программа восстанавливает из него прежнюю версию и сверяет её с контрольной суммой в плане. Это проверяет, что каждая ссылка по-прежнему ведёт к тем же материалам.
-
-Для существующего fixed-плана после изменения **только имён и порядка карточек**:
+To add a card, prepare its full content and citations in `new-card.json` and omit `card_id`. To reuse a fixed plan after renaming or reordering cards, supply both the old and updated dossier:
 
 ```sh
+uv run --directory backend python -m podgen.editorial_tools add-card \
+  --input "$CARD_DIR/shared-v2.json" --card "$CARD_DIR/new-card.json" \
+  --out "$CARD_DIR/shared-next.json"
 uv run --directory backend python -m podgen.editorial_tools rebind-fixed \
-  --input /ABS/fixed-v2.json --previous-shared /ABS/shared-v2.json \
-  --shared /ABS/shared-renamed.json --out /ABS/fixed-renamed.json
+  --input "$CARD_DIR/fixed-v2.json" --previous-shared "$CARD_DIR/shared-v2.json" \
+  --shared "$CARD_DIR/shared-renamed.json" --out "$CARD_DIR/fixed-renamed.json"
 ```
 
-Проверяется точный digest прежней версии, равенство всех остальных полей и доступность ID. Замена фактов, условий, документов или цитат под прежними ID не разрешается этой командой. Обычный fixed-import по-прежнему требует digest именно принятого shared и ту же область документов. Own-план привязывается к frozen material hash своего запуска. Чужие/неизвестные ID не перенаправляются по совпадению имени.
+`rebind-fixed` verifies the original digest, IDs and every field except card order and display names. Changes to facts, documents or evidence require a newly bound plan. An author can also create v2 packets with explicit IDs directly against the [published schema](editorial-input.v2.schema.json). Import never generates missing IDs.
 
-Текущие `/2` пакеты — `evals/editorial-inputs/current/`. Исходный GPS сохранён в `v1/gps-clock/shared.json`, прежний текущий Snow — в `current/snow-pump/legacy-shared.json`; соответствия записаны рядом с новыми пакетами. Старые `/1` файлы и отчёты не пересобираются. Admission сохраняет точные исходные bytes; digest нормализованного пакета и immutable RuntimeRef различают версии. Старые manifests, source snapshots, проекции и pending requests продолжают использовать свои сохранённые данные, без автоматической миграции.
+## What the model sees
 
-## Model wire V5
+Starting with `editorial-role-projections/5`, model-facing v2 requests use short references such as `M1`, `M2` and `M3`. The run freezes the dossier digest and the exact `model-material-references/1` mapping to persistent card IDs. Preview displays that mapping separately. It applies to structured fields only. Text and quotations are never scanned for an identifier and rewritten. The server rejects a reference outside the offered catalog.
 
-Новые прогоны `editorial-role-projections/5` с досье `/2` используют `M1`, `M2`, … только на границе модели. Manifest и контекст каждой попытки сохраняют `model-material-references/1`: digest полного замороженного пакета и точное соответствие M-ссылок persisted `card_id`. Изменение порядка, имён или содержания требует новой версии; resume проверяет прежнее соответствие. Preview показывает тот же wire и возвращает карту отдельно от запроса модели.
+In the archive, `wire_output` is the structured model response and `output` is its validated representation with persistent IDs. The original provider response is preserved. Human-readable output can show display names and disambiguate duplicates. Reordering cards for a new dossier has no effect on an already bound run.
 
-Перевод направленный и затрагивает только структурные `card_id`, `material_catalog`, `material_refs`, `support_labels`, `supports`. Неизвестная ссылка вызывает validation error; подстановка по имени, поиску в строке и fallback к persisted ID отсутствуют. Проза, цитаты и идентификаторы внутри текста остаются дословными. Ответы провайдера архивируются неизменёнными; `wire_output` сохраняет структурный ответ модели, `output` — его проверенную форму с persisted ID. Собственный/fixed план, плановый редактор, фактчекер, repair и retry используют одну карту. Человеческий отчёт показывает имя, при совпадениях — имя с M-номером. Исторические V1–V4 и их экспорт не меняются.
-
-Творческие роли V5 (plan, plan-revise, draft, оба варианта rewrite) используют `creative_card_view`/`creative_dossier_view`. Необязательное цельное `story_facts` в `/2` передаётся как claim без усечения; без него передаются прежние claim/context. Проверяющие роли сохраняют исходные claim, context, limitations и точные доказательства. Вопрос принятого плана и prerequisite_concepts остаются у автора. `/1` не принимает story_facts; отсутствие поля в старом `/2` не меняет его dump или digest.
+The optional v2 `story_facts` field supplies a card's narrative account when available. Older cards continue to supply their claim and context. Source passages and limitations stay available in the complete dossier. [Current packets](../../evals/editorial-inputs/current/) and [original v1 inputs](../../evals/editorial-inputs/v1/) illustrate both forms.

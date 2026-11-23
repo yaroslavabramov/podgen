@@ -1,6 +1,6 @@
-# Canonical contracts v1.0
+# Canonical contracts
 
-Владелец: `backend/src/podgen/domain/contracts/registry.py`, 44 artifact kinds по 00–06. `generated/registry.json` указывает владельца и версию; API/model schema views ссылаются на те же canonical definitions. Источник схем редактируется в Python, generated JSON проверяется тестом на точное совпадение.
+The [Python registry](../backend/src/podgen/domain/contracts/registry.py) defines Podgen's artifact kinds and schema versions. The [generated registry](generated/registry.json) lists them and points to the published JSON Schemas. Make schema changes in the registry and regenerate the files from the repository root.
 
 ```sh
 uv run --directory backend python -m podgen.schema_export --out ../contracts/generated
@@ -8,16 +8,21 @@ node --experimental-strip-types contracts/check-golden.ts
 uv run --directory backend python -m podgen.package_cli validate ../contracts/examples/research-note-package.json
 ```
 
-`golden.json` фиксирует Python/TypeScript JCS/hash/Unicode vectors. `canonical.ts` реализует независимую TypeScript сторону; JSON object keys сортируются по UTF-16, envelope input_refs — множество, payload arrays сохраняют порядок. Decimal values и integers за safe integer range — строки. Null отличается от отсутствующего поля; невалидные Unicode/NaN/Infinity отклоняются.
+## Canonical bytes
 
-Пакет `podgen-fixture-v1`:
+The Python implementation and [TypeScript implementation](canonical.ts) share [golden vectors](golden.json) for canonical JSON, hashing and Unicode ranges. Object keys use UTF-16 sort order. The envelope treats `input_refs` as a set; payload arrays retain order. Decimal values and integers outside the safe-integer range use strings. Null is distinct from an absent field. Invalid Unicode, NaN and infinity fail validation.
 
-- `artifacts`: `key`, `kind`, полный `payload`, `input_keys`, `audience`, `identity_of` (null для первой версии).
-- `runtime_records`: `key`, `record_kind`, полный `payload`, `audience`.
-- `blobs`: `key`, относительный `path`, точные `sha256`, `byte_length`, `media_type`.
-- `external_refs` / необязательный `external_runtime_refs`: явные exact refs уже существующего разрешённого scope.
-- В payload: `{"$artifact":"key"}`, `{"$runtime":"key"}`, `{"$blob":"key"}` или `{"$text":"relative-file.txt"}`. Локальные пути не выходят из корня пакета.
+## Fixture packages
 
-Дубли, циклы, неизвестные bindings, неверные kind/subtype и hash дают ошибку. Offline validate проверяет schema/ref graph; транзакционный import дополнительно проверяет ACL, existence, selectors и согласованность досье/плана/сценария. Schema pass не выдаёт semantic acceptance.
+The [example package](examples/research-note-package.json) illustrates `podgen-fixture-v1`. Its top-level collections describe the concrete inputs and their references.
 
-Сырые WP-02 Markdown/TXT пока принимаются отдельным `editorial-staging-v1` путём; [инструкции](../backend/README.md). Это не альтернативная схема принятых production artifacts.
+| Collection | Contents |
+| --- | --- |
+| `artifacts` | A package-local `key`, `kind`, complete `payload`, `input_keys`, `audience` and `identity_of`. The first version uses a null identity link. |
+| `runtime_records` | A `key`, `record_kind`, complete `payload` and `audience`. |
+| `blobs` | A `key` and relative `path`, with `sha256`, `byte_length` and `media_type`. |
+| `external_refs`, optional `external_runtime_refs` | Exact references to existing authorized records. |
+
+Payload entries can bind to another artifact (`{"$artifact":"key"}`), runtime record (`{"$runtime":"key"}`), blob (`{"$blob":"key"}`) or UTF-8 file (`{"$text":"relative-file.txt"}`). Files must stay inside the package root.
+
+Offline validation checks the schemas, graph, bindings and digests. A transactional import also checks permissions, the existence of external references, selectors and relationships between dossier, plan and script. Editorial acceptance is recorded separately. For raw Markdown and text cases, see the [editorial staging guide](../backend/README.md#try-the-storage-and-editorial-contracts).

@@ -1,98 +1,45 @@
-# Editorial input v1 и v2
+# Editorial input and writing contracts
 
-`writing_cli run` принимает `author_ref` на импортированный `editorial-input/1` или `editorial-input/2`.
-Фиксированный режим дополнительно требует `--fixed-plan-input-ref`; собственный план запрещает эту ссылку.
-Задание не ограничено двумя архивными темами: формат, язык, голоса и независимые target/min/max длительности задаются в JSON.
+An editorial packet describes one assignment and the documents that support it. The assignment sets the language, speakers, format, target duration and acceptable duration range. Each card records a claim and its supporting passages. A separate fixed-plan packet lets an operator compare authors on the same plan. An own-plan run starts from the shared packet alone.
 
-Канонические редакторские файлы: `evals/editorial-inputs/v1/<assignment.key>/shared.json` и отдельный `fixed-plan.json`.
-Полные JSON, исходники, точные диапазоны цитат и привязки сохраняются без усечения. Цитаты проверяются по Unicode codepoints `[start,end)` со строгими границами. Общая часть никогда не ссылается на фиксированный план.
-`shared_input_digest` — канонический `podgen.domain.canonical.digest` разобранного shared JSON.
+## Published schemas
 
-`source-map.json` сопоставляет физические `source_path` с авторизованными RuntimeRef или SourceRepresentation ArtifactRef.
-Для замороженных файлов проверяется происхождение импорта и единая область корпуса; копии фиксированных планов/контрольных текстов не допускаются как свидетельства.
-Для новых заданий есть `editorial-source-import --file FILE --source-path PATH --scope SCOPE --purpose primary --out REF.json`;
-назначения `brief`, `dossier`, `fixed_plan` также явные. Одна область `scope` связывает документы задания.
+| Contract | Definition |
+| --- | --- |
+| Current shared dossier | [editorial-input.v2](editorial-input.v2.schema.json) |
+| Fixed-plan import | [accepted forms](fixed-editorial-input.current.schema.json), [v2](fixed-editorial-input.v2.schema.json) |
+| First-generation inputs | [shared v1](editorial-input.v1.schema.json), [example](editorial-input.v1.example.json), [fixed v1](fixed-editorial-input.v1.schema.json) |
+| Planning model responses | [plan](planning-output.current.schema.json), [plan review](plan-review-output.current.schema.json) |
 
-Все команды ниже имеют общий префикс:
+[Reusable cases](../../evals/editorial-inputs/) contain matching `shared.json` and `fixed-plan.json` files. A fixed plan includes the canonical digest of its shared input. The shared packet has no dependency on the fixed plan. The active run freezes its inputs, including their exact source references and bytes.
 
-```sh
-uv run --directory backend python -m podgen.writing_cli \
-  --project PROJECT_UUID --actor ACTOR_UUID --objects /absolute/object-store
-```
+## Source admission
 
-Импорт без модели:
+For each `source_path`, supply an authorized runtime record or source representation in `source-map.json`. Staged documents must come from the same import scope. A primary source must be eligible for generation. The importer validates quoted text and exact half-open Unicode code-point offsets `[start,end)` against the underlying document. It also checks the scope and digest when binding a fixed plan.
 
-```text
-editorial-import --input shared.json --source-map source-map.json --out shared-ref.json
-fixed-editorial-import --input fixed-plan.json --source-map source-map.json --shared-ref @shared-ref.json --out fixed-ref.json
-```
+The [writing walkthrough](../WRITING-EVALUATION.md) shows how to import the bundled GPS dossier. For a new case, `editorial-source-import --file FILE --source-path PATH --scope SCOPE --purpose primary --out REF.json` registers one file. Use the same scope for related files and assign their actual purposes (`primary`, `brief`, `dossier` or `fixed_plan`). Map the packet's paths to the resulting references before running `editorial-import` or `fixed-editorial-import`.
 
-Offline preview использует локальную БД (`PODGEN_DATABASE_URL`) и хранилище, без ключа API, клиента провайдера и endpoint подсчёта:
+In v2, `card_id` stays stable across display-name changes. `narrative_excerpt_indices` optionally selects narrative passages from a card's complete `excerpts` list. Entries are unique, nonnegative, zero-based indices. Omission or an empty list selects no narrative excerpts; `null` and out-of-range indices are invalid. For production author requests pinned to `selected-card-excerpts/1`, selected cards supply **all** their stored source excerpts for drafting and revision. Planning roles keep their own selection. See [card identity](card-identity.md).
 
-```text
-preview --shared-ref @shared-ref.json --fixed-ref @fixed-ref.json --case ASSIGNMENT_KEY --stage draft --profile @writer-profile.json --run-id NEW_UUID --out preview.json
-```
+## Preview inputs
 
-Для own draft: вместо `--fixed-ref` передать `--approved-plan plan.json` (чистый PlanningOutput).
-Для `review`/`revise`: `--draft draft.json`, для правки также `--feedback review.json`.
-Для `plan-review` нужен `--candidate`; для `plan-revise` также `--plan-review`.
-Поддерживаются отдельные `anchor-repair` (`--draft`, `--feedback`) и `plan-target-repair` (`--candidate`, `--plan-review`).
-Это чистые объекты контрактов, без архивных обёрток `output`.
-Для каждой стадии обязательны ровно её входы: planning не принимает `--fixed-ref`; writer/review/revise требуют ровно один источник плана (`--fixed-ref` либо `--approved-plan`). Лишние/отсутствующие входы отклоняются до чтения источников. Preview правки после `keep` также отклоняется: такой модельный вызов runner не создаёт.
-Preview сохраняет полный wire и размеры instructions/input/schema; при превышении лимита файл остаётся доступен, команда возвращает validation error.
+`writing_cli preview` builds a role request locally. Use the common `--run-id`, `--case`, `--profile`, `--shared-ref` and `--out` options from the [walkthrough](../WRITING-EVALUATION.md). Supply contract objects in JSON files without an archive's outer `output` wrapper.
 
-Новые границы: 128 КиБ суммарного JSON представления instructions/input/schema до создания клиента;
-32 768 входных токенов на вызов после provider count, до submit.
-Суммарные defaults: 196 608 входных и 131 072 выходных токена. Выход целиком резервируется по профилю, тексты не укорачиваются автоматически.
-Исчерпание лимита останавливает запуск; сохранённые запросы и ответы доступны через `inspect`.
+| Stage | Additional input |
+| --- | --- |
+| `plan` | The shared dossier |
+| `plan-review` or `plan-review-revised` | `--candidate` |
+| `plan-revise` or `plan-target-repair` | `--candidate` and `--plan-review` |
+| `draft` | Exactly one of `--approved-plan` and `--fixed-ref` |
+| `reader-review` or `fact-review` | `--draft` |
+| `revise-1` or `revise-2` | `--draft`, `--reader-feedback` and `--fact-feedback`; a supplied `--composition` can carry forward the current narrative choices |
+| Historical informed `review` or `revise` | One source of the plan and `--draft`; revision also requires `--feedback` |
+| `anchor-repair` | `--draft` and `--feedback` |
 
-`keep` без обязательных правок и нерешённых вопросов завершает выпуск точным сохранённым draft, без revise invocation и оплаты повторной генерации.
-`finalization` фиксирует источник и отзыв; экспорт содержит полный `final.txt` и совместимый `revise.txt`, явно помеченные `origin=unchanged_draft`, `model_call=false`.
-`needs_material`, вопросы без свидетельств и противоречивые решения останавливаются после сохранения отзыва.
+Preview preserves the full request and reports its size. A live run also accounts for provider counts, output reservations and its pinned per-stage budget. Published limits and recovery options are in the [budget guide](../../docs/podcast-production/input-budget-recovery.md).
 
-Исторические bytes, лимиты и схемы не пересобираются. Завершённые replay/inspect бесплатны.
-Сетевое продолжение legacy отключено с `legacy_outbound_disabled_start_compact_run`; raw-флаг в CLI отсутствует.
-Старый compiler доступен только тестам через явно внедрённый `legacy_offline_transport`, отдельно от обычной фабрики провайдера.
+## Model-facing views and replay
 
-Локальная проверка реального корпуса и сохранённых сложных планов (без endpoint; старые адреса опор явно сопоставлены новым карточкам только в диагностической копии) дала следующие размеры полного видимого запроса:
+The run manifest records its projection, role-specific schema versions, prompts and input bindings. A saved run keeps these versions on resume. Older manifests without `role_projection_version` use their original `/1` projection. Unsupported versions fail before a provider call. The submitted response and its validated, persistent representation remain available separately.
 
-| Роль | GPS, байты | Snow, байты |
-|---|---:|---:|
-| Собственный план | 33 285 | 46 171 |
-| Проверка плана | 73 792 | 106 662 |
-| Правка плана | 65 515 | 81 639 |
-| Автор по собственному плану | 43 846 | 55 584 |
-| Проверка текста | 67 295 | 105 019 |
-| Правка текста, если нужна | 65 306 | 81 704 |
-
-Это размеры запросов, а не измеренный расход нового модельного запуска. Реальный Snow anchor repair: три замечания, 29 предложенных точных диапазонов вместо 192, payload 14 572 байта. Ни один текст не усекался. Фактический token count применяется только при явно запущенном новом сетевом `run`.
-
-Ролевой wire и model-facing описания схем теперь отдельно закрепляются как `role_projection_version=editorial-role-projections/4`. Persisted имена и формат editorial inputs `/1` сохранены. В проекциях /2 и /3 writer получает `story.listener_promise`, `story.conclusion.{meaning,qualifications}` и `story.speaker_contributions` (`interaction_purpose` вместо старого model-facing `interaction_guidance`). Это плановые решения; речь пишет автор.
-
-Принятый старый план также допустим: полный `answer_to_deliver` переносится дословно под `conclusion.meaning`. Автоматической переработки готового старого монолога в смысловую заметку нет. Все исходные поля остаются в сохранённом плане/архиве. Входы review/revise начинаются с реального `draft`, затем идут assignment и `editorial_frame` (listener_promise, qualifications, limitations, unresolved_questions), без планового closing и партитуры.
-
-Manifest без `role_projection_version` использует прежнюю проекцию `/1` и её прежние model-facing схемы. Уже закреплённые prompts/requests/schemas не заменяются; подготовленная попытка продолжает использовать свои bytes. Неизвестная версия отклоняется до провайдера. Schema snapshots editorial/fixed inputs описывают прежнюю persisted-структуру и не требуют миграции: в новом model-facing output schema изменились определения смысла полей, а не их имена или допустимый объём текста.
-
-В `/3` принятый центральный вопрос передаётся явно как `story.main_question` и `editorial_frame.main_question`, в том числе когда его текст совпадает с исходным `assignment.question`. Это разные роли данных: исходное поручение сохраняется, а автор и редактор получают вопрос выбранной версии плана без неявного fallback. `opening.question_to_open` остаётся локальным вопросом завязки и может совпадать с центральным. `/1` и `/2` сохраняют прежние схемы, поля и порядок сериализации при resume/replay. `route_summary` не добавлен: порядок и связи актов продолжают передаваться существующими полями.
-
-Новые запуски используют два независимых чтения сценария. Wire, bounded cycles, импорт готового текста и совместимость: [independent-readings.md](independent-readings.md).
-
-В `/4` новые plan/plan-revise schemas не содержат `limitations_to_voice`, ending.qualifications и общего limitations; plan-review не содержит общего important_limits. Старые поля остаются в compatibility-моделях: импорт и persistence сохраняют их полностью, а в новых записях отсутствующие поля не создаются. Новые model-facing candidate views и каталоги targets не предлагают эти поля. Схемы `/1`–`/3`, их сериализация и закреплённые resume остаются прежними.
-
-Автор `/4` получает из duration_strategy только estimated_seconds_range. Общие списки ограничений не копируются в story, editorial_frame, necessary_limits или revision_guidance. Точные условия карточек, явно заданные темы/исключения задания, адресные findings.preserve, цитаты и repair_evidence сохранены; общие списки отзывов доступны в полном архиве. Это изменение структуры входов без переименования списков, пересказа смыслов или смысловых фильтров.
-
-Актуальные strict model-facing схемы: [planning-output.current.schema.json](planning-output.current.schema.json), [plan-review-output.current.schema.json](plan-review-output.current.schema.json). [fixed-editorial-input.current.schema.json](fixed-editorial-input.current.schema.json) описывает импорт новых и исторических форм; прежний fixed-editorial-input.v1.schema.json сохранён без изменений.
-
-Текущие досье используют [editorial-input.v2.schema.json](editorial-input.v2.schema.json) и [fixed-editorial-input.v2.schema.json](fixed-editorial-input.v2.schema.json): неизменяемый card_id отделён от обоих редактируемых имён. [Контракт, создание, миграция и привязки](card-identity.md). Исторические `/1` схемы и данные сохранены.
-
-В v2 карточка может содержать необязательный `narrative_excerpt_indices`: уникальные целые неотрицательные индексы в её полном `excerpts`. Пустой или отсутствующий выбор не передаёт повествовательных цитат; `null` недопустим. Ограничения количества нет. V9 передаёт только выбранные дословные выдержки с атрибуцией, фактчек сохраняет весь набор. Прежние v2 без этого поля остаются валидны; опубликованная v1 не меняется и запрещает новое поле. Стандартная JSON Schema проверяет форму, типы и уникальность; соответствие индекса длине соседнего массива `excerpts`, источникам и точным диапазонам проверяет обычный импорт.
-
-`test_published_editorial_schema.py` проверяет полные реальные Snow/GPS и исторические входы внешним `jsonschema.Draft202012Validator` непосредственно по опубликованным файлам, а также совпадение этих файлов с `packet_schema`. Это отдельная проверка от Pydantic и допуска источников; новые поля нельзя добавлять только в Python-модель.
-
-В `/6` только новые `plan` и `plan-revise` получают описания полей, ориентированные на выбранную историю: содержание начала, ответа и актов, связи переходов, конкретный вклад ведущих. `assumptions` описывает основания оценки времени, `optional_material` — материал для изменения длительности; пустой список допустим. Имена, типы, required, enums и полный материал остаются прежними. Остальные роли используют схемы и входы `/5` без изменений. Прогоны `/6` закрепляют эту версию; resume V1–V5 воспроизводит прежний текст описаний, запросы и материал по своей версии. Проверка schema equality в service сохраняется и отклоняет несовместимость до вызова модели.
-
-Проекция `/7` сохраняет свой контракт. В этой версии меняются входы сценарных ролей: полный выбранный `route_summary` передаётся автору и правщику; холодный читатель получает заданную длительность и компактные данные о длине текста. Оба вида правки получают `positive_observations` с полным reason и локатором вместо списков замороженных мест. Response schemas совпадают с `/6`; архивные `/1`–`/6` сохраняют прежние bytes. [Контракт V7](../../docs/podcast-production/08-editorial-inputs.md#передача-сценария-в-v7).
-
-Новые прогоны закрепляют `/8`: `story.authority`/`editorial_frame.authority` отделяют пересматриваемые авторские решения от задания, а `story.acts[].suggested_priority` сохраняет редакторскую рекомендацию исходного плана. [Контракт V8 и закреплённых образцов](../../docs/podcast-production/08-editorial-inputs.md#авторские-решения-и-справочные-образцы). Независимая версия читательской схемы `/2` добавляет адресный `revision_scope`; [контракт](independent-readings.md).
-
-В V8 plan-review обеих итераций получает тот же `creative_dossier_view`, что планировщик, вместо summary, повторных редакционных ограничений и второй формы карточек. Полные assignment и evidence сохраняются; фактчекер получает прежний полный материал. В старых карточках без story_facts творческая проекция сохраняет полный claim и context. Описания существующих полей рецензии оценивают доступную историю и последовательность раскрытия; decision расположен после разбора. Типы и обязательные поля не меняются.
+For the author, the accepted plan supplies the main question, listener promise, route and contributions expected of each speaker. For reviewers, the packet depends on the reading task and its pinned schema. See [independent readings](independent-readings.md), [addressed revisions](addressed-script-revision.md), [the v7 script handoff](../../docs/podcast-production/08-editorial-inputs.md#v7-audio-handoff) and [editorial choices and reference examples](../../docs/podcast-production/08-editorial-inputs.md#editorial-choices-and-reference-examples).

@@ -1,9 +1,10 @@
 # Addressed script revision
 
-New compact independent readings pin `addressed-script-revision/1`,
-`listener-experience/5`, `fact-revision/2`, and all three private response schemas
-in the run manifest. Public results remain complete `WriteOutput` scripts.
-Historical manifests retain their original full-script revision contract.
+Independent readings pin `addressed-script-revision/1`, the two reading schemas
+and the private revision response schemas in the run manifest. The public result
+is a complete `WriteOutput` script. Older full-script runs keep their original
+contract. See [independent script readings](independent-readings.md) for the
+current reading versions.
 
 Both editors explicitly choose `revision_scope.scale`. Runtime never infers scope
 from text length or finding count. `local` allows several distant independent
@@ -52,10 +53,10 @@ duplicate operations, no-ops, empty scripts and invalid speakers fail validation
 Unchanged text outside authorized effects is preserved exactly. The application
 record stores the wire output, exact effects and source/result hashes for replay.
 
-The fact handoff includes findings, evidence, preserve instructions, research
-requests, scope, recommendation and related strengths. Its private listening
-summary, duration note and general limits remain in the full archived review.
-The reader handoff preserves its listening assessment.
+For production runs pinned to `script-edit-assignment/3`, the writer receives
+required assignments from the two reviewers and the evidence needed for factual
+repairs. Audit rationales and previous verdicts stay in the archived reviews.
+Earlier manifests use their original handoff.
 
 ## Lifecycle
 
