@@ -55,8 +55,7 @@ Isolated branch `codex/reusable-document-index-20261113` from `b3d49764`. Migrat
 PostgreSQL validation passed: 40 targeted cases, 25 replay/compiler cases and
 18 current document-cache cases (the last reruns the initial 16 cache cases plus
 two added withdrawal cases). There are 67 distinct cases across these suites.
-Real SQL/ONNX and counted-double operation measurements are recorded in
-`evals/reports/2026-11-13-reusable-source-index/validation.md`.
+Both the real ONNX and counted-inference runs reused the document vectors on the second independent execution, with zero repeated document embeddings. New queries still required query encoding, authorized retrieval and reranking.
 
 
 Source access uses the unchanged `IndexAccess` interface. The whole pinned

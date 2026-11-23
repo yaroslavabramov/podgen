@@ -1,56 +1,45 @@
-# Поиск по закреплённым первоисточникам
+# Searching pinned source documents
 
-Новые выпуски production используют `frozen-corpus-tools/4`, профиль `hybrid-local/1`. Полный профиль с revisions и SHA-256 моделей закрепляется в манифесте. Запуски `/1`–`/3` сохраняют прежние объявления инструментов и буквальный поиск; их resume не требует новых моделей.
+The original `hybrid-local/1` profile shipped with `frozen-corpus-tools/4`. Earlier tool versions use their original literal search. Later tool profiles add larger corpora, pagination and continuation. The manifest pins the search contract, model revisions and checksums for a particular run. [Current corpus runtime](research-corpus-runtime.md)
 
-## Установка
+## Installation
 
-Из корня репозитория:
+From the repository root, configure `PODGEN_DATABASE_URL` for the database described in the backend guide. [Local setup](../../backend/README.md)
 
 ```sh
 uv sync --directory backend --locked
 docker compose -p podgen-wp01 -f backend/compose.yaml up -d --build
-# PODGEN_DATABASE_URL задаётся как в backend/README.md.
 uv run --directory backend alembic upgrade head
 uv run --directory backend python -m podgen.retrieval prepare
 uv run --directory backend python -m podgen.retrieval check
 ```
 
-Миграция `0019` создаёт PostgreSQL FTS/pgvector проекцию; `0020` связывает её с отзывом содержимого. Серверу PostgreSQL 17 нужен установленный pgvector и право владельца БД выполнить `CREATE EXTENSION vector`. Штатный Compose включает расширение. `0020` удаляет только пересоздаваемые индексы прежнего прототипа, затем первый запуск строит их заново; источники и оплаченные ответы сохраняются.
+The bundled PostgreSQL 17 service includes pgvector. An external database needs that extension installed and permission to enable it. Migrations 0019 and 0020 introduced the projection and its withdrawal rules. The derived index can be rebuilt from retained source data.
 
-`prepare` скачивает около 270 МБ общих весов/токенизаторов по закреплённым revisions, проверяет каждый SHA-256 и публикует файлы атомарно. Незавершённая загрузка не считается установленной моделью. Каталог по умолчанию — `~/.cache/podgen/source-search/models`; `PODGEN_SEARCH_CACHE` меняет корень. **Текстов, запросов и векторов источников в этом файловом кеше нет.** После установки работа моделей полностью локальна, источники не отправляются внешнему сервису.
+`prepare` downloads roughly 270 MB of pinned models and tokenizers. It verifies each SHA-256 before atomic publication. Set `PODGEN_SEARCH_CACHE` to override the cache at `~/.cache/podgen/source-search/models`. The filesystem cache holds model assets. Source text and vectors stay in project-scoped storage. Local inference uses the E5 multilingual small encoder and the mMARCO multilingual MiniLM reranker. [Encoder](https://huggingface.co/intfloat/multilingual-e5-small) · [ONNX conversion](https://huggingface.co/Xenova/multilingual-e5-small) · [Reranker](https://huggingface.co/cross-encoder/mmarco-mMiniLMv2-L12-H384-v1)
 
-Encoder — [multilingual E5 small](https://huggingface.co/intfloat/multilingual-e5-small), MIT, ONNX-конверсия [Xenova](https://huggingface.co/Xenova/multilingual-e5-small). Reranker — [mMARCO multilingual MiniLM](https://huggingface.co/cross-encoder/mmarco-mMiniLMv2-L12-H384-v1), Apache-2.0. Jina v2 не используется: её [лицензия](https://jina.ai/en-US/models/jina-reranker-v2-base-multilingual) ограничивает коммерческое применение. Python-зависимости закреплены в `backend/uv.lock`; Torch и исполнение remote model code не требуются.
+## Run, preview and resume
 
-## Обычные run, preview и resume
+An ordinary run with this contract checks project access and model installation, then prepares the index before submitting to the writing provider. Preview shows the tool declarations without downloading models or building the index. Resume reuses the original manifest and completed tool results. Missing dependencies or an incomplete index produce a technical error. After the cause is resolved, resume continues the unfinished operation.
 
-Никаких новых флагов выпуска не требуется. Run получает project и immutable shared input из обычного контекста, проверяет доступ и модели, строит project-local индекс до первого платного запроса. Preview показывает закреплённые объявления инструментов, но не скачивает модели и не строит индекс. Resume использует pin исходного манифеста и сохранённые ответы/результаты инструментов.
+The projection key includes project, shared input record, profile SHA-256, source ID and source text digest. PostgreSQL holds FTS data, exact tokens, vectors, offsets and blob dependencies. Each source publishes atomically. Blob withdrawal cascades to index rows and blocks republication. The project lock serializes publication and reading against withdrawal. Model computation takes place outside that lock.
 
-Если веса, зависимости или индекс недоступны, явная техническая ошибка приостанавливает работу. Замены семантического поиска буквальным нет. После исправления причины обычный resume продолжает незавершённый инструмент, сохраняя уже оплаченный ответ модели. Read/search проверяют актуальный доступ, включая выдачу из памяти текущего вызова.
+## Search contract
 
-Проекция привязана к `(project_id, shared_input_record_id, profile_sha256, source_id)` и SHA исходного текста. PostgreSQL хранит координаты, FTS, точные токены, векторы и связи со всеми blob зависимостями входа. Другой project не переиспользует приватные векторы. Публикация одного источника атомарна; неполная проекция перестраивается. Отзыв через `blob_access_revocations` удаляет соответствующие строки с cascade и запрещает их повторную публикацию. Общий project lock сериализует отзыв с чтением и публикацией; модельное вычисление не держит этот lock.
+1. `query` accepts a question in the episode language, including a Russian question about an English source. The hybrid profile limits a query to 1,000 characters and 128 model tokens. An oversized query returns an error.
+2. `within=S…` restricts the search to one source. `within=M…` searches the original documents behind the card, including material outside its excerpts. With no scope, the tool searches the admitted primary documents. Scope applies before dense retrieval, full-text ranking and reranking.
+3. Three branches retrieve up to 96 candidates each. PostgreSQL performs language-appropriate FTS (`english`, `russian` or `simple`), a literal branch preserves exact names and numbers, and dense search measures distance within the bounded corpus. Reciprocal rank fusion combines candidates, then a multilingual cross-encoder reranks their union.
+4. A page returns up to six results within 6,144 UTF-8 bytes. A result has a source alias, title preview, a verbatim preview up to 280 characters, its precise preview offsets and the full ranked window's offsets. All offsets count Unicode code points in the source. Follow the continuation to read more. `read_source` opens the original range and issues an E receipt. A search hit supplies a location for reading.
+5. Scores and component ranks stay in `source_search_diagnostics` and the stage's `source-search.json` export. Even a question with no answer in the corpus may have a nearest neighbor. The reviewer establishes support from the passage.
 
-## Контракт поиска
+The original bounded profile admits at most 64 primary documents, two million source characters and 12,000 overlapping 224-token chunks. It fails explicitly on overflow. The streaming profile has a separate contract. The in-memory adapter is available for explicitly configured offline evaluations.
 
-- `query` допускает вопрос на языке сценария, в том числе русский к английскому источнику; пределы — 1000 символов и 128 model tokens. Превышение возвращает явную ошибку, не обрезает вопрос.
-- `within=S…` ограничивает источник; `within=M…` — первоисточники карточки, включая текст за пределами её excerpts. `null` означает только допущенные primary documents этого входа. Фильтр применяется **до** dense distance, FTS и reranker.
-- PostgreSQL FTS выбирает `english`, `russian` или `simple` по языку источника. Отдельная ветка сохраняет точные имена, числа, идентификаторы и фразы. Dense поиск исчерпывающий внутри разрешённого bounded corpus, без ANN-потерь под фильтром.
-- Из каждой из трёх ветвей берётся до 96 кандидатов; RRF объединяет их, затем multilingual cross-encoder ранжирует весь union. Это конечный candidate set, не заявление об исчерпывающей выдаче всех упоминаний. Расширение пула исправило измеренные потери на обычных русских вопросах; оно увеличивает локальное время rerank, но не размер страницы.
-- Модель получает до шести результатов и не более 6144 UTF-8 байт JSON: source aliases, по одному `title_preview` на источник, точный `preview` до 280 символов с собственными `preview_start/end`, границы полного отранжированного фрагмента и `read_start`. При совпадении preview сдвигается к слову. Продолжение — тот же query/scope с `next_offset`; байтовая граница может уменьшить число строк страницы.
-- `start/end` адресуют полный фрагмент; `preview_start/end` — только дословный preview. Все позиции — Unicode code points исходного текста. `read_source` открывает остальное и создаёт `E…` evidence receipt; поиск receipt не создаёт.
-- Scores, ранги ветвей, fusion и rerank сохраняются отдельно в `source_search_diagnostics`, экспорт — `archive/<stage>/source-search.json`. Они не передаются редактору и не означают истинность или наличие ответа. Даже посторонний вопрос может иметь ближайшие фрагменты; необходима проверка оригинала.
+## Duplicate passages and text variants
 
-Профиль принимает до 64 primary sources, 2 млн символов и 12 тыс. overlapping chunks по 224 токена. Превышение явно останавливает построение, не исключает остаток корпуса. Другие размеры, модели или preprocessing требуют нового профиля. `podgen.retrieval.memory.MemoryIndex` — только явно выбранный неперсистентный adapter для офлайн-квалификации, не рабочий fallback.
+`passage-diversity/1` groups exact windows by text digest before a branch applies its candidate limit. Every original `(source_id, start, end)` remains addressable. Nearby versions may form a navigation group after ranking. The policy requires at least 20 tokens and 65% shared seven-token sequences, with at least 85% token agreement for close variants. Only whitespace may differ for an expanded range to count as identical. Migration 0030 records window text digests and backfills them in bounded batches.
 
-## Версии текстовых окон
+`overlapping_text_variants` exposes both verbatim variants with source ID, range and surrounding context. An absent insertion has an empty range. Differences that cannot be shown within 1,024 bytes remain separate results. The tool displays two alias selectors up front. Follow `next_alias_page` with `aliases_of` to reach the rest. Each reading rechecks access. Multiple aliases for the same wording provide navigation across copies, without establishing independent corroboration.
 
-Новые закреплённые профили hybrid и streaming добавляют `retrieval_policy=passage-diversity/1`. Старые профили, объявления инструментов, preview и resume сохраняют исходное поведение. Политика меняет поиск и идентичность сохранённой выдачи; неизменные документные векторы переиспользуются. Миграция `0030` добавляет SHA-256 исходного текста окна, существующие значения заполняются ограниченными пакетами при подготовке новой политики.
+## Verification
 
-Строгие копии объединяются по SHA-256 **до лимита каждой ветви**. Каждый исходный `(source_id,start,end)` сохраняется. После ранжирования перекрывающиеся окна могут образовать одну навигационную группу: минимум 20 токенов, не менее 65% общих семитокенных последовательностей, для близких версий — не менее 85% совпадения токенов. Объединение без различий требует полного совпадения расширенного диапазона, кроме пробелов. Обычные соседние окна с большим самостоятельным содержанием остаются отдельными.
-
-`overlapping_text_variants` означает близкие версии текста, а не эквивалентность фактов. Все вставки, удаления и замены показываются в `variants[].versions`: обе стороны содержат дословный текст, source ID, точные границы и отдельный короткий исходный `context`. У отсутствующей вставки `start=end`, текст пуст; её контекст остаётся читаемым. Числа, отрицания и авторство не классифицируются эвристиками. Весь набор различий с контекстом должен помещаться в 1024 UTF-8 байта; иначе окна остаются отдельными, без обрезания различий. Общая страница по-прежнему ограничена 6144 байтами.
-
-`aliases` — исходные окна, а не утверждение об их эквивалентности. Первые два селектора видны сразу, остальные открываются через `next_alias_page` тем же `search_sources` с `aliases_of`; полный текст доступен через `read_source`. Текущий доступ проверяется для источников показанных окон и различий. Полные списки сохраняются в результате, не загружаются целиком в контекст модели. Группа не считается независимым подтверждением и не устанавливает происхождение публикаций.
-
-## Адресные проверки
-
-`test_source_search_index.py` проверяет настоящий PostgreSQL/pgvector: nonempty cards, scope всех ветвей, русский FTS, private project isolation, атомарную публикацию, отзыв и конкурирующую сборку. Inference double в этих тестах выбран явно. `test_hybrid_source_search.py` проверяет точные compact previews, пагинацию, байтовый предел, corpus bounds и восстановление прерванной установки. `test_source_tool_runtime.py` проверяет resume незавершённого инструмента без повторной отправки модели. Качество настоящих моделей проверяется отдельно на оригинальных запросах и отрицательных контролях; это не заменяет интеграционные проверки.
+Database integration tests cover PostgreSQL/pgvector, scope across all branches, Russian FTS, project isolation, atomic publication, withdrawal and concurrent indexing. Offline tests exercise exact previews, byte limits, pagination, interrupted installations and resume of an unfinished tool without resubmitting to the model. Search quality requires separate queries against real source material and negative controls. [Integration tests](../../backend/tests/test_source_search_index.py) · [Offline search tests](../../backend/tests/test_hybrid_source_search.py) · [Tool runtime](../../backend/tests/test_source_tool_runtime.py)

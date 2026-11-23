@@ -1,10 +1,10 @@
-# Получение и извлечение источников
+# Acquiring and extracting a source
 
-Runtime: `podgen.sources.acquisition.service.acquire_source`. Вход и результат — `AcquisitionRequest` / `AcquisitionResult` из `sources/acquisition/contracts.py`. Это отдельный от hosted research слой: URL из отчёта не становится EvidenceSpan автоматически.
+`podgen.sources.acquisition.service.acquire_source` takes an `AcquisitionRequest` and returns an `AcquisitionResult`. It fetches the document behind a reported URL, records the bytes and produces a readable representation where possible. An exact citation requires a separate reading of that representation.
 
-## Профиль и права
+## Profile and rights
 
-Используется обычный production `Repository` с ACL проекта. Нужны существующие `Policy` refs для хранения и публикации. Минимальная подготовка:
+Use a production repository for the project and existing `Policy` references for storage and publication. The example assumes the project, repository, producer and policy references are already available.
 
 ```python
 from uuid import uuid4
@@ -41,27 +41,21 @@ request = AcquisitionRequest(
 result = await acquire_source(repo, project_id, request)
 ```
 
-Повторять нужно тот же request, включая `operation_id`. Сохранённые original и extractor output используются повторно. Изменение request под прежним ID отклоняется. Параллельный запуск той же операции получает `source_acquisition_busy`. Повторная загрузка новой версии URL требует новой операции.
+Retry with the same request, including its operation ID. The runtime reuses the saved original and extractor output. A changed request with a reused ID is rejected. Concurrent acquisition of the same operation returns `source_acquisition_busy`. Fetching a new version of a URL requires a new operation.
 
-## Что сохраняется
+## What gets saved
 
-Сначала сохраняются точные полученные bytes и acquisition record: URL, конечный URL, redirect chain, response headers, status, время. Размер ограничивается во время HTTP streaming; распаковка compressed body имеет отдельное такое же ограничение. DNS проверяется при соединении, подключение идёт к проверенному IP, proxies из окружения отключены. Cross-origin redirect не переносит credentials.
+The original HTTP body and acquisition record are saved first. The record captures requested and final URLs, redirect chain, response headers, status and acquisition time. Streaming limits bound the response and its decompressed body. Connections use a validated destination IP and ignore environment proxies. Cross-origin redirects drop credentials.
 
-`SourceRevision` указывает на эти bytes. В текущей операции сохранённый оригинал передаётся extractor напрямую; при восстановлении он читается из ObjectStore, без второго GET. Фактически выбранный extractor получает собственный frozen `ProcessingProfile`, связанный с исходным acquisition profile; representation сохраняет его имя, версию и configuration hash. Полный extractor output хранится без обрезания. Paragraph ranges относятся к этому тексту; точные DOM/PDF anchors не выдумываются.
+`SourceRevision` points to those exact bytes. The extractor receives the original directly or reads it from object storage on recovery. Its pinned `ProcessingProfile` records the extractor, version and configuration hash. The full extractor output is retained. Paragraph offsets address that text. DOM or PDF locations require an actual anchor from the extractor.
 
-Операцией законченного перехода документа владеет `AcquisitionStore.publication`: первоначальный SourceRevision и его checkpoint публикуются атомарно; после extraction отдельная транзакция публикует metadata revision, extractor profile, representation и outcome. Сохранённый extracted text переживает откат этой финальной транзакции, поэтому retry не повторяет fetch или extraction. Полные HTTP-body и acquisition record сохраняются **до** extraction. Старые раздельные checkpoints продолжают читаться.
+`AcquisitionStore.publication` publishes the original revision and checkpoint atomically. A second short transaction publishes metadata, the extractor profile, representation and outcome. Extracted text survives rollback of that transaction, allowing retry without a second fetch or extraction. Legacy checkpoints are still readable. The underlying `archive_write` transaction uses repeatable read, a project fence and a shared membership lock. A serialization retry repeats only the rolled-back SQL work. Byte processing stays outside the transaction.
 
-Составная publication и checkpoint put используют существующий `archive_write`: REPEATABLE READ, project fence и membership `FOR SHARE`. Callback выполняет только SQL; подготовленные bytes остаются снаружи, descriptors возвращаются после успешного commit. При serialization failure повторяется только откатившийся SQL callback, с новыми локальными descriptors.
+The artifact writer batches distinct dependency references and verifies subtype, lineage, current access, withdrawal and publication policy. Replaying an immutable revision leaves its links intact. Blob and selector checks are prepared outside SQL. A byte descriptor establishes content identity. Authorization is checked again at publication. [Blob publication](blob-publication.md)
 
-Общий artifact writer сначала собирает уникальные зависимости, затем пакетно читает и авторизует их в короткой транзакции. Проверка subtype выполняется для каждого поля; один ref сохраняет все заданные роли dependency/lineage. Idempotent replay старой revision не переписывает её связи. Проверка blob bytes и text selectors подготовлена вне SQL, через `object_io`; известные immutable byte descriptors переиспользуются внутри операции, но не дают разрешения на доступ. Публикация заново проверяет ACL, withdrawal и public/evaluator ограничения. Package importer использует этот же путь, читая text только для реально нужных текстовых EvidenceSpan.
+MediaWiki responses, Jina responses, discovered PDFs and browser captures each have their own acquisition record and bytes. The result distinguishes technical availability, an unconfirmed document and a failed extraction. Check diagnostics for login or consent pages, challenges, publisher shells and error responses. A successful read can still describe an incomplete or factually incorrect document.
 
-Jina, MediaWiki, promoted PDF и rendered DOM сохраняются как отдельные originals/revisions. Их связь с первоначальным URL видна в acquisition records и source metadata. Jina не выдаётся за извлечение сохранённого HTML. Browser snapshot явно отличается от HTTP original.
-
-Статусы `available`, `unavailable`, `unconfirmed`, `extraction_failed` описывают техническую доступность. Они не доказывают достоверность содержания или полноту документа. Captcha, consent-only, publisher shell, HTTP error, redirect к login сохраняются с диагностикой. Содержательный документ с HTTP 403 не отбрасывается только из-за статуса.
-
-## Локальная переработка
-
-После установки extractor или исправления extraction используйте новую операцию без нового fetch:
+## Re-extracting a saved revision
 
 ```python
 from podgen.sources.acquisition.contracts import ReExtractionRequest
@@ -78,14 +72,11 @@ result = await reprocess_source(
 )
 ```
 
-У этого API нет fetcher. Он читает original через существующий SourceRevision, сохраняет прежнюю ошибку и создаёт новые результаты. Повтор той же операции использует сохранённый результат. После отзыва ACL чтение запрещено.
+`reprocess_source` uses the original named by the revision and the current access decision. It records the new result alongside the earlier failure. Repeating the same re-extraction operation reuses its result.
 
-## Зависимости и ограничения
+## Dependencies and fallback paths
 
-Основной environment содержит Trafilatura, pypdfium2 и PyPDF2. При `pdf_mode="marker_with_text_fallback"` PDF сначала обрабатывается Marker worker с жёстким timeout, затем text-layer fallback. `pdf_mode="text_layer_only"` полностью исключает запуск Marker и OCR; используются только pypdfium2/PyPDF2. Отсутствие OCR или ошибка Marker сохраняются в diagnostics; пустой результат не становится успешным чтением скана.
-
-Проверенный legacy OCR stack закреплён: Marker 1.5.5, Surya 0.12.1, transformers 4.57.6. Он требует отдельного Python 3.12–3.13; legacy regex dependency не собирается в текущем Python 3.14. Для OCR есть отдельный проект и lockfile `backend/ocr`: `uv sync --project backend/ocr --python 3.13`. Затем задайте абсолютный путь `backend/ocr/.venv/bin/python` в `marker_python_executable` AcquisitionProfile. Worker проверяет версию Marker. Основной runtime не наследует ограничения OCR на tokenizers/huggingface-hub. OCR model weights должны быть доступны этому environment; live OCR на новых документах требует отдельной проверки.
-
-Browser — optional extra `browser`, плюс установленный Chromium (`playwright install chromium`). Для включения задайте `enable_browser=True`. Cross-origin assets и service workers блокируются; DOM ограничен по размеру. Снимок может отличаться от полноценно отрисованной страницы. Guard защищает redirects, subrequests, WebSocket и прямые WebRTC transports.
-
-Jina выключена по умолчанию; включается `enable_jina=True` с credential из `jina_credential_env` (по умолчанию `JINA_API_KEY`). Credentials не сохраняются в исходниках. PDF со страницы публикации — отдельный fetch и отдельная версия; это не повторный GET для HTML extraction.
+- The core environment includes Trafilatura, pypdfium2 and PyPDF2. In `marker_with_text_fallback` mode a time-limited Marker worker runs before text-layer fallback. `text_layer_only` skips OCR. A missing worker, timeout or empty extraction is visible in diagnostics.
+- The OCR worker has a separate environment and lockfile. Install it with `uv sync --project backend/ocr --python 3.13`, provision the model weights and set `marker_python_executable` to the absolute path of that environment's Python. The worker project pins Marker 1.5.5, Surya 0.12.1 and transformers 4.57.6 on Python 3.12–3.13. [OCR worker](../../backend/ocr/pyproject.toml)
+- New acquisition profiles enable the Chromium fallback. Install the backend's `browser` extra and Chromium (`uv run --project backend --extra browser playwright install chromium`) to make the worker available. The browser guard checks navigation and subrequests, blocks cross-origin assets and service workers and limits the stored result. A rendered capture is a separately identified representation of the page.
+- Jina is opt-in via `enable_jina` and reads its key from `jina_credential_env` (default `JINA_API_KEY`). When it points to a PDF, Podgen records that subsequent fetch as a separate original. The acquisition profile pinned in a historical run determines which routes were available there.

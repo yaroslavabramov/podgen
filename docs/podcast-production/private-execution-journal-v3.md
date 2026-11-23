@@ -1,10 +1,6 @@
 # Private execution journal v3 — implementation contract
 
-Status: implemented; efficiency acceptance remains open. See
-`../../evals/reports/2026-11-14-private-execution-journal/README.md` for measured limits
-and qualification. Replaces the
-v2 execution write/read path; v1/v2 storage becomes archive-only. No paid calls are
-authorized by this implementation task.
+Version 3 implements typed execution checkpoints and retains version 1 and 2 histories for archive reads. A historical offline test of commit `6e7d1508` replayed 43 model turns and 42 executed tools against a 51-document corpus. First-pass client SQL fell from 6,508 to 5,730, while completed-run read and export rose from 1,165 to 1,474. First-pass elapsed time increased from 161.37 to 168.70 seconds. Ordinary steps still took 67 client statements, and the first pass executed 24,004 server statements including triggers and functions. These measurements leave efficiency qualification open.
 
 ## Ownership and stored entities
 

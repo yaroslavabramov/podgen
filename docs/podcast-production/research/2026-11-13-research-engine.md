@@ -1,82 +1,21 @@
-# Исследовательский этап Podgen и план реализации
+# Why the first research stage uses a hosted service
 
-13 ноября 2026 года. Текущий код — ветка codex/production-rebuild; прежний ingestion проверен в master и podgen-legacy на 71aa34a6.
+Research design recorded on 13 November 2026. A new episode needs enough reporting to tell a story and enough original material to check the finished script. The design uses a hosted service for the initial investigation and keeps evidence, selection and editorial judgment inside Podgen. The first integration was Gemini Deep Research. An OpenAI Responses run with hosted web search was the proposed comparison if the first service proved insufficient. [Gemini Deep Research](https://ai.google.dev/gemini-api/docs/deep-research) · [OpenAI web search](https://developers.openai.com/api/docs/guides/tools-web-search)
 
-Рекомендуемый путь: первоначальное исследование поручить готовому deep research сервису, сохранить полный результат и связать его с источниками через прежний слой получения документов. Собственная часть Podgen отвечает за задание, хранение, материал для планировщика, проверку реального сценария и адресные возвраты.
+## The workflow
 
-Наличие ModelGateway не является основанием считать собственный исследовательский цикл лучшим. Способ исследования выбирается по качеству результата, доступу к источникам, возможности задавать дополнительные вопросы, цене и длительности. Существующий код влияет на способ интеграции, но не определяет исследовательский продукт.
+1. Translate the EpisodeSpec into a research assignment, specifying the audience, time and source scope, user question and report language.
+2. Submit one authorized hosted job. Retain the exact request, provider configuration, visible events, returned report and links.
+3. Acquire the linked documents and store the actual bytes with acquisition time and provenance. Extract text from those retained originals.
+4. Expose the whole report in navigable sections and give the planner and its editor access to the retained material. Keep their selections and readings.
+5. Send the accepted plan and selected material to the writer. Verify claims in the actual written script against retained source passages. Request specific additional material when needed.
+6. Pass an approved, exact script version to audio. The research service cannot choose the episode's scenes, determine final acceptance or authorize synthesis.
 
-## Первоначальное исследование
+[Hosted job implementation](2026-11-13-hosted-research-integration.md) · [Research materials](../research-materials-runtime.md) · [Corpus reading](../research-corpus-runtime.md)
 
-Начальный кандидат — Gemini Deep Research API: готовый специализированный агент, который сам выполняет поиск, чтение и синтез. Он доступен через background Interactions и возвращает отчёт. Статус preview и отсутствие structured outputs учитываются адаптером; JSON-схема Podgen не становится обязательным форматом работы исследователя. [Документация Gemini](https://aistudio.google.com/docs/deep-research).
+## What research should produce
 
-Второй кандидат — управляемое исследование OpenAI Responses с hosted web_search. Текущая официальная документация рекомендует GPT-6 Astra с high/xhigh reasoning для многошаговых исследований и долгих отчётов. Это конкретный API-вариант; равенство его поведения функции Deep Research в ChatGPT не предполагается. [Официальная документация OpenAI](https://developers.openai.com/api/docs/guides/tools-web-search).
-
-Первым проверяем Gemini на одной новой теме. Если досье недостаточно или эксплуатационные условия не подходят, получаем сопоставимый результат второго сервиса до решения о самостоятельном исследовательском цикле. Автоматического переключения провайдеров и двух параллельных производственных процессов не требуется.
-
-Ожидать сильный исходный результат от готовых deep research систем разумно. Утверждать заранее, что конкретный сервис лучше всех альтернатив или что Podgen никогда не сможет улучшить результат в узкой задаче, оснований нет. Для первой интеграции доказательство превосходства собственного исследователя отсутствует.
-
-## Где найден прежний ingestion
-
-Полная реализация есть в /Users/yaroslavabramov/side/podgen-legacy. Соответствующие ingestion файлы не отличаются между локальными master и v2-vision.
-
-| Компонент | Что уже реализовано | Что переносить |
-|---|---|---|
-| backend/app/ingestion/web.py | Trafilatura → Jina → HTTP; Wikipedia через MediaWiki API; прямые PDF; переход к PDF со страницы публикации; title/date; безопасные redirects и DNS/IP проверки | Обработчики получения и извлечения, регрессионные случаи |
-| backend/app/ingestion/pdf.py | Marker, отдельный процесс с жёстким timeout, pypdfium2/PyPDF2 fallback, совместимость OCR зависимостей | Существующий PDF путь; менять extractor по обнаруженному недостатку |
-| backend/app/ingestion/web_quality.py | Captcha, consent-only, страницы ошибок, publisher shell, очистка навигации и выбор заголовка | Техническую диагностику доступности и проверки её ложных срабатываний |
-| backend/app/generation_v2/source_corpus_web_snapshot.py | Версионированные HTML/PDF, hashes, извлечённый текст, опциональный rendered snapshot | Сохранение версий и различение представлений |
-| backend/app/generation_v2/safe_browser.py | Ограничение браузерных запросов, проверка redirects/subrequests/websocket, привязка DNS | Браузерный путь вместе с тестами |
-| backend/app/ingestion/router.py | Связь извлечения, хранения, нормализации, metadata и индекса | Предметную последовательность; привязки к старым Source/Celery/Qdrant заменить адаптерами текущей архитектуры |
-
-Это работающая база для переноса. Новый загрузчик с нуля и автоматическая замена Marker на Docling не являются исходным планом.
-
-### Что проверено
-
-В старом окружении выполнен один адресный набор:
-
-```text
-tests/test_ingestion_web_extract.py
-tests/test_ingestion_web_quality.py
-tests/test_ingestion_pdf.py
-tests/test_generation_v2_web_snapshot_quality.py
-tests/test_generation_v2_source_acquisition_security.py
-```
-
-Результат: 113 passed за 45.93 секунды. Проверки покрывают ветвление извлечения, PDF timeout/fallback, снимки, ложные служебные страницы, сетевые ограничения, восстановление и конкурирующие acquisition attempts. Это unit/adapter тесты с подменами зависимостей, а не повторная live-квалификация всех сайтов и OCR.
-
-### Что адаптировать при переносе
-
-1. Возвращать из acquisition результат с исходными bytes, конечным URL, redirects, headers, временем, выбранным extractor и ограничениями. Старый extract_web_with_profile возвращает только text/title/date/profile.
-2. Привязать извлечённое представление к конкретному сохранённому оригиналу. Старые extraction и snapshot entry points могут получать URL отдельными запросами; их результаты нельзя считать одной версией автоматически.
-3. Ограничить размер во время streaming получения. В старом _safe_fetch размер проверяется после client.get и загрузки response.content.
-4. Разделять неполное/резервное представление и оригинал. Технический статус canonical из старой схемы не является доказательством истинности содержания.
-5. Перенести сохранение в нынешние Repository/ObjectStore и SourceRevision/SourceRepresentation. Старую инфраструктуру моделей, очередей и векторной БД целиком не возвращать.
-
-Прежняя проверка Trafilatura на двух HTML остаётся полезной иллюстрацией неоднозначной привязки текста. Она не обосновывает переписывание существующего ingestion.
-
-## Итоговая цепочка
-
-```text
-EpisodeSpec
-  → готовый deep research
-  → полный отчёт и сообщённые сервисом ссылки
-  → получение и сохранение источников прежним ingestion
-  → досье и доступные полные материалы
-  → существующие планировщик и проверка плана
-  → существующие автор, редактор и фактчекер
-  → аудио
-```
-
-Недостающий материал возвращается адресным ResearchRequest. Такой возврат не требует каждый раз повторять всё первоначальное исследование.
-
-## Как ставить задание готовому сервису
-
-Задание описывает нужное понимание, аудиторию, временные границы и материал, полезный для выпуска. Исторической теме нужны последовательность событий, люди, решения, препятствия, последствия и масштаб. Технической — предпосылки, механизм и конкретный пример. Исследование сохраняет существенные разногласия без обязательного поиска искусственной альтернативы.
-
-Исследователь не пишет сценарий, рекламное вступление и порядок актов. Оговорки сохраняются там, где меняют понимание; служебные предупреждения для будущего рассказчика не требуются.
-
-Содержательный запрос — английский template с output_language и параметрами EpisodeSpec. Проект:
+For a historical topic, ask for people, decisions, obstacles, events, consequences and scale. For a technical topic, ask for the relevant mechanism, prerequisites and a concrete example. Keep a meaningful disagreement or an uncertainty next to the claim it affects. Make the research document readable enough that a planner can distinguish a promising line of inquiry from a list of facts. The original design included the following assignment template. The installed profile owns the exact request sent by a particular run.
 
 ```text
 Research the assignment below as source material for a podcast.
@@ -107,25 +46,9 @@ each contributes. Include short original passages for central conclusions
 when available, so they can be located in the source later.
 ```
 
-Никаких требований заполнить все поля огромного JSON перед исследованием. Пригодность задания проверяется по полному фактическому API request и полученному отчёту.
+## Receiving the provider result
 
-## Наша интеграция с deep research
-
-Нужен узкий HostedResearchProvider port: submit задания, получение известного job, чтение результата и доступных событий. Provider-specific transport остаётся в adapter.
-
-Сохраняются:
-
-- exact EpisodeSpec и полный отправленный запрос;
-- выбранный agent/model, API revision, настройки;
-- provider job ID сразу после его получения;
-- полный raw response и все доступные события;
-- полный текст отчёта, source annotations/links в полученной форме;
-- usage и расход, когда провайдер их предоставляет;
-- ошибки и исход с неизвестным состоянием.
-
-После обрыва сначала продолжаем известный job, а не запускаем исследование заново. Не выдумываем доступ к внутренним чтениям сервиса, которых API не раскрывает.
-
-Пример формы нашего результата — не обещание native схемы провайдера:
+Assign an immutable identity to the exact assignment, provider configuration and prepared request. Preserve the provider job ID, status, reported usage, unabridged response, parsed report, visible events and reported links. This outline describes the application record independently of the provider's response schema.
 
 ```text
 HostedResearchResult:
@@ -141,93 +64,27 @@ HostedResearchResult:
   status
 ```
 
-reported_sources означает ссылки, реально возвращённые API или извлечённые из отчёта. Нельзя называть этот список полным журналом всех страниц, которые сервис просматривал.
+An interrupted run with a known job should continue that job. If submission is uncertain, surface that state before a new charge is possible. A URL in the report is a lead. Its occurrence, an acquired revision and a passage actually read by a reviewer are separate records.
 
-### Получение и связывание источников
+## Reusing acquisition work
 
-После отчёта ingestion получает нужные источники и создаёт закреплённые представления. Полный отчёт сохраняется независимо от того, доступны ли все ссылки.
+An earlier implementation already handled HTML, PDF, rendered snapshots, error pages, safety checks, timeouts, interrupted work and concurrent acquisition. A historical adapter test run passed 113 cases in about 46 seconds with substituted dependencies. That result justified porting the useful extraction logic. It did not establish success against every live site or on a new OCR input.
 
-Различаем три состояния:
+The port needed five changes. Retain original bytes and acquisition metadata. Bind extraction to the exact saved response. Enforce limits during streaming. Keep fallback representations distinct from the HTTP original. Publish through the current repository, object storage and revision contracts. A second HTTP request can return a different document, even at the same URL. When technical quality is low, record what was actually retrieved. [Acquisition runtime](../source-acquisition-runtime.md)
 
-- сервис сослался на URL;
-- Podgen получил конкретную версию документа;
-- Podgen открыл точный участок, который можно использовать как EvidenceSpan.
+## Planning and follow-up
 
-Одна ссылка из отчёта не доказывает третье состояние. Также наш более поздний fetch не удостоверяет, что сервис читал совершенно те же bytes.
+Make the entire report available and give the planner a usable overview, source catalog, section reads, surrounding context and pagination. Log which ranges were read. Retain original report and source references beside decisions. The writer needs the selected reporting, and the fact reviewer needs original passages for the claims actually present in the script.
 
-Для найденных в отчёте точных цитат выполняется привязка к сохранённому тексту с окружением. Неоднозначность и отсутствие совпадения сохраняются явно. Если нужны дополнительные чтения, используются инструменты по уже полученным материалам. Не надо превращать импорт в ещё один общий исследовательский процесс.
+| Missing material | Appropriate next operation |
+| --- | --- |
+| A nearby paragraph, definition or table already in the corpus | Open or search the saved document. |
+| An explanation of a point in the existing report | Read the relevant section or commission a bounded follow-up on those materials. |
+| New documents or a material unresolved question | Prepare a focused hosted assignment with the passage, relevant context and question. |
+| An inaccessible document or PDF | Use the acquisition and extraction path and record the outcome. |
 
-## Как передать отчёт планировщику
+A provider conversation follow-up may use an ordinary model. If the assignment needs a fresh investigation, identify the research mode explicitly and inspect the resulting work. Consider a dedicated local research agent when a defined requirement remains unmet, such as research over a private corpus.
 
-Полный отчёт является основным исследовательским материалом и сохраняется без пересказа другим агентом ради удобного формата. Исходные документы доступны независимо от текста отчёта.
+## Qualification sequence
 
-DossierSnapshot объединяет обзор/заметки, источники и материал. При необходимости структурировать импорт сохраняется mapping от каждого полученного раздела к исходному report range. Структурирующий вызов может возвращать selectors и метаданные; он не должен незаметно переписывать объяснение и терять подробности.
-
-Ссылки, сообщённые внешним сервисом, сохраняются отдельно от подтверждённых exact evidence bindings. В canonical ResearchNote/досье нельзя выдавать URL за существующий EvidenceSpan. Если прежний карточный контракт не выражает эти состояния, исправляется входной adapter и material view, а не подгоняется способ исследования под старый формат.
-
-Текущий планировщик получает все карточки и не имеет инструментов чтения. Поэтому обязательны:
-
-1. Доступ планировщика и его рецензента к полным материалам и источникам.
-2. Вход с обзором и доступным каталогом вместо обязательной выгрузки всего корпуса.
-3. Чтение полного раздела, его окружения и продолжений.
-4. Сохранение запросов и прочитанных диапазонов.
-5. Проверка результата на самом плане и отдельной рецензии.
-
-Автор получает принятый план и полные выбранные материалы. Исследовательские служебные логи и все источники сразу в его prompt не поступают. Фактчекер проверяет утверждения реального сценария по источникам; внешний отчёт не заменяет фактчек.
-
-## Как делать доисследование
-
-Не закреплять заранее правило «первый ресёрч внешний, любой следующий обязательно свой». Выбор зависит от задачи.
-
-| Что требуется | Как выполнять |
-|---|---|
-| Открыть уже найденную таблицу, уточнить термин или прочитать соседний абзац | Существующие чтения и поиск по сохранённому корпусу |
-| Уточнить объяснение в отчёте без нового поиска | Follow-up к отчёту либо ограниченная работа модели с его материалами |
-| Найти новые документы или разобраться в новом существенном вопросе | Адресное hosted research задание с вопросом и релевантным контекстом |
-| Получить недоступный документ, PDF или читаемую версию страницы | Прежний ingestion и acquisition обработчики |
-
-В Gemini документация описывает продолжение через previous_interaction_id. Однако пример уточнения использует обычную модель. Такой вызов нельзя автоматически считать новым deep research с поиском. Для нового исследования явно выбирается исследовательский режим; его поведение проверяется отдельным результатом. [Follow-up interactions](https://aistudio.google.com/docs/deep-research#follow-up-questions-and-interactions).
-
-Собственный ограниченный агент имеет смысл, если обнаружим конкретную неудовлетворённую задачу: например, сервис плохо работает с нашим закрытым корпусом или слишком дорого выполняет короткий адресный вопрос. Это отдельное решение после наблюдаемого недостатка.
-
-Результат доисследования создаёт новую заметку/досье. Сохраняются исходный отчёт, вопрос, новые основания и причина изменения. Старые requests не переписываются, бюджеты не обнуляются. Изменение главного основания требует новой проверенной версии плана; локальное уточнение сохраняет пригодную работу.
-
-## Порядок реализации
-
-### Сначала проверить настоящий результат сервиса
-
-Подготовить одно полное задание по новой теме: цель, аудитория, временные границы, нужная глубина и подходящий материал. Получить полный отчёт Gemini Deep Research и прочитать его до строительства собственного исследователя.
-
-Эта проверка отвечает на конкретный вопрос: пригоден ли готовый отчёт как исходный материал для нашего планировщика и чего ему недостаёт. Она не определяет глобального победителя всех deep research систем.
-
-Документация Gemini оценивает типичную задачу preview примерно в 1–3 доллара; это оценка, не жёсткий потолок. Наличие бесплатной TTS квоты не означает бесплатный доступ к Deep Research. До live-вызова проверяются доступ и разрешённый бюджет; покупать подписку или включать оплату автоматически нельзя. [Availability and pricing](https://aistudio.google.com/docs/deep-research#availability-and-pricing).
-
-### Затем переносить ingestion вместе с тестами
-
-Выделить пригодные обработчики прежнего ingestion. Подключить текущие persistence/trace contracts и исправить перечисленные границы получения/версий. Сохранить регрессии для ошибок доступа, redirects, publisher shells, Wikipedia и PDF.
-
-Приёмка: источник из реального research report получен, сохранён, читается с окружением и не подменён служебной страницей. Перенос не возвращает старую базу, Qdrant или весь generation_v2 pipeline.
-
-### Подключить hosted результат к досье и планировщику
-
-Реализовать durable job adapter, сохранение полного отчёта, reported sources и material view. Подключить чтение планировщику до уменьшения его начального payload.
-
-Приёмка: реальный отчёт и sources проходят в существующие планирование и проверку плана без ручной сборки карточек и без обязательного пересказа полного материала.
-
-### Подключить адресные возвраты
-
-ResearchRequest передаёт конкретный вопрос, актуальную версию материалов и критерии нужного ответа. Выбор между чтением, уточнением и новым hosted research фиксируется явно.
-
-Приёмка: существенный пробел разрешается внутри эпизода, новый материал корректно интегрируется, общие лимиты сохраняются, неподходящий результат не выдаётся за закрытый вопрос.
-
-### Проверить полный выпуск
-
-Новая тема проходит исследование → план → его проверку → текст → действующие проверки → аудио. Затем проверяются другой тип темы и возврат на доисследование.
-
-Критерии: понимание главного вопроса, нужные предпосылки, полезный конкретный материал, масштаб и контекст чисел, существенные противоречия, действительные опоры и возможность построить связный рассказ. Количество ссылок и собственное заявление сервиса о завершении не заменяют эти результаты.
-
-## Что больше не является основной задачей
-
-Не начинать с собственного широкого research agent, замены прежнего ingestion на новый стек или отдельного orchestration framework. Сначала получить и оценить готовое исследование и использовать уже существовавшие обработчики источников.
-
-Технические контракты хранения, версий, точного чтения и продолжений сохраняются. Выбранный внешний сервис реализует исследовательскую работу; Podgen обеспечивает её использование в продукте.
+The original plan called for a single live report about navigation and longitude before integrating the planner. Read the full report and its source links. Review whether it explains the question, contains substantive usable material and gives enough information to locate supporting documents. Then port acquisition with its tests, expose the real report to planning, support targeted follow-ups and evaluate a complete new episode. Compare the resulting plan and its separate review, first and final scripts and unresolved evidence gaps. Individual passing integrations establish technical behavior at their own boundary.

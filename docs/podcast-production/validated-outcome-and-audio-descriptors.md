@@ -1,55 +1,17 @@
-# Проверенный outcome и передача аудиорезультатов
+# Validated reading outcomes and audio results
 
-## Outcome
+## Reading outcomes
 
-`reading_outcome.audit_outcome` выполняет полный структурный replay: точные
-сценарии, обе независимые проверки каждого раунда, задания на правку и результаты
-правок. Это явная проверка истории, а не обычное чтение результата.
+`reading_outcome.audit_outcome` replays the exact scripts, both independent reviews from each round, edit assignments and rewrite results. The reading-cycle owner calls `reading_validation.certify` on completion. Its immutable `validated-reading-outcome/1` record binds versions and hashes for the outcome, manifest, final script and both final reviews. The certificate confirms the structure of the archived run. Editorial acceptance and production readiness are recorded independently.
 
-Владелец завершения reading cycle вызывает `reading_validation.certify`.
-Неизменяемая запись `validated-reading-outcome/1` связывает версии и хеши outcome,
-manifest, финального script и двух финальных reviews. Она подтверждает структуру
-сохранённого результата; не меняет `semantic_acceptance` или `production_ready`.
-Непроверенный старый outcome проходит полный replay перед однократным adoption.
-Конкурирующая проверка использует отдельную блокировку; конфликтующие bindings
-не заменяют существующее доказательство.
-
-`read_outcome` читает связанный результат пакетно без повторного replay.
-`ValidatedOutcome` можно передавать между этапами как неизменяемые данные.
-На новой границе чтения или действия `authorize` заново проверяет доступ ко всем
-связанным refs и целостность переданного outcome. ACL, withdrawals и разрешения
-не сохраняются в descriptor. В транзакции публикации proof зависимости также
-авторизуются заново; отзыв между audit и commit не допускает публикацию.
-
-Доступ по-прежнему требует evaluation-purpose и роли owner/evaluator/operator.
-Все эти роли уже имеют право записи; adoption не расширяет доступ. Публичные
-запросы моделей, preview и исходные outcome остаются прежними.
+A legacy outcome without a certificate undergoes one full replay before adoption. Certification uses its own lock and rejects conflicting bindings. Ordinary `read_outcome` resolves the certified records in a batch. Callers can pass the resulting immutable `ValidatedOutcome` between stages. At a new read or action boundary, `authorize` checks current access to each bound reference and verifies integrity. Publication rechecks the proof dependencies inside its transaction, so withdrawal between audit and commit takes effect. Evaluation access still requires an appropriate purpose and an owner, evaluator or operator role.
 
 ## Audio
 
-Единственный журнал остаётся неизменяемым архивом. `AudioJournal.attempt_keys`
-адресует attempts через существующий индекс потребителей `source_ref`;
-processing revisions адресуются через тот же индекс по receipt. Тела читаются
-пакетами до 64 refs. Нового head или отдельной проекции оплаченных работ нет.
+The immutable journal is the source of audio history. `AudioJournal.attempt_keys` uses the existing consumer index on `source_ref` to address attempts. Processing revisions use the same index keyed by receipt. Bodies are loaded in batches of up to 64 references.
 
-`execute_sample` возвращает `SampleResult`: статус, ref готового результата,
-baseline и учтённую стоимость. `process_result` возвращает известные результаты
-декодирования и обработки. Render и ledger используют эти descriptors, а
-assembly получает точные адреса и свежим пакетным чтением проверяет их bindings.
-Прежние status-only API остаются тонкими совместимыми обёртками.
+`execute_sample` returns a `SampleResult` with status, completed result reference, baseline and accounted cost. `process_result` returns the known decode and processing results. Rendering and accounting reuse these descriptors. Assembly gets exact references and checks their bindings against a fresh batch read. Status-only interfaces wrap the same operations.
 
-`OperationLedger` существует только внутри одной заблокированной операции.
-Обычный переход обновляет стоимость текущего take, не пересчитывая старые takes.
-После исключения cell помечается dirty: перед продолжением той же операции его
-состояние перечитывается из durable журнала. Потерянное подтверждение submit
-остаётся `outcome_unknown`; автоматической повторной отправки нет. Полученный
-ответ сохраняется до локальной обработки, без повторного чтения только что
-полученных HTTP bytes.
+An `OperationLedger` lasts for one locked operation. A normal transition updates the cost of the current take. After an exception, the affected entry is marked dirty and recovered from the durable journal before further work. If submit acknowledgement is lost, the attempt stays `outcome_unknown`. On receipt, the provider response is saved before local processing.
 
-Незавершённая локальная обработка продолжается под своим `processing_key`.
-Потеря подтверждения записи `reprocess` не возвращает её к исходному ключу и
-не создаёт новую платную попытку. Проверены продолжение с тем же ledger и
-перезапуск процесса после записи processing, decoded и result.
-
-Полная история остаётся доступна для экспорта и явного аудита. Нормализация
-мастера, правила выбора baseline и исходный PCM не изменены.
+Unfinished local processing resumes with the same `processing_key`, including after restart between a processing record, a decoded result and final publication. Losing acknowledgement of a reprocess write does not create another paid attempt. Export and explicit audit can still read the full history. Baseline selection, PCM and master normalization remain separate from recovery.

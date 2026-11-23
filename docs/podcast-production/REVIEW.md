@@ -1,81 +1,26 @@
-# Ревью и проверка согласованности
+# Cross-module design decisions
 
-Этот файл фиксирует проверку самой спецификации. Он не является отчётом об испытаниях работающего продукта. Обязательные продуктовые испытания описаны в 04–07.
+This record explains the main interfaces reconciled during the architecture review. Implementation details appear in the linked owner documents. The [acceptance matrix](07-implementation-plan.md#end-to-end-acceptance) describes how to exercise these decisions across boundaries.
 
-## Порядок работы
+| Decision | Resolution |
+| --- | --- |
+| R01. Discovering sources during a frozen task | Create a new immutable input manifest and retain the admission chain for each invocation. |
+| R02. Reading versus delivery | A completed tool result becomes a delivery receipt only when it enters a dispatched model request. |
+| R03. Domain and operational identity | Runtime tasks, searches and inbox entries have operational references. The editorial owner explicitly adopts their results. |
+| R04. Previews | A preview derives from a complete note as a separate artifact with its own revision and coverage. |
+| R05. Evidence coordinates | Use typed dataset selectors, zero-based page conventions, render coordinates and explicit audio time bases. |
+| R06. Interfaces | The runtime owns the tool result and error envelope. Domain owners define the payloads. |
+| R07. Cross-language hashes | A shared canonicalization contract and golden fixtures define serialization across Python and TypeScript. |
+| R08. Baseline fairness | End-to-end competitors receive equal source access. An expert dossier belongs to a separate controlled writing comparison. |
+| R09. Corrected versions | Separate historical provenance from current quality dependencies. Review the exact replacement. |
+| R10. Invalidation | Each subject owner explains how a changed dependency affects the subject, including derived metadata or a dossier. |
+| R11. Audio time | Master PCM frames determine the edit timeline. Resampling and encoded playback require explicit mappings. |
+| R12. Reuse and acoustic approval | Reuse identical rendered bytes under a new binding when appropriate. Acoustic review remains bound to the edition it assessed. |
+| R13. Qualification graph | Register immutable configuration, evaluate it, then attach qualification. A profile cannot depend on its own future evaluation. |
+| R14. Evaluation access | Authorized evaluation can assemble a candidate before production qualification. That capability does not grant publication approval. |
+| R15. Shared configuration | Expose permitted configuration kinds through a read-only catalog while preserving project rights for source material and recordings. |
+| R16. Workflow state | Run status, editorial decision and current readiness answer different questions. Time-sensitive decisions include their temporal scope. |
+| R17. Show notes | A separate review covers claims introduced by episode metadata. The release binds its exact result. |
+| R18. Implementation order | Introduce common contracts and evaluation fixtures first so writing and verification can be exercised before autonomous research. |
 
-Сначала задан общий контракт. Каждый из восьми разделов 00–07 проработан отдельным агентом. Основной агент прочитал предметные разделы, проверил интерфейсы и вернул замечания владельцам; исправления проверялись повторно. Автор 00 дополнительно проверял совместимость разделов, автор 07 — исполнимость порядка работ. Общая архитектура и план реализации сведены после предметных разделов.
-
-## Найденные проблемы и исправления
-
-| ID | Проблема | Принятое исправление | Разделы |
-|---|---|---|---|
-| R01 | Неизменяемый manifest запрещал пользоваться источником, найденным внутри исследования | Цепочка immutable manifests, InputAdmissionRecord и точный manifest каждого invocation; TaskSpec не переписывается | 00, 01, 02, 06 |
-| R02 | Завершённый read tool ошибочно мог считаться доставленным модели при последующей отмене | Delivery candidate становится ReadReceipt только при отправке модельного payload; неизвестный transport outcome отражается отдельно | 01, 06 |
-| R03 | Runtime TaskResult/search records ошибочно использовались как ArtifactRef; входящие результаты могли менять head сами | Operational UUID отделены от artifact refs; inbox — проекция; явная integration через CAS | 00, 02, 06 |
-| R04 | Preview предполагалось создавать внутри уже сохранённой неизменяемой заметки | Отдельный DerivedPreview с derived_from_ref; полная ResearchNote не меняется | 02, 06 |
-| R05 | Не хватало dataset representation, точных единиц координат страниц и временной базы аудио | Добавлены typed dataset selectors, zero-based page convention, координаты render, rational timebase и origin | 01 |
-| R06 | Разделы предлагали несовместимые оболочки ответа инструментов и разные деревья пакетов | Один ToolResult/ToolError в 06; единое дерево backend/src/podgen | 01, 02, 06 |
-| R07 | Сортировка JSON keys не определяла одинаковый content hash между Python/TypeScript | Versioned JCS-профиль, правила чисел, null/absent и set references, межъязыковые fixtures | 06 |
-| R08 | Экспертное досье только у baseline делало сравнение целых pipelines нечестным | Одинаковые источники и доступ в end-to-end сравнении; экспертное досье — отдельный контроль автора для обеих сторон | 02, 04 |
-| R09 | Исправленный сценарий навсегда наследовал invalidity прежней версии через parent | Lineage отделена от действующих quality edges; проверенные dispositions и revalidation относятся к точному новому subject | 00, 02–06 |
-| R10 | Снятие устаревшей зависимости было определено только для сценария, хотя она могла остаться в досье/метаданных | Владелец каждого subject определяет assessment; code-built manifests получают зависимости из текущих полей, модельная проза требует явного review | 00, 02, 04, 06 |
-| R11 | Chapter timestamps и монтаж смешивали PCM frames, native sample rates и время encoded playback | Один master frame origin; отдельные resampling и playback mappings, chapter start_frame привязан к PCM master | 04, 05 |
-| R12 | Render key включал revision IDs и запрещал повторное использование неизменной речи; простая перепривязка могла перенести старый QA | Content-based key, новая AudioSegment revision с теми же bytes и точными новыми bindings, новое принятие и master QA | 05, 06 |
-| R13 | Model/VoiceProfile ссылался на будущий eval, который должен был ссылаться на тот же профиль | Чистая immutable configuration → CapabilityReport/EvaluationResult → отдельный qualification AcceptanceRecord | 00, 05, 06 |
-| R14 | Для испытания нового профиля требовалась уже пройденная qualification | Evaluation purpose с allowlist кандидатов и полным внутренним assembler; пользовательские ready/export запрещены | 00, 06, 07 |
-| R15 | Same-project правило запрещало использовать общую квалифицированную конфигурацию либо открывало чужие eval data | Read-only catalog с allowlist config kinds, safe qualification projection и отдельно опубликованными nonsensitive audition assets | 00, 01, 05, 06 |
-| R16 | Episode phase, operational success и ready смешивались; as_of имел разные формы | Единые EpisodeRun status/purpose и temporal object; ready/current_ready вычисляются по конкретному комплекту | 00, 01, 02, 06 |
-| R17 | Заголовок, описание и главы могли добавлять непроверенные факты после фактчека сценария | Отдельный ShowNotesReview и обязательный ref в ReleaseManifest; нет цикла metadata → собственный будущий review | 00, 04–06 |
-| R18 | Ранние этапы плана зависели от ещё не реализованного research engine; repair kernel и writer образовывали неясную зависимость | Общие domain schemas сразу; экспертные fixture factories; kernel-ready и integrated-repair разделены, inline/Temporal используют одни use cases | 07 |
-
-## Сквозные стыки
-
-| Путь | Что проверено в спецификации |
-|---|---|
-| Поиск → источник → досье | Snippet остаётся runtime metadata; exact evidence возникает после acquisition/read; новые входы admitted явно |
-| Досье → автор → исследование | Передаются полные релевантные notes и actual script; ResearchRequest адресует сохранённый объект, ответ не вставляется в текст автоматически |
-| Черновик → правка → проверка | Stable IDs и typed selectors сохраняют адресацию; смена текста/порядка требует нового review; placeholder не озвучивается |
-| Источник исправлен → новый выпуск | Active quality closure, owner assessment и revalidation позволяют исправление; исторический manifest не переписывается |
-| Текст → исполнение → транскрипт | Spoken normalization имеет mapping; смысловая правка возвращается автору; transcript основан на реальном звуке |
-| Локальный retake → готовый комплект | Пересобираются master/transcript/QA/главы; старые таймкоды и допуски не переименовываются |
-| Новый профиль → qualification → production | Нет циклических refs; кандидаты изолированы, квалификация проверяется по exact configuration и scope |
-| Crash/cancel/retry → пользовательский результат | Idempotency, outbox, CAS/epoch, reconciliation и явно различимые outcomes определены в одном runtime |
-| Удаление → история/backup/catalog | Semantic revalidation не отменяет privacy; raw eval/source data не раскрываются через общий config catalog |
-| Эксперименты → реализация → запуск | 14 work packages связаны с 8 экспериментами и 20 сквозными сценариями; промежуточная стадия не объявляется готовым продуктом |
-
-Это проверка согласованности проектных решений. Исполняемые сценарии должны подтвердить реализацию по [матрице AC-01–20](07-implementation-plan.md#5-матрица-сквозной-приёмки).
-
-## Что остаётся подтвердить реализацией
-
-Сравнение подходов на полном корпусе, выбор моделей/голосов, качество длинных русских диалогов, точность проверяющих, численные quality policies и эксплуатационные targets. Для этих вопросов заданы эксперименты и правила решения; они не выданы за уже измеренные результаты.
-
-## Повторное ревью сценария от 5 ноября 2026
-
-Второй проход начался с чтения реплик и условий, по которым была принята их правка. Изучены пять сохранённых трасс одного архивного запуска `3870242f-5f13-4dcf-a74f-46dc76faf4d7`. Ниже наблюдения о тексте. Они характеризуют эти фрагменты и конкретные решения прежнего редактора. Исторические или финансовые утверждения самих ведущих здесь не выступают проверенными фактами. Ранние наблюдения по тому же выпуску сохранены в [разборе понятности](../history/pipeline_clarity_and_comprehension_plan_2026-04-09.md).
-
-| Место в архиве за 8–9 апреля | Что показало чтение | Как проверять новую систему |
-|---|---|---|
-| Акт 1, сцена 1, `c99b66da0a` | Принятая правка заменила условное «Представь» на «Смотри, что у меня в кошельке» и добавила «Я только что проверила». Ведущей приписали личную проверку купюр | Сравнивать написанные вступления. Спросить, что ведущая якобы наблюдала лично, где этому есть основание и какой вопрос открылся |
-| Акт 2, сцены 2–4, `57cc72d6c1` | После объяснения выпуска банкнот текст переходит к оттоку капитала, денежной базе и всей денежной массе. Между этими масштабами отсутствует объясняющая операция. Несколько вопросов второго голоса повторяют вывод первого | Дать стык без плана и предложить восстановить механизм. Сравнить версию, где второй ведущий замечает смену предмета, с чтением того же места одним голосом |
-| Акт 3, сцена 1, `0329984014` | Перечень монет быстро переходит в утверждение о принципиальном выборе империи. Правка была принята по локальной задаче разговора | Раздельно проверить последовательность событий и основание, по которому рассказчик приписывает участнику мотив |
-| Акт 5, сцены 2–4, `e6c5d8e549` | Под конец возникает вопрос, почему большинство стран отказалось от модели. Ответ «Скорее всего, именно так» сопровождает предположение о политическом удобстве. За этим сразу следует общий вывод | Сопоставить обещание начала с тем, что на самом деле доказывает финал. Дополнительный вопрос перенести, исследовать или снять |
-| Акт 1, сцена 3, `bb23713a47` | Здесь локальная проверка вернула `target_not_resolved` после переписывания. Замена формулировок ещё не устранила повтор в устройстве разговора | Сохранить старую версию и сравнить, что реально изменил следующий обмен репликами |
-
-**Исправления спецификации.**
-
-| Пробел | Решение и поверхность проверки |
-|---|---|
-| Общий план и фактическая точность оставляли автору слишком мало указаний о том, как рассказать историю | В 03 описаны выбор угла, трудный переход, регистр ведущих, полезный возврат и финал. В [авторской практике](03-editorial-practice.md) разобран один комплект материалов в двух форматах |
-| Ремарка или заголовок могли объяснить рецензенту то, что слушатель никогда не услышит | В 03 определена `spoken_view`. Разделы 04/06 изолируют первое чтение от служебных данных, проверяют непрерывное покрытие и сохраняют наблюдения до раскрытия плана |
-| После изменения досье автор мог выпускать текст на прежнем замысле. Открытый вопрос мог исчезнуть вместе с placeholder | В 00/02/03/04/05/06 согласованы версии плана, сценария и досье. Проекция зарегистрированных вопросов проверяется при допуске текста, синтезе и сборке |
-| Первое сохранение требовало отсутствующего предшественника. Большой акт мог не поместиться в один ответ | Первый `create` возвращает один сценарий. `append_blocks` сохраняет законченные группы реплик с проверкой версии и хвоста. Сценарии повторной доставки включены в 07 |
-| Принятая локальная правка могла ухудшить целое | Редактор предъявляет место сбоя и достоинства прежнего текста. На сцене с одной неверной датой сравниваются точечное исправление и полная перепись при сохранении развязки |
-| Оценка понимания слабо различала ясный и увлекательный тексты | В 04/07 разведены полное прослушивание и добровольная остановка. Сравниваются первые и финальные версии, прямой диалог и преобразование связного рассказа, с учётом дополнительной редакторской попытки |
-| Обе модели могли проигрывать по качеству письма даже на хорошем материале | В EXP-04 появился независимый профессиональный ориентир по тому же брифу, плану и досье. Результат M1 определяет, нужно ли возвращаться к письму до масштабирования исследования |
-
-В ходе ревью прочитаны и сопоставлены сохранённые тексты. Новый процесс и профессиональный ориентир предстоит испытать на полных выпусках. Архивная отметка `accepted` выше относится к локальной правке.
-
-## Статическая проверка комплекта
-
-Проверены локальные ссылки и якоря, JSON-примеры, закрытие блоков и согласованность сценарных контрактов. В плане проверены уникальность и полнота WP-01–14, EXP-01–08 и AC-01–20. Комплект состоит из восьми основных разделов, приложения о письме, оглавления и журнала ревью.
+A complete release crosses source → dossier → plan → script → review → audio → publication. Each handoff checks the exact version, admitted dependencies and the applicable authorization. Replay the binding at the point of integration, and exercise late replies, concurrent updates and withdrawal against the assembled result.

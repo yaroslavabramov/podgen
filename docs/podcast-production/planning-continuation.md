@@ -1,22 +1,10 @@
-# Продолжение после исчерпания правок плана
+# Continuing after the plan-revision limit
 
-`writing_cli continue-planning` создаёт отдельного потомка остановленного own-plan запуска. Он выполняет ровно одну дополнительную пару `plan-revise → plan-review-revised`, затем продолжает обычную сценарную цепочку только после `accept`. Это не повтор первичного планирования и не ручное принятие плана.
+The operator-only `writing_cli continue-planning` command creates a child of an eligible own-plan run that stopped at `planning_revision_limit_exhausted` before writing began. It performs one additional `plan-revise` and one `plan-review-revised`. The ordinary writing chain may proceed only if that reviewer accepts the revised candidate. A request for further research has a different recovery path.
 
-Первое продолжение требует явного `--max-additional-plan-revisions N`. Значение ограничивает глубину всей цепочки потомков. Каждый потомок расходует одну дополнительную пару; следующий наследует исходный предел и не может увеличить его. Если после новой пары снова получен `revise`, запуск честно останавливается. Пока предел не исчерпан, следующий вызов может продолжить уже этот отказ. `needs_research` остаётся отдельным результатом и не разрешает такое продолжение.
+The first continuation requires `--max-additional-plan-revisions N`. It sets a ceiling for the complete chain of children. Each child consumes one additional review pair. If another revision is required, subsequent continuation targets that child and inherits the original ceiling. The deterministic UUID5 for the child includes the parent and `planning-continuation/1`. A repeat addresses the same child. The optional run ID asserts the expected identity.
 
-Идентификатор потомка — UUID5 от идентификатора родителя и контракта `planning-continuation/1`. Повтор команды адресует тот же запуск. Одновременные команды защищены существующей блокировкой запуска и не создают две платные ветки. Необязательный `--run-id` только проверяет ожидаемый идентификатор; произвольный идентификатор отклоняется.
-
-## Что зафиксировано
-
-Допускается только современный own-plan запуск, остановленный с `planning_revision_limit_exhausted` до начала сценарных стадий. Продолжение наследует проект, автора, бриф, источники, профили, промпты, схемы и ограничения исходного запуска. Время нового запуска и его собственный расход считаются отдельно; старые оплаченные вызовы не повторяются и не приписываются потомку.
-
-Происхождение фиксирует точные ссылки и хэши последнего завершённого плана и последней завершённой рецензии именно на него. Нельзя использовать отзыв от предыдущей версии, заменить его пересказом или подставить другой материал. Проверка связей выполняется до вызова и при возобновлении. Исходные записи не меняются.
-
-Новая правка получает сохранённый полный отзыв через обычную модельную проекцию. Новое решение редактора относится к новой версии. Разрешение на передачу автору создаётся обычным механизмом planning clearance и проверяется обычной сценарной цепочкой. Ни происхождение, ни факт создания потомка не заменяют `accept`.
-
-## CLI
-
-Используются те же `PODGEN_DATABASE_URL`, проект, актор и хранилище объектов, что и в исходном запуске:
+The child inherits project, assignment, source material, prompts, models, schemas and limits. The parent’s exact final candidate and the review of that candidate determine the initial input. Validate those references at resume. Charge only the work incurred by the child. The parent retains its prior history and result.
 
 ```sh
 uv run --project backend python -m podgen.writing_cli \
@@ -25,10 +13,4 @@ uv run --project backend python -m podgen.writing_cli \
   --max-additional-plan-revisions 2 --export-dir /absolute/new-export
 ```
 
-`--preview-only` фиксирует потомка и выгружает запрос первой правки без создания клиента модели и без вызовов API. Для настоящего выполнения повторяют команду без этого флага. Обычный `resume --run-id CHILD_UUID --export-dir ...` продолжает потомка, сохраняя уже завершённые стадии и незавершённый запрос. `inspect` работает как для остальных запусков.
-
-Если первый потомок снова исчерпал правки, команду вызывают с его идентификатором в `--source-run-id`. Предел можно не указывать: он наследуется. После второй дополнительной пары при пределе 2 новый потомок отклоняется до API.
-
-В экспорте есть `planning-continuation.json`, `planning-seed-plan.json`, `planning-seed-review.json`, обычные архивы новых вызовов и, после принятия, `planning-clearance.json`. Пока новая правка не завершена, читаемый план показывает исходный непринятый кандидат. Preview привязан к той же паре; preview новой рецензии доступен только после завершения новой правки.
-
-Старые команды без полей продолжения сохраняют прежние отпечатки. Схемы БД и публичные исторические записи не изменяются. Отдельные адресные правки сценария и последовательное написание длинного выпуска этим механизмом не управляются.
+Use actual project and actor UUIDs and authorized local paths in place of placeholders. Add `--preview-only` to prepare the child and export its first request without creating a model client. Regular `episode start` does not invoke this operator command automatically.

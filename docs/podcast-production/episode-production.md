@@ -1,60 +1,36 @@
-# Выпуск из темы
+# Running an episode from a topic
 
-Координатор использует действующие hosted research, получение источников,
-план с отдельной рецензией, автора, две независимые проверки, синтез и сборку.
-Модели, инструкции и голос задаются точными сохранёнными профилями в settings.
+The [episode CLI](../../backend/src/podgen/episode_cli.py) manages a solo episode from initial research to a WAV master. It requires an initialized PostgreSQL repository, the actor and project that own the episode, the object store for that project and a settings file referencing existing authorized profile revisions. The chosen voice must support the requested language. Setup and dependencies are in the [backend guide](../../backend/README.md).
 
-Из корня репозитория, после восстановления рабочего подключения и загрузки
-ключей провайдеров в окружение:
+From the repository root, activate the backend environment and export `PODGEN_DATABASE_URL`. Keep provider credentials in the environment or use the CLI’s global `--env-file` option. Set `PROJECT_ID`, `ACTOR_ID`, `OBJECT_STORE`, `SETTINGS_FILE` and `EPISODE_RUN_ID` to the project UUID, actor UUID, object-store directory, settings file and a new episode UUID. The [settings model](../../backend/src/podgen/episodes/production/contracts.py) defines the required fields. For example, after provisioning those inputs:
 
 ```sh
-PODGEN_DATABASE_URL='<рабочее подключение>' backend/.venv/bin/alembic -c backend/alembic.ini upgrade head
-
-backend/.venv/bin/python -m podgen.episode_cli \
-  --reference-state tmp/hieroglyphs-production-2026-11-14/reference-state.json \
-  --run-id 63f3265a-1ff4-5526-85c7-92f723f435e7 \
-  start --topic 'Как расшифровали египетские иероглифы' \
-  --settings tmp/hieroglyphs-production-2026-11-14/settings.json \
-  --export-dir tmp/hieroglyphs-production-2026-11-14/export
+python -m podgen.episode_cli \
+  --project "$PROJECT_ID" --actor "$ACTOR_ID" --objects "$OBJECT_STORE" \
+  --run-id "$EPISODE_RUN_ID" prepare \
+  --topic 'How engineers laid the Atlantic telegraph cable' \
+  --output-language ru --min-seconds 1800 --target-seconds 1800 --max-seconds 1980 \
+  --settings "$SETTINGS_FILE"
 ```
 
-`start` сначала проверяет и сохраняет неизменяемую конфигурацию, затем выполняет
-весь путь. `prepare` выполняет только бесплатную подготовку. Для новой темы
-нужен новый `run-id`; менять входы уже подготовленного запуска нельзя.
+`prepare` is provider-free. It validates and saves the exact configuration, including the language, voice and duration. To execute that saved run, use the same global arguments followed by `run --export-dir tmp/episode-export`. This step can incur research, writing and synthesis charges. Alternatively, `start` takes the same topic and settings as `prepare`, requires `--export-dir` and performs both operations. A reference-state file may supply the project, actor, database and object-store settings through `--reference-state`. It belongs to the installation that created it.
 
-С теми же глобальными параметрами вместо `start …`:
+| Command | Effect |
+| --- | --- |
+| `status` | Return the current phase, review count and reason for any stop in a bounded read. |
+| `pause` | Persist a stop before the next external action. The current response can still be recorded. |
+| `run` | Continue saved work, respecting a pause. |
+| `resume` | Clear a pause and continue saved work. Uncertain paid submissions require reconciliation. |
+| `export --export-dir DIRECTORY` | Export retained research and writing artifacts, and the master if it has been assembled. |
 
-| Команда | Результат |
-|---|---|
-| `status` | Один ограниченный запрос состояния; без провайдеров и записей истории. |
-| `pause` | Сохранённая остановка перед следующим внешним действием. Уже полученный ответ сохраняется. |
-| `resume` | Снимает остановку и продолжает сохранённые операции. |
-| `run` | Продолжает, сохраняя действующую остановку. |
-| `export --export-dir PATH` | Выгружает исследования, сценарии, проверки и собранный `audio/master.wav`. |
+Research is polled every 15 seconds by default. `--step` returns control when the coordinator must wait for another poll. Reuse the episode UUID to inspect or resume that episode. A different topic or configuration requires a new UUID.
 
-Опрос исследования выполняется раз в 15 секунд; `--step` возвращает управление,
-когда нужен следующий опрос. Неопределённый исход платной отправки автоматически
-не повторяется. `needs_attention` содержит точную причину остановки.
+## Ownership and terminal states
 
-## Владение и ограничения
+The parent saves the configuration, phase and deterministic child identities before dispatch. Each child owns its request, response, charges and recovery history. A project-scoped lock and conditional state transitions prevent two executors from adopting conflicting work. Access is checked at external actions and public reads.
 
-Родитель хранит конфигурацию, фазу, детерминированные ID дочерних операций и
-ограниченный прогресс. CAS и отдельная блокировка исключают двух исполнителей.
-Дочерние журналы остаются владельцами запросов, ответов, затрат и восстановления.
-Проверки доступа выполняются заново перед внешним действием и чтением результата.
+Supplemental research continues the same accepted plan. The ordinary process permits two completed script rewrites in total across material continuations. The settings pin the research-job allowance and the audio budget. A stop exposes the failed stage and reason. Replaying an uncertain paid operation as a new submission can bill it twice.
 
-Дополнительные материалы используют тот же принятый план. Две реальные правки
-сценария считаются суммарно, включая продолжения. Известные вопросы завершённых
-рецензий объединяются в одно исследование без потери формулировок. Лимит заданий
-research и бюджет аудио задаются явно; расширение лимитов не происходит само.
+The synthesizer covers every utterance in order. Oversize utterances are split on sentence boundaries, then words. The assembler checks full character coverage against the exact source script. Under `ffmpeg-assembly-input/1`, local preprocessing retains the decoded PCM and applies loudness adjustment to the assembled master. A new processing revision may reuse a verified provider response without another TTS call.
 
-Аудио охватывает все реплики по порядку. Обычные реплики остаются целыми;
-слишком длинные делятся по предложениям, затем словам. Сборка проверяет точное
-покрытие символов и исходную версию сценария; темп не подгоняется.
-Части полного рендера обрабатываются по `ffmpeg-assembly-input/1`: сохраняется
-исходный decoded PCM, громкость меняется один раз после сборки мастера. При
-смене версии локальной обработки сохранённый успешный HTTP-ответ можно обработать
-новой ревизией без повторного TTS; прежние ошибки и PCM остаются в архиве.
-
-`assembled` означает собранный мастер с ожидающей акустической проверкой.
-`production_ready` остаётся `false`. Это не разрешение на публикацию.
+`assembled` means the master exists and acoustic review is pending. `production_ready` remains false until the product’s release requirements have been satisfied.

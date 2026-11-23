@@ -1,88 +1,26 @@
-# Полный корпус и продолжение исследовательской проверки
+# Preparing and reading a research corpus
 
-Работа по разбору от 13 ноября 2026 года. Здесь описаны технические изменения;
-литературные поручения, модели, порядок ролей и две переписи сценария сохраняются.
+`research-material-preparation/2` accepts the assignment, a completed hosted research run and acquisition settings (`profile_ref`, `rights`). Its preparation command processes every reported link. Supply prior `acquisition.reuse_selection_ids` to reuse the saved documents or failed attempts with matching settings and retention policy.
 
-## Получение материалов
+The preparer merges transport-equivalent URLs by hostname case, default port and fragment. It preserves path, query and each original occurrence. Documents have separate, stable operation IDs. A retry resumes unfinished documents. Report sections refer to exact ranges of the original text. A link reported by the service, bytes obtained locally and evidence read from those bytes have distinct identities. Historical `research-material-preparation/1` inputs retain their own preparation rules.
 
-`research-materials-prepare` с `research-material-preparation/2` принимает задание,
-ссылку на завершённое hosted research и существующие настройки acquisition
-(`profile_ref`, `rights`). Он обрабатывает **все** ссылки результата. Ручной список
-источников не нужен. Предыдущие selection IDs можно передать в
-`acquisition.reuse_selection_ids`: повторно используются доступные документы и
-сохранённые неудачные попытки с теми же настройками и политиками хранения.
+## Reading beyond the first context window
 
-Нормализация объединяет транспортно эквивалентные URL (регистр hostname,
-стандартный порт, fragment), сохраняя исходные ссылки и occurrences. Путь и query
-не переписываются. Каждый документ имеет отдельный устойчивый operation ID;
-остановка между документами не заставляет скачивать завершённые заново. Полный
-отчёт не пересказывается и не превращается в карточки. Его разделы сохраняют
-точные позиции в оригинале. Ссылка из отчёта, полученный документ и проверенный
-фрагмент документа остаются разными сущностями.
+`frozen-corpus-tools/7` introduced continuation by context window for the research-capable roles. The provider's native count determines whether the actual request fits with room for the response. Time and spending limits can still stop a run.
 
-Старая `research-material-preparation/1` воспроизводится прежним способом.
-Исторические данные и запросы не мигрируются задним числом.
+Before switching windows, the agent stores its full notes and a compact continuation state. The next request receives the assignment, continuation state and references to reopen earlier material. Full messages, readings and notes remain in the journal. R and E receipts survive a change of window. A technical stop leaves the review open.
 
-## Чтение и рабочий контекст
+The source catalog and search return versioned pages. The index processes text and embeddings in bounded batches, persists progress and only publishes a complete document. Range reads check access at the time of reading. [Source search](source-search.md)
 
-Новый `frozen-corpus-tools/7` сохраняет существующие роли и форматы их ответов,
-но не заканчивает исследование на двенадцатом шаге или двадцать четвёртом вызове.
-Размер запроса проверяется нативным счётчиком провайдера относительно окна
-выбранной модели с резервом на ответ. Общие ограничения времени и расхода
-запуска остаются техническими остановками.
+## Additional documents and reports
 
-Перед заполнением окна агент сохраняет полные рабочие заметки и отдельное
-компактное состояние продолжения. Полные сообщения, чтения и заметки остаются
-в журнале; следующий контекст содержит исходную задачу, компактное состояние и
-ссылки для повторного открытия. Ни документы, ни сохранённые смысловые поля
-не обрезаются. Ссылки E/R сохраняют прежние значения после смены окна.
+- `request_source` accepts a known S ID or a URL with a reason. Acquisition and extraction use the ordinary source pipeline. A new document joins this run's journal. The tool returns a status and the acquisition or supplement reference. The reviewer can then open a passage.
+- `request_research` records a specific question for hosted research. Preparing an order leaves payment pending. Approval and resume use the hosted research service. The review remains open until the result arrives. A subsequent resume imports the result and returns control to that reviewer.
+- `list_research_results` lists supplementary reports, each with an X ID. `list_research_sources` lists their reported links. `read_research_result` produces an R receipt for report text. Individual source documents have S IDs and produce E receipts when read. The stored mapping connects the report's link numbers to those documents.
+- A planning role can select a whole supplementary report through `select_research_result` for this version of the plan. The writer receives the selected X reports and the selected M sections of the original report. Reading additional material alone does not commission it for the script.
 
-Каталог источников и результаты поиска выдаются страницами с закреплённой
-версией. Новый индекс обрабатывает текст и embeddings ограниченными пакетами,
-сохраняет прогресс и не выдаёт незавершённый документ за полностью проверенный.
-Исходные тексты читаются по диапазонам через проверяемое хранилище; весь корпус
-не требуется держать в оперативной памяти.
+A continuation or imported accepted plan freezes the S/X additions visible at that point. Subsequent additions to the parent cannot change the child. Newly admitted documents receive the next free aliases. Existing receipts, text and bindings keep their meanings.
 
-## Дозагрузка во время проверки
+## Verification
 
-`request_source` принимает известный S ID либо конкретный URL и причину. Загрузчик использует обычные
-acquisition/extraction обработчики. Доступный исходный документ открывается по
-прежнему S ID. Новый документ добавляется в журнал текущего выпуска; исходный
-пакет и ранее выданные S ID не меняются. Результат содержит статус и ссылку на
-сохранённую попытку/дополнение. Получение документа само по себе не подтверждает
-утверждение: проверяющий должен прочитать нужный участок.
-
-`request_research` сохраняет конкретный вопрос и готовит отдельное задание
-существующего hosted research. Пока оно не завершено, проверка остаётся открытой;
-автор не получает промежуточную рецензию. Подготовка не отправляет платный запрос.
-Действуют существующие операции approve/resume этого исследовательского сервиса.
-После завершения задания повторный resume текущего выпуска импортирует его
-источники и возвращает работу тому же проверяющему.
-
-Дополнительные отчёты обнаруживаются через постраничный `list_research_results`,
-а их ссылки — через `list_research_sources`. Отчёт обозначается X ID и читается через `read_research_result`.
-Он выдаёт R-квитанции исследовательского материала; его источники имеют отдельные
-S ID и E-квитанции. Сохранена таблица соответствия номеров ссылок дополнительного
-отчёта источникам выпуска. Отчёт не становится первоисточником из-за импорта.
-
-Для передачи дополнительного отчёта автору планирующая роль явно выбирает его
-через `select_research_result`. Выбор относится к конкретной версии плана.
-Полный выбранный X-отчёт передаётся вместе с полными выбранными M-разделами;
-само чтение источника не делает его обязательным материалом сценария.
-
-При повторном использовании принятого плана или продолжении выпуска состав
-добавленных S/X закрепляется отдельным снимком исходных ссылок. Позднейшие
-добавления в родительский запуск этот снимок не меняют. Новые документы получают
-следующие свободные ID; прежние ссылки, тексты и привязки к источникам сохраняются.
-
-## Приёмка
-
-Проверяем восстановление после остановки, повторное использование документов,
-передачу E → P/H автору, раздельность R/E, неизменность старых запросов, поиск за
-прежними границами корпуса и продолжение проверки после заполнения контекста.
-Техническая остановка не подменяется содержательным вердиктом.
-
-После технических проверок — один новый полный выпуск о долготе на прежнем
-исследовании: читаем план, отдельную рецензию, первый и последний тексты и решения
-обоих проверяющих. Одни только успешные вызовы инструментов не доказывают качество
-результата. Результаты конкретного прогона фиксируются отдельно в evals/reports.
+Check resume between documents, reuse under matching policies, the E-to-P/H handoff to the writer, the distinction between R and E, reproduction of old requests, reads beyond the old corpus boundary and recovery after a context switch. Evaluate the narrative separately by reading the plan, plan review, first draft, final script and both script reviews for the same episode.

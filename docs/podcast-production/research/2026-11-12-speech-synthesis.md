@@ -1,79 +1,28 @@
-# Исследование озвучки Podgen
+# Qualifying documentary speech synthesis
 
-12 ноября 2026 года. Задача — естественно звучащий русский подкаст с одним или двумя ведущими, точным исполнением принятого сценария и возможностью исправить отдельный фрагмент.
+This research note defines the listening protocol for the Russian documentary fixtures. It describes the candidates and proposed sample sizes on 12 November 2026. A protocol alone does not report a winner. The fixture manifest pins the scripts and exact excerpts by checksum. [Evaluation fixtures](../../../evals/audio/fixtures/ru-documentary-v1/manifest.json) · [Source episodes](../../../evals/reports/2026-11-12-two-topic-cycles/README.md)
 
-**Решение: сравнить пять семейств на ограниченной русской выборке, оставить двух финалистов и выбрать основной профиль по целым выпускам.** Основные кандидаты по устройству API — Eleven v4, Gemini 3.8 Flash TTS и Inworld TTS-2. Fish Drama 3 и MiniMax Speech 2.8 HD включены в прослушивание как альтернативы: исключать их по описанию API было бы преждевременно. Это выбор кандидатов по документации; измеренного победителя по звучанию пока нет.
+## What the listener is judging
 
-## Откуда берётся естественная речь
+A voice can sound convincing on a single sentence and lose its phrasing over a paragraph. Documentary narration needs meaningful emphasis, changes of pace and enough continuity to follow an explanation. Assess the same voice on connected scenes and complete episodes, as well as on short samples. Record where a listener hears a word, emphasis or transition differently from the intended reading. A listener's strong preference in one language or genre only qualifies that particular use. [Long-form TTS evaluation](https://www.isca-archive.org/ssw_2019/clark19_ssw.html) · [Multi-sentence TTS](https://www.isca-archive.org/interspeech_2022/makarov22_interspeech.html)
 
-Тестировать нужно сочетание **модели, конкретного голоса, подачи и способа деления текста**. Хороший тембр не гарантирует подходящих ударений, темпа и развития интонации. Клонирование голоса само по себе эти задачи не решает.
+## Candidate profiles
 
-Исследование Clark et al. сравнивает оценки отдельных предложений, абзацев и речи с предшествующим контекстом. Результаты не обязательно коррелируют. Из этого следует практическое решение для Podgen: короткие пробы нужны для отбора голосов, целые сцены и выпуски — для выбора рабочего исполнения. [Evaluating Long-form Text-to-Speech, 2019](https://www.isca-archive.org/ssw_2019/clark19_ssw.html).
-
-Makarov et al. обнаружили пользу длинного контекста для связной просодии в изученной ими системе. Это основание проверять контекстный синтез, а не обещание одинакового эффекта у любого API. [Simple and Effective Multi-sentence TTS, 2022](https://www.isca-archive.org/interspeech_2022/makarov22_interspeech.html).
-
-Для нашей задачи естественность означает: ведущий выделяет значимое, свободно меняет темп внутри мысли, продолжает интонацию через связанные фразы, уместно завершает мысль и звучит устойчиво на протяжении выпуска. Постоянные эмоциональные подъёмы, вздохи и шёпот не являются целью.
-
-## Модели и сервисы
-
-| Кандидат | Почему рассматриваем | Существенная особенность |
-| --- | --- | --- |
-| **ElevenLabs `eleven_v4`** | Русский, выразительная подача, библиотека голосов и совместная генерация диалога | Аудиотеги и произношение зависят от модели и голоса; рекомендации по размеру dialogue-запроса отличаются от общего лимита модели |
-| **Google `gemini-3.8-flash-tts`** | Точная текстовая начитка, отдельные указания подачи, генерация двух голосов | Новый формат `speech_metadata`; ограничения для совместного использования стандартных и созданных голосов |
-| **Inworld `inworld-tts-2`** | Русский в Tier 1, английские инструкции подачи для русской речи, контекстный синтез списка реплик | Полная модель поддерживает steering; Flash его игнорирует. Внутри script-запроса есть ограниченная история аудио |
-| **Fish `drama-3`** | Указания подачи естественным языком, локальные акценты, несколько говорящих | Модель выбирается HTTP-заголовком; ошибочное или отсутствующее значение может незаметно включить `s2.1-pro` |
-| **MiniMax `speech-2.8-hd`** | Русский, автоматическая выразительная подача, управление произношением и эмоциональным режимом | Не переносить в него теги других сервисов; HD рассматриваем раньше Turbo, поскольку приоритет — качество |
-
-### ElevenLabs
-
-Текущая документация рекомендует v4 для Text to Dialogue и включает русский в список языков. Общий предел v4 указан как 10 000 символов, но руководство Dialogue рекомендует суммарно до 2 000 символов текста на запрос для надёжной генерации. Общий предел нельзя автоматически использовать как рабочую границу dialogue-адаптера. [Модели](https://elevenlabs.io/docs/overview/models), [Text to Dialogue](https://elevenlabs.io/docs/overview/capabilities/text-to-dialogue).
-
-В timestamp API остаётся default `eleven_v3`: передавать `model_id` явно. Есть preceding text и request IDs, но поддержка continuity зависит от модели; её нужно проверить на выбранном профиле. Seed не гарантирует побитовую повторяемость. [Контракт API](https://elevenlabs.io/docs/api-reference/text-to-dialogue/convert-with-timestamps).
-
-v4 и v3 не поддерживают SSML `<break>`. В v4 документировано произношение через IPA в косых чертах. Теги подачи помогают, но результат зависит от выбранного голоса. Проверять нужные русские имена на реальной записи, а не считать словарь гарантией. [Управление исполнением](https://elevenlabs.io/docs/overview/capabilities/text-to-speech/best-practices).
-
-### Gemini
-
-Для приоритета качества Google предлагает `gemini-3.8-flash-tts`; Flash-Lite ориентирован на пропускную способность и стоимость. Карточка модели описывает отдельные поля для голоса, говорящего и подачи. [Карточка Gemini 3.8 Flash TTS](https://ai.google.dev/gemini-api/docs/models/gemini-3.8-flash-tts).
-
-В новом API текст передаётся дословно, длительная манера исполнения — через `speech_metadata.style`, голос — через speech config. Поддерживается русский. Совместная генерация ограничена двумя стандартными голосами; для нескольких созданных или реплицированных голосов руководство предлагает отдельный синтез реплик. Последний вариант обязательно сравнить по связности с совместной генерацией. Google рекомендует сначала пустой `style`, затем короткие необходимые уточнения. [Генерация и ограничения](https://ai.google.dev/gemini-api/docs/speech-generation).
-
-Не смешивать примеры старого Cloud TTS и нового API: Cloud-документация отдельно предупреждает, что 3.8 доступна через Agent Platform, а не через Cloud Text-to-Speech API. Для одного адаптера выбрать и закрепить один поддерживаемый API. [Различия API](https://docs.cloud.google.com/text-to-speech/docs/gemini-tts).
-
-### Inworld
-
-Русский находится в наиболее проверенной группе Tier 1. [Языки](https://docs.inworld.ai/tts/capabilities/multilingual). Для steering нужен именно `inworld-tts-2`: Flash игнорирует инструкции подачи. Инструкции пишутся на английском. Они действуют до следующей инструкции или `[reset]`, включая следующие предложения. Есть необязательная автоматическая режиссура Reasoning; не включать её скрыто в базовое сравнение. [Steering](https://docs.inworld.ai/tts/capabilities/steering).
-
-Script API генерирует монолог или диалог из списка реплик и сохраняет ограниченную историю аудио внутри запроса. Поддерживает отдельный звук каждой реплики. Лимиты: 1–100 реплик, суммарно 2 000 UTF-16 code units для unary и 4 000 для HTTP streaming. Эти ограничения относятся к сумме, а не к каждой реплике. [Script synthesis](https://docs.inworld.ai/tts/capabilities/script-synthesis).
-
-Обычные запросы могут получать текст предыдущих реплик в `synthesisContext`. Это отличается от истории аудио внутри script-запроса и от возможностей отдельного Realtime API. Проверять выбранный путь, не обещая ему возможности соседнего продукта. [Generating audio](https://docs.inworld.ai/tts/capabilities/generating-audio).
-
-### Fish и MiniMax
-
-Fish документирует `drama-3` как доступную через `POST /v1/tts` модель с обычными словесными указаниями, локальными тегами и совместной генерацией говорящих. Адаптер должен явно выставлять заголовок модели. [Drama 3 API](https://docs.fish.audio/features/text-to-speech/drama-3.md). Русский присутствует в языках опубликованной модели. Открытые веса и коммерческая облачная услуга — разные варианты поставки; лицензию для собственного размещения проверять отдельно. [Карточка и лицензия](https://huggingface.co/fishaudio/drama-3/raw/main/README.md).
-
-У Fish общий каталог всё ещё рекомендует `s2.1-pro`. Это не доказательство превосходства над Drama 3: для нашего сравнения закрепить Drama 3 явно, а S2.1 рассматривать отдельной заменой только при выявленной проблеме. [Каталог](https://docs.fish.audio/developer-guide/models-pricing/models-overview.md).
-
-MiniMax поддерживает `language_boost: "Russian"`, отдельные настройки голоса и эмоции, произношение, паузы и звуковые события. По умолчанию эмоция выбирается автоматически; документация рекомендует задавать её вручную по необходимости. Синхронный запрос ограничен текстом короче 10 000 символов. [Полный API-контракт](https://platform.minimax.io/docs/api-reference/speech-t2a-http.md).
-
-### Остальные варианты
-
-| Вариант | Решение для ближайшего этапа |
+| Candidate in the November comparison | Capability to qualify with a real Russian sample |
 | --- | --- |
-| **Cartesia Sonic 3.6** | Русский поддерживается, но документированные emotion tags работают только на английском. Это пригодный кандидат для обычной русской начитки, однако не подтверждённая замена выбранным сервисам для управляемой подачи. При необходимости добавить один контрольный образец. [Модель](https://docs.cartesia.ai/build-with-cartesia/tts-models/latest), [ограничение эмоций](https://docs.cartesia.ai/build-with-cartesia/capability-guides/volume-speed-emotion) |
-| **OpenAI Realtime** | Рассматривать отдельно при необходимости: это разговорный генератор с другим workflow, точное исполнение сценария нужно доказать. Новый основной адаптер на `gpt-4o-mini-tts` не строить: официально объявлено отключение 6 января 2027 года и переход на Realtime. [Официальное руководство](https://developers.openai.com/api/docs/guides/text-to-speech) |
-| **Qwen3-TTS** | Разумный резерв для собственного размещения: русский и инструкции поддерживаются соответствующими моделями семейства. Потребуются собственные serving и квалификация; качество на наших русских выпусках ещё нужно сравнить. [Репозиторий](https://github.com/QwenLM/Qwen3-TTS) |
-| **Yandex SpeechKit** | Полезен как дополнительный русский контроль произношения: есть ударения и TTS-разметка. Не объявлять хуже по звучанию без записи; в первую пятёрку не включён ради ограничения объёма первоначального сравнения. [Разметка](https://aistudio.yandex.ru/ru/docs/speechkit/tts/markup/tts-markup) |
+| ElevenLabs Eleven v4 | Evaluate natural delivery, pronunciation controls and tagged dialogue in the appropriate endpoint. Verify which response supplies alignment for the chosen model. [Models](https://elevenlabs.io/docs/overview/models) · [Dialogue with timestamps](https://elevenlabs.io/docs/api-reference/text-to-dialogue/convert-with-timestamps) |
+| Gemini 3.8 Flash TTS | Compare a natural reading with a short delivery direction. Exercise single and multi-speaker requests and inspect the returned audio format. The Gemini API and Cloud TTS expose different interfaces. [Speech generation](https://ai.google.dev/gemini-api/docs/speech-generation) · [Cloud TTS](https://docs.cloud.google.com/text-to-speech/docs/gemini-tts) |
+| Inworld TTS-2 | Check Russian voices, delivery guidance, stability settings and continuity across neighboring utterances. [Steering](https://docs.inworld.ai/tts/capabilities/steering) · [Script synthesis](https://docs.inworld.ai/tts/capabilities/script-synthesis) |
+| Fish Drama 3 and S2.1 | Pin the particular model, speaker reference, text/markup handling and output format. Evaluate hosting or voice rights against the selected mode. [Drama 3 API](https://docs.fish.audio/features/text-to-speech/drama-3.md) · [Model catalog](https://docs.fish.audio/developer-guide/models-pricing/models-overview.md) |
+| MiniMax Speech 2.8 HD | Check the selected Russian voice, pronunciation and paragraph delivery with the exact synchronous synthesis settings. [Speech API](https://platform.minimax.io/docs/api-reference/speech-t2a-http.md) |
 
-## Как управлять подачей
+The research also considered Cartesia, OpenAI speech, Qwen3-TTS and Yandex SpeechKit as additional comparators. Availability of a language, style parameter or emotion label is a reason to test a candidate. A usable voice and accurate rendering must still be demonstrated on the material. [Cartesia](https://docs.cartesia.ai/build-with-cartesia/tts-models/latest) · [OpenAI speech](https://developers.openai.com/api/docs/guides/text-to-speech) · [Qwen3-TTS](https://github.com/QwenLM/Qwen3-TTS) · [SpeechKit markup](https://aistudio.yandex.ru/ru/docs/speechkit/tts/markup/tts-markup)
 
-Предлагаются два сравниваемых режима: естественная подача выбранного голоса без дополнительных указаний и та же подача с короткими режиссёрскими уточнениями. В парном опыте остальные параметры сохраняются. **Оставлять дополнительные указания только там, где они улучшают слышимый результат.**
+## Direction and segmentation
 
-Стабильный голос задаётся на выпуск. Локальная инструкция описывает задачу фрагмента: подчеркнуть контраст, ускорить действие, дать спокойно прозвучать итогу. В техническое задание не входит обязательная эмоция каждой строки. Вдохи и паузы допускаются естественно; слова-паразиты не дописываются аудиоподсистемой в принятый текст.
+Compare the chosen voice at its natural setting with the same voice given a short, scene-specific direction. Keep all other parameters and the attempt count equal. Use a stable voice identity across an episode. A scene direction can mark a meaningful contrast, quicken an action or give a result time to register. Keep instructions separate from words to be spoken.
 
-Параметры надёжности также проверяются на слух. Например, у Inworld есть `STABLE`, `BALANCED` и `CREATIVE`; исходный режим — `BALANCED`. Не выбирать максимальную стабильность для всех сцен заранее и не переносить temperature между несовместимыми моделями: TTS-2 её не поддерживает. [Настройки Inworld](https://docs.inworld.ai/tts/capabilities/generating-audio).
-
-Стартовый общий brief для проверки управляемого режима:
+The proposed direction for the controlled comparison was:
 
 ```text
 Read the supplied script verbatim in the requested output language as an
@@ -81,106 +30,36 @@ engaged documentary host speaking to one listener. Let phrasing and emphasis fol
 Keep the delivery conversational, with enough variation to sustain attention.
 ```
 
-Это кандидат для сравнения с пустыми указаниями. Он не должен автоматически становиться обязательным префиксом каждого TTS-запроса. Системные инструкции остаются английскими; язык задаётся через `output_language` задания. Адаптер переводит указания в поддержанный формат сервиса; неподдерживаемое непроизносимое поле нельзя подмешивать в произносимый текст.
+The control sends no additional direction. Use a provider-specific adapter for supported controls, and verify that intended instructions never become audible speech. Give the director the complete episode or act and its neighboring context. Send the synthesizer a complete thought or exchange within its actual limits. Compare connected rendering with splitting on sentence or character boundaries. For a voice comparison, listen to dry speech at matched perceived loudness.
 
-Режиссёрская подготовка получает целый выпуск либо полный акт с соседними сценами. Синтез получает связную мысль или обмен репликами в рамках собственных ограничений. Деление по предложениям и размеру строки сравнивается с делением по смыслу; рабочий размер выбирается по результату, а не по универсальному числу секунд.
+## Blind comparison protocol
 
-Чрезмерно ровная запись исправляется выбором голоса, контекстом или подачей. Изменение общей громкости и добавление музыки не решают проблему смысловых ударений. В начальном сравнении используется чистая речь, чтобы слышать сами голоса.
-
-## Протокол сравнения
-
-| Шаг | Материал и объём | Какое решение принимаем |
+| Stage | Material | Decision |
 | --- | --- | --- |
-| 1. Проверка возможностей | На каждом точном профиле: русский, произношение, инструкция, текст без озвученной разметки, две соседние части, два говорящих при поддержке | Какой запрос действительно поддерживается; какие настройки применяются |
-| 2. Отбор голосов | Пять моделей × два подходящих русских голоса × два одинаковых отрывка — 20 записей, ориентировочно по 45–75 секунд | Два лучших сочетания модели и голоса |
-| 3. Проверка подачи | Два финалиста × три отрывка × два режима подачи × две попытки — 24 записи | Помогают ли указания, насколько стабилен результат |
-| 4. Полные выпуски | На обоих финалистах целиком дождь и «Аполлон-13»; отдельная сцена с двумя ведущими из существующего GPS | Утомляемость, развитие интонации, стабильность, переходы и применимость к диалогу |
-| 5. Исправление | Заменить одно произношение и один неудачный переход в уже собранной записи | Можно ли локально исправлять выпуск без разрушения соседнего исполнения |
+| Capability check | Russian speech, names, direction, adjacent passages and two speakers where available, for each exact profile | Which request features work and which settings reach the service? |
+| Voice selection | Five models × two suitable Russian voices × two identical excerpts, 20 recordings of roughly 45–75 seconds | Select two model–voice combinations. |
+| Direction | Two finalists × three excerpts × two direction modes × two takes, 24 recordings | Does direction improve delivery reliably? |
+| Long form | Render the complete rain and Apollo 13 scripts on both finalists. Include a separate two-host GPS scene. | Assess fatigue, narrative contour, consistent voice, handoffs and joins. |
+| Retake | Replace one pronunciation and one poor transition in an assembled recording. | Can the editor repair a local defect while preserving the neighboring performance? |
 
-Материал: принятые результаты [двух последних прогонов](../../../evals/reports/2026-11-12-two-topic-cycles/README.md), плюс существующий согласованный материал диалога GPS. На аудиоэтапе новые варианты сценариев не генерируются. До запуска извлечь точные реплики из сохранённых структурированных результатов и закрепить refs/hash, а не озвучивать Markdown-отчёт.
+Use exact contiguous source utterances and frozen script hashes. A narrative passage and an explanatory passage make up the first comparison. Add an ending for the direction trial. Diagnose names, dates, numbers, abbreviations, stress and negation separately. The fixture manifest identifies checks deferred from the first selection.
 
-Для отбора нужны один повествовательный и один объясняющий отрывок. Для проверки подачи добавить завершение. Отдельные технические пробы покрывают русские ударения, иностранные имена, даты, числа, отрицания и аббревиатуры. Это диагностический материал, он не вставляется в выпуски.
+Preselect voices appropriate to Russian documentary narration. An English demonstration voice poorly represents that decision. Randomize anonymous sample IDs and presentation order. Keep every take, failure, cost and setting. Where a provider has no reproducible seed, the raw response and actual recording identify the take.
 
-Голоса предварительно подбираются для русского и нужной манеры рассказа. Случайный английский demo voice не представляет качество всего сервиса. Сравнение выбирает пригодное для продукта сочетание модели и голоса; оно не изолирует чистый эффект архитектуры модели.
+Start with three to five independent Russian-speaking listeners to identify clear defects. Elicit paired preferences and exact moments that explain them. This sample supports a diagnostic decision rather than a population estimate. If available, compare a professional dry recording of the same text. A short-sample winner still needs a complete listening pass. [ITU-T P.808](https://www.itu.int/rec/T-REC-P.808-202106-I/en) · [Evaluation of synthetic spontaneous speech](https://www.isca-archive.org/interspeech_2024/edlund24_interspeech.html)
 
-Записи обезличиваются и предъявляются в случайном порядке при одинаковой воспринимаемой громкости. Сохраняются все попытки, ошибки и стоимость; подбор удачного дубля из разного числа попыток исказит сравнение. Если seed недоступен или недетерминирован, сохраняются реальные запрос и запись.
+## Audio QA
 
-На первом отборе достаточно 3–5 независимых русскоязычных слушателей для выявления явных проблем. Это практический размер диагностической группы, не статистическая гарантия. При близких результатах фиксировать ничью и расширять сравнение на других фрагментах. Кандидаты на выпуск проходят полное прослушивание; учитывать, на какой минуте захотелось выключить и почему. Принципы организации слушательских испытаний описывает [ITU-T P.808](https://www.itu.int/rec/T-REC-P.808-202106-I/en).
+Transcribe the actual render independently. Align that transcript with the frozen script, retaining differences in names, numbers, negations, omissions and insertions. Review the sound around a discrepancy before deciding which words were spoken. Forced alignment can place a known word in time. It cannot establish that a missing word was actually pronounced. An acoustic reviewer can help locate awkward pauses and joins after calibration against human annotations. [Transcription](https://developers.openai.com/api/docs/guides/speech-to-text) · [Audio understanding](https://ai.google.dev/gemini-api/docs/audio)
 
-Основные вопросы: естественна ли речь; соответствуют ли смыслу акценты и паузы; нет ли монотонности или переигрывания; сохраняется ли голос; хочется ли слушать дальше. Для дефекта нужны время и конкретное слышимое проявление. Для проверки слов текст показывается после первого прослушивания; для оценки уместности интонации можно предъявлять сценарий и замысел сцены отдельным проходом.
+Check decoding, sample format, order, duration, clipping, loudness, peaks and both sides of every boundary. Listen in context after each repair. A transcription mismatch is a lead, and a passing technical check leaves the performance decision to the listener. If synthesis actually changes the spoken meaning, refer the affected script version to its editorial owner.
 
-По возможности добавить профессиональную сухую начитку того же материала как ориентир абсолютного качества. Победа над другой синтетической записью сама по себе не устанавливает достаточную планку. Эффект обстановки и задания на оценки показан в [Edlund et al., 2024](https://www.isca-archive.org/interspeech_2024/edlund24_interspeech.html).
+## Cost per accepted minute
 
-## Автоматическая проверка звука
+Use the rate effective for the selected account, model and date. The original comparison encountered per-character prices, per-UTF-8-byte prices, and separate input-text and output-audio token prices. Cyrillic letters commonly occupy two UTF-8 bytes. Count the string or usage actually billed, including applicable control markup. For each candidate, report accepted audio minutes and total costs for all attempts, failures, retakes and QA. Divide the latter by the former. Keep latency as a separate measurement. [ElevenLabs](https://elevenlabs.io/pricing/api) · [Inworld](https://inworld.ai/pricing) · [Fish](https://docs.fish.audio/developer-guide/models-pricing/pricing-and-rate-limits.md) · [MiniMax](https://platform.minimax.io/docs/pricing/overview) · [Gemini](https://ai.google.dev/gemini-api/docs/pricing)
 
-Нужны три отдельных вида проверки:
+## Handoff to production audio
 
-1. **Исполнен ли текст.** Независимое распознавание без поданного сценария, сопоставление с ожидаемой произносимой формой и отдельная проверка чисел, отрицаний, имён и распределения реплик. Различия письменного оформления чисел не считать ошибкой произношения.
-2. **Как звучит запись.** Оценка реального аудио с соседним контекстом: ударения, повторяющаяся мелодика, ускорения, окончания мыслей, голос и переходы. Транскрипт не позволяет услышать эти дефекты.
-3. **Целостность сигнала.** Полное декодирование, порядок частей, отсутствие обрывов и клиппинга, измеренные громкость, пики и длительность.
+Bind a rendered candidate to the exact accepted reading outcome and script hash. Preserve voice rights, provider profile, direction, request, response, take identity and measured usage. The audio design separates performance, accepted takes, assembly, transcribed audio and release state. [Audio design](../05-audio-production.md) · [Validated outcome and audio descriptors](../validated-outcome-and-audio-descriptors.md)
 
-Для первого ASR-адаптера подходит текущий `gpt-transcribe`; официальное руководство рекомендует его для файлов. Старые Whisper и GPT-4o Transcribe объявлены к отключению 26 февраля 2027 года. Таймкоды и выравнивание проверяются отдельно: возможность распознать файл не означает наличие требуемых word timestamps. [File transcription](https://developers.openai.com/api/docs/guides/speech-to-text).
-
-Для акустического reviewer можно квалифицировать Gemini с входным аудио. Входное аудио поддерживается общей моделью понимания, например `gemini-3.8-flash`; TTS-модель здесь не подходит. [Audio understanding](https://ai.google.dev/gemini-api/docs/audio). Результаты автоматического слушателя сравнить с человеческими отметками; одним общим баллом монотонность не удостоверяется.
-
-Расхождение ASR сначала проверяется по звуку. Повторное распознавание и акустический reviewer разрешают спорные случаи. Forced alignment используется после установления слов для уточнения времени; он не доказывает, что отсутствующее слово прозвучало.
-
-Проверка охватывает всю запись и каждый стык. У исправленной части проверяется соседний контекст. Фактические возражения к содержанию не порождаются заново аудиоревьюером; выявленное реальное изменение слов передаётся существующему владельцу текста.
-
-## Стоимость
-
-Публичные ставки на 12 ноября 2026 года, до повторных дублей и QA:
-
-| Сервис | Единица и ставка |
-| --- | --- |
-| Eleven v4 | $0.08 за 1 000 символов. [API pricing](https://elevenlabs.io/pricing/api) |
-| Inworld TTS-2 | On-Demand $25 за миллион символов; тарифные планы меняют ставку. [Pricing](https://inworld.ai/pricing) |
-| Fish Drama 3 | Обычно $50 за миллион UTF-8 байт; до 30 ноября действует $10. У S2.1 другая ставка. [Pricing and rate limits](https://docs.fish.audio/developer-guide/models-pricing/pricing-and-rate-limits.md) |
-| MiniMax Speech 2.8 HD | $100 за миллион символов. [Pricing](https://platform.minimax.io/docs/pricing/overview) |
-| Gemini 3.8 Flash TTS | До конца 2026 года $0.50 за миллион входных текстовых токенов и $9 за миллион выходных аудиотокенов; с 1 января 2027 — $1 и $18. Текущий ориентир выхода — $0.0135 за минуту, без входного текста. [Pricing](https://ai.google.dev/gemini-api/docs/pricing#gemini-3.8-flash-tts) |
-
-Байты и символы не взаимозаменяемы: кириллица обычно занимает два UTF-8 байта на букву. Считать стоимость по реально отправленным строкам и данным биллинга, включая разметку по правилам сервиса. Для продукта измерять стоимость принятой минуты: все дубли, неудачи, QA и монтаж, делённые на длительность итогового выпуска. Приоритет текущего отбора — качество; задержка первого звука вторична для записанного подкаста.
-
-## Что уже есть в Podgen
-
-В `backend/src/podgen/domain/contracts/audio.py` описаны PerformancePlan, AudioSegment, AudioMaster, Transcript и AudioQAReport. VoiceProfile и CapabilityReport находятся в `domain/contracts/configuration.py`. Реализованной подсистемы синтеза и монтажа пока нет. Целевое разделение уже задано в [05](../05-audio-production.md) и [WP-07](../07-implementation-plan.md).
-
-В Direction сейчас обязательны непустые `pace_intent` и `emotion`. При реализации нужна возможность наследовать обычную подачу без локальной инструкции. Иначе интерфейс будет вынуждать режиссуру каждой реплики. Можно использовать версионированный контракт с необязательными overrides; старые сохранённые артефакты должны оставаться читаемыми.
-
-Последние текстовые результаты адресуются runtime refs вида `tool_execution` через `independent-reading-outcome/1`. Их нельзя механически объявить canonical ArtifactRef/ScriptRevision. Вход аудиоподсистемы должен явно связывать исходный сохранённый сценарий, стабильные идентификаторы реплик и обе последние рецензии на один hash. На evaluation-пути сохранять его назначение; реальные production acceptance оформлять существующей предметной политикой.
-
-## Задание агентам
-
-### Сначала сравнение и выбор
-
-Реализовать небольшой общий путь сравнения внутри существующей evaluation-архитектуры: пять тонких provider adapters, одинаковые задания, сохранённые голоса/настройки/запросы, исходный lossless звук, измерения и обезличенный набор для прослушивания. Это те же адаптеры, которые затем использует аудиоподсистема. В production закрепляется один выбранный основной профиль; второй остаётся проверенным кандидатом, без скрытого переключения голоса посреди выпуска.
-
-Перед платными сравнениями проверить API-доступ, точные model IDs, лимиты и форматы. Для Fish исключить тихий fallback. Для Inworld не подменить TTS-2 на Flash. Для Gemini использовать новую схему выбранного API. Общий формат профиля не должен обещать одинаковую поддержку тегов и контекста у всех провайдеров.
-
-Выход первой работы: записи 20 проб, протокол голосов, результаты коротких сравнений, два финалиста и объяснение выбора с отметками времени. Сравнение подачи и полные записи следуют на этих двух профилях. Голос выбирает прослушивание, не агент по описанию каталога.
-
-### Затем законченная аудиоподсистема
-
-| Место | Реализовать |
-| --- | --- |
-| `audio/performance/` | Извлечение точной речи, словарь произношения, явные преобразования чисел/сокращений, sparse direction, сохранённая связь каждого слова со сценарием |
-| `audio/synthesis/` | Общий порт синтеза и провайдеры, проверенные возможности профиля, получение полного ответа, различение технического retry и нового художественного дубля |
-| `audio/assembly/` | Декодирование в PCM, монтаж по измеренным границам, сохранение естественных пауз, единичное финальное кодирование, измеренные loudness/true peak/длительность |
-| `audio/alignment/` | Привязка фактического распознавания к аудио и исходным репликам, таймкоды финальной записи |
-| `audio/quality/` | Сохранность слов, реальное акустическое ревью, проверка каждого стыка и полного master, адресные замечания |
-| `audio/application/` | Путь от принятого сценария до master/transcript/QA, локальный retake, повторное использование подходящих частей, остановка и возобновление через существующий runtime |
-| `runtime/evaluation/audio/` | Общие задания и отчёты сравнения, чтение реальных артефактов и результатов, сохранение всех попыток и стоимости |
-
-Переиспользовать существующие domain contracts, persistence и runtime. Описанная раскладка соответствует предметным обязанностям WP-07; она не требует нового сценарного процесса или новых авторских конфигураций.
-
-Для retake достаточно менять произношение, подачу или границу связного фрагмента. При неудачном стыке увеличивается заменяемый контекст. Не обрезать согласные, не вставлять тишину вместо потерянной реплики, не ускорять весь файл ради расчётного хронометража. После изменения собирать новый master, transcript и QA на точные версии.
-
-Сохранить предусмотренный аудиопланом конечный бюджет quality retakes. Повторяющийся дефект требует диагностики причины и изменения запроса, границы или профиля. Исчерпание бюджета оставляет явный незавершённый результат, а не автоматически принимает последнюю попытку.
-
-### Критерий завершения этапа
-
-Принятый текст воспроизводимо превращается в целую запись с фактическим транскриптом и аудиопроверкой. На дождевом и Apollo-кейсах нет неразрешённых ошибок слов, обрывов и стыков; выбранная подача выдерживает полное человеческое прослушивание. Локальная замена исправляет дефект, сохраняя подходящие соседние части.
-
-Негативные проверки включают потерянное отрицание, неверное имя, пропущенную последнюю фразу, перепутанного ведущего, оборванный ответ и плохой монтажный стык. Они должны обнаруживаться по звуку/медиа и приводить к адресному исправлению либо явной остановке.
-
-Для заявления поддержки диалога нужен целый двухголосый выпуск, а не только пробная сцена. Длительности 30/60/90 минут проверяются отдельно на том же профиле перед объявлением соответствующей поддержки. Текущие короткие выпуски позволяют выбрать исполнение и проверить полный путь; длинная квалификация остаётся частью WP-07.
+A retake can change pronunciation, direction or the context supplied to the synthesizer. If a transition is poor, regenerate a longer connected passage and review its joins. Preserve the good adjacent material and the original PCM. Track retake spending and expose an unresolved defect if the limit is exhausted. Completion for this protocol requires complete rain and Apollo listening passes, a reliable local repair and a record of the evidence behind the chosen voice.

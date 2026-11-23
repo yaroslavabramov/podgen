@@ -77,6 +77,4 @@ the baseline and candidate. Include first-use index construction. Retain failure
 and recovery tests separately; do not compare an uninterrupted offline run directly
 with a historical run containing provider waits and manual recovery gaps.
 
-The [complete Hieroglyphs replay](../../evals/reports/2026-11-14-full-operation-persistence/README.md)
-records the comparable measurements, review corrections, exact output checks and
-remaining costs.
+A historical replay of the hieroglyphs episode used the same pre-episode database, 54 archived source fetches and extractions, 84 model responses, 84 token counts, 28 research exchanges and two speech responses on each version. It ran local retrieval, FFmpeg, assembly and export with external dispatch disabled. Against baseline `b2e07b16`, client SQL fell from 61,312 to 37,518 and measured phase time from 572.90 to 537.39 seconds. The auxiliary cold outcome read cost 29 statements, compared with a prior measurement of 1,219. The runs reproduced script and master audio. The SQL counts exclude server-side trigger work and the timings represent one local run per version.

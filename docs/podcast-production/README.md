@@ -1,70 +1,30 @@
-# Podgen: целевая архитектура и реализация
+# Podcast production architecture
 
-Статус: проектная спецификация. Дата: 4 ноября 2026. Документы описывают полноценный продукт; эффективность модельных и звуковых решений должна быть подтверждена экспериментами из плана реализации.
+Podgen turns a topic into a researched, scripted and narrated podcast. The episode coordinator runs hosted research, acquires the cited sources, commissions a plan and its review, and sends the accepted plan to the writer. An editorial reader and a fact-checker assess the resulting script independently. An accepted reading outcome can proceed to synthesis and assembly. The exported master still requires listening.
 
-## Решение
+## Read the implementation
 
-Строить производство подкаста вокруг одного редакционного владельца, который ведёт главный вопрос, исследовательское досье и целостный сценарий. Исследование и пробное написание чередуются. Фактическая проверка выполняется по утверждениям реального сценария; аудио проходит самостоятельную проверку. Готовность означает проверенный комплект точных версий текста, звука, транскрипта и источников.
+| Question | Guide |
+| --- | --- |
+| How do I prepare, start, inspect or resume an episode? | [Episode CLI](episode-production.md) |
+| What source text actually reached a model? | [Acquisition](source-acquisition-runtime.md), [corpus](research-corpus-runtime.md), [source search](source-search.md), [role tools](research-materials-runtime.md) |
+| What do the planner, writer and reviewers see? | [Role inputs](08-editorial-inputs.md), [writing profiles](writing-behavior-profiles.md), [planning](planning-v9.md) |
+| How does a revision become the final script? | [Editorial recheck](revision-recheck.md), [reading audit](reading-audit-contract.md), [handoff to audio](validated-outcome-and-audio-descriptors.md) |
+| How are calls, costs and uncertain outcomes recorded? | [Execution journal](execution-journal.md), [private journal](private-execution-journal-v3.md), [budget recovery](input-budget-recovery.md) |
+| What is persisted once, and what is checked again? | [Whole-operation persistence](full-operation-persistence.md), [document publication](document-publication.md), [blob publication](blob-publication.md), [index reuse](reusable-source-index.md) |
+| How are saved operations recovered? | [Technical recovery](technical-recovery.md), [planning continuation](planning-continuation.md), [editorial continuation](editorial-continuation.md) |
 
-Существующий код не задаёт границы решения. Перенос старого компонента допустим только после проверки его соответствия новым контрактам. Реализация может полностью заменить v1/v2 и используемые технологии.
+## Read the design
 
-```mermaid
-flowchart LR
-  U[Запрос пользователя] --> E[Редактор]
-  E <--> R[Исследование и досье]
-  E <--> W[План и целостный сценарий]
-  R <--> W
-  W --> V[Фактчек и редакционная проверка]
-  V -->|Пробел| R
-  V -->|Правки| W
-  V -->|Текст допущен| A[Исполнение и аудио]
-  A --> Q[Проверка полного аудио]
-  Q -->|Перезапись| A
-  Q -->|Смысловая ошибка| W
-  Q --> B[Проверенный комплект выпуска]
-```
+The numbered documents describe the target product and its acceptance criteria. They include capabilities beyond the current CLI, such as user-facing release approval, independently qualified audio packages and experimentally validated long-form writing strategies.
 
-Стрелки возврата создают новые версии и повторные проверки. Выпуск собирается из точного набора принятых артефактов; схема не разрешает пропускать повторный фактчек после смысловой правки.
+1. [System contract](00-system-contract.md) defines ownership, identity, workflow and publication.
+2. [Sources and evidence](01-sources-and-evidence.md) distinguishes a saved document from a judgment about what it establishes.
+3. [Research and editorial direction](02-research-and-editor.md) specifies the working question and its handoff to the writer.
+4. [Story and writing](03-story-and-writing.md) covers structure, continuity and revision. [Editorial practice](03-editorial-practice.md) shows how this changes the words a listener hears.
+5. [Verification and evaluation](04-verification-and-evaluation.md) covers claims, independent readings and comparative evaluation.
+6. [Audio production](05-audio-production.md) defines performance, rendering, editing and listening.
+7. [Platform and runtime](06-platform-and-runtime.md) covers execution, persistence and recovery.
+8. [Implementation plan](07-implementation-plan.md) orders the work and defines the experiments and end-to-end acceptance cases.
 
-## Документы
-
-Текущий контракт редакционного входа и бесплатная сборка запросов: [08. Редакционные входы по ролям](08-editorial-inputs.md).
-
-Действующие механизмы завершения сценария: [повторная редакторская проверка](revision-recheck.md) и [продолжение после технического сбоя](technical-recovery.md).
-
-| Раздел | Что нужно реализовать |
-|---|---|
-| [00. Общий контракт](00-system-contract.md) | Предметная модель, владение данными, версии, состояния и межмодульные инварианты |
-| [01. Источники и доказательства](01-sources-and-evidence.md) | Поиск, получение материалов, воспроизводимые ссылки, происхождение и обновление |
-| [02. Исследование и редактор](02-research-and-editor.md) | Управление вопросами, связное понимание, альтернативы, задания и решения |
-| [03. История и сценарий](03-story-and-writing.md) | Замысел выпуска, написание актов, память о рассказанном и глобальная редактура |
-| [04. Проверка и оценивание](04-verification-and-evaluation.md) | Фактчек, редакционное качество, условия выпуска и проверка качества продукта |
-| [05. Производство аудио](05-audio-production.md) | Исполнение, синтез, монтаж, таймкоды, произношение и прослушивание |
-| [06. Платформа и исполнение](06-platform-and-runtime.md) | Стек, хранение, надёжные задания, API, интерфейс и эксплуатация |
-| [07. План реализации](07-implementation-plan.md) | Последовательность работ, зависимости, эксперименты и критерии завершения |
-
-Для сценарной работы к разделу 03 приложена [практика автора и редактора](03-editorial-practice.md). Там один материал разобран от выбора истории до сольного текста, диалога и проверки на слух.
-
-Читать сначала 00, затем нужный предметный раздел. План 07 связывает все разделы. Общие типы определяются только в 00; предметные поля — в документе владельца. При изменении интерфейса обновляются обе стороны и проверка стыка.
-
-[Журнал ревью](REVIEW.md) фиксирует обнаруженные противоречия, исправления владельцами и проверенные межмодульные стыки. План содержит 14 пакетов работ, 8 экспериментов и 20 сквозных сценариев приёмки.
-
-## Что считается результатом
-
-- Слушатель понимает ответ на исходный вопрос; выпуск имеет развитие и завершение, а не последовательность пересказов.
-- Существенные фактические утверждения проверены по сохранённым материалам; ограничения знания отражены в самом рассказе.
-- Ведущие звучат естественно, реплики не потеряны, таймкоды соответствуют реальному аудио.
-- После сбоя работа продолжается с сохранённого состояния; никакой технический отказ не маскируется успешным выпуском.
-- Изменение источника или текста отзывает зависимые допуски. Пользователь видит, какой комплект готов и что требуется перепроверить.
-
-Длительность сама по себе не доказывает полноту. Количество источников, агентов, инструментов, claims или пройденных проверок не заменяет эти результаты.
-
-## Что фиксируем, а что проверяем
-
-Фиксируем ответственность компонентов, сохранение полного смысла, происхождение материалов, версии входов, разделение авторства и проверки, честную обработку ошибок и точную сборку выпуска.
-
-Экспериментально выбираем модели, способы исследования и написания, длину контекста, синтез речи и численные пороги качества. У каждой такой проверки должны быть сравниваемые варианты, независимый материал, измерение конечного результата и заранее записанное правило решения. «Более сложная архитектура» не получает преимущество автоматически.
-
-База для сравнения — сильная модель с простыми инструментами, которая исследует тему, пишет полный выпуск и проходит ту же независимую проверку. Обе системы получают одинаковые исходные материалы и возможности поиска. Отдельно авторов сравнивают на одном экспертном досье, чтобы исключить влияние качества исследования. Предлагаемый процесс обязан показать пользу на сложных темах, длинных выпусках и восстановлении после ошибок. Если он не выигрывает, упрощается организация модельной работы; контракты происхождения, версий и выпуска сохраняются.
-
-Промежуточные этапы реализации служат проверке гипотез и интеграции. Готовым продуктом считается только весь путь от запроса до проверенного аудио с интерфейсом, восстановлением и эксплуатационной готовностью.
+The [design review](REVIEW.md) records decisions shared by several modules. The [evaluation record](../../evals/reports/README.md) explains what has been measured. A successful provider call, a reviewer’s approval and publication of a finished episode are three distinct events.
