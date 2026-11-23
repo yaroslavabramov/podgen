@@ -14,6 +14,10 @@ In the completed trial the factual reviewer found an attribution error: the draf
 
 The complete writing cycle took 52 minutes and 57 generations. Of its 2,552,231 input tokens, 1,769,850 were cached. The ledger recorded $2.391449 for writing and review at the rates pinned to that run. The trial reused earlier research and stopped after writing. Its final 3,887 words were estimated at 28:41 for the chosen voice, below the 30-minute minimum. The reviewers accepted the script despite that estimate. There is no measured audio duration for this version.
 
+In the opening scene, the *Niagara* is paying out cable from its stern. Here is the next paragraph in English translation:
+
+> Men stand by the machinery, watching that the rope runs out neither too fast nor too slowly. Electricians sit nearby with their instruments in front of them. They send a current down the rope and wait for an answer from shore. The rope is a telegraph line. They mean to lay it across the Atlantic Ocean.
+
 [Final Russian script](2026-11-23-atlantic-cost-budget/final.md) · [Token and cost ledger](2026-11-23-atlantic-cost-budget/accounting.json)
 
 ## From script to audio
