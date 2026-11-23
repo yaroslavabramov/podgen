@@ -264,3 +264,62 @@ def test_a_confirmed_finding_is_repaired_and_the_listened_master_accepted(
         "acceptance.json",
     }
     assert package["audio_sha256"] == accepted["progress"]["audio_acceptance"]["audio_sha256"]
+
+
+class RejectedOnce:
+    """The provider first refuses for lack of credit, then hears each part exactly."""
+
+    def __init__(self, repo, project, run_id):
+        self.repo, self.project, self.run_id, self.calls = repo, project, run_id, []
+
+    def submit(self, request, body, credential):
+        from podgen.audio.http import HttpReceipt
+
+        self.calls.append(request)
+        if len(self.calls) == 1:
+            return HttpReceipt(402, {"content-type": "application/json"}, b'{"status":402}', 20)
+        audio = AudioJournal(self.repo, self.project, uuid5(self.run_id, "audio-render/2"))
+        parts = [" ".join(texts(cell["request"]["body"])).split() for cell in audio.get("manifest")["cells"]]
+        words, segments = [], []
+        for index, said in enumerate(parts):
+            step = 3 / (len(said) + 1)
+            segments += [
+                dict(text=w, start=index * 3 + (i + 0.2) * step, end=index * 3 + (i + 0.7) * step)
+                for i, w in enumerate(said)
+            ]
+            words += said
+        value = dict(text=" ".join(words), duration=len(parts) * 3, segments=segments, request_id="fixture")
+        return HttpReceipt(200, {"content-type": "application/json"}, json.dumps(value).encode(), 20)
+
+
+def test_a_rejected_recognition_is_retried_once_without_new_synthesis(repo, scope, producer, monkeypatch):
+    from podgen.episodes.production import audio as episode_audio
+    from podgen.episodes.production import providers
+    from podgen.episodes.production.contracts import AudioVerification
+    from podgen.episodes.production.journal import ProductionJournal
+
+    config, runner, _, _, speech, _ = setup_episode(repo, scope, producer, monkeypatch)
+    price = dict(usd_per_audio_minute="0.006", source_url="https://docs.fish.audio", checked_at="2026-11-23")
+    settings = config.settings.model_copy(
+        update=dict(audio_max_part_characters=256, audio_verification=AudioVerification(price=price))
+    )
+    config = config.model_copy(update=dict(settings=settings))
+    runner.writer.provider_factory = lambda _: LongScriptProvider()
+    monkeypatch.setenv("FISH_API_KEY", "fixture")
+    recognizer = RejectedOnce(repo, scope[0], config.run_id)
+    runner.recognition_transport = recognizer
+    monkeypatch.setattr(providers, "recognition_transport", lambda settings: recognizer)
+    prepare(repo, scope[0], config)
+    with pytest.raises(ContractError, match="episode_audio_verification_provider_rejected"):
+        runner.run()
+    journal = ProductionJournal(repo, scope[0], config.run_id)
+    assert journal.read()["progress"]["error_code"] == "episode_audio_verification_provider_rejected"
+    synthesized = len(speech.calls)
+    assert (
+        episode_audio.retry_recognition(repo, scope[0], journal.read(), "Credit added.")
+        == "candidates_generated"
+    )
+    assert runner.run()["status"] == "assembled"
+    assert len(recognizer.calls) == 2 and len(speech.calls) == synthesized
+    with pytest.raises(ContractError, match="episode_recognition_retry_requires_provider_rejection"):
+        episode_audio.retry_recognition(repo, scope[0], journal.read(), "Again.")

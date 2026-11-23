@@ -72,7 +72,7 @@ def parser():
         if name == "repair":
             child.add_argument("--candidate-id", type=UUID, action="append", required=True)
             child.add_argument("--reason", default="The user confirmed these findings on the review page.")
-        if name == "accept":
+        if name in ("accept", "retry-recognition"):
             child.add_argument("--reason", required=True)
     return root
 
@@ -166,6 +166,11 @@ def operate(args, repo, project):
         return export(journal, args.export_dir)
     if args.operation in ("review", "repair", "accept"):
         return reviewing(args, repo, project, journal)
+    if args.operation == "retry-recognition":
+        from podgen.episodes.production.audio import retry_recognition
+
+        outcome = retry_recognition(repo, project, journal.read(), args.reason)
+        return dict(status(journal.read()), recognition_retry=outcome)
     row = journal.read()
     if args.operation in ("prepare", "status") or row["status"] in ("assembled", "accepted"):
         if getattr(args, "export_dir", None):

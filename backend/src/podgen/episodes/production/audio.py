@@ -312,3 +312,42 @@ def _verify(audio, config, settings, subject, name, transport):
     if status != "candidates_generated":
         raise ContractError("episode_audio_verification_" + status)
     return audit.audit_id, revisions(audio, audit.audit_id)[-1]["result"]["report"]
+
+
+def retry_recognition(repo, project, row, reason):
+    """After a provider rejected a master or part recognition, authorize exactly one more delivery."""
+    from decimal import Decimal
+
+    from podgen.runtime.evaluation.audio.fidelity.contracts import prefix as audit_prefix
+    from podgen.runtime.evaluation.audio.fidelity.service import run as recognize
+    from podgen.runtime.evaluation.audio.fidelity.service import state
+
+    from .contracts import ProductionConfig
+    from .providers import recognition_transport
+
+    config = ProductionConfig.model_validate(row["configuration"])
+    settings = config.settings.audio_verification
+    if (
+        settings is None
+        or row["progress"].get("error_code") != "episode_audio_verification_provider_rejected"
+    ):
+        raise ContractError("episode_recognition_retry_requires_provider_rejection")
+    audio = AudioJournal(repo, project, uuid5(config.run_id, "audio-render/2"))
+    names = [f"audio-verification/1:{i}" for i in range(settings.max_repair_rounds + 1)]
+    names += [f"{name}:part:{p}" for name in names[1:] for p in range(len(audio.get("manifest")["cells"]))]
+    for name in names:
+        audit_id = uuid5(config.run_id, name)
+        manifest = audio.get(audit_prefix(audit_id) + ":manifest")
+        if manifest is None:
+            continue
+        subject = dict(kind=manifest["subject_kind"], ref=manifest["subject_ref"])
+        audit = audit_config(audio, config, settings, subject, name)
+        if state(audio, audit) != "provider_rejected":
+            continue
+        policy = dict(
+            reason=reason,
+            max_total_requests=2,
+            max_total_cost_usd=str(2 * Decimal(settings.reservation_usd)),
+        )
+        return recognize(audio, audit, recognition_transport(config.settings), retry_policy=policy)
+    raise ContractError("episode_recognition_retry_found_no_rejected_recognition")
