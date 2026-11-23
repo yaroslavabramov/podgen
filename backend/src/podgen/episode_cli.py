@@ -11,7 +11,7 @@ from pydantic import ValidationError
 
 from podgen.domain.errors import ContractError
 from podgen.episodes.production import providers
-from podgen.episodes.production.contracts import ProductionConfig, ProductionSettings
+from podgen.episodes.production.contracts import AudioVerification, ProductionConfig, ProductionSettings
 from podgen.episodes.production.export import export, status
 from podgen.episodes.production.journal import ProductionJournal
 from podgen.episodes.production.prepare import prepare
@@ -20,6 +20,14 @@ from podgen.episodes.production.settings import from_references
 from podgen.persistence.database import Database
 from podgen.persistence.objects import FileObjectStore
 from podgen.persistence.repository import Repository
+
+DEFAULT_AUDIO_VERIFICATION = dict(
+    price=dict(
+        usd_per_audio_minute="0.006",
+        source_url="https://docs.fish.audio/developer-guide/models-pricing/pricing-and-rate-limits",
+        checked_at="2026-11-12",
+    )
+)
 
 
 def parser():
@@ -31,7 +39,18 @@ def parser():
     root.add_argument("--env-file", type=Path)
     root.add_argument("--run-id", type=UUID, required=True)
     commands = root.add_subparsers(dest="operation", required=True)
-    for name in ("prepare", "start", "run", "status", "pause", "resume", "export"):
+    for name in (
+        "prepare",
+        "start",
+        "run",
+        "status",
+        "pause",
+        "resume",
+        "export",
+        "review",
+        "repair",
+        "accept",
+    ):
         child = commands.add_parser(name)
         if name in ("prepare", "start"):
             child.add_argument("--topic", required=True)
@@ -48,8 +67,13 @@ def parser():
             child.add_argument("--step", action="store_true", help="Return when research needs another poll")
             child.add_argument("--poll-seconds", type=float, default=15)
             child.add_argument("--export-dir", type=Path, required=name == "start")
-        if name == "export":
+        if name in ("export", "review", "repair", "accept"):
             child.add_argument("--export-dir", type=Path, required=True)
+        if name == "repair":
+            child.add_argument("--candidate-id", type=UUID, action="append", required=True)
+            child.add_argument("--reason", default="The user confirmed these findings on the review page.")
+        if name == "accept":
+            child.add_argument("--reason", required=True)
     return root
 
 
@@ -91,6 +115,11 @@ def configuration(args, repo, project):
             max_research_jobs=args.max_research_jobs,
             audio_budget=args.audio_budget_usd,
         )
+    if settings.audio_verification is None:
+        # New episodes recognize their assembled master and repair added or omitted content.
+        settings = settings.model_copy(
+            update=dict(audio_verification=AudioVerification.model_validate(DEFAULT_AUDIO_VERIFICATION))
+        )
     return ProductionConfig(
         run_id=args.run_id,
         topic=args.topic,
@@ -102,6 +131,31 @@ def configuration(args, repo, project):
     )
 
 
+def reviewing(args, repo, project, journal):
+    from podgen.episodes.production import review
+
+    if args.operation == "repair":
+        settings = ProductionConfig.model_validate(journal.read()["configuration"]).settings
+        review.repair(
+            repo,
+            project,
+            journal,
+            args.candidate_id,
+            providers.audio_transport(),
+            providers.recognition_transport(settings),
+            args.reason,
+        )
+    if args.operation == "accept":
+        review.accept(repo, project, journal, args.reason)
+        return dict(
+            status(journal.read()),
+            package=review.export_package(repo, project, journal.read(), args.export_dir),
+        )
+    return dict(
+        status(journal.read()), review=review.export_review(repo, project, journal.read(), args.export_dir)
+    )
+
+
 def operate(args, repo, project):
     journal = ProductionJournal(repo, project, args.run_id)
     if args.operation in ("prepare", "start"):
@@ -110,8 +164,10 @@ def operate(args, repo, project):
         return status(journal.request("paused"))
     if args.operation == "export":
         return export(journal, args.export_dir)
+    if args.operation in ("review", "repair", "accept"):
+        return reviewing(args, repo, project, journal)
     row = journal.read()
-    if args.operation in ("prepare", "status") or row["status"] == "assembled":
+    if args.operation in ("prepare", "status") or row["status"] in ("assembled", "accepted"):
         if getattr(args, "export_dir", None):
             return export(journal, args.export_dir)
         return status(row)
@@ -130,6 +186,7 @@ def operate(args, repo, project):
         research_provider=providers.research_provider(settings),
         model_provider=providers.model_provider,
         audio_transport=providers.audio_transport(),
+        recognition_transport=providers.recognition_transport(settings),
     )
     row = runner.run(wait=not args.step, poll_seconds=args.poll_seconds)
     return export(journal, args.export_dir) if args.export_dir else status(row)

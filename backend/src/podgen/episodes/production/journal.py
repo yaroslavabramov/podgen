@@ -8,6 +8,9 @@ from podgen.persistence.database import json_text, one, query
 
 from .control import ProductionPaused, ProductionSuperseded
 
+# Automated work is over; only review steps may change an assembled or accepted run.
+FINISHED = ("assembled", "accepted")
+
 
 class ProductionJournal:
     def __init__(self, repo, project, run_id):
@@ -99,17 +102,17 @@ class ProductionJournal:
             raise ContractError("episode_invalid_desired_state")
         with self.repo.database.transaction() as tx:
             row = self._row(tx, lock=True)
-            if row["status"] == "assembled":
+            if row["status"] in FINISHED:
                 return row
             status = row["status"]
-            if desired == "paused" and status not in ("assembled", "paused"):
+            if desired == "paused" and status not in (*FINISHED, "paused"):
                 status = "pause_requested"
             return self._write(tx, row, desired_state=desired, status=status)
 
     def claim(self):
         with self.repo.database.transaction() as tx:
             row = self._row(tx, lock=True)
-            if row["status"] == "assembled":
+            if row["status"] in FINISHED:
                 return row
             if row["desired_state"] == "paused":
                 raise ProductionPaused()
@@ -132,6 +135,20 @@ class ProductionJournal:
             if row["desired_state"] == "paused" and status in ("running", "waiting"):
                 status = "pause_requested"
             return self._write(tx, row, progress=progress, phase=phase, status=status)
+
+    def review(self, progress, status):
+        """Record a review step of an assembled master; acceptance is final."""
+        if status not in ("assembled", "accepted"):
+            raise ContractError("episode_invalid_review_status")
+        with self.repo.database.transaction() as tx:
+            row = self._row(tx, lock=True)
+            if (
+                row["status"] not in ("assembled", "accepted")
+                or row["status"] == "accepted"
+                and status != "accepted"
+            ):
+                raise Conflict("episode_review_state_changed")
+            return self._write(tx, row, progress=progress, status=status)
 
     @contextmanager
     def lock(self):

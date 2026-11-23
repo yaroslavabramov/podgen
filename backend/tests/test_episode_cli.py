@@ -25,6 +25,11 @@ def test_cli_start_uses_real_service_and_exports_master_then_status_controls_are
     monkeypatch.setattr(providers, "research_provider", lambda settings: hosted)
     monkeypatch.setattr(providers, "model_provider", lambda profile: models)
     monkeypatch.setattr(providers, "audio_transport", lambda: speech)
+    from tests.episode_production_support import ScriptRecognizer
+
+    recognizer = ScriptRecognizer(repo, scope[0], config.run_id)
+    monkeypatch.setattr(providers, "recognition_transport", lambda settings: recognizer)
+    monkeypatch.setenv("FISH_API_KEY", "fixture")
     state = tmp_path / "state.json"
     state.write_text(
         json.dumps(

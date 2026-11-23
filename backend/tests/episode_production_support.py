@@ -89,3 +89,31 @@ def setup_episode(repo, scope, producer, monkeypatch):
         acquire=acquire,
     )
     return config, runner, hosted, models, speech, fetcher
+
+
+class ScriptRecognizer:
+    """Hears exactly the episode's accepted script."""
+
+    def __init__(self, repo, project, run_id):
+        self.repo, self.project, self.run_id, self.calls = repo, project, run_id, []
+
+    def submit(self, request, body, credential):
+        import json
+        from uuid import UUID
+
+        from podgen.audio.http import HttpReceipt
+        from podgen.episodes.production.journal import ProductionJournal
+        from podgen.runtime.evaluation.journal import EvaluationJournal
+        from podgen.runtime.evaluation.reading_validation import read_descriptor
+
+        self.calls.append(request)
+        writing = UUID(
+            ProductionJournal(self.repo, self.project, self.run_id).read()["progress"]["writing_run_id"]
+        )
+        script = read_descriptor(EvaluationJournal(self.repo, self.project), writing).outcome["output"]
+        words = " ".join(u["text"] for u in script["utterances"]).split()
+        segments = [dict(text=w, start=i * 0.01, end=i * 0.01 + 0.008) for i, w in enumerate(words)]
+        value = dict(
+            text=" ".join(words), duration=len(words) * 0.01, segments=segments, request_id="fixture"
+        )
+        return HttpReceipt(200, {"content-type": "application/json"}, json.dumps(value).encode(), 20)

@@ -1,7 +1,7 @@
 """Complete speech coverage, including oversize utterances and more than two native parts."""
 
 import json
-from uuid import uuid4, uuid5
+from uuid import UUID, uuid4, uuid5
 
 import pytest
 
@@ -126,33 +126,12 @@ def test_full_native_render_has_more_than_two_parts_and_exact_assembly_coverage(
     assert runner.run() == result and len(speech.calls) == len(assembled["frame_map"])
 
 
-def texts(value):
-    """Every spoken text field of a provider request body, in order."""
-    if isinstance(value, dict):
-        return [
-            v
-            for k, item in value.items()
-            for v in ([item] if k == "text" and isinstance(item, str) else texts(item))
-        ]
-    if isinstance(value, list):
-        return [v for item in value for v in texts(item)]
-    return []
-
-
 class Recognizer:
     """Hears the accepted script; the first master also carries invented sentences."""
 
-    def __init__(self, repo, project, runner, audio):
-        self.repo, self.project, self.runner, self.audio, self.calls = repo, project, runner, audio, []
-
-    def retake_request(self):
-        from podgen.runtime.evaluation.audio.attempts import prefix as take_prefix
-
-        journal = self.audio()
-        for cell in journal.get("manifest")["cells"]:
-            if journal.get(take_prefix(cell["cell_id"], 2) + ":prepared"):
-                return cell["request"]["body"]
-        raise AssertionError("no re-synthesized part")
+    def __init__(self, repo, project, runner, misheard=False):
+        self.repo, self.project, self.runner, self.calls = repo, project, runner, []
+        self.misheard, self.spliced = misheard, None
 
     def submit(self, request, body, credential):
         from uuid import UUID
@@ -162,15 +141,23 @@ class Recognizer:
         from podgen.runtime.evaluation.reading_validation import read_descriptor
 
         self.calls.append(request)
+        if self.spliced is not None:
+            # Localization of a local replacement hears exactly its synthesis text.
+            words = " ".join(u["text"] for u in self.spliced()["synthesis_input"]["utterances"]).split()
+            step = 3 / (len(words) + 1)
+            segments = [
+                dict(text=w, start=(i + 0.2) * step, end=(i + 0.7) * step) for i, w in enumerate(words)
+            ]
+            body = dict(text=" ".join(words), duration=3, segments=segments, request_id="fixture")
+            return HttpReceipt(200, {"content-type": "application/json"}, json.dumps(body).encode(), 20)
+        writing = UUID(self.runner.progress["writing_run_id"])
+        script = read_descriptor(EvaluationJournal(self.repo, self.project), writing).outcome["output"]
+        words = " ".join(u["text"] for u in script["utterances"]).split()
         if len(self.calls) == 1:
-            writing = UUID(self.runner.progress["writing_run_id"])
-            script = read_descriptor(EvaluationJournal(self.repo, self.project), writing).outcome["output"]
-            words = " ".join(u["text"] for u in script["utterances"]).split()
             middle = len(words) // 2
             words[middle:middle] = "Всё осложняется тем что крюка надо два".split()
-        else:
-            # Only the re-synthesized part is recognized again: it says exactly its request text.
-            words = " ".join(texts(self.retake_request())).split()
+        elif self.misheard:
+            words[words.index("chronology")] = "chronicle"
         text = " ".join(words)
         segments = [dict(text=word, start=i * 0.01, end=i * 0.01 + 0.008) for i, word in enumerate(words)]
         body = dict(text=text, duration=len(words) * 0.01, segments=segments, request_id="fixture")
@@ -188,16 +175,15 @@ def test_invented_content_is_resynthesized_once_and_verified_again(repo, scope, 
     config = config.model_copy(update=dict(settings=settings))
     runner.writer.provider_factory = lambda _: LongScriptProvider()
     monkeypatch.setenv("FISH_API_KEY", "fixture")
-    recognizer = Recognizer(
-        repo, scope[0], runner, lambda: AudioJournal(repo, scope[0], uuid5(config.run_id, "audio-render/2"))
-    )
+    recognizer = Recognizer(repo, scope[0], runner)
     runner.recognition_transport = recognizer
     prepare(repo, scope[0], config)
     result = runner.run()
     assert result["status"] == "assembled"
     verification = result["progress"]["audio_verification"]
     assert verification["repair_rounds"] == 1 and verification["automatic_repair"] == 0
-    assert len(verification["audits"]) == 2
+    assert len(verification["audits"]) == 2 and verification["final_audit_id"] == verification["audits"][-1]
+    assert verification["master"]["ref"] == result["progress"]["assembly_ref"]
     assembled = repo.get_runtime(scope[0], RuntimeRef.model_validate(result["progress"]["assembly_ref"]))
     parts = len(assembled["frame_map"])
     assert len(speech.calls) == parts + 1 and len(recognizer.calls) == 2
@@ -214,3 +200,56 @@ def test_invented_content_is_resynthesized_once_and_verified_again(repo, scope, 
     assert str(audio.ref(take_prefix(retakes[0], 2) + ":result").record_id) in used
     assert runner.run() == result
     assert len(speech.calls) == parts + 1 and len(recognizer.calls) == 2
+
+
+def test_a_confirmed_finding_is_repaired_and_the_listened_master_accepted(
+    repo, scope, producer, monkeypatch, tmp_path
+):
+    from podgen.episodes.production import review
+    from podgen.episodes.production.contracts import AudioVerification
+    from podgen.episodes.production.journal import ProductionJournal
+    from podgen.runtime.evaluation.audio.local_replacement.contracts import prefix as proposal_prefix
+
+    config, runner, _, _, speech, _ = setup_episode(repo, scope, producer, monkeypatch)
+    price = dict(usd_per_audio_minute="0.006", source_url="https://docs.fish.audio", checked_at="2026-11-23")
+    settings = config.settings.model_copy(
+        update=dict(audio_max_part_characters=256, audio_verification=AudioVerification(price=price))
+    )
+    config = config.model_copy(update=dict(settings=settings))
+    runner.writer.provider_factory = lambda _: LongScriptProvider()
+    monkeypatch.setenv("FISH_API_KEY", "fixture")
+    recognizer = Recognizer(repo, scope[0], runner, misheard=True)
+    runner.recognition_transport = recognizer
+    prepare(repo, scope[0], config)
+    assert runner.run()["status"] == "assembled"
+    journal = ProductionJournal(repo, scope[0], config.run_id)
+    page = review.export_review(repo, scope[0], journal.read(), tmp_path / "review")
+    assert (tmp_path / "review/index.html").exists()
+    status = json.loads((tmp_path / "review/recognition/status.json").read_text())
+    report = json.loads(
+        (tmp_path / "review/recognition" / status["current"]["current_result"]["path"]).read_text()
+    )
+    found = [c for c in report["report"]["candidates"] if c["review_route"] == "user_confirmation"]
+    assert [" ".join(t["text"] for t in c["expected_tokens"]) for c in found] == ["chronology"]
+    candidate = UUID(found[0]["candidate_id"])
+    audio = AudioJournal(repo, scope[0], uuid5(config.run_id, "audio-render/2"))
+    proposal_id = uuid5(config.run_id, f"episode-repair:{page['audit_id']}:{candidate}")
+    recognizer.spliced = lambda: audio.get(proposal_prefix(proposal_id) + ":proposal")["payload"]
+    synthesized = len(speech.calls)
+    row = review.repair(repo, scope[0], journal, [candidate], speech, recognizer, "Heard and confirmed.")
+    assert row["progress"]["audio_master"]["kind"] == "local_master" and len(speech.calls) == synthesized + 1
+    repaired = row["progress"]["audio_repairs"]["proposals"][0]
+    assert "chronology" in repaired["text"] and repaired["target_check"]["heard_as_written"]
+    with pytest.raises(ContractError, match="episode_repair_requires_findings_of_the_current_master"):
+        review.repair(repo, scope[0], journal, [candidate], speech, recognizer, "Again.")
+    accepted = review.accept(repo, scope[0], journal, "Listened to the whole master.")
+    assert accepted["status"] == "accepted"
+    assert accepted["progress"]["audio_acceptance"]["master"] == row["progress"]["audio_master"]
+    assert review.accept(repo, scope[0], journal, "Listened to the whole master.") == accepted
+    package = review.export_package(repo, scope[0], journal.read(), tmp_path / "package")
+    assert {p.name for p in (tmp_path / "package").iterdir()} == {
+        "master.wav",
+        "script.txt",
+        "acceptance.json",
+    }
+    assert package["audio_sha256"] == accepted["progress"]["audio_acceptance"]["audio_sha256"]

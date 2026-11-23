@@ -65,7 +65,7 @@ def export(journal, folder):
         writing = EvaluationJournal(journal.repo, journal.project)
         if writing.run(UUID(run_id)):
             export_run(journal.repo, journal.project, UUID(run_id), folder / "writing" / run_id)
-    if row["status"] == "assembled":
+    if row["status"] in ("assembled", "accepted"):
         writing = EvaluationJournal(journal.repo, journal.project)
         outcome = read_outcome(writing, UUID(progress["writing_run_id"]))
         if outcome is None or outcome["status"] != "keep":

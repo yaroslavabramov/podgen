@@ -162,7 +162,7 @@ class EpisodeProduction:
     def run(self, *, wait=True, poll_seconds=15):
         with self.journal.lock():
             row = self.journal.read()
-            if row["status"] == "assembled":
+            if row["status"] in ("assembled", "accepted"):
                 return row
             if row["desired_state"] == "paused":
                 return self.journal.transition(row["epoch"], row["progress"], row["phase"], "paused")

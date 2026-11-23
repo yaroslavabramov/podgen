@@ -10,6 +10,8 @@ from podgen.runtime.evaluation.profiles import load_profile
 def credentials(repo, project, settings):
     generation = Repository(repo.database, repo.objects, repo.actor_id, purpose="generation")
     required = {settings.research_profile.credential_env, settings.audio_profile.credential_env}
+    if settings.audio_verification is not None:
+        required.add(settings.audio_verification.credential_env)
     for ref, stage in (
         (settings.writer_profile_ref, "draft"),
         (settings.reviewer_profile_ref, "fact-review"),
@@ -45,6 +47,17 @@ def research_provider(settings):
     from podgen.research.hosted.transport import HttpTransport
 
     return GeminiResearchProvider(HttpTransport(settings.research_profile.request_timeout_seconds))
+
+
+def recognition_transport(settings):
+    from podgen.audio.http import RawAudioTransport
+
+    verification = settings.audio_verification
+    return (
+        RawAudioTransport(timeout_seconds=verification.recognition.request_timeout_seconds)
+        if verification
+        else None
+    )
 
 
 def audio_transport():
