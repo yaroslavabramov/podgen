@@ -418,16 +418,38 @@ const icon = {
   pause: '<svg viewBox="0 0 20 20"><rect x="4.5" y="3.5" width="4" height="13" rx="1" fill="currentColor"/><rect x="11.5" y="3.5" width="4" height="13" rx="1" fill="currentColor"/></svg>',
 };
 
-function hierStatus() {
-  if (S.hier === 'production') return ['live info', STAGES[S.progress].active];
-  if (S.hier === 'attention') return ['warn', 'Needs your decision'];
-  if (S.hier === 'review') return ['accent', 'Ready for your review'];
-  return ['ok', S.version > 1 ? `Ready · v${S.version}` : 'Ready'];
+function getStage(id) {
+  if (id === 'hieroglyphs') return [S.hier, S.progress];
+  const e = ep(id);
+  return [e.stage || 'production', e.progress ?? 3];
 }
+function setStage(id, stage, progress) {
+  if (id === 'hieroglyphs') { S.hier = stage; if (progress != null) S.progress = progress; return; }
+  const e = ep(id); e.stage = stage; if (progress != null) e.progress = progress;
+}
+function statusFor(id) {
+  const [stage, p] = getStage(id);
+  if (stage === 'production') return ['live info', STAGES[p].active];
+  if (stage === 'attention') return ['warn', 'Needs your decision'];
+  if (stage === 'review') return ['accent', 'Ready for your review'];
+  if (id === 'hieroglyphs') return ['ok', S.version > 1 ? `Ready · v${S.version}` : 'Ready'];
+  return ep(id).status || ['ok', 'Ready'];
+}
+const curId = () => location.hash.split('/')[2];
+function nextStep(id) {
+  const [stage, p] = getStage(id);
+  if (stage === 'production' && p < STAGES.length - 1) setStage(id, 'production', p + 1);
+  else if (stage === 'production') { setStage(id, 'review'); toast('The episode is recorded and ready for your review'); }
+  else if (stage === 'attention') setStage(id, 'production', 2);
+  else if (stage === 'review') setStage(id, 'release');
+  if (curId() === id) route();
+}
+let advanceTimer = null;
 
 /* ---------- Router ---------- */
 function route() {
   stopPlayback();
+  clearTimeout(advanceTimer);
   const h = location.hash.replace(/^#\/?/, '');
   const [a, b] = h.split('/');
   $('#nav').innerHTML = `<a href="#/" class="${!a ? 'on' : ''}">Episodes</a>`;
@@ -442,7 +464,7 @@ window.addEventListener('hashchange', route);
 /* ---------- Episodes list ---------- */
 function renderList() {
   const rows = [S.custom, ...EPISODES].filter(Boolean).map(e => {
-    const [cls, label] = e.id === 'hieroglyphs' ? hierStatus() : (e.status || ['live info', 'Researching']);
+    const [cls, label] = statusFor(e.id);
     return `<a class="ep-row" href="#/e/${e.id}">
       <div class="cover" style="background:${COLORS[e.color]}">${e.glyph}</div>
       <div><div class="ep-title">${e.title}</div><div class="ep-meta">${e.minutes} min · ${e.format} · ${e.lang}</div></div>
@@ -548,11 +570,8 @@ function startEpisode() {
 function renderEpisode(id) {
   const e = ep(id);
   if (!e) return renderList();
-  let stage, progress;
-  if (id === 'hieroglyphs') { stage = S.hier; progress = S.progress; }
-  else if (id === 'new') { stage = 'production'; progress = 0; }
-  else { stage = e.stage; progress = 3; }
-  const status = id === 'hieroglyphs' ? hierStatus() : stage === 'production' ? ['live info', STAGES[progress].active] : e.status;
+  const [stage, progress] = getStage(id);
+  const status = statusFor(id);
 
   const steps = [
     ['Brief', `${e.minutes} min · ${e.format}`],
@@ -629,6 +648,7 @@ const FEED = [
 function renderProduction(p, id) {
   const now = NOW[p];
   const isHier = id === 'hieroglyphs';
+  if (id === 'new') advanceTimer = setTimeout(() => nextStep('new'), 3500);
   const stages = STAGES.map((s, i) => {
     const cls = i < p ? 'done' : i === p ? 'active' : 'todo';
     const loop = isHier && i === 0 && p === 3 ? `<div class="loop">↺ Reopened once by fact-check</div>` : '';
@@ -663,6 +683,7 @@ function renderProduction(p, id) {
           <div class="now-title">${now.title}</div>
           <div class="muted">${now.text}</div>
           ${now.total ? `<div class="bar"><i style="width:${Math.round(51 / 64 * 100)}%"></i></div>` : ''}
+          ${id === 'new' ? `<div class="hint" style="margin-top:10px">Prototype: steps advance on their own every few seconds, or use <b>Next step</b> at the bottom right.</div>` : ''}
           <div class="bar-legend">${now.stats.map(([k, v]) => `<span><b>${v}</b> ${k.toLowerCase()}</span>`).join('')}${now.total ? `<span>of <b>${now.total}</b></span>` : ''}</div>
         </div>
         <div class="card">
@@ -701,8 +722,7 @@ function renderAttention(id) {
 }
 function resolveAttention(msg) {
   closeModal();
-  if (location.hash.includes('hieroglyphs')) { S.hier = 'production'; S.progress = 2; }
-  else EPISODES.find(e => e.id === 'containers').stage = 'production';
+  setStage(curId(), 'production', 2);
   toast(msg); route();
 }
 
@@ -845,7 +865,7 @@ function openAccept() {
     <p class="muted">This locks the recording you heard. Show notes and export files are built from it. To change it later, you create a new version; this one stays available.</p>
     <label class="field-label small" style="margin-top:14px">Note <span class="muted" style="font-weight:400">· optional</span></label>
     <textarea placeholder="e.g. Listened in full, sounds good"></textarea>
-    <div class="foot"><button class="btn" onclick="closeModal()">Not yet</button><button class="btn accent" onclick="closeModal();S.hier='release';S.tab.rel='transcript';toast('Accepted. Show notes are ready.');route()">Accept</button></div>`);
+    <div class="foot"><button class="btn" onclick="closeModal()">Not yet</button><button class="btn accent" onclick="closeModal();setStage(curId(),'release');S.tab.rel='transcript';toast('Accepted. Show notes are ready.');route()">Accept</button></div>`);
 }
 
 /* ---------- Release ---------- */
@@ -909,7 +929,7 @@ function openRevise() {
     </div>
     <textarea style="margin-top:14px" placeholder="e.g. Act 3 is too long. Say more about Åkerblad's work on demotic."></textarea>
     <div class="callout" style="margin-top:14px">Changed parts go through fact-check, recording and your review again.</div>
-    <div class="foot"><button class="btn" onclick="closeModal()">Cancel</button><button class="btn primary" onclick="closeModal();S.version+=1;S.hier='production';S.progress=2;location.hash='#/e/hieroglyphs';toast('Version ${S.version + 1} started');route()">Start revision</button></div>`);
+    <div class="foot"><button class="btn" onclick="closeModal()">Cancel</button><button class="btn primary" onclick="closeModal();if(curId()==='hieroglyphs')S.version+=1;setStage(curId(),'production',2);toast('Version ${S.version + 1} started');route()">Start revision</button></div>`);
 }
 
 /* ---------- Prototype switcher ---------- */
@@ -922,6 +942,8 @@ function renderProto() {
     ['Your review', () => { S.hier = 'review'; go(); }, () => onHier('review')],
     ['Release', () => { S.hier = 'release'; go(); }, () => onHier('release')],
   ];
+  const id = location.hash.startsWith('#/e/') && curId();
+  if (id && ep(id) && getStage(id)[0] !== 'release') items.push(['Next step →', () => nextStep(id), () => false]);
   window._proto = items;
   $('#proto').innerHTML = `<div class="proto-h">Prototype</div>${items.map(([n, , on], i) => `<button class="${on() ? 'on' : ''}" onclick="_proto[${i}][1]()">${n}</button>`).join('')}`;
 }
