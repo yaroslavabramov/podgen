@@ -35,7 +35,8 @@ def extract(journal, proposal, root, key, audio, reason):
         journal.put(
             root + ":result",
             dict(
-                contract="audio-local-extraction/1",
+                contract="audio-local-extraction/2",
+                target_check=target_check(payload, selection, recognition),
                 proposal_hash=proposal["proposal_hash"],
                 contextual_audio_sha256=journal.get(root + ":manifest")["contextual_audio_blob"]["sha256"],
                 recognition_ref=journal.ref(output + ":recognition").model_dump(mode="json"),
@@ -58,3 +59,43 @@ def extract(journal, proposal, root, key, audio, reason):
         if journal.get(root + ":failure") is None:
             journal.put(root + ":failure", failure)
         return "localization_failed"
+
+
+def target_check(payload, selection, recognition):
+    """Whether the spliced sentence itself was heard as the script says; replaces a full-master check."""
+    import pymorphy3
+
+    from podgen.audio.fidelity.alignment import align
+    from podgen.audio.fidelity.routing import route
+    from podgen.audio.fidelity.tokens import expected_tokens, tokens
+
+    low, high = selection["source_target_token_range"]
+    a, b = selection["recognized_target_token_range"]
+    expected, heard = (
+        expected_tokens(payload["synthesis_input"]["utterances"])[low:high],
+        tokens(recognition.text)[a:b],
+    )
+    opcodes, _ = align(expected, heard)
+    morph = pymorphy3.MorphAnalyzer(lang="ru")
+    discrepancies = []
+    for operation, i1, i2, j1, j2 in opcodes:
+        if operation in ("equal", "equivalent"):
+            continue
+        item = dict(
+            kind="script_discrepancy", expected_tokens=expected[i1:i2], recognized_tokens=heard[j1:j2]
+        )
+        discrepancies.append(
+            dict(
+                operation=operation,
+                expected_text=" ".join(t["text"] for t in item["expected_tokens"]),
+                recognized_text=" ".join(t["text"] for t in item["recognized_tokens"]),
+                review_route=route(item, morph),
+            )
+        )
+    return dict(
+        contract="audio-local-target-check/1",
+        expected_text=" ".join(t["text"] for t in expected),
+        recognized_text=" ".join(t["text"] for t in heard),
+        heard_as_written=all(d["review_route"] == "recognition_variant" for d in discrepancies),
+        discrepancies=discrepancies,
+    )

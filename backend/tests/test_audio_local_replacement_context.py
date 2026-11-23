@@ -278,3 +278,43 @@ def test_an_inserted_finding_selects_the_sentence_at_its_script_position(monkeyp
     journal.put(root + ":result", dict(report=dict(expected_tokens=tokens, candidates=[candidate])))
     proposal = prepare(journal, finding_config(config, candidate["candidate_id"]))
     assert proposal["payload"]["text"] == "Третий текст."
+
+
+def spliced_check(journal, config):
+    from podgen.runtime.evaluation.audio.local_replacement.localization import binding
+
+    result = journal.get(binding(journal, config.proposal_id)[3] + ":result")
+    assert result["contract"] == "audio-local-extraction/2"
+    return result["target_check"]
+
+
+def test_the_spliced_sentence_is_checked_against_its_script_text(monkeypatch):
+    journal, config, _ = fixture(monkeypatch)
+    allow(journal, config)
+    assert synthesize(journal, config.proposal_id, Synthesis()) == "synthesized"
+    assert localize(journal, config, monkeypatch)[0] == "extraction_ready"
+    check = spliced_check(journal, config)
+    assert check["heard_as_written"] and not check["discrepancies"]
+    assert check["expected_text"] == check["recognized_text"] == "Второй текст"
+
+
+def test_a_misheard_word_in_the_spliced_sentence_goes_to_a_person(monkeypatch):
+    journal, config, _ = fixture(monkeypatch)
+    allow(journal, config)
+    assert synthesize(journal, config.proposal_id, Synthesis()) == "synthesized"
+    proposal = prepare(journal, config)
+    utterances = deepcopy(proposal["payload"]["synthesis_input"]["utterances"])
+    for row in utterances:
+        row["text"] = row["text"].replace("Второй", "Вторник")
+    monkeypatch.setenv("FISH_API_KEY", "fixture-asr-key")
+    assert localization.run(journal, config.proposal_id, Recognition(utterances)) == "extraction_ready"
+    check = spliced_check(journal, config)
+    assert not check["heard_as_written"]
+    assert check["discrepancies"] == [
+        dict(
+            operation="replace",
+            expected_text="Второй",
+            recognized_text="Вторник",
+            review_route="user_confirmation",
+        )
+    ]
