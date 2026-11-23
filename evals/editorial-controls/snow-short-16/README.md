@@ -2,7 +2,7 @@
 
 `plan.json` is an editor-authored complete `PlanningOutput` for the existing short assignment. It is a control input for the writer, not a generated planner result, a revised brief, a spoken script or an acceptance record. `status: ready` describes the proposal's research state, not independent editorial approval.
 
-Source packet: `evals/editorial-inputs/current/snow-pump/shared.json`, `editorial-input/2`, 16 cards. Exact file SHA-256: `5a7ac5d3471b1220c3fe1affd0f1eaf807bdf3b6095a655010b25ec009eb0987`. The packet, assignment, full source excerpts and card identifiers are unchanged.
+The [archived 16-card input](../../editorial-inputs/current/snow-pump/history/before-source-restoration-2026-11-08.json) uses `editorial-input/2` and has SHA-256 `5a7ac5d3471b1220c3fe1affd0f1eaf807bdf3b6095a655010b25ec009eb0987`. Use that exact revision to reproduce the control.
 
 Original request: «Хочу подкаст про Джона Сноу и холеру в Лондоне. Расскажи эту историю как детектив.» Audience: an adult hearing the story for the first time. Solo Russian narration; target 900 seconds, range 780–1080. This plan selects from that packet. Unselected cards remain available in the original material.
 

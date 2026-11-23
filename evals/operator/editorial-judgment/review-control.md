@@ -1,49 +1,38 @@
-# Контроль штатного plan-review
+# Paired plan review
 
-Основная пара — **P01 / P02**. Это два полных кандидата на одном брифе, Snow-досье, формате solo, профиле и штатной схеме. Отличаются только три смысловых поля; редактор получает полный обычный контекст, без ключа или подсказки, какой ответ ожидается.
+P01 and P02 are complete solo Snow plans on the same brief and dossier. The ordinary reviewer receives the same profile, evidence, response schema and stage instructions. The operator changes three passages.
 
-| Проверяемый пассаж | P01 | P02 |
+| Passage | P01 | P02 |
 | --- | --- | --- |
-| Открытие | Допустимая сцена плюс самовольный общий запрет сцен/звуков | Та же сцена без запрета; стук колёс не является уликой |
-| Акт о пивоварне | Приписано опровержение невыдвинутого тезиса о лечебности пива | Те же сведения без этого опровержения |
-| Акт о снятии ручки | Апрельское обследование 1855 года обосновывает решение сентября 1854 | Сохранена реальная последовательность и спад до снятия ручки |
+| Opening | A permissible scene followed by a general prohibition on scenes and sounds. | The same scene with incidental wheel noise and the prohibition removed. |
+| Brewery | A rebuttal to a claim that beer was curative. The plan never made that claim. | The same observations about the brewery and its water supply. |
+| Pump handle | The April 1855 inspection is presented as grounds for the September 1854 action. | The dates and the decline before the handle's removal are in the right order. |
 
-Обе версии могут получить `revise` из-за других мест. **P02 — положительный локальный контроль, не проверенный человеком идеальный план.** Общий вердикт не является результатом этого сравнения.
+Either plan may merit revision elsewhere. P02 controls only these three local choices. The operator introduced both defects and corrections. One exploratory sentence, C03, reproduces an archived model response. The [control definitions](review-controls.json) pin the source dossier and plan by SHA-256.
 
-## Готовая операционная точка
+## Reproduce the saved experiment
 
-Подготовлено offline в `tmp/plan-review-behavior-2026-11-07/ready-to-run/`:
+Use a separate checkout of `52c07127` with its backend dependencies. This revision reproduced all four outputs offline. The current operator assumes an older request layout and stops when `production/1` omits the top-level `dossier` it expects. The [local paired controls](README.md) remain available in this checkout.
 
-- `requests.jsonl` — **только P01 и P02**, по строке `{custom_id, body}`. `body` — готовый обычный запрос Responses для `gpt-6.1-terra`; оба полных кандидата находятся в `input → candidate_plan`.
-- `manual-key.json` — отдельный ключ: точные JSON Pointer, цитаты `anchor`, нужный локальный диагноз и действие. Не передавать модели.
-- `offline-requests.jsonl` — семь одиночных контролей C01–C07. **Не входят в два предлагаемых вызова.**
-- `manifest.json` — источники и SHA, общий профиль, версия промпта/проекций, хэши точных запросов, `model_called=false`.
-
-Для повтора на другой машине нужен полный JSON ModelProfile с ролью `plan_reviewer`, а не только ArtifactRef. Подходит существующий экспорт; при обычном `writing_cli profile-create --roles plan_reviewer …` полный payload находится в поле `configuration` JSON, напечатанного в stdout (файл `--out` содержит лишь ссылку). Если есть только ссылка старого прогона, её берут из `manifest.command.plan_reviewer_profile_ref` и читают штатным `load_profile(generation_repo(repo), project_id, ref, "plan-review")`, сохраняя `model_dump_json()`; это чтение, без вызова модели.
-
-Профиль прочитан из существующего ModelProfile архивного прогона, без изменения репозитория БД. `profile.json` рядом с этой папкой содержит его полный экспорт, без API-ключа. Запросы собраны через штатный `preview_request`, включая assignment, полное проверочное досье, все выдержки, каталог материала и допустимых адресов. Инструкции и схема обычного редактора не заменены специальным judge-промптом.
-
-Оператор может передать **только `body`** двух строк через уже используемый транспорт eval, сохранив исходный request, полный ответ провайдера, полный структурный PlanReviewOutput, usage и идентификатор попытки. Разрешения на API эта подготовка не даёт; вызовов здесь не было. Не обрезать ответ до findings или accept/revise и не повторять неудачный ответ молча.
-
-## Как читать результат вручную
-
-Для каждой из трёх цитат отдельно записать: ID варианта; точную цитату finding/strength и его targets; что observation считает проблемой; что requested_change предлагает сделать; какой смысл остаётся в preserve; итог **попадание / пропуск / ложная тревога / спорно** с объяснением. Не искать совпадение ключевых слов.
-
-- Для P01 попадание требует правильного диагноза **и направления правки**. Исполнить выдуманный запрет — ошибка. Назвать «пиво лечит» реальным утверждением плана — ошибка; здесь проблема в ненужном опровержении. Хронологическую подмену нужно исправить, сохранив поздние находки.
-- Для P02 отсутствие обязательной правки контрольного смысла — верное сохранение. Требование убрать нейтральный звуковой фон или предварить его обязательным оправданием — ложная тревога. Добавить опровержение лечебности пива — ложная тревога. Удалить причинно важное различие дат как «лишнюю оговорку» — ложная тревога. Необязательный стилистический совет сам по себе не считается провалом.
-- **Совпадение targets не равно попаданию.** В C04 правильная хронология соседствует с исходной инструкцией «Не изображать её единственным доказательством…» про карту. Её редактура допустима и не является ложной тревогой по хронологии. В ключе даны точные границы проверяемых фраз; другие замечания в тех же полях оценивать отдельно. В позитивном акте P02 эта соседняя инструкция удалена, дата/причинный смысл сохранены.
-- `research_requests` ради стилистической правки или уже имеющихся дат оценивать отдельно как неверный масштаб действия. Полный ответ может содержать одновременно полезное замечание и ложную тревогу: оба сохраняются в протоколе.
-
-C07 использует ту же сцену, что C06, **но добавляет отдельное явное клиентское требование** не выдумывать звуки/бытовые детали. Для C07 обязательная правка сцены ожидаема именно по заказу. Это не тот же бриф, что основная пара; результат нельзя смешивать с P01/P02 или выдавать за подтверждение общего запрета реконструкций.
-
-## Происхождение и повторение
-
-[review-controls.json](review-controls.json) закрепляет архивный модельный план и досье по SHA, общие адресные изменения и варианты. Ожидания, исправленный кандидат и контрольные ошибки созданы оператором; это не результаты модели и не дословные пользовательские оценки. Фраза C03 взята из реального архивного ответа и заново вставлена оператором. Пользовательская установка против самовольных запретов и опровержений передана координатором; новая разметка ей не приписывается.
+Use a complete `ModelProfile` JSON for role `plan_reviewer`. The profile-create command prints the complete configuration under `configuration`. Its `--out` file holds the reference. For an existing run, the saved manifest identifies the reviewer's profile reference.
 
 ```sh
 uv run --offline --directory backend python \
   ../evals/operator/editorial-judgment/prepare_review_control.py \
-  --profile /ABS/ModelProfile.json --out /ABS/new-review-control
+  --profile /path/to/ModelProfile.json --out /path/to/new-review-control
 ```
 
-Скрипт не создаёт провайдера и не считает токены через endpoint; существующий output не перезаписывается. Он сверяет SHA исходников, валидирует кандидатов обычным preview, проверяет точность anchors и равенство контекста/схемы основной пары. Ключ и ожидаемые диагнозы остаются вне model-facing payload. Поведенческого результата до получения настоящих отзывов нет.
+The [preparer](prepare_review_control.py) requires a new directory. It verifies source hashes and quote anchors, compiles candidates with the normal preview, and checks that both versions have matching context and schema. It writes four files.
+
+| File | Use |
+| --- | --- |
+| `requests.jsonl` | Two full provider request bodies, one per opaque custom ID. Only the body goes to the provider. |
+| `manual-key.json` | Operator-only JSON pointers, quotation anchors, expected diagnosis and action. |
+| `offline-requests.jsonl` | Seven exploratory C01–C07 requests, separate from the main pair. |
+| `manifest.json` | Source and request hashes, shared profile, prompt and projection versions, and `model_called=false`. |
+
+## Score
+
+If a live comparison is authorized, retain the exact request, complete provider response and structured review, usage and attempt identifier. For each target, record the quoted finding or strength, its target, what the reviewer observed, its proposed action and the meaning to retain. Score each as a hit, miss, false alarm or unresolved and explain the decision.
+
+For P01 a hit requires an accurate diagnosis and a remedy that addresses it. The brewery passage needs the invented rebuttal removed. The later investigation can stay when correctly dated. For P02 record a false alarm if a mandatory edit bans the harmless sound, reintroduces the beer rebuttal or removes a consequential distinction between dates. Assess independent findings, stylistic suggestions and research requests separately. C07 expressly forbids invented sound or domestic detail in the client brief. Score that case under its own brief.

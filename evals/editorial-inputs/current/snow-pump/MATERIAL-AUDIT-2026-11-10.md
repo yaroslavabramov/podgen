@@ -1,46 +1,39 @@
-# Пересборка материала Snow — 10 ноября 2026
+# Snow material audit, November 10, 2026
 
-## Что проверено
+This audit covers the 24-card, 68-excerpt revision. The assignment, order and identifiers of the first 17 cards were preserved. Researchers checked the claims, narrative facts, conditions and excerpts against the primary works. The additional cards supply choices for the planner.
 
-Повторно прочитаны источник и все 17 прежних карточек, включая `claim`, `story_facts`, условия и точные цитаты. Основание — сохранённые первичные труды, без прежних сценариев как источника фактов. Пакет теперь содержит 24 карточки и 68 выдержек. Задание, прежние 17 ID и их порядок сохранены. Новый материал доступен для выбора; обязательных событий, плана и центрального вопроса не добавлено.
+## Sources checked
 
-Книга Сноу: непрерывный рассказ о Golden Square, с. 38–52, таблица I с заголовками, метод датировки и продолжение о состоянии воды на с. 53. Для ранее существовавшей гипотезы сохранены проверенные места предисловия и с. 15, 22–23. Используется исходный HTML и его неизменённое текстовое извлечение; сверка печатного скана книги здесь не заявляется.
+Snow's book was read in the archived HTML and its text extraction. The audit covered Golden Square (pp. 38–52), the headings and dating method in Table I, the discussion of water on p. 53 and the earlier argument in the preface and on pp. 15 and 22–23.
 
-Приходский отчёт: введение, с. 9–17 истории бедствия, весь доклад Уайтхеда с. 121–169 и Йорк с. 170–174, а также ранее выбранные места общего доклада о физическом пути и диагнозе ребёнка. Новые числовые группы и семейные обстоятельства визуально сверены по PDF 127, 133, 135, 136, 143, 148, 150, 151. Остальные части 192-страничного скана и вся книга Сноу не объявляются полностью проверенными. Оригиналы и OCR не исправлялись.
+In the parish report, the audit covered the introduction, the history of the outbreak (pp. 9–17), Whitehead (pp. 121–169), York (pp. 170–174) and earlier selections about the well and the child's diagnosis. New figures and family accounts were checked against images on PDF pages 127, 133, 135, 136, 143, 148, 150 and 151. The originals and OCR retain their original bytes.
 
-## Отбор событий и обстоятельств
+| Cards | Material retained or added |
+| --- | --- |
+| M1–M4 | Water inspection, interviews, the board's decision and how Snow obtained the list and returned to his inquiries. |
+| M5–M6 | The workhouse comparison and Huggins's own account of the brewery. |
+| M7 | The bottle taken to Hampstead, Fraser, the son's report and the different outcome for the servant. |
+| M8–M10 | The map, reasons people used a more distant pump, the dated series and its decline. |
+| M11–M16 | The commission, Whitehead's local knowledge and repeat visits, the child, York and Rogers. The physical inspection and the child's diagnosis have different evidential bases. |
+| M17 | Snow's hypothesis before the outbreak and the grounds he gave for it. |
+| M18–M19 | Flight from the worst-hit streets, burials and a family opposite the pump who lost four members. |
+| M20–M21 | Coffee shops, sherbet, cisterns, children carrying water, and factory workers who died at home. |
+| M22–M23 | Whitehead's initial objection, how he followed up the bottle story, and how specific questions changed the answers in two families. |
+| M24 | Why healthy residents were interviewed and how their answers compared. The full counts remain in the source, dossier and claim. |
 
-| Материал оригиналов | Действующая карточка | Решение |
-| --- | --- | --- |
-| Осмотр воды, колебание, расспросы, решение совета | M1–M4 | Сохранены действия, основания и точный состав ответов; расширена история получения списка и позднего возвращения к расспросам |
-| Работный дом и пивоварня | M5–M6 | Добавлена выпавшая сравнительная оценка Сноу; рассказ Хаггинса с его степенями уверенности сохранён |
-| Бутыль в Хэмпстед и племянница | M7 | Сохранены Фрейзер, сообщение сына, отсутствие местной холеры и служанка с иным исходом |
-| Карта, таблица и спад | M8–M10 | Добавлены реальные причины ходить к более дальней колонке; рамки карты и ряда смертельных случаев сохранены |
-| Комиссия, Уайтхед, ребёнок, Йорк, Роджерс | M11–M16 | Позднее расследование дополнено знакомством с жителями, поиском уехавших и повторными обходами; физическое открытие и неопределённый диагноз не заменяют друг друга |
-| Гипотеза передачи до этой вспышки | M17 | Сохранена как рассуждение Сноу с исходными основаниями |
-| Катастрофа, отъезд, рабочие семьи и погребения | M18 | Новая карточка возвращает масштаб и человеческие последствия |
-| Семья напротив колонки, потерявшая четверых | M19 | Новый конкретный семейный случай с выжившим мальчиком; причина его спасения не выдумывается |
-| Кофейни, шербет, цистерны и дети-водоносы | M20 | Новые бытовые пути употребления воды из обоих трудов |
-| Фабрики и работники, умершие у себя дома | M21 | Новые опоры для сопоставления учреждений; место работы не подменяется местом смерти |
-| Исходное возражение Уайтхеда и проверка слуха о бутыли | M22 | Новая карточка передаёт изменение убеждения через действия, а также питьё до и во время болезни |
-| Глухой отец и девочка, лежавшая с простудой | M23 | Новый рассказ о том, как конкретные вопросы изменили общие ответы семей |
-| Зачем опрашивали здоровых и что показало сравнение | M24 | Одна понятная сравнительная запись в `story_facts`; полная ведомость сохранена в `claim`, досье и источнике |
+The full originals contain other families, nearby streets, sanitary tables and recommendations. Snow's separate investigation of the south London supply explains a break in his local interviews. It does not establish exposure on Broad Street.
 
-Дополнительные однотипные семейные случаи, история соседних улиц, санитарные таблицы и рекомендации комиссии остаются в полных оригиналах. Они не перенесены поголовно в карточки: новые записи уже дают разный человеческий материал и разные основания проверки. Отдельное исследование водоснабжения южного Лондона не пересказывается как часть локальных доказательств Брод-стрит. Часть книги доступна в полном тексте; её упоминание объясняет, почему Сноу прервал местные расспросы. Отбор не делает новую реконструкцию событий или речь персонажей обязательными.
+## What the numbers count
 
-## Значения чисел
+- **89 deaths** were registered in three subdistricts in the week ending September 2. Of these, **83** died in the final three days. The later figure of **197** covers deaths on September 1–2 identified from a broader accounting.
+- **Over 500 fatal attacks** occurred in ten days within 250 yards. Snow's **over 600** describes the wider outbreak. His estimate that more than three quarters of residents left in under six days applies to the hardest-hit streets.
+- The workhouse had **535 residents and five deaths**. People admitted already ill were counted separately. Snow estimated **over 100** deaths if surrounding street rates had applied.
+- At a factory with **about 200 workers**, **18 workers died**. Huggins reported no severe cholera among **more than 70 brewery workers** and two slight illnesses.
+- Table I records onset among those who later died, separately from date of death. The onset/death counts for September 1, 2, 7 and 8 are respectively **143/70**, **116/127**, **28/32** and **12/30**. Forty-five onset dates were unknown.
+- Whitehead counted **896 Broad Street residents**, **90 deaths among them** and separately **28 deaths among people who worked there**. He sought information on **497 residents**. Among the **137** recorded as drinking pump water, at least 80 fell ill and 57 did not. Among **299** recorded as abstaining, 20 fell ill and 279 did not. Illness included cholera and diarrhoea. The detailed record retains the smaller groups of 35/2/7/6 and 28/15/14. These comparisons do not cover everyone contacted.
 
-- **89** — смерти, зарегистрированные за неделю, закончившуюся 2 сентября, в трёх подрайонах. **83** — из них смерти последних трёх дней; это первоначальная исследованная часть, не весь масштаб бедствия. **197** — позднее установленные смерти за 1–2 сентября, включая иначе учтённые случаи. Выздоровевшие и умершие позднее — другой охват.
-- **Свыше 500** — смертельные приступы за десять дней в пределах 250 ярдов. **Более 600** — общий масштаб описываемой вспышки у Сноу. Отъезд более трёх четвертей жителей относится к наиболее пострадавшим улицам и оценке менее чем за шесть дней.
-- **535 / 5** — обитатели работного дома / умершие среди них. Поступившие уже больными выделены отдельно. **Свыше 100** — оценка Сноу при смертности окружающих улиц, не наблюдавшиеся смерти и не число спасённых снятием ручки.
-- **Около 200 / 18** — работники фабрики / умершие работники, не все заболевшие. **Более 70** у Хаггинса — работники пивоварни; тяжёлой холеры он не сообщил, двое были слегка нездоровы.
-- Таблица I Сноу датирует начало болезни у впоследствии умерших и смерти отдельно; 45 дат начала неизвестны. На 1 сентября стоят 143 смертельных приступа и 70 смертей, на 2 сентября — 116 и 127, на 7 сентября — 28 и 32, на 8 сентября — 12 и 30. Спад не превращён в монотонный ряд или расчёт предотвращённых случаев.
-- Уайтхед: **896** жителей самой Брод-стрит, **90** умерших жителей и отдельно **28** умерших работников извне; попытки собрать сведения о **497** жителях. В сравнении: 80 заболевших + 57 не заболевших = **137** пивших; 20 + 279 = **299** не пивших. В оригинале 80 названо нижней границей; это выбранные группы с определёнными сведениями, не все 497 и не все смерти. Заболевание включает холеру и диарею. Подробные группы 35/2/7/6 среди выздоровевших и 28/15/14 среди пивших без последствий оставлены в проверочной записи. Знаменатели вычислены явно, процентные риски и причинный эффект не вводились.
+## Import and stage inputs
 
-## Импорт и реальные виды
+The [verification record](material-rebuild-verification-2026-11-10.json) documents four source imports and one editorial import in a temporary database. The run checked all four file hashes, all 68 ranges and byte-for-byte preservation of the package. Runtime references in that record belong to the temporary database.
 
-[Результат локальной проверки](material-rebuild-verification-2026-11-10.json). Штатный `import_case.py` выполнил четыре `editorial-source-import` и один `editorial-import` в отдельной новой базе. Проверены SHA четырёх файлов, все 68 диапазонов и сохранение исходного JSON байт в байт. Исторический снимок совпал с прежним HEAD. База после проверки удалена; её RuntimeRef не являются ссылками для рабочего проекта.
-
-Штатный `preview` собрал plan, plan-review, draft, fact-review и reader-review; во всех `endpoint_called=false`. Планировщику передаются все 24 полных `story_facts` и все 24 адреса каталога. Проверено также прохождение каждой из 24 карточек через действующий авторский вид: весь её текст и все её выдержки сохраняются. Полные полученные запросы и видимые поля находятся в `tmp/snow-material-restoration/*-preview.json` и `*-visible.json`.
-
-Для технического просмотра последующих этапов использованы неизменённые сохранённые план и черновик прежнего запуска. Они не объявляются результатом новой модели и не заменяют собственное планирование нового прогона. Холодному читателю досье не передано. Самый большой из проверенных запросов — fact-review, 150930 видимых байт при действующем лимите 262144. Подсчёт токенов провайдером не вызывался. Платные прогоны и общий набор тестов не запускались.
+Offline previews built the plan, plan review, draft and two script reviews. The planner saw all 24 narrative facts and catalogue entries. Each selected card also carried its full text and excerpts through the writer's input. Saved earlier plan and script artifacts supplied the downstream preview inputs. The reader review saw the script alone. The largest request, the fact review, measured 150,930 visible bytes against the then-current 262,144-byte limit. These results cover input construction and integrity. The checks made no model calls.

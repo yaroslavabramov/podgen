@@ -1,32 +1,20 @@
-# Текущий Snow: пользовательский заказ
+# Snow and the Broad Street pump
 
-[Пакет для импорта](shared.json) · [досье v5](dossier-v5.md) · [точный бриф](brief.md) · [команда импорта](IMPORT.md).
+A Russian-speaking listener asked for the story of John Snow and cholera in London as a detective investigation. The [original brief](brief.md) contains the full request. The solo format, general audience and 15-minute target (13–18 minutes) were run settings. Use [shared.json](shared.json) with `own-plan` so the planner chooses the opening, central question, events and ending.
 
-Для нового выпуска использовать этот `shared.json` и штатный `--plan-mode own-plan`. Пользователь попросил историю Джона Сноу и холеры в Лондоне как детектив. Центральный вопрос, начало, события, маршрут и завершение выбирают планировщик и автор. Готового плана и обязательных событий нет; `required_topics`, `excluded_topics` и `style_guidance` пусты. Русский язык, solo, взрослый неспециалист и 15 минут с диапазоном 13–18 — отдельные настройки прогона, не слова пользователя.
+## Evidence and import
 
-## Материал от 10 ноября 2026
+| Input | Source |
+| --- | --- |
+| Brief | [Original request](brief.md) |
+| Dossier | [Version 5](dossier-v5.md) |
+| Primary source | [John Snow's 1855 book](../../../cases/development/wp02-batch-01/sources/snow/snow-1855.txt) |
+| Primary source | [1855 parish report](../../../cases/development/wp02-batch-01/sources/snow/parish-1855-b21363870.txt) |
 
-По двум первичным трудам заново проверен весь существующий набор из 17 карточек. Их ID и порядок сохранены; расширены четыре карточки, добавлены семь: всего 24 карточки и 68 точных выдержек. Версия возвращает масштаб катастрофы и отъезд, семейные потери, обычные пути употребления воды, фабрики, работу и изменение позиции Уайтхеда. Сохранены и основания расследования, и результаты осмотра Йорка, и неразрешённые вопросы. Это запас материала для выбора, а не предписанный сюжет.
+[Import the four documents](IMPORT.md) into one fresh scope. The November 10 revision retains the IDs and order of the first 17 cards, expands four and adds seven. Its 24 cards have 68 exact excerpts. The dossier covers family losses and moves, water consumption, workplaces, the inquiry, Whitehead's changing view, York's inspection and unresolved questions. It distinguishes date of registration from date of death and separates observed counts from Snow's comparisons. The [audit](MATERIAL-AUDIT-2026-11-10.md) explains the selection and gives the original denominators.
 
-Числа привязаны к своим предметам. 83 — первоначально исследованные смерти с условием регистрации; 197 — позднее установленные смерти за 1–2 сентября. Свыше ста в работном доме — сравнительная оценка Сноу, пять — наблюдавшиеся смерти среди 535 обитателей. Опрос Уайтхеда отдельно учитывает погибших, выздоровевших и здоровых; его сопоставление групп не выдаётся за смерти, полную перепись или эксперимент. Подробная ведомость остаётся в проверочном `claim`, досье и цитатах; `story_facts` объясняет действие и результат.
+The planner can select any of the cards. With this input the writer receives the chosen cards and their excerpts. The `narrative_excerpt_indices` field survives for historical projections. The fact-checker can inspect the underlying evidence independently, while the initial script reader sees the spoken text.
 
-[Журнал изменения](material-rebuild-2026-11-10.json) закрепляет точные SHA, сохранённые и новые ID. [Аудит отбора и проверки](MATERIAL-AUDIT-2026-11-10.md) описывает чтение, рамки чисел и реальный локальный импорт. Предыдущий полный пакет сохранён [побайтно](history/before-material-rebuild-2026-11-10.json). Бриф, оба первичных документа и прежние версии досье не изменены.
+## Earlier versions
 
-## Файлы для импорта
-
-| `source_path` пакета | Файл от корня репозитория | Назначение |
-| --- | --- | --- |
-| `editorial-inputs/current/snow-pump/brief.md` | `evals/editorial-inputs/current/snow-pump/brief.md` | `brief` |
-| `editorial-inputs/current/snow-pump/dossier-v5.md` | `evals/editorial-inputs/current/snow-pump/dossier-v5.md` | `dossier` |
-| `sources/snow/snow-1855.txt` | `evals/cases/development/wp02-batch-01/sources/snow/snow-1855.txt` | `primary` |
-| `sources/snow/parish-1855-b21363870.txt` | `evals/cases/development/wp02-batch-01/sources/snow/parish-1855-b21363870.txt` | `primary` |
-
-[import_case.py](import_case.py) допускает эти четыре файла в одном новом scope и импортирует `shared.json` штатными командами. Модели не вызывает. Не смешивать новую версию со ссылками старого scope; для нового выпуска нужны новые `run-id` и каталог экспорта.
-
-Планировщик получает полный `story_facts` всех карточек с источниками и M-ссылками, без подготовленного общего вывода. Автор получает выбранные планом карточки. Действующая production передаёт ему все точные выдержки этих карточек; сохранённый `narrative_excerpt_indices` относится к прежней стратегии выбора цитат и не ограничивает текущую production. Фактчек получает все проверочные записи и первичные выдержки; доступ к сохранённым полным оригиналам сохраняется. Холодный читатель досье не получает.
-
-## История
-
-[Досье v4](dossier-v4.md), [перколяционная редакция](percolation-revision.json), [восстановление 8 ноября](source-restoration.json), их снимки [до восстановления](history/before-source-restoration-2026-11-08.json) и [до перколяционной редакции](history/before-percolation-2026-11-08.json) остаются неизменными. [Миграция ID](card-id-migration.json) и [legacy-shared](legacy-shared.json) сохраняют происхождение карточек.
-
-[Пакет v1](../../v1/snow-pump/shared.json) и [его fixed-план](../../v1/snow-pump/fixed-plan.json) — исторический контроль, связанный с точной старой версией shared. Для воспроизведения прежних запусков использовать их сохранённые манифесты, источники и версии запросов; текущий пакет не подменяет архивы и frozen-инвентарь.
+The [change record](material-rebuild-2026-11-10.json) lists the stable and new IDs and fingerprints. The [previous complete package](history/before-material-rebuild-2026-11-10.json), [v4 dossier](dossier-v4.md), [restoration](source-restoration.json), [percolation changes](percolation-revision.json) and [ID migration](card-id-migration.json) preserve lineage. The [v1 fixed plan](../../v1/snow-pump/fixed-plan.json) belongs to its own shared digest. Use a saved run manifest and matching files when replaying a historical request.

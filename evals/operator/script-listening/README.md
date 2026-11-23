@@ -1,15 +1,27 @@
-# Слепая проверка читательского редактора
+# Blind reading of short scripts
 
-Пять пар коротких законченных историй. В четырёх использованы вымышленные сюжеты. В пятой — факты из досье Сноу о Хэмпстеде, без новых исторических сведений. В обеих версиях каждой пары один набор фактов. Меняются порядок открытия, лишние пояснения, устная речь или концовка. Эталонные решения и причины заранее записаны в `pairs.ru.json`. Их подготовил редактор этого эксперимента (Codex). Независимой человеческой разметки этой коллекции пока нет.
+Five pairs test the script editor's ear for order, redundant explanation, spoken language and endings. Four stories are fictional. The fifth draws on the Hampstead material from the Snow dossier. Each pair uses the same facts. The experiment's editor prepared the choices and rationales in [pairs.ru.json](pairs.ru.json). These judgments have not been independently rated by a human panel.
 
-`prepare.py PROFILE OUTPUT_DIRECTORY` запускается Python из backend. Первый аргумент — полный JSON штатного профиля читательского редактора. Скрипт собирает независимые штатные запросы, перемешивает их и записывает отдельно ключ оператора. Оплаты на этапе подготовки нет. Калибровочные материалы хранятся вне пакета производственных промптов.
+## Prepare
 
-Редактор получает одну историю за вызов. В контексте есть русская речь, аудитория, жанр, формат и длительность короткого выпуска. Вторая версия, исходные факты, названия случаев, признаки отбора и ключ оценки не передаются. У обеих версий одинаковая цель, 55 секунд при диапазоне 30–85.
+Use a separate checkout of `af02f13d` with its backend dependencies. Both optional full scripts and all ten short requests were reproduced offline at that revision. With the current production projection, the historical preparer stops at its cold-reader boundary check. The [paired texts and judgments](pairs.ru.json) can also be used for manual reading.
 
-Пара засчитывается строго, если предпочтительный вариант получил `keep`, слабый получил `revise`, а обязательное замечание указывает на заранее записанную проблему. Верный общий вердикт по посторонней причине фиксируется отдельно. Также проверяются ссылки на цитаты и предложенный масштаб правки. Допустимо обоснованно исправить ошибку в самих контролях, сохранив и раскрыв первоначальный результат.
+Supply the complete JSON profile for the script reader, and a fresh output directory.
 
-Для сравнения полных сценариев на Сноу фиксируются расположение первого осмысленного открытия, сохранение нужной и появление лишней оговорки, устный русский, хронология и то, чем заканчивается рассказ. Раньше или короче само по себе не означает лучше. Варианты автора читаются без названий планов. Контроль правщика проводится отдельно на старом сценарии, с его подлинными отзывами. Если штатный читатель его принимает, это учитывается как пропуск; проверка переписи по отдельному редакторскому разбору помечается как контрольное вмешательство.
+```sh
+uv run --offline --project backend python evals/operator/script-listening/prepare.py \
+  /path/to/ModelProfile.json /path/to/blind-reading
+```
 
-`--include-wright` добавляет полный положительный контроль. Редактор читает архивный выпуск о первом полёте в его исходном жанре, длительности и аудитории. Оператор сверяет, какие изменения редактор требует и что произойдёт при их выполнении: сохранятся ли возвращение Дэниелса, четыре полёта и последние слова телеграммы. Обоснованную локальную правку можно принять. [Эталонный выпуск](../../reports/2026-11-08-story-editing/transfer/script.md) · [Критерии оценки](../../reports/2026-11-08-editorial-revision/criteria.md)
+The [preparer](prepare.py) compiles ten independent requests and shuffles them. The operator key stays separate. Each request contains one Russian story, its audience, genre, format and a target of 55 seconds within a 30–85 second range. The alternate version, source facts, case labels and expected result stay outside the request. Preparation makes no paid calls.
 
-Флаг `--include-episode` добавляет одиннадцатый независимый запрос, полный сценарий Сноу на 1700 слов с исходной длительностью. У этого контроля ожидается существенная правка рассказа. Пользователь поддержал разбор, где раскрытие связи с Хэмпстедом раньше сообщения о смертях и повторные выводы названы причинами переписи. Совпадение одного вердикта из-за посторонней ошибки ещё не показывает, что редактор распознал проблему. Хеш фиксирует точную версию сценария. [Текст и рецензии предыдущей проверки](../../reports/2026-11-07-snow-craft-calibration/README.md)
+Optional full-script controls reuse the same reader:
+
+- `--include-episode` adds the [1,700-word Snow script](inputs/snow.md) with its original duration. A substantive revision is expected. Check whether the reviewer identifies the order of the Hampstead discovery and the repeated conclusions.
+- `--include-wright` adds the [Wright brothers script](inputs/wright.md) with its original audience, genre and duration. Consider whether the proposed edits preserve Daniels's return, the four flights and the closing words of the telegram. A specific local correction may improve this control.
+
+## Read the results
+
+A strict pair succeeds when the preferred version gets `keep`, the weaker version gets `revise`, and the required finding identifies the expected defect. Inspect the quotation, diagnosis and scale of the remedy. Count a correct verdict reached for another reason separately. If a control proves unsound, preserve the original outcome and explain the correction.
+
+For complete Snow variants, read without the plan labels. Record where the first meaningful discovery occurs, how the text handles uncertainty, chronology, spoken Russian and the ending. Test a rewrite against its actual reviews separately. When the normal reader accepts a weak script, record the miss. A rewrite driven by a separate editorial diagnosis is a controlled intervention.

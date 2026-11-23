@@ -1,5 +1,5 @@
-# Дождь и почвенные бактерии
+# Rain and soil
 
-Новый контрольный материал для сравнения сценарных конфигураций. Пользовательский запрос и продолжительность зафиксированы до запусков. Заготовленного плана нет. Русский бриф и исследовательские карточки подготовлены для этого сравнения.
+This case compares script configurations on a fresh science topic. The [Russian brief](brief.md), target duration and [research package](shared.json) were prepared before the runs. Each planner chooses its own route through the material.
 
-Первоисточник — Young Soo Joung, Zhifei Ge и Cullen R. Buie, *Bioaerosol generation by raindrops on soil*, Nature Communications 8, 14668 (2017). В каталоге sources сохранена текстовая выгрузка издательского PDF с помощью pypdf. Диапазоны цитат в shared привязаны к этой выгрузке. Кодировки лигатур и артефакты выгрузки входят в контрольную сумму. [Статья](https://doi.org/10.1038/ncomms14668) · [Лицензия CC BY 4.0](https://creativecommons.org/licenses/by/4.0/)
+Young Soo Joung, Zhifei Ge and Cullen R. Buie, “Bioaerosol generation by raindrops on soil,” *Nature Communications* 8, 14668 (2017), provided the source. The text in [sources](sources/) was extracted from the publisher's PDF with pypdf. Quotation offsets and hashes refer to that exact extraction, including ligatures and extraction artifacts. The article is licensed under CC BY 4.0 subject to the article’s notices for credited material. [Article and attribution](https://doi.org/10.1038/ncomms14668) · [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/)

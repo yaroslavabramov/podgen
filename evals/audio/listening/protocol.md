@@ -1,53 +1,31 @@
-# Слепое прослушивание ru-documentary-v1
+# Blind listening protocol for Russian documentary speech
 
-## 1. Материал и записи
+## Record the samples
 
-Пять моделей × два предварительных русских голоса × два замороженных отрывка = 20 ячеек. Сравнивается точное сочетание модели, голоса и настроек. Два голоса читают альтернативные версии одного рассказчика; это не диалог двух ведущих. Имена брендов, доступность ключей и описания тембра не определяют результат.
+The [comparison plan](comparison-plan.json) pairs five models, two candidate Russian voices per model and two frozen excerpts for 20 cells. The voices are alternatives for a single narrator. Record the exact model, voice, native settings, quota and attempts for every cell. A missing quota or unsupported configuration leaves the cell incomplete.
 
-В режиме 1 `direction={"style":""}`: обычная подача голоса, без назначенной эмоции каждой фразе, добавленных аудиотегов, пауз, слов-паразитов, перевода или скрытой автоматической режиссуры. Нативные defaults модели сохраняются и записываются. «Обычная» не означает намеренно ровную или бесцветную речь. Для каждого голоса оба отрывка получают одинаковый профиль. Один связный отрывок передаётся одним запросом в поддержанном формате; границы исходных реплик сохраняются. Контекст предыдущего текста в первом сравнении не подмешивается.
+The baseline uses `direction={"style":""}` and the same profile for both excerpts. Send the original turns together in the supported representation, with their boundaries intact. Preserve native defaults. Use the first technically playable, complete take for each cell. Log transport retries separately from artistic retakes, including errors, bytes, usage and actual cost. An audible performance mistake belongs in the rating.
 
-Одна законченная попытка на ячейку. Технические retry и новые художественные дубли различаются; все попытки, ошибки, bytes, настройки, usage и фактическая стоимость сохраняются. Для основной оценки берётся первый полный технически пригодный дубль. Нельзя выбирать лучший из нескольких только одному кандидату. Художественная ошибка полного дубля не маскируется как транспортный retry. Бюджет и число попыток задаёт runtime-конфигурация; этот протокол не увеличивает их.
+## Prepare a blind listening copy
 
-Подключены ElevenLabs, Gemini, Inworld и Fish на бесплатных планах; MiniMax отсутствует. Текущий верхний предел — 16 из 20 ячеек, фактический объём определяется preflight точных моделей, голосов и оставшихся бесплатных квот. Покупки, смена модели и скрытый fallback исключены. Недоступность квоты фиксируется как незавершённая ячейка, не как плохой голос. Четыре пробы одного сервиса остаются частичным поднабором. По доступным записям можно делать явно ограниченные выводы; победитель пяти моделей и два финалиста не назначаются автоматически.
+Preserve each lossless original. Decode it fully and check duration, loudness, true peak, leading and trailing silence, cuts and clipping. Verify the opening, final line and turn order against the cue sheet, the selected model against the profile, and the source selectors against both accepted reviews.
 
-## 2. Технический допуск к прослушиванию
+Use a common lossless playback format and measured loudness. Record target LUFS and true peak, measured values and applied gain. If the target requires dynamics processing, resolve the policy for the entire panel. Retain the original pace, timing, mix and dynamics. Record a duration outside the 45–75 second window as observed.
 
-Сохранить оригинальный lossless ответ и отдельно производную playback-копию. Полностью декодировать запись; измерить длительность, LUFS, true peak, тишину в начале/конце и наличие обрывов/клиппинга. Проверить начало, последнюю фразу, порядок и границы всех исходных реплик. Успешный HTTP или непустой WAV не удостоверяет полноту речи.
+Assign random blind IDs. Keep the mapping to the profile, request, take, original and playback hashes outside the listening package. Remove provider names, prices, model identifiers and previous judgments from visible metadata. Note any recognizable voice. Give each of three to five independent Russian speakers a separate seeded order. Balance excerpts, separate samples from the same profile, use blocks of five and calibrate listening volume using a separate signal. Listeners use a quiet space and the same headphones across their session.
 
-Для слепого пакета использовать одинаковый lossless playback-формат и одинаковую измеренную громкость. Зафиксировать target LUFS/true peak из конфигурации, фактические значения и применённый gain. Если target недостижим без изменения динамики, это явно решить для всего сравнения. Не применять скрытые шумоподавление, EQ, компрессию, вставки тишины или изменение темпа; оригиналы остаются доступны. Музыка отсутствует. Выход из окна 45–75 секунд фиксируется, но не исправляется ускорением, обрезкой или заменой текста.
+## Three listening passes
 
-До предъявления сверить источник, script hash, selectors и оба исходных keep. Проверить поданный модельный ID и отсутствие fallback. Ошибка импорта или разрешений не оценивается как качество голоса.
+1. **Hear the audio alone.** Record naturalness, intelligibility, emphasis, pauses, continuity, voice consistency and willingness to continue. Give timestamps and describe what you heard. If you stopped early, record the last point heard. Lock the first scores before showing the text.
+2. **Check the words.** Compare the exact reference with the recording. Pay particular attention to names, quantities, negations, qualifiers, altered words and spoken instructions. A recognizer, if used, receives only the audio on its first pass. Resolve discrepancies by listening and mark uncertain pronunciations accordingly. Record the actual coverage when ASR is unavailable.
+3. **Read the context.** For disputed joins, pauses, endings or emphases, listen again with the complete saved script. Record this judgment separately. Refer any change of the source wording to the script owner.
 
-## 3. Обезличивание и порядок
+The [rating form](rating.schema.json) uses 1 for a serious impediment, 2 for a distracting defect, 3 for tolerable but persistently artificial delivery, 4 for comfortable, natural speech and 5 for fluent, expressive delivery that invites continued listening. Use null when the listener could not judge.
 
-После сохранения аудио назначить случайные blind IDs. Ключ blind ID→exact profile/request/take/raw audio/playback hash хранится только у оператора, отдельно от пакета слушателя. В именах файлов и видимых метаданных нет сервиса, модели, голоса, цены или оценки агента. Голос может быть узнаваем на слух — это записывается, а не скрывается выдуманной анонимностью.
+## Shortlist and direction test
 
-Для каждого из 3–5 независимых русскоязычных слушателей сохранить seed и отдельный случайный порядок. Показать каждую доступную ячейку один раз в основном проходе; варианты одного профиля не ставить подряд, отрывки чередовать или балансировать. Не предъявлять сначала все записи одного сервиса. Порядки у разных слушателей различаются. Блоки по пять образцов, между ними пауза; начало сессии — настройка комфортного уровня на отдельном калибровочном сигнале, не на оцениваемом кандидате.
+Compare both excerpts for each exact profile. Include individual scores, disagreement, the weakest excerpt and timestamped fidelity or signal defects. Discuss differences and reveal identities after collecting the independent ratings. Report missing cells. A tie or an incomplete shortlist is a valid outcome.
 
-Слушатель работает независимо в тихой обстановке и одинаковых наушниках. Не показывать чужие оценки. Размер панели диагностический; он не даёт статистической гарантии.
+For the two qualified finalists, freeze a third ending excerpt from an accepted script. Compare baseline delivery with the same short English direction in each provider's supported direction field. Keep spoken text, Russian output language, voice, codec, loudness and all other settings fixed. A provider requiring inline tags needs an explicit plan and a check that the tags are silent. Two profiles × three excerpts × two modes × two takes gives 24 cells. Compare every take. Keep direction only if listeners hear an improvement and the words remain intact.
 
-## 4. Три прохода
-
-**Первый — только звук.** Без сценария, источников и каталога. Послушать весь образец; отметить естественность, понятность, смысловые акценты/паузы, связность, устойчивость голоса и удобство длительного слушания. Отдельно ответить, хочется ли слушать дальше. Для дефекта записать время и конкретное слышимое проявление. Если захотелось выключить — указать момент и причину. Если запись реально не дослушана, указать конец прослушанного диапазона; полного покрытия не приписывать. Зафиксировать оценки до открытия текста.
-
-**Второй — сохранность слов.** Показать точный reference-text. Проверить все слова, особенно critical_spans: имена, числа, отрицания, границы, термины и ограничители «часть», «некоторых». Смысловые добавления/замены/пропуски, озвученные инструкции и неверные числа выделяются отдельно от эстетических замечаний. Различия цифр и слов в ASR, пунктуации и регистра не являются сами по себе ошибками звука. Произношение редкого имени без подтверждённого ориентира помечается uncertain, а не объявляется ошибкой уверенно. Иностранные имена/ударения дополнительно квалифицируются по исходникам до выбора окончательного профиля.
-
-Если используется ASR, его первый запрос получает только аудио, без ожидаемого текста. Расхождения проверяются ухом; forced alignment не доказывает наличие пропавшего слова. При недоступном ASR записать фактически выполненную ручную проверку; отсутствующей автоматической проверке не ставить pass.
-
-**Третий — уместность в контексте.** При спорной паузе, акценте или завершении открыть полный сохранённый сценарий и замысел отрывка. Различать дефект исполнения и естественную границу выбранного excerpt. Повторное контекстное слушание записывается отдельным проходом, не заменяя первый blind score. Аудиоревью не открывает заново редактуру принятого рассказа; обнаруженное изменение слов возвращается владельцу текста.
-
-Форма: [rating.schema.json](rating.schema.json). Значения 1–5: 1 — сильно мешает; 2 — заметно отвлекает; 3 — терпимо, устойчивые искусственные особенности; 4 — естественно и удобно; 5 — свободно, точно по смыслу и хочется продолжать. Null означает «не удалось оценить», а не средний балл. Высокий балл в каждой шкале лучше; переигрывание и монотонность фиксируются конкретными событиями.
-
-## 5. Решение по фактически прослушанному набору
-
-Сначала сопоставить по каждому exact profile оба отрывка и все независимые оценки. Отдельно представить fidelity/signal defects с таймкодами. Сводить шкалы можно только вместе с индивидуальными оценками, разбросом, конкретными причинами и худшим отрывком. Среднее не скрывает потерянное отрицание, обрезанное окончание или смену голоса. Один короткий удачный sample не квалифицирует сервис, диалог или целый выпуск.
-
-Обсуждение и раскрытие ключа — после фиксации первых оценок. Записать фактическое покрытие моделей, голосов и обоих отрывков, а также отсутствующие ячейки. Два финалиста выбираются по реальному звучанию пригодных записей и сохранности текста, с объяснением выбора и явным ограничением на прослушанный набор. Это точные сочетания модели/голоса/настроек; их число не заполняется автоматически при недостатке данных. При близких результатах записать ничью и ограниченность материала; дополнительное сравнение оформляется явно. Оценка каталога и наличие API-ключа не являются голосом слушателя.
-
-## 6. Подача — только у двух финалистов
-
-Режим 2 начинается после слепого отбора и фиксации профилей. Сравнить обычную подачу с коротким английским brief из research-документа, переданным отдельным поддержанным полем. В `.text` нет режиссёрского текста. Если сервис поддерживает только inline-теги, сначала согласовать явный план непроизносимых вставок и проверить, что они не озвучены. Неподдерживаемая инструкция — явная неподдержанная ячейка, без скрытого fallback.
-
-Brief одинаков по смыслу для сравниваемых профилей; не назначать эмоцию/паузу каждому предложению. Язык речи задаётся `output_language=ru`. Голос, исходные слова, громкость, codec и остальные параметры в паре сохраняются. Два финалиста × три отрывка × два режима × две художественные попытки = 24 ячейки следующего этапа. Первые два отрывка остаются теми же. Третий — завершение, которое позднее извлекается и замораживается из полного принятого источника; нового сценария не сочинять. Этот корпус не включает третьего render-text и не разрешает дополнительные запросы сам по себе.
-
-Сравнивать все попытки, а не выбирать удачную. Оставлять direction при слышимом улучшении без потери слов и переигрывания. Затем целиком слушать дождь и Apollo на обоих финалистах, отдельно сцену GPS с двумя ведущими и локальную замену с соседним контекстом. Проверки длинных выпусков, дополнительных имён и дробей остаются отдельными от отбора 20 коротких записей.
+The later qualification covers the full Apollo and rain episodes, a two-host GPS scene and a local replacement with neighbouring sentences. Short sample results cover only the excerpts heard.

@@ -1,9 +1,7 @@
-# Текущий GPS
+# GPS clock case
 
-`shared.json` — пакет `/2` с однажды назначенными ID карточек. Короткие имена, заголовки, утверждения, условия и точные цитаты сохранены из `../../v1/gps-clock/shared.json`; исходный файл не изменён. `card-id-migration.json` фиксирует соответствие и digests. `fixed-plan.json` — явный перевод того же фиксированного плана на ID; смысл и привязка исходного документа сохранены.
+The [shared input](shared.json) uses the version 2 editorial contract. It keeps the labels, titles, claims, qualifications and exact excerpts from [the version 1 input](../../v1/gps-clock/shared.json). Each card has a persistent ID. Titles and labels can change, and cards can move, without changing that ID.
 
-В `card-id-migration.json` исходный `target_digest` по-прежнему обозначает первый снимок `/2`. Раздел `story_facts_revision` связывает его с текущим shared: добавлено только поле `story_facts` у перечисленных карточек. Удаление этих новых полей восстанавливает прежний digest; обратная замена ID именами восстанавливает исходный пакет `/1`, точные bytes которого сверяются по `source_sha256`.
+The [migration record](card-id-migration.json) maps legacy labels to IDs. Its original `target_digest` identifies the first version 2 snapshot. The later `story_facts_revision` lists the cards that acquired the `story_facts` field. Removing those additions reproduces the earlier digest. Reversing the ID mapping reproduces the version 1 input, whose saved bytes are identified by `source_sha256`.
 
-Текущий `fixed-plan.json` явно привязан к digest нового shared. В нём изменена только эта привязка: план, документ-источник и ссылки на те же факты сохранены. Прежние shared/fixed остаются в `../../v1/gps-clock/` и в Git `0d5ba0e`; прежняя привязка `/2` проверяется через `story_facts_revision.previous_digest`. При импорте устаревший fixed с новым shared отклоняется; текущая пара принимается. Правила автоматической перепривязки не расширены.
-
-Импортируйте shared и fixed обычными командами writing CLI. Текущая схема: `backend/schemas/editorial-input.v2.schema.json`. Переименование `label`/`title` и перестановка карточек не меняют card_id.
+The [fixed plan](fixed-plan.json) binds to the digest of this shared input and still references the original facts and plan document. Import it together with the matching shared revision. Mixing it with the old digest fails validation. For a planner-generated candidate use `own-plan`. See the [input schema](../../../../backend/schemas/editorial-input.v2.schema.json) and [writing workflow](../../../../backend/WRITING-EVALUATION.md).

@@ -1,45 +1,28 @@
-# Локальные редакторские развилки
+# Editorial decisions in a plan
 
-Семь операторских пар на **текущем Snow-досье обычного Podgen**. Основа — сохранённая модельная ревизия плана от 7 ноября; SHA входа и плана закреплены в [pairs.json](pairs.json). Источники и исходный прогон не изменяются. Здесь нет эталонного сценария, новых production-инструкций или автоматического смыслового оценщика.
+Seven paired choices exercise a planner's editor on a saved revision of the November 7 Snow plan. The dossier and plan hashes are pinned in [pairs.json](pairs.json). Each control changes a specific passage and asks which editorial action it warrants. The operator judges that action independently of the verdict on the whole plan.
 
-| Случай | Что предъявить | Какое различие оценить |
-| --- | --- | --- |
-| `rich-facts` | Акт с работным домом и пивоварней, соседний акт с доставкой воды | Содержательные разные улики против квоты «одна улика на акт»; весь прежний план не объявляется хорошим |
-| `scene-detail` | Сценическая доставка бутыли, лёгкий звон стекла о корзину | Нейтральная художественная деталь допустима без обязательного вступительного оправдания; полный запрет сцен ухудшает рассказ |
-| `repeated-justification` | Условие причинного вывода уже объясняется у спада вспышки | Сохранить важное условие против одинаковой страховки после каждой цифры и улики |
-| `unused-number` | Доставка связывает колонку с употреблением; расчёта дозы нет | Не выдумывать неизвестный объём против остановки работы ради невостребованного литража |
-| `needed-denominator` | Пять смертей стали количественным сравнением риска без размера группы | Вернуть имеющиеся 535 обитателей и точность вывода; не отмахиваться от нужного числа и не запрашивать новое исследование |
-| `chronology` | Осмотр апреля 1855 объявлен основанием решения сентября 1854 | Исправить причинную хронологию, сохранив детективный ход; ретроспектива не запрещается |
-| `invented-evidence` | Та же бутыль и звон теперь сопровождают новое испытание пробы и решающее предъявление попечителям | Убрать выдуманное существенное свидетельство; не переносить этот запрет на нейтральную деталь первой сцены |
+| Case | Decision under review |
+| --- | --- |
+| `rich-facts` | Preserve distinct workhouse, brewery and water delivery evidence when each advances the story. A quota of one clue per act loses material. |
+| `scene-detail` | Allow an incidental sound in a reconstructed bottle delivery when it supplies atmosphere. |
+| `repeated-justification` | Retain the causal qualification at the decline of the outbreak and remove repeated explanations elsewhere. |
+| `unused-number` | The bottle links the pump to consumption. Its volume would matter to a dose calculation, which this version never makes. |
+| `needed-denominator` | A risk comparison using five workhouse deaths needs the already documented 535 residents. |
+| `chronology` | Correct a scene that presents an April 1855 inspection as grounds for the September 1854 decision. |
+| `invented-evidence` | The revised bottle scene invents a sample test and its decisive presentation to the board. Remove those events while retaining legitimate details. |
 
-Это **локальный выбор редакторского действия**, не глобальные `accept/keep` для всего эпизода. В JSON указаны две альтернативы и ожидаемое различие. Оператор сначала читает действительный контекст и выбирает действие с объяснением; потом открывает `preferred`/`reason`. Другие реальные дефекты записываются отдельно: они не делают правильной квоту фактов или запрет всех сцен.
+## Generate offline requests
 
-## Повторить offline
-
-Из корня репозитория:
+From the root of a checkout with the backend dependencies installed, run the [operator pair tests](../../../backend/tests/test_editorial_operator_pairs.py). Choose a new temporary directory for each run because pytest clears its supplied base directory.
 
 ```sh
 uv run --offline --directory backend pytest -q tests/test_editorial_operator_pairs.py \
-  --basetemp=/tmp/podgen-editorial-pairs-2026-11-07
+  --basetemp="$(mktemp -d)"
 ```
 
-Используйте свободный `--basetemp`: pytest очищает выбранную временную папку. В подкаталогах семи случаев появятся:
+Each case produces a `request.json` built by the archived `existing/1` plan-review preview, a `candidate.json` suitable for the stage's normal candidate input, an `operator.json` with the alternatives and expected decision, and a `provenance.json` with source hashes, mapping from local cards to persistent IDs and the projection version. The assertions check construction and data separation. They make no provider calls.
 
-- `request.json` — настоящий `preview_request(plan-review)` с текущими production-инструкциями, полным материалом проверяющего и изменённым только в указанном месте планом. Ожидания в запрос не попадают.
-- `candidate.json` — канонический план с persisted ID, пригодный для существующего обычного `preview --stage plan-review --candidate …` после импорта того же досье и профиля.
-- `operator.json` — локальный вопрос/альтернативы и ожидание; evaluator-only, не передавать генератору.
-- `provenance.json` — SHA исходных файлов, версия проекций, M↔card_id и явное `model_called: false`.
+Show the reviewer the request alone. Keep its full answer, actual profile, request, attempts and local rationale. Then reveal the operator key and compare the reasoning and effect of the proposed edit. Record other reasonable actions and unrelated problems separately. The schemas can verify targets, references and speaker membership. The value of a scene detail or number is an editorial decision.
 
-Пройдено **10 offline-проверок**: семь случаев действительно компилируются обычным preview с правильными адресами и без evaluator-аннотаций; выбор одной или всех карточек допустим структурно без квот и автоматического списка оговорок; отдельно воспроизведён путь редакторского требования через принятый план к автору. Это проверки контракта и предъявляемого контекста, **не результаты работы новой модели**.
-
-## Проверка поведения модели или человека
-
-Сначала используйте `request.json`, не показывая `operator.json`. Для модели нужны отдельное разрешение на вызовы и обычный архив попытки; этот self-test вызовов не делает. Проверяющий должен объяснить локальное действие, его основание и что сохранить. Сравните смысл ответа с развилкой, а не совпадение слов или обязательный общий вердикт. Сохраните точный ответ, профиль/версию модели, фактический request и операторское объяснение; иную разумную правку разбирайте вручную. Случайность и повторные попытки фиксируйте, не выбирая удачный ответ задним числом.
-
-## Что установлено в коде
-
-Схемы проверяют адреса, предложенные ссылки, состав ведущих и согласованность заявленного решения. Они не требуют использовать все карточки, исправлять каждое число, запрещать сцены или повторять условия. Обязательность `duration_note` не создаёт требования расчёта каждой цифры. Число фактов и корректность исторической сцены остаются редакторским суждением.
-
-Реальный путь требований: [actionable_feedback](../../../backend/src/podgen/writing/projections.py) дословно передаёт findings/requested_change/preserve и research_requests правщику плана. Если модель внесёт эти требования в opening, intended_change_in_understanding, prerequisite_concepts, transitions, вклад ведущих или итоговый смысл, [narrative_decisions](../../../backend/src/podgen/writing/story_views.py) передаст их автору. Неблокирующие вопросы плана также поступают как unresolved_questions. Блокирующий запрос вместо этого останавливает генерацию. Сам plan-review автору напрямую не подмешивается; duration assumptions и прежние общие списки оговорок V5 не передаёт. Смыслового фильтра на этом пути нет: плохую редактуру нужно обнаруживать по поведению модели и операторской оценке, а не маскировать словарным gate.
-
-Для двух реальных отзывов штатного plan-review подготовлена [операционная пара P01/P02 с отдельным ключом](review-control.md). Прежние пары выше остаются локальными операторскими развилками, а не модельными результатами.
+For a pair of full-plan reviews with an independently stored answer key, see the [P01/P02 procedure](review-control.md).

@@ -1,6 +1,6 @@
 {
   "contract": "human-reported-audio-repair-cases/1",
-  "source_audio_path": "/Users/yaroslavabramov/side/podgen/tmp/audio-full-snow-2026-11-12/assembly/export/master.wav",
+  "source_audio_path": "tmp/audio-full-snow-2026-11-12/assembly/export/master.wav",
   "source_audio_sha256": "fd37ecb9fb4eeeeb810ceefa3855ce5cf30117055f09704a5c402e11e7b4f4c2",
   "assembly_id": "a0e181a1-be9d-42dd-a474-b3a5ad2a168f",
   "comparison_run_id": "96690deb-d771-4ca9-9116-56b6ec347cef",
