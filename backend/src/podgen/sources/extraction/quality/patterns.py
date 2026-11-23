@@ -46,9 +46,16 @@ _PUBLISHER_SHELL_MAX_CHARS = 8000
 _INVALID_URL_ERROR_RE = re.compile(r"error:\s+this is an invalid url", re.IGNORECASE)
 _BOT_CHECK_RE = re.compile(r"verify (?:that )?you are not a bot", re.IGNORECASE)
 _JAVASCRIPT_CHALLENGE_RE = re.compile(
-    r"(?:enable|turn on) javascript(?: and cookies)?(?: to continue)?|cookies to continue",
+    r"(?:enable|turn on) javascript(?: and cookies)?(?: to continue)?|cookies to continue"
+    r"|javascript is required to continue",
     re.IGNORECASE,
 )
+_SECURITY_SERVICE_RE = re.compile(
+    r"security check required|complete the security check|unusual activity from your network"
+    r"|using a security service to protect itself",
+    re.IGNORECASE,
+)
+_MAINTENANCE_RE = re.compile(r"temporarily unavailable while we perform maintenance", re.IGNORECASE)
 _CLOUDFRONT_REQUEST_ID_RE = re.compile(r"\brequest id:\s*[A-Za-z0-9_+=/-]{12,}", re.IGNORECASE)
 _MISSING_DOCUMENT_RE = re.compile(
     r"document name you requested.{0,240}could not be found on this server",

@@ -7,6 +7,7 @@ from podgen.domain.canonical import digest
 from podgen.domain.contracts.common import ArtifactRef
 from podgen.persistence.artifact_preparation import prepare
 from podgen.sources.extraction.quality import assess_web_fetch_health
+from podgen.sources.extraction.quality.patterns import _HTTP_ERROR_MAX_CHARS
 
 from .contracts import AcquiredSource
 
@@ -41,7 +42,8 @@ def availability(document, extracted, profile):
         reasons.append("redirect_to_access_page")
         return "unavailable", reasons
     state = {"ok": "available", "blocked": "unavailable", "low_signal": "unconfirmed"}[health.state]
-    if document.status_code >= 400 and state != "available":
+    if document.status_code >= 400 and (state != "available" or health.char_count < _HTTP_ERROR_MAX_CHARS):
+        # A short error body is a service page; a substantive document behind an error stays visible.
         state = "unavailable"
     return state, reasons
 

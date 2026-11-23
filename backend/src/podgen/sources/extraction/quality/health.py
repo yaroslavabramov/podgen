@@ -16,11 +16,13 @@ from .patterns import (
     _HTTP_ERROR_MAX_CHARS,
     _INVALID_URL_ERROR_RE,
     _JAVASCRIPT_CHALLENGE_RE,
+    _MAINTENANCE_RE,
     _MISSING_DOCUMENT_RE,
     _NOT_FOUND_REQUEST_RE,
     _PREVIEW_ONLY_RE,
     _PUBLISHER_DOCUMENT_CONTROL_MARKERS,
     _PUBLISHER_SHELL_MAX_CHARS,
+    _SECURITY_SERVICE_RE,
     _SERVICE_PAGE_MAX_CHARS,
     _TARGET_ACCESS_DENIAL_RE,
 )
@@ -104,6 +106,10 @@ def _blocked_reasons(normalized_text: str) -> list[str]:
         reasons.append("captcha_detected")
     if short_service_page and _JAVASCRIPT_CHALLENGE_RE.search(normalized_text):
         reasons.append("javascript_challenge")
+    if short_service_page and _SECURITY_SERVICE_RE.search(normalized_text):
+        reasons.append("security_service_block")
+    if short_service_page and _MAINTENANCE_RE.search(normalized_text):
+        reasons.append("maintenance_page")
 
     cloudfront_markers = (
         "request could not be satisfied" in normalized_lower,
