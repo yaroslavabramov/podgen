@@ -30,9 +30,11 @@ class EpisodeProduction:
         audio_transport,
         acquire=None,
         sleep=time.sleep,
+        recognition_transport=None,
     ):
         self.journal = ProductionJournal(repo, project, run_id)
         self.research_provider, self.audio_transport = research_provider, audio_transport
+        self.recognition_transport = recognition_transport
         self.writer = WritingEvaluation(repo, model_provider, material_acquirer=acquire)
         self.acquire, self.sleep = acquire, sleep
         self.repo, self.project = repo, project
@@ -190,10 +192,16 @@ class EpisodeProduction:
                         elif self.phase == "terminal_materials":
                             ready = self._terminal_materials()
                         elif self.phase == "audio":
-                            _, _, ref = audio.render(
-                                self.journal, self.config, self.progress, self.audio_transport
+                            _, _, ref, verification = audio.render(
+                                self.journal,
+                                self.config,
+                                self.progress,
+                                self.audio_transport,
+                                self.recognition_transport,
                             )
                             self.progress["assembly_ref"] = ref
+                            if verification is not None:
+                                self.progress["audio_verification"] = verification
                             return self._save("assembled", "assembled")
                         else:
                             raise ContractError("episode_unknown_phase")

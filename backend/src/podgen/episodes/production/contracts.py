@@ -5,13 +5,26 @@ from uuid import UUID
 
 from pydantic import Field, model_serializer, model_validator
 
+from podgen.audio.recognition.contracts import RecognitionProfile
 from podgen.domain.contracts.common import ArtifactRef, Contract, DecimalString, Text
 from podgen.research.hosted.contracts import GeminiProfile
 from podgen.research.hosted.corpus_acquisition import CorpusAcquisition
 from podgen.runtime.evaluation.audio.contracts import VoiceCandidate
+from podgen.runtime.evaluation.audio.fidelity.contracts import RecognitionPrice
 from podgen.runtime.evaluation.contracts import RunLimits
 
 from .duration_reference import SavedDurationReference
+
+
+class AudioVerification(Contract):
+    """Recognition of every assembled master; added or omitted content is re-synthesized."""
+
+    recognition: RecognitionProfile = Field(default_factory=RecognitionProfile)
+    credential_env: Text = "FISH_API_KEY"
+    price: RecognitionPrice
+    max_cost_usd: DecimalString = "0.50"
+    reservation_usd: DecimalString = "0.25"
+    max_repair_rounds: int = Field(default=2, ge=1, le=5)
 
 
 class ProductionSettings(Contract):
@@ -29,12 +42,14 @@ class ProductionSettings(Contract):
     audio_max_part_characters: int = Field(default=6000, ge=256, le=20000)
     accepts_variable_research_cost: Literal[True]
     duration_reference: SavedDurationReference | None = None
+    audio_verification: AudioVerification | None = None
 
     @model_serializer(mode="wrap")
     def preserve_historical_shape(self, handler):
         data = handler(self)
-        if data.get("duration_reference") is None:
-            data.pop("duration_reference", None)
+        for optional in ("duration_reference", "audio_verification"):
+            if data.get(optional) is None:
+                data.pop(optional, None)
         return data
 
     @model_validator(mode="after")

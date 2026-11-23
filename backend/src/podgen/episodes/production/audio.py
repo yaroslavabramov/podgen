@@ -82,20 +82,22 @@ def configuration(config, outcome, script):
     profile = config.settings.audio_profile
     provider = profile.synthesis.provider
     parts = partition(script, outcome, config.settings.audio_max_part_characters)
+    verification = config.settings.audio_verification
+    # A verified render may retake every part once per repair round.
     return FullRenderConfig(
-        run_id=uuid5(config.run_id, "audio-render/1"),
+        run_id=uuid5(config.run_id, "audio-render/2" if verification else "audio-render/1"),
         providers=[provider],
         profiles=[profile],
         fragments=parts,
         expected_voices_per_provider={provider: 1},
         max_cost_usd=config.settings.audio_max_cost_usd,
-        max_attempts=len(parts),
+        max_attempts=len(parts) * (1 + verification.max_repair_rounds) if verification else len(parts),
         request_timeout_seconds=900,
         blind_seed=0,
     )
 
 
-def render(parent, config, progress, transport):
+def render(parent, config, progress, transport, recognition_transport=None):
     writing_run = progress["writing_run_id"]
     from uuid import UUID
 
@@ -111,18 +113,96 @@ def render(parent, config, progress, transport):
     with audio.lock():
         manifest = prepare(audio, render_config, outcomes=[validated])
         ledger = OperationLedger(audio, manifest)
-        refs = []
-        samples = []
+        refs, samples = [], []
         for cell in manifest["cells"]:
-            result = execute_sample(audio, manifest, cell, render_config, transport, operation_ledger=ledger)
-            if result.status != "completed":
-                raise ContractError("episode_audio_" + result.status)
+            result = _sample(audio, manifest, cell, render_config, transport, ledger)
             refs.append(RuntimeRef.model_validate(result.result_ref))
             samples.append(result)
-    assembly = AssemblyConfig(
-        assembly_id=uuid5(config.run_id, "audio-assembly/1"),
-        comparison_run_id=audio.run_id,
-        part_result_refs=refs,
+    verification = config.settings.audio_verification
+    for round_index in range(verification.max_repair_rounds + 1 if verification else 1):
+        assembly = AssemblyConfig(
+            assembly_id=uuid5(
+                config.run_id, "audio-assembly/1" + (f":repair:{round_index}" if round_index else "")
+            ),
+            comparison_run_id=audio.run_id,
+            part_result_refs=refs,
+        )
+        ref = build(audio, assembly, samples=samples, outcomes=[validated])
+        if verification is None:
+            return audio, assembly, ref, None
+        audit, report = _verify(audio, config, verification, ref, round_index, recognition_transport)
+        routes = [candidate["review_route"] for candidate in report["candidates"]]
+        summary = dict(
+            contract="episode-audio-verification/1",
+            audit_id=str(audit),
+            repair_round=round_index,
+            **{
+                route: routes.count(route)
+                for route in ("automatic_repair", "user_confirmation", "recognition_variant")
+            },
+        )
+        repairs = [c for c in report["candidates"] if c["review_route"] == "automatic_repair"]
+        if not repairs:
+            return audio, assembly, ref, summary
+        if round_index == verification.max_repair_rounds:
+            break
+        frame_map = audio.repo.get_runtime(audio.project, RuntimeRef.model_validate(ref))["frame_map"]
+        affected = sorted(
+            {
+                position
+                for candidate in repairs
+                for position, part in enumerate(frame_map)
+                if part["master_start_frame"] < candidate["audio_range"]["end_frame"]
+                and candidate["audio_range"]["start_frame"] < part["master_end_frame"]
+            }
+        )
+        reason = f"fidelity_automatic_repair:{audit}"
+        with audio.lock():
+            for position in affected:
+                cell = manifest["cells"][position]
+                retaken = any(row["prepared"].get("reason") == reason for row in ledger.rows[cell["cell_id"]])
+                result = _sample(
+                    audio, manifest, cell, render_config, transport, ledger, None if retaken else reason
+                )
+                refs[position], samples[position] = RuntimeRef.model_validate(result.result_ref), result
+    raise ContractError("episode_audio_repair_exhausted")
+
+
+def _sample(audio, manifest, cell, config, transport, ledger, retake_reason=None):
+    result = execute_sample(
+        audio, manifest, cell, config, transport, retake_reason=retake_reason, operation_ledger=ledger
     )
-    ref = build(audio, assembly, samples=samples, outcomes=[validated])
-    return audio, assembly, ref
+    if result.status != "completed":
+        raise ContractError("episode_audio_" + result.status)
+    return result
+
+
+def _verify(audio, config, settings, assembly_ref, round_index, transport):
+    """One recognition of this assembled master; resume reuses its saved result."""
+    from podgen.audio.http import RawAudioTransport
+    from podgen.runtime.evaluation.audio.fidelity.contracts import FidelityConfigV2
+    from podgen.runtime.evaluation.audio.fidelity.prepare import prepare as prepare_audit
+    from podgen.runtime.evaluation.audio.fidelity.processing import revisions
+    from podgen.runtime.evaluation.audio.fidelity.service import run as recognize
+    from podgen.runtime.evaluation.audio.subject_contracts import AudioSubject
+
+    audit = FidelityConfigV2(
+        audit_id=uuid5(config.run_id, f"audio-verification/1:{round_index}"),
+        comparison_run_id=audio.run_id,
+        recognition=settings.recognition,
+        credential_env=settings.credential_env,
+        price=settings.price,
+        max_cost_usd=settings.max_cost_usd,
+        reservation_usd=settings.reservation_usd,
+        subject=AudioSubject(kind="assembly", ref=RuntimeRef.model_validate(assembly_ref)),
+    )
+    with audio.lock():
+        prepare_audit(audio, audit)
+    status = recognize(
+        audio,
+        audit,
+        transport or RawAudioTransport(timeout_seconds=settings.recognition.request_timeout_seconds),
+    )
+    if status != "candidates_generated":
+        raise ContractError("episode_audio_verification_" + status)
+    return audit.audit_id, revisions(audio, audit.audit_id)[-1]["result"]["report"]
