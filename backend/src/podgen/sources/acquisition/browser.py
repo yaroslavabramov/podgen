@@ -19,20 +19,31 @@ class BrowserSourceFetcher:
             raise RuntimeError("browser_capture_failed:" + str(error)) from error
 
     async def _capture(self, url, profile, async_playwright):
+        from playwright.async_api import Error
+
         async with asyncio.timeout(profile.timeout_seconds):
             async with async_playwright() as engine:
                 browser = await engine.chromium.launch(headless=True, args=public_browser_launch_args(url))
                 try:
                     context = await browser.new_context(
-                        service_workers="block", accept_downloads=False, user_agent=profile.user_agent
+                        service_workers="block", accept_downloads=True, user_agent=profile.user_agent
                     )
                     page = await context.new_page()
-                    response = await guarded_page_goto(
-                        page,
-                        url,
-                        wait_until="domcontentloaded",
-                        timeout=round(profile.timeout_seconds * 1000),
-                    )
+                    downloads = []
+                    page.on("download", lambda item: downloads.append(item))
+                    try:
+                        response = await guarded_page_goto(
+                            page,
+                            url,
+                            wait_until="domcontentloaded",
+                            timeout=round(profile.timeout_seconds * 1000),
+                        )
+                    except Error as error:
+                        # A document served as an attachment (often a PDF) starts a download instead.
+                        if "Download is starting" not in str(error):
+                            raise
+                        download = downloads[0] if downloads else await page.wait_for_event("download")
+                        return await _downloaded(url, download, profile)
                     body = (await page.content()).encode("utf-8")
                     if len(body) > profile.max_bytes:
                         raise ByteLimitExceeded("source_rendered_dom_byte_limit")
@@ -60,3 +71,24 @@ class BrowserSourceFetcher:
                     )
                 finally:
                     await browser.close()
+
+
+async def _downloaded(url, download, profile):
+    from pathlib import Path
+
+    path = await download.path()
+    if path is None or Path(path).stat().st_size > profile.max_bytes:
+        raise ByteLimitExceeded("source_browser_download_byte_limit")
+    body = Path(path).read_bytes()
+    pdf = body.startswith(b"%PDF") or download.suggested_filename.lower().endswith(".pdf")
+    return FetchedDocument(
+        url,
+        download.url,
+        [],
+        200,
+        {"content-type": "application/pdf" if pdf else "application/octet-stream"},
+        body,
+        timestamp(),
+        acquisition_kind="browser_download",
+        limitations=["browser_download_not_http_original"],
+    )
