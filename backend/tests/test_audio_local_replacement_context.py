@@ -219,3 +219,62 @@ def test_asr_budget_covers_new_pcm_hash_after_explicit_tts_reprocess(monkeypatch
     assert localization.run(j, c.proposal_id, asr) == "asr_budget_exhausted"
     assert proposal_ledger(j, c.proposal_id)[0] == 1
     assert len(speech.calls) == len(asr.calls) == 1
+
+
+def finding_config(config, candidate_id):
+    from uuid import uuid4
+
+    from podgen.runtime.evaluation.audio.local_replacement.contracts import ProposalConfigV3
+
+    values = config.model_dump(mode="json", exclude={"contract", "approximate_seconds"})
+    return ProposalConfigV3(**dict(values, proposal_id=str(uuid4()), candidate_id=candidate_id))
+
+
+def test_a_finding_selects_the_sentence_holding_its_words_not_a_time(monkeypatch):
+    from uuid import uuid4
+
+    journal, config, _ = fixture(monkeypatch)
+    root = "fidelity:" + str(config.recognition_audit_id) + ":processing:2"
+    words = [dict(index=2, text="Второй", normalized="второй", char_start=14, char_end=20, utterance_index=0)]
+    candidate = dict(
+        kind="script_discrepancy",
+        operation="replace",
+        candidate_id=str(uuid4()),
+        expected_tokens=words,
+        recognized_tokens=[dict(text="Вторник")],
+        expected_token_range=[2, 3],
+    )
+    journal.put(root, {})
+    journal.put(root + ":recognition", journal.get(root[: -len("2")] + "1:recognition"))
+    journal.put(root + ":result", dict(report=dict(expected_tokens=words, candidates=[candidate])))
+    proposal = prepare(journal, finding_config(config, candidate["candidate_id"]))
+    assert proposal["payload"]["text"] == "Второй текст."
+    assert proposal["payload"]["finding"]["candidate_id"] == candidate["candidate_id"]
+    with pytest.raises(ContractError, match="local_replacement_unknown_finding"):
+        prepare(journal, finding_config(config, str(uuid4())))
+
+
+def test_an_inserted_finding_selects_the_sentence_at_its_script_position(monkeypatch):
+    from uuid import uuid4
+
+    journal, config, _ = fixture(monkeypatch)
+    root = "fidelity:" + str(config.recognition_audit_id) + ":processing:2"
+    tokens = [
+        dict(index=i, text=w, normalized=w.casefold(), char_start=s, char_end=s + len(w), utterance_index=0)
+        for i, (w, s) in enumerate(
+            [("Первый", 0), ("текст", 7), ("Второй", 14), ("текст", 21), ("Третий", 28)]
+        )
+    ]
+    candidate = dict(
+        kind="script_discrepancy",
+        operation="insert",
+        candidate_id=str(uuid4()),
+        expected_tokens=[],
+        recognized_tokens=[dict(text="лишнее")],
+        expected_token_range=[4, 4],
+    )
+    journal.put(root, {})
+    journal.put(root + ":recognition", journal.get(root[: -len("2")] + "1:recognition"))
+    journal.put(root + ":result", dict(report=dict(expected_tokens=tokens, candidates=[candidate])))
+    proposal = prepare(journal, finding_config(config, candidate["candidate_id"]))
+    assert proposal["payload"]["text"] == "Третий текст."

@@ -7,7 +7,7 @@ from podgen.domain.errors import Conflict, ContractError
 
 from ..contracts import VoiceCandidate
 from .context import compile_context
-from .contracts import ProposalConfigV2, prefix
+from .contracts import ProposalConfigV2, ProposalConfigV3, prefix
 from .subject import load
 
 
@@ -28,16 +28,10 @@ def prepare(journal, config):
         if journal.ref(prefix(old_id) + ":proposal") != config.parent_proposal_ref:
             raise ContractError("local_replacement_invalid_proposal_parent")
     parent, audio, params, frames, timeline, origin = load(journal, config)
-    point = round(config.approximate_seconds * params[2])
-    index = next(
-        (i for i, row in enumerate(timeline["units"]) if row["start_frame"] <= point < row["end_frame"]), None
-    )
-    if index is None:
-        raise ContractError("local_replacement_no_sentence_at_time")
-    index += config.sentence_offset
-    if not 0 <= index < len(timeline["units"]) or index + config.sentence_count > len(timeline["units"]):
-        raise ContractError("local_replacement_sentence_selection_outside_master")
-    units = timeline["units"][index : index + config.sentence_count]
+    if isinstance(config, ProposalConfigV3):
+        finding, units = finding_units(journal, config, timeline)
+    else:
+        finding, units = None, time_units(config, timeline, params)
     selectors = [item for unit in units for item in unit["script_ranges"]]
     if len(selectors) > 2:
         raise ContractError("local_replacement_selection_exceeds_two_sentences")
@@ -92,6 +86,8 @@ def prepare(journal, config):
         tool_versions=tools(),
         production_ready=False,
     )
+    if finding is not None:
+        value["finding"] = finding
     value["context_selection"] = context_selection
     value["localization"] = config.localization.model_dump(mode="json")
     proposal = dict(
@@ -99,3 +95,64 @@ def prepare(journal, config):
     )
     journal.put(key + ":proposal", proposal)
     return proposal
+
+
+def time_units(config, timeline, params):
+    point = round(config.approximate_seconds * params[2])
+    index = next(
+        (i for i, row in enumerate(timeline["units"]) if row["start_frame"] <= point < row["end_frame"]), None
+    )
+    if index is None:
+        raise ContractError("local_replacement_no_sentence_at_time")
+    index += config.sentence_offset
+    if not 0 <= index < len(timeline["units"]) or index + config.sentence_count > len(timeline["units"]):
+        raise ContractError("local_replacement_sentence_selection_outside_master")
+    return timeline["units"][index : index + config.sentence_count]
+
+
+def finding_units(journal, config, timeline):
+    """Every spoken unit holding the finding's script words; an insertion uses its script position."""
+    from ..fidelity.processing import revisions
+
+    results = [row["result"] for row in revisions(journal, config.recognition_audit_id) if row["result"]]
+    report = results[-1]["report"] if results else None
+    candidate = next(
+        (
+            c
+            for c in (report or {}).get("candidates", ())
+            if c.get("candidate_id") == str(config.candidate_id)
+        ),
+        None,
+    )
+    if candidate is None or candidate["kind"] != "script_discrepancy":
+        raise ContractError("local_replacement_unknown_finding")
+    words = candidate["expected_tokens"]
+    if not words:
+        index = candidate["expected_token_range"][0]
+        tokens = report["expected_tokens"]
+        anchor = tokens[min(index, len(tokens) - 1)]
+        at = anchor["char_start"] if index < len(tokens) else anchor["char_end"] - 1
+        words = [dict(utterance_index=anchor["utterance_index"], char_start=at, char_end=at + 1)]
+
+    def holds(unit, word):
+        return any(
+            item["utterance_index"] == word["utterance_index"]
+            and item["char_start"] < word["char_end"]
+            and word["char_start"] < item["char_end"]
+            for item in unit["script_ranges"]
+        )
+
+    chosen = [i for i, unit in enumerate(timeline["units"]) if any(holds(unit, word) for word in words)]
+    if not chosen or not all(any(holds(timeline["units"][i], word) for i in chosen) for word in words):
+        raise ContractError("local_replacement_finding_not_in_timeline")
+    if chosen != list(range(chosen[0], chosen[-1] + 1)):
+        raise ContractError("local_replacement_finding_not_contiguous")
+    units = timeline["units"][chosen[0] : chosen[-1] + 1]
+    finding = dict(
+        audit_id=str(config.recognition_audit_id),
+        candidate_id=str(config.candidate_id),
+        operation=candidate["operation"],
+        expected_text=" ".join(t["text"] for t in candidate["expected_tokens"]),
+        recognized_text=" ".join(t["text"] for t in candidate["recognized_tokens"]),
+    )
+    return finding, units

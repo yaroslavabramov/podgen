@@ -39,7 +39,7 @@ def load(journal, config):
     parent = audio_subject(journal, config.parent_subject)
     audio = journal.base.read_blob(config.parent_subject.ref, BlobRef.model_validate(parent["audio_blob"]))
     params, frames, pcm = read(audio)
-    if config.approximate_seconds * params[2] >= frames:
+    if config.approximate_seconds is not None and config.approximate_seconds * params[2] >= frames:
         raise ContractError("local_replacement_time_outside_master")
     if config.recognition_audit_id is None:
         if parent["kind"] != "local_master":

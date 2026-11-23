@@ -17,7 +17,11 @@ from podgen.runtime.evaluation.audio.journal import AudioJournal
 from podgen.runtime.evaluation.audio.local_replacement import localization
 from podgen.runtime.evaluation.audio.local_replacement.apply import apply
 from podgen.runtime.evaluation.audio.local_replacement.approval import approve, authorized, verify_proposal
-from podgen.runtime.evaluation.audio.local_replacement.contracts import ProposalConfigV2, contextual, prefix
+from podgen.runtime.evaluation.audio.local_replacement.contracts import (
+    contextual,
+    load_proposal_config,
+    prefix,
+)
 from podgen.runtime.evaluation.audio.local_replacement.export import export_master, export_proposal
 from podgen.runtime.evaluation.audio.local_replacement.prepare import prepare
 from podgen.runtime.evaluation.audio.local_replacement.service import reprocess, synthesize
@@ -89,7 +93,7 @@ def execute(journal, args):
         )
     if op in ("prepare", "revise"):
         if op == "prepare":
-            config = ProposalConfigV2.model_validate_json(args.config.read_bytes())
+            config = load_proposal_config(json.loads(args.config.read_bytes()))
         else:
             old = verify_proposal(journal, args.proposal_id)["payload"]["configuration"]
             changed = dict(
@@ -106,12 +110,13 @@ def execute(journal, args):
                 changed.update(
                     approximate_seconds=args.approximate_seconds, sentence_offset=args.shift_sentences
                 )
-            changed["contract"] = "audio-local-replacement-proposal/2"
+            if old["contract"] != "audio-local-replacement-proposal/3":
+                changed["contract"] = "audio-local-replacement-proposal/2"
             if args.localization_config:
                 changed["localization"] = json.loads(args.localization_config.read_bytes())
             if "localization" not in changed:
                 raise ContractError("local_replacement_revision_requires_contextual_config_with_asr_profile")
-            config = ProposalConfigV2.model_validate(changed)
+            config = load_proposal_config(changed)
         with journal.lock():
             prepare(journal, config)
         return dict(

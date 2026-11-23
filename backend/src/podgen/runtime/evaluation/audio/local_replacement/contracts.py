@@ -69,6 +69,29 @@ class ProposalConfigV2(ProposalConfig):
     localization: LocalizationProfile
 
 
+class ProposalConfigV3(ProposalConfigV2):
+    """The range comes from a confirmed recognition finding, never from a time point."""
+
+    contract: Literal["audio-local-replacement-proposal/3"] = "audio-local-replacement-proposal/3"
+    approximate_seconds: None = None
+    candidate_id: UUID
+
+    @model_validator(mode="after")
+    def finding_bound(self):
+        if self.recognition_audit_id is None or self.sentence_offset:
+            raise ValueError("local_replacement_finding_requires_its_audit_and_no_offset")
+        return self
+
+
+def load_proposal_config(value):
+    model = (
+        ProposalConfigV3
+        if value.get("contract") == "audio-local-replacement-proposal/3"
+        else ProposalConfigV2
+    )
+    return model.model_validate(value)
+
+
 class LocalizationBudget(Contract):
     reservation_per_request_usd: DecimalString
     max_cost_usd: DecimalString
