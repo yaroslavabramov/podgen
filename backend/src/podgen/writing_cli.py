@@ -151,6 +151,10 @@ def parser(*, research=False):
                 help="Admit a rejected saved reading again under its successor admission contract; no model call",
             )
             command_parser.add_argument(
+                "--max-total-usd",
+                help="Explicit USD limit for a run-cost-budget/1 run after its proven unsent cost refusal",
+            )
+            command_parser.add_argument(
                 "--max-total-input-tokens",
                 type=int,
                 help="Explicit run-wide input ceiling after a proven unsent total-input refusal",
@@ -360,6 +364,7 @@ def main(argv=None, *, research=False):
                 max_total_input_tokens=getattr(args, "max_total_input_tokens", None)
                 if args.command == "resume"
                 else None,
+                max_total_usd=getattr(args, "max_total_usd", None) if args.command == "resume" else None,
                 max_elapsed_seconds=getattr(args, "max_elapsed_seconds", None)
                 if args.command == "resume"
                 else None,

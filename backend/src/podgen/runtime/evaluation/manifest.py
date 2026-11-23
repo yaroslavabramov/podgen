@@ -236,6 +236,10 @@ def create_manifest(repo, generation, command, journal, materials):
             manifest["reading_audit_contract"] = behavior.reading_audit
             manifest[CONSISTENCY_KEY] = CONSISTENCY_VERSION
             manifest[MEMORY_KEY] = MEMORY_VERSION
+    if editorial and behavior.name == "production/1":
+        from . import cost_budget
+
+        manifest[cost_budget.KEY] = run_cost_policy(generation, journal, command)
         manifest["limitations"][1] = (
             "independent model readings; not evidence of human listening or production approval"
         )
@@ -271,3 +275,35 @@ def create_manifest(repo, generation, command, journal, materials):
             behavior.instructions("plan-target-repair", materials.format)
         )
     return journal.create_run(command, manifest)
+
+
+def run_cost_policy(generation, journal, command):
+    """Pin rates for every configured role model; material continuations share the parent's budget."""
+    from podgen.domain.contracts.common import ArtifactRef
+    from podgen.domain.contracts.configuration import ModelProfile
+
+    from . import cost_budget
+
+    refs = [
+        command.writer_profile_ref,
+        command.reviewer_profile_ref,
+        command.planner_profile_ref,
+        command.plan_reviewer_profile_ref,
+    ]
+    models = [
+        ModelProfile.model_validate(
+            generation.get(command.project_id, ArtifactRef.model_validate(ref)).payload
+        ).model_revision_or_alias
+        for ref in refs
+        if ref is not None
+    ]
+    spent, parent = 0, command.material_parent_run_id
+    while parent is not None:
+        parent_manifest = journal.manifest(parent)
+        if cost_budget.active(parent_manifest) is None:
+            break
+        head = journal.execution.current_head(parent) or {}
+        spent += head.get("accounting", {}).get(cost_budget.FIELD, 0)
+        parent = parent_manifest["command"].get("material_parent_run_id")
+        parent = None if parent is None else type(command.run_id)(parent)
+    return cost_budget.policy(models, spent_before_microusd=spent)

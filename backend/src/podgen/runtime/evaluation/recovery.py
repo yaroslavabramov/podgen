@@ -19,13 +19,16 @@ def authorize_recovery(
     max_input_tokens=None,
     total_input_target=None,
     max_total_input_tokens=None,
+    max_total_usd=None,
     readmission_target=None,
     guard,
     allow_create=True,
 ):
     if (budget_target is None) != (max_visible_bytes is None and max_input_tokens is None):
         raise ContractError("input_budget_target_and_allowance_required")
-    if (total_input_target is None) != (max_total_input_tokens is None):
+    if (total_input_target is None) != (max_total_input_tokens is None and max_total_usd is None) or (
+        max_total_input_tokens is not None and max_total_usd is not None
+    ):
         raise ContractError("total_input_target_and_allowance_required")
     targets = (credit_target, plan_target, budget_target, total_input_target, readmission_target)
     if sum(value is not None for value in targets) > 1:
@@ -47,6 +50,7 @@ def authorize_recovery(
             max_total_input_tokens,
             guard=guard,
             allow_create=allow_create,
+            max_total_usd=max_total_usd,
         )
         prefix = "total_input_retry"
     elif budget_target is not None:

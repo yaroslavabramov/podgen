@@ -107,6 +107,7 @@ class WritingEvaluation:
         max_input_tokens=None,
         retry_total_input_budget=None,
         max_total_input_tokens=None,
+        max_total_usd=None,
         readmit_reading=None,
         max_elapsed_seconds=None,
         stop_after_plan=False,
@@ -185,6 +186,7 @@ class WritingEvaluation:
                         max_input_tokens=max_input_tokens,
                         total_input_target=retry_total_input_budget,
                         max_total_input_tokens=max_total_input_tokens,
+                        max_total_usd=max_total_usd,
                         readmission_target=readmit_reading,
                         guard=lambda: None,
                         allow_create=False,
@@ -212,6 +214,7 @@ class WritingEvaluation:
                         max_input_tokens=max_input_tokens,
                         total_input_target=retry_total_input_budget,
                         max_total_input_tokens=max_total_input_tokens,
+                        max_total_usd=max_total_usd,
                         readmission_target=readmit_reading,
                         guard=lambda: None,
                         allow_create=False,
@@ -237,6 +240,7 @@ class WritingEvaluation:
                         max_input_tokens,
                         retry_total_input_budget,
                         max_total_input_tokens,
+                        max_total_usd,
                         readmit_reading,
                     )
                 ):
@@ -408,6 +412,7 @@ class WritingEvaluation:
                 max_input_tokens=max_input_tokens,
                 total_input_target=retry_total_input_budget,
                 max_total_input_tokens=max_total_input_tokens,
+                max_total_usd=max_total_usd,
                 readmission_target=readmit_reading,
                 guard=guard,
             )
@@ -440,6 +445,9 @@ class WritingEvaluation:
             from .total_input_recovery import effective_ceiling
 
             gateway.total_input_ceiling = effective_ceiling(journal, command.run_id)
+            from .total_input_recovery import effective_cost_limit
+
+            gateway.cost_limit_microusd = effective_cost_limit(journal, command.run_id)
             if not stop_after_plan:
                 checkpoint.mark(journal, "resumed", datetime.now(timezone.utc))
             journal.status(command.run_id, "running")

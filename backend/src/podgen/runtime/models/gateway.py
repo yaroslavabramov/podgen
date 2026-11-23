@@ -21,11 +21,14 @@ class ModelGateway:
         poll_seconds=2,
         source_corpus=None,
         total_input_ceiling=None,
+        cost_limit_microusd=None,
     ):
         self.journal, self.provider_factory = journal, provider_factory
         self.sleep, self.poll_seconds = sleep, poll_seconds
         self.source_corpus = source_corpus
         self.total_input_ceiling = total_input_ceiling
+        # An authorized run-cost grant; None uses the manifest's pinned limit.
+        self.cost_limit_microusd = cost_limit_microusd
 
     def _fail(self, invocation, code, *, status="failed", phase=None):
         phase = phase or self.journal.publication(invocation)
@@ -182,6 +185,15 @@ class ModelGateway:
                 )
                 if type(cached) is int and 0 <= cached <= (usage.get("input_tokens") or 0):
                     phase.cached_input_tokens = cached
+                from podgen.runtime.evaluation import cost_budget
+
+                budget = cost_budget.active(self.journal.manifest(invocation["run_id"]))
+                if budget is not None and usage.get("output_tokens") is not None:
+                    try:
+                        phase.cost_microusd = cost_budget.charge(budget, body["model"], value)
+                    except ContractError:
+                        # The conservative submit reservation remains the recorded exposure.
+                        pass
                 phase.transition(
                     "response_completed",
                     provider_id=provider_id,

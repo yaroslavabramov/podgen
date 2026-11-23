@@ -45,7 +45,14 @@ def unsent_evidence(journal, row, *, total_input=False):
             reject()
         kind = event["event_kind"]
         if (
-            kind not in ("failure", "role_input_measurement", "count_intent", "count_response")
+            kind
+            not in (
+                "failure",
+                "role_input_measurement",
+                "count_intent",
+                "count_response",
+                "count_receipt_reused",
+            )
             or kind in events
         ):
             reject()
@@ -58,13 +65,29 @@ def unsent_evidence(journal, row, *, total_input=False):
     if measurement["visible_bytes"] != measured or failure["data"].get("status") != "validation_failed":
         reject()
     code = failure["data"].get("code")
-    if total_input and code == "run_token_budget_exceeded":
-        if len(events) != 4 or type(row.get("input_tokens")) is not int:
+    if total_input and code in ("run_token_budget_exceeded", "run_cost_budget_exceeded"):
+        if type(row.get("input_tokens")) is not int:
             reject()
-        ref, response = events["count_response"]
-        count = load_unique_json(journal.read_blob(ref, BlobRef.model_validate(response["response_blob"])))
-        if count.get("input_tokens") != row["input_tokens"]:
-            reject()
+        if "count_receipt_reused" in events:
+            # A source turn reuses the exact count captured for its context before dispatch.
+            reused = events["count_receipt_reused"][1]["data"]
+            counted = journal.read(RuntimeRef.model_validate(reused["count_ref"]))["data"]
+            if (
+                len(events) != 3
+                or reused.get("input_tokens") != row["input_tokens"]
+                or counted.get("input_tokens") != row["input_tokens"]
+                or counted.get("count_identity") != reused.get("count_identity")
+            ):
+                reject()
+        else:
+            if len(events) != 4:
+                reject()
+            ref, response = events["count_response"]
+            count = load_unique_json(
+                journal.read_blob(ref, BlobRef.model_validate(response["response_blob"]))
+            )
+            if count.get("input_tokens") != row["input_tokens"]:
+                reject()
     elif total_input:
         reject()
     elif code == "role_visible_byte_budget_exceeded":

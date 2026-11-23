@@ -35,6 +35,8 @@ def compile_charges(phase, command, by_kind, intent, receipt):
             output_reserved=submit["data"]["output_reserved"],
             uncertain_calls=1,
         )
+        if getattr(phase, "cost_reserved_microusd", None):
+            proposed[submit_operation]["cost_microusd"] = phase.cost_reserved_microusd
     usage = command.data.get("receipt_state", command.data.get("state", {}))
     if command.kind == "provider_receipt" and usage.get("status") == "response_completed":
         if usage.get("output_tokens") is not None:
@@ -44,6 +46,8 @@ def compile_charges(phase, command, by_kind, intent, receipt):
                 output_tokens=usage["output_tokens"],
                 cached_input_tokens=getattr(phase, "cached_input_tokens", 0),
             )
+            if getattr(phase, "cost_microusd", None) is not None:
+                proposed[submit_operation]["cost_microusd"] = phase.cost_microusd
     if command.data.get("rejection"):
         proposed[submit_operation] = dict(generation_calls=1, rejected_calls=1)
     changes, delta = [], {}

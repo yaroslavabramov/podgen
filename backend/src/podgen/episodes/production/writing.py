@@ -18,7 +18,14 @@ def command(config, journal, progress):
             if field in used:
                 used[field] += value
     original = config.settings.writing_limits
-    if used["input"] >= original.max_total_input_tokens or used["output"] >= original.max_total_output_tokens:
+    from podgen.runtime.evaluation import cost_budget
+
+    # Under run-cost-budget/1 the USD limit is shared through the material chain at manifest
+    # creation; token ceilings are not enforced and are passed unchanged.
+    budgeted = parent is not None and cost_budget.active(journal.manifest(parent)) is not None
+    if not budgeted and (
+        used["input"] >= original.max_total_input_tokens or used["output"] >= original.max_total_output_tokens
+    ):
         raise ContractError("episode_writing_budget_exhausted")
     fixed_plan = None
     if parent is not None:
@@ -46,7 +53,9 @@ def command(config, journal, progress):
         max_script_revisions=2 - progress.get("revisions_used", 0),
         initial_script_ref=progress.get("continuation_script_ref"),
         material_parent_run_id=parent,
-        limits=RunLimits(
+        limits=original
+        if budgeted
+        else RunLimits(
             max_total_input_tokens=original.max_total_input_tokens - used["input"],
             max_total_output_tokens=original.max_total_output_tokens - used["output"],
             max_elapsed_seconds=original.max_elapsed_seconds,

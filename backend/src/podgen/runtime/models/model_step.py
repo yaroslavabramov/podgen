@@ -192,7 +192,10 @@ class ModelStep:
                 or totals["output"] + profile.output_limit > 2**63 - 1
             ):
                 step.fail(invocation, "run_token_usage_overflow", status="validation_failed")
-            if (
+            from podgen.runtime.evaluation import cost_budget
+
+            budget = cost_budget.active(manifest)
+            if budget is None and (
                 totals["input"] + invocation["input_tokens"]
                 > (
                     self.gateway.total_input_ceiling
@@ -202,6 +205,24 @@ class ModelStep:
                 or totals["output"] + profile.output_limit > limits.max_total_output_tokens
             ):
                 step.fail(invocation, "run_token_budget_exceeded", status="validation_failed")
+            if budget is not None:
+                # The USD budget replaces the run-wide token ceilings; context and output limits remain.
+                reserved = cost_budget.reservation(
+                    budget,
+                    body["model"],
+                    invocation["input_tokens"],
+                    profile.output_limit,
+                    web_search=any(tool.get("type") == "web_search" for tool in body.get("tools") or ()),
+                )
+                spent = (j.execution.current_head(invocation["run_id"]) or {}).get("accounting", {})
+                ceiling = cost_budget.stage_ceiling(
+                    budget,
+                    body["metadata"].get("podgen_stage", invocation.get("stage")),
+                    getattr(self.gateway, "cost_limit_microusd", None),
+                )
+                if spent.get(cost_budget.FIELD, 0) + reserved > ceiling:
+                    step.fail(invocation, "run_cost_budget_exceeded", status="validation_failed")
+                step.phase.cost_reserved_microusd = reserved
             from podgen.runtime.dispatch import DispatchStopped, before_external
 
             try:

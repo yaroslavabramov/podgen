@@ -284,6 +284,7 @@ def invoke_tools(gateway, root, profile, contract, *, limits, totals, guard):
             sleep=gateway.sleep,
             poll_seconds=gateway.poll_seconds,
             total_input_ceiling=gateway.total_input_ceiling,
+            cost_limit_microusd=gateway.cost_limit_microusd,
         )
         try:
             response = physical.invoke_once(

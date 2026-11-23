@@ -17,6 +17,7 @@ ACCOUNTING_FIELDS = frozenset(
         "input_tokens",
         "output_tokens",
         "cached_input_tokens",
+        "cost_microusd",
         "output_reserved",
         "rejected_calls",
         "uncertain_calls",
