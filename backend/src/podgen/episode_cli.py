@@ -50,6 +50,7 @@ def parser():
         "review",
         "repair",
         "accept",
+        "retry-recognition",
     ):
         child = commands.add_parser(name)
         if name in ("prepare", "start"):
