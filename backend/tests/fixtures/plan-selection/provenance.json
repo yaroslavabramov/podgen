@@ -1,7 +1,7 @@
 {
-  "source_plan_request": "/Users/yaroslavabramov/side/podgen/tmp/snow-narrative-nov8/calls/plan-review-revised-bc1f9d3e-4d93-53a3-8af3-553afbe1a19f/podgen.json",
+  "source_plan_request": "tmp/snow-narrative-nov8/calls/plan-review-revised-bc1f9d3e-4d93-53a3-8af3-553afbe1a19f/podgen.json",
   "source_plan_request_sha256": "b4871e420783046ef87b0137ccd70573e7e3e5255f60a52ddc2c65f82f02c229",
-  "source_author_request": "/Users/yaroslavabramov/side/podgen/tmp/snow-narrative-nov8/calls/draft-2a49ec25-892f-5b37-ae4a-f9b3ecf362ca/request.json",
+  "source_author_request": "tmp/snow-narrative-nov8/calls/draft-2a49ec25-892f-5b37-ae4a-f9b3ecf362ca/request.json",
   "source_author_request_sha256": "2a1a9a2973cfcf6fe2bdf3eb9ad27d00755daf3f89dcb5e88a2f6e9cdcd82c9b",
   "plan_sha256": "b26101abd36caf21b259f49b244fc274b04a71994b69af488e4c66a045c17877",
   "author_input_sha256": "aab012b89baf2973bf2f40bfb2ee7ebe2b24cf943f639ca8efd83048f9c12de2",
