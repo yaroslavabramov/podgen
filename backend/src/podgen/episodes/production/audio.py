@@ -129,17 +129,20 @@ def render(parent, config, progress, transport, recognition_transport=None):
         return audio, assembly, ref, None
     # Review and finding-based repair need a recognition of exactly the master the user hears,
     # so each assembled master is recognized once; a resumed run reuses the saved result.
-    audits = []
+    audits, derived = [], None
     for round_index in range(verification.max_repair_rounds + 1):
-        audit, report = _verify(
-            audio,
-            config,
-            verification,
-            dict(kind="assembly", ref=ref),
-            f"audio-verification/1:{round_index}",
-            recognition_transport,
-        )
-        audits.append(str(audit))
+        if round_index == 0:
+            audit, report = _verify(
+                audio,
+                config,
+                verification,
+                dict(kind="assembly", ref=ref),
+                "audio-verification/1:0",
+                recognition_transport,
+            )
+            audits.append(str(audit))
+        else:
+            audit, report = derived, _report(audio, derived)
         repairs = [c for c in report["candidates"] if c["review_route"] == "automatic_repair"]
         if not repairs:
             routes = [candidate["review_route"] for candidate in report["candidates"]]
@@ -163,8 +166,11 @@ def render(parent, config, progress, transport, recognition_transport=None):
                 position
                 for candidate in repairs
                 for position, part in enumerate(frame_map)
-                if part["master_start_frame"] < candidate["audio_range"]["end_frame"]
-                and candidate["audio_range"]["start_frame"] < part["master_end_frame"]
+                # The review clip is padded on both sides; the heard words are not.
+                if part["master_start_frame"]
+                < candidate["audio_range"]["end_frame"] - candidate["audio_range"]["margin_frames"]
+                and candidate["audio_range"]["start_frame"] + candidate["audio_range"]["margin_frames"]
+                < part["master_end_frame"]
             }
         )
         reason = f"fidelity_automatic_repair:{audit}"
@@ -183,12 +189,26 @@ def render(parent, config, progress, transport, recognition_transport=None):
                 if result.result_ref is None:
                     raise ContractError("episode_audio_repair_take_unusable")
                 refs[position], samples[position] = RuntimeRef.model_validate(result.result_ref), result
+        # Only re-synthesized parts are recognized; the new master's recognition is composed.
+        parts = {}
+        for position in affected:
+            parts[position], _ = _verify(
+                audio,
+                config,
+                verification,
+                dict(kind="comparison_result", ref=refs[position]),
+                f"audio-verification/1:{round_index + 1}:part:{position}",
+                recognition_transport,
+            )
+            audits.append(str(parts[position]))
         assembly = AssemblyConfig(
             assembly_id=uuid5(config.run_id, f"audio-assembly/1:repair:{round_index + 1}"),
             comparison_run_id=audio.run_id,
             part_result_refs=refs,
         )
         ref = build(audio, assembly, samples=samples, outcomes=[validated])
+        derived = _derive(audio, config, verification, ref, round_index + 1, audit, frame_map, parts)
+        audits.append(str(derived))
     raise ContractError("episode_audio_repair_exhausted")
 
 
@@ -216,6 +236,62 @@ def audit_config(audio, config, settings, subject, name):
         reservation_usd=settings.reservation_usd,
         subject=AudioSubject.model_validate(subject),
     )
+
+
+def _report(audio, audit_id):
+    from podgen.runtime.evaluation.audio.fidelity.processing import revisions
+
+    return [row for row in revisions(audio, audit_id) if row["result"]][-1]["result"]["report"]
+
+
+def _recognition(audio, audit_id):
+    from podgen.audio.recognition.contracts import Recognition
+    from podgen.runtime.evaluation.audio.fidelity.processing import revisions
+
+    row = [row for row in revisions(audio, audit_id) if row["result"]][-1]
+    return Recognition.model_validate(audio.get(row["key"] + ":recognition")["output"])
+
+
+def _derive(audio, config, settings, ref, round_index, previous, previous_map, parts):
+    """Recognition of a reassembled master from the previous master's words and the new parts' words."""
+    from podgen.audio.recognition.contracts import Recognition
+    from podgen.runtime.evaluation.audio.fidelity.processing import derive
+
+    assembled = audio.repo.get_runtime(audio.project, RuntimeRef.model_validate(ref))
+    rate = assembled["normalization"]["sample_rate_hz"]
+    old = _recognition(audio, previous)
+    segments = []
+    for position, part in enumerate(assembled["frame_map"]):
+        start = part["master_start_frame"] / rate
+        if position in parts:
+            words = [(s.text, s.start, s.end) for s in _recognition(audio, parts[position]).segments]
+        else:
+            before = previous_map[position]
+            low, high = before["master_start_frame"] / rate, before["master_end_frame"] / rate
+            words = [
+                (s.text, s.start - low, s.end - low)
+                for s in old.segments
+                if low <= (s.start + s.end) / 2 < high
+            ]
+        segments.extend(
+            dict(text=text, start=max(0, a + start), end=max(0, b + start)) for text, a, b in words
+        )
+    composed = Recognition(
+        text=" ".join(segment["text"] for segment in segments),
+        duration=assembled["frame_map"][-1]["master_end_frame"] / rate,
+        segments=segments,
+        request_id="derived",
+    )
+    name = f"audio-verification/1:{round_index}"
+    audit = audit_config(audio, config, settings, dict(kind="assembly", ref=ref), name)
+    sources = dict(
+        contract="episode-derived-recognition-sources/1",
+        previous_audit_id=str(previous),
+        part_audit_ids={str(position): str(audit_id) for position, audit_id in sorted(parts.items())},
+    )
+    if derive(audio, audit, composed, sources) != "candidates_generated":
+        raise ContractError("episode_audio_derived_recognition_failed")
+    return audit.audit_id
 
 
 def _verify(audio, config, settings, subject, name, transport):

@@ -6,7 +6,7 @@ from podgen.domain.errors import ContractError
 from .contracts import prefix
 from .deliveries import RetryPolicy, deliveries, latest, reserved
 from .prepare import prepare
-from .processing import process, revisions
+from .processing import from_receipt, process, revisions
 from .submission import submit
 
 
@@ -17,7 +17,7 @@ def state(journal, config):
     processed = [
         r
         for r in revisions(journal, config.audit_id)
-        if r["prepared"]["source_receipt_ref"] == journal.ref(key + ":receipt").model_dump(mode="json")
+        if from_receipt(r, journal.ref(key + ":receipt").model_dump(mode="json"))
     ]
     if processed and processed[-1]["result"]:
         return "candidates_generated"

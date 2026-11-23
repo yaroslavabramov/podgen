@@ -126,42 +126,52 @@ def test_full_native_render_has_more_than_two_parts_and_exact_assembly_coverage(
     assert runner.run() == result and len(speech.calls) == len(assembled["frame_map"])
 
 
-class Recognizer:
-    """Hears the accepted script; the first master also carries invented sentences."""
+def texts(value):
+    """Every text field of a provider request body, in order."""
+    if isinstance(value, dict):
+        return [
+            t for k, v in value.items() for t in ([v] if k == "text" and isinstance(v, str) else texts(v))
+        ]
+    return [t for v in value for t in texts(v)] if isinstance(value, list) else []
 
-    def __init__(self, repo, project, runner, misheard=False):
+
+class Recognizer:
+    """The first master carries invented sentences; a re-synthesized part says exactly its text."""
+
+    def __init__(self, repo, project, runner, run_id, misheard=False):
         self.repo, self.project, self.runner, self.calls = repo, project, runner, []
-        self.misheard, self.spliced = misheard, None
+        self.run_id, self.misheard, self.spliced = run_id, misheard, None
 
     def submit(self, request, body, credential):
-        from uuid import UUID
-
         from podgen.audio.http import HttpReceipt
-        from podgen.runtime.evaluation.journal import EvaluationJournal
-        from podgen.runtime.evaluation.reading_validation import read_descriptor
+        from podgen.runtime.evaluation.audio.attempts import prefix as take_prefix
 
         self.calls.append(request)
         if self.spliced is not None:
             # Localization of a local replacement hears exactly its synthesis text.
-            words = " ".join(u["text"] for u in self.spliced()["synthesis_input"]["utterances"]).split()
-            step = 3 / (len(words) + 1)
-            segments = [
-                dict(text=w, start=(i + 0.2) * step, end=(i + 0.7) * step) for i, w in enumerate(words)
+            parts = [" ".join(u["text"] for u in self.spliced()["synthesis_input"]["utterances"]).split()]
+        else:
+            audio = AudioJournal(self.repo, self.project, uuid5(self.run_id, "audio-render/2"))
+            cells = audio.get("manifest")["cells"]
+            if len(self.calls) == 1:
+                # Each 3-second part says its own words; the middle part also invents a sentence.
+                parts = [" ".join(texts(cell["request"]["body"])).split() for cell in cells]
+                parts[len(parts) // 2][1:1] = "Всё осложняется тем что крюка надо два".split()
+            else:
+                cell = next(c for c in cells if audio.get(take_prefix(c["cell_id"], 2) + ":prepared"))
+                parts = [" ".join(texts(cell["request"]["body"])).split()]
+                if self.misheard:
+                    parts[0][parts[0].index("chronology")] = "chronicle"
+        words, segments = [], []
+        for index, said in enumerate(parts):
+            step = 3 / (len(said) + 1)
+            segments += [
+                dict(text=w, start=index * 3 + (i + 0.2) * step, end=index * 3 + (i + 0.7) * step)
+                for i, w in enumerate(said)
             ]
-            body = dict(text=" ".join(words), duration=3, segments=segments, request_id="fixture")
-            return HttpReceipt(200, {"content-type": "application/json"}, json.dumps(body).encode(), 20)
-        writing = UUID(self.runner.progress["writing_run_id"])
-        script = read_descriptor(EvaluationJournal(self.repo, self.project), writing).outcome["output"]
-        words = " ".join(u["text"] for u in script["utterances"]).split()
-        if len(self.calls) == 1:
-            middle = len(words) // 2
-            words[middle:middle] = "Всё осложняется тем что крюка надо два".split()
-        elif self.misheard:
-            words[words.index("chronology")] = "chronicle"
-        text = " ".join(words)
-        segments = [dict(text=word, start=i * 0.01, end=i * 0.01 + 0.008) for i, word in enumerate(words)]
-        body = dict(text=text, duration=len(words) * 0.01, segments=segments, request_id="fixture")
-        return HttpReceipt(200, {"content-type": "application/json"}, json.dumps(body).encode(), 20)
+            words += said
+        value = dict(text=" ".join(words), duration=len(parts) * 3, segments=segments, request_id="fixture")
+        return HttpReceipt(200, {"content-type": "application/json"}, json.dumps(value).encode(), 20)
 
 
 def test_invented_content_is_resynthesized_once_and_verified_again(repo, scope, producer, monkeypatch):
@@ -175,14 +185,15 @@ def test_invented_content_is_resynthesized_once_and_verified_again(repo, scope, 
     config = config.model_copy(update=dict(settings=settings))
     runner.writer.provider_factory = lambda _: LongScriptProvider()
     monkeypatch.setenv("FISH_API_KEY", "fixture")
-    recognizer = Recognizer(repo, scope[0], runner)
+    recognizer = Recognizer(repo, scope[0], runner, config.run_id)
     runner.recognition_transport = recognizer
     prepare(repo, scope[0], config)
     result = runner.run()
     assert result["status"] == "assembled"
     verification = result["progress"]["audio_verification"]
     assert verification["repair_rounds"] == 1 and verification["automatic_repair"] == 0
-    assert len(verification["audits"]) == 2 and verification["final_audit_id"] == verification["audits"][-1]
+    # The first master, the re-synthesized part and the composed recognition of the new master.
+    assert len(verification["audits"]) == 3 and verification["final_audit_id"] == verification["audits"][-1]
     assert verification["master"]["ref"] == result["progress"]["assembly_ref"]
     assembled = repo.get_runtime(scope[0], RuntimeRef.model_validate(result["progress"]["assembly_ref"]))
     parts = len(assembled["frame_map"])
@@ -218,7 +229,7 @@ def test_a_confirmed_finding_is_repaired_and_the_listened_master_accepted(
     config = config.model_copy(update=dict(settings=settings))
     runner.writer.provider_factory = lambda _: LongScriptProvider()
     monkeypatch.setenv("FISH_API_KEY", "fixture")
-    recognizer = Recognizer(repo, scope[0], runner, misheard=True)
+    recognizer = Recognizer(repo, scope[0], runner, config.run_id, misheard=True)
     runner.recognition_transport = recognizer
     prepare(repo, scope[0], config)
     assert runner.run()["status"] == "assembled"

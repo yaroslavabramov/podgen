@@ -2,7 +2,7 @@ from ..export_directory import write_json
 from ..immutable_export import write_bytes
 from ..immutable_export import write_json as immutable_json
 from .deliveries import latest
-from .processing import revisions
+from .processing import from_receipt, revisions
 
 
 def export_results(journal, config, folder):
@@ -24,7 +24,7 @@ def export_results(journal, config, folder):
         successful.append(dict(result_ref=ref, path=f"results/{ref['record_id']}/candidates.json"))
     current = rows[-1] if rows else None
     receipt_ref = journal.ref(latest(journal, config)["key"] + ":receipt").model_dump(mode="json")
-    active = current if current and current["prepared"]["source_receipt_ref"] == receipt_ref else None
+    active = current if current and from_receipt(current, receipt_ref) else None
     selected = successful[-1] if active and active["result"] else None
     pointer = dict(
         contract="audio-fidelity-current/2",
