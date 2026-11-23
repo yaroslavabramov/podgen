@@ -1,6 +1,0 @@
-{
-  "only_model_request_change": "generation_config.speech_config voice: concierge-1 to podcaster-1",
-  "identical_full_text": true,
-  "identical_other_model_settings": true,
-  "one_attempt": true
-}

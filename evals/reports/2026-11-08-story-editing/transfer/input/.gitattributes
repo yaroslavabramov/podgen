@@ -1,3 +1,0 @@
-# Immutable source representations retain the extractor's literal whitespace.
-acquisition/*.txt -whitespace
-sources/*.txt -whitespace

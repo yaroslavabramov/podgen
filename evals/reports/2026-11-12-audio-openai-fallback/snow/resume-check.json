@@ -1,9 +1,0 @@
-{
-  "real_persisted_resume_checked": true,
-  "network_dispatches": 0,
-  "requests_before": 9,
-  "requests_after": 9,
-  "cost_or_reservation_before_usd": "0.288124",
-  "cost_or_reservation_after_usd": "0.288124",
-  "unknown_was_not_retried": true
-}

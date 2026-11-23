@@ -1,8 +1,0 @@
-{
-  "variant": "blind",
-  "source_window": 4,
-  "model": "gpt-realtime-2.1",
-  "input_audio_sha256": "4242470df60b4929d3e342434987643798a95ffce1b467c77ecf7f8925ade662",
-  "wire_sha256": "6ba408fdc94fb3c836db62fd4fb2f0a3d0b7087c1fc18a7c040e57a20f40a48d",
-  "diagnostic_change": "wait for audio item.done and retrieve server audio before response.create; blind additionally removes reference/ASR/tools and simplifies task"
-}

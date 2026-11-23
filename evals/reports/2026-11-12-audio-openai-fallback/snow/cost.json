@@ -1,8 +1,0 @@
-{
-  "known_openai_usage_cost_usd": "0.108124",
-  "billing_basis": "Published uncached text/audio rates times returned usage, not invoice; unknown requests retain budget reservation separately.",
-  "tts_requests": 0,
-  "asr_requests": 0,
-  "repair_requests": 0,
-  "coverage": "41 supplied discrepancies in32 candidate windows; not entire recording listening"
-}

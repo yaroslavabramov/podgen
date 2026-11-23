@@ -1,9 +1,0 @@
-........................................................................ [ 98%]
-.                                                                        [100%]
-=============================== warnings summary ===============================
-tests/test_execution_batch_boundaries.py::test_publication_descriptor_rollback_and_warm_checkpoint_query_bound
-  /Users/yaroslavabramov/side/podgen/backend/.venv/lib/python3.14/site-packages/alembic/config.py:604: DeprecationWarning: No path_separator found in configuration; falling back to legacy splitting on spaces, commas, and colons for prepend_sys_path.  Consider adding path_separator=os to Alembic config.
-    util.warn_deprecated(
-
--- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
-73 passed, 1 warning in 85.47s (0:01:25)

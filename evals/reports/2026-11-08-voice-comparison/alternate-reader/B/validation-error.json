@@ -1,7 +1,0 @@
-{
-  "valid": false,
-  "reason": "Value error, keep_cannot_require_revision",
-  "model_recommendation": "keep",
-  "model_scope": "local",
-  "resubmitted": false
-}

@@ -1,2 +1,0 @@
-# Preserve the literal source representations and their hashes.
-sources/*.txt -whitespace

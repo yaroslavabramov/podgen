@@ -1,5 +1,0 @@
-Traceback (most recent call last):
-  File "<stdin>", line 17, in <module>
-  File "/Users/yaroslavabramov/side/podgen/backend/src/podgen/runtime/evaluation/recheck_request.py", line 80, in semantic_request
-    raise Conflict("revision_verification_request_lineage_mismatch")
-podgen.domain.errors.Conflict: revision_verification_request_lineage_mismatch

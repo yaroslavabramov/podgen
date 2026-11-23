@@ -1,8 +1,0 @@
-{
-  "control": "exact via production RealtimeTransport",
-  "wire_sha256": "51f628f881b7dfdd8e3e9771fe61497caf3dc8fc80b14f27bd08567ad53e4604",
-  "raw_trace_sha256": "b667ca251dddc1714c2ee1e918f8b2effcdf0ea3eed41ef780c4f9879079177f",
-  "expected": "dismissed/asr_error; audible1970, ASRdecoy1971",
-  "observed": "passed",
-  "estimated_cost_usd": "0.01312"
-}
